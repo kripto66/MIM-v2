@@ -1,0 +1,27 @@
+# Fichiers de configuration locaux
+config/*.local.php
+.env
+
+# Base de données et dumps
+*.sql.gz
+*.sql.zip
+
+# Journalisation
+*.log
+
+# Système
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# IDE / éditeurs
+.vscode/
+.idea/
+*.sublime-workspace
+
+# PHP
+vendor/
+composer.lock
+
+# OS temporaires
+*.tmp

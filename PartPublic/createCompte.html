@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>MIM — Créer un compte</title>
+
+    <link rel="stylesheet" href="inscription.css">
+
+</head>
+
+<body>
+
+    <main class="register-container">
+
+        <section class="register-card">
+
+            <div class="register-header">
+
+                <a href="index.html" class="logo">
+                    MIM
+                </a>
+
+                <h1>Créer un compte</h1>
+
+                <p>
+                    Rejoignez MyImmoManagement et simplifiez
+                    la gestion de votre activité immobilière.
+                </p>
+
+            </div>
+
+
+            <form id="registerForm">
+
+                <div class="form-group">
+
+                    <label for="account_type">
+                        Type de compte
+                    </label>
+
+                    <select
+                        id="account_type"
+                        name="account_type"
+                        required
+                    >
+
+                        <option value="" selected disabled>
+                            Choisissez votre type de compte
+                        </option>
+
+                        <option value="proprietaire">
+                            🏠 Propriétaire
+                            
+                        </option>
+
+                        <option value="agence">
+                            🏢 Agence immobilière
+                        </option>
+
+                        <option value="entreprise">
+                            🏨 Entreprise
+                            
+                        </option>
+
+                    </select>
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="name">
+                        Nom complet
+                    </label>
+
+                    <input
+                        type="text"
+                        id="name"
+                        name="name"
+                        placeholder="Votre nom complet"
+                        autocomplete="name"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="email">
+                        Adresse email
+                    </label>
+
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        placeholder="exemple@email.com"
+                        autocomplete="email"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="phone">
+                        Numéro de téléphone
+                    </label>
+
+                    <input
+                        type="tel"
+                        id="phone"
+                        name="phone"
+                        placeholder="+221 XX XXX XX XX"
+                        autocomplete="tel"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="password">
+                        Mot de passe
+                    </label>
+
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="Créer un mot de passe"
+                        autocomplete="new-password"
+                        minlength="8"
+                        required
+                    >
+
+                    <small>
+                        Minimum 8 caractères.
+                    </small>
+
+                </div>
+
+
+                <div class="form-group">
+
+                    <label for="password_confirm">
+                        Confirmer le mot de passe
+                    </label>
+
+                    <input
+                        type="password"
+                        id="password_confirm"
+                        name="password_confirm"
+                        placeholder="Confirmer votre mot de passe"
+                        autocomplete="new-password"
+                        minlength="8"
+                        required
+                    >
+
+                </div>
+
+
+                <div class="terms">
+
+                    <input
+                        type="checkbox"
+                        id="terms"
+                        name="terms"
+                        required
+                    >
+
+                    <label for="terms">
+
+                        J'accepte les
+
+                        <a href="#">
+                            conditions d'utilisation
+                        </a>
+
+                        et la
+
+                        <a href="#">
+                            politique de confidentialité
+                        </a>.
+
+                    </label>
+
+                </div>
+
+
+                <div id="formMessage"></div>
+
+
+                <button
+                    type="submit"
+                    id="submitButton"
+                >
+                    Créer mon compte
+                </button>
+
+            </form>
+
+
+            <div class="login-link">
+
+                <p>
+
+                    Vous avez déjà un compte ?
+
+                    <a href="connexion.html">
+                        Se connecter
+                    </a>
+
+                </p>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <script>
+
+        const form = document.getElementById("registerForm");
+
+        const message = document.getElementById("formMessage");
+
+        const button = document.getElementById("submitButton");
+
+
+        form.addEventListener("submit", async function(event) {
+
+            event.preventDefault();
+
+
+            message.textContent = "";
+
+            message.className = "";
+
+
+            button.disabled = true;
+
+            button.textContent = "Création du compte...";
+
+
+            const formData = new FormData(form);
+
+
+            try {
+
+                const response = await fetch("../auth/register.php", {
+
+                    method: "POST",
+
+                    body: formData
+
+                });
+
+
+                const data = await response.json();
+
+
+                if (data.success) {
+
+                    message.textContent = data.message;
+
+                    message.className = "success";
+
+
+                    form.reset();
+
+
+                    setTimeout(function() {
+
+                        window.location.href = "../PartProprietaires/dashboard.html";
+
+                    }, 1200);
+
+
+                } else {
+
+                    message.textContent = data.message;
+
+                    message.className = "error";
+
+
+                    button.disabled = false;
+
+                    button.textContent = "Créer mon compte";
+
+                }
+
+
+            } catch (error) {
+
+                console.error(error);
+
+
+                message.textContent =
+                    "Impossible de contacter le serveur.";
+
+                message.className = "error";
+
+
+                button.disabled = false;
+
+                button.textContent = "Créer mon compte";
+
+            }
+
+        });
+
+    </script>
+
+</body>
+
+</html>

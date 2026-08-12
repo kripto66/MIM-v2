@@ -1,0 +1,538 @@
+/* =========================================
+   RESET
+========================================= */
+
+* {
+    box-sizing: border-box;
+}
+
+html {
+    width: 100%;
+    min-height: 100%;
+}
+
+body {
+    width: 100%;
+    min-height: 100vh;
+
+    margin: 0;
+    padding: 25px;
+
+    font-family: Arial, sans-serif;
+
+    background:
+        linear-gradient(
+            135deg,
+            #5717a5,
+            #490767,
+            #c50974
+        );
+
+    color: #222;
+}
+
+
+/* =========================================
+   CONTENEUR
+========================================= */
+
+.register-container {
+    width: 100%;
+    min-height: calc(100vh - 50px);
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+
+/* =========================================
+   CARTE
+========================================= */
+
+.register-card {
+    width: 100%;
+    max-width: 620px;
+
+    padding: clamp(25px, 5vw, 45px);
+
+    background: rgba(255, 255, 255, 0.97);
+
+    border-radius: 22px;
+
+    box-shadow:
+        0 25px 60px rgba(0, 0, 0, 0.25);
+
+    animation: cardAppear 0.5s ease;
+}
+
+
+/* =========================================
+   ANIMATION
+========================================= */
+
+@keyframes cardAppear {
+
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+}
+
+
+/* =========================================
+   HEADER
+========================================= */
+
+.register-header {
+    text-align: center;
+
+    margin-bottom: 30px;
+}
+
+
+/* =========================================
+   LOGO
+========================================= */
+
+.logo {
+    width: 65px;
+    height: 65px;
+
+    margin: 0 auto 18px;
+
+    display: flex;
+    justify-content: center;
+    align-items: center;
+
+    border-radius: 18px;
+
+    background:
+        linear-gradient(
+            45deg,
+            #5717a5,
+            #490767,
+            #c50974
+        );
+
+    color: white;
+
+    font-size: 22px;
+    font-weight: bold;
+
+    text-decoration: none;
+
+    box-shadow:
+        0 8px 20px rgba(87, 23, 165, 0.25);
+}
+
+
+.logo:hover {
+    transform: translateY(-2px);
+}
+
+
+/* =========================================
+   TITRE
+========================================= */
+
+.register-header h1 {
+    margin: 0 0 10px;
+
+    font-size: clamp(25px, 5vw, 34px);
+
+    color: #222;
+}
+
+
+.register-header p {
+    max-width: 480px;
+
+    margin: auto;
+
+    color: #666;
+
+    font-size: clamp(14px, 2vw, 16px);
+
+    line-height: 1.6;
+}
+
+
+/* =========================================
+   FORMULAIRE
+========================================= */
+
+form {
+    width: 100%;
+}
+
+
+/* =========================================
+   GROUPE
+========================================= */
+
+.form-group {
+    width: 100%;
+
+    margin-bottom: 20px;
+}
+
+
+/* =========================================
+   LABEL
+========================================= */
+
+.form-group label {
+    display: block;
+
+    margin-bottom: 8px;
+
+    color: #333;
+
+    font-size: 15px;
+
+    font-weight: 600;
+}
+
+
+/* =========================================
+   INPUT + SELECT
+========================================= */
+
+input,
+select {
+    width: 100%;
+
+    min-height: 50px;
+
+    padding: 13px 15px;
+
+    border: 1px solid #d4d4d4;
+
+    border-radius: 9px;
+
+    background-color: white;
+
+    color: #222;
+
+    font-size: 16px;
+
+    outline: none;
+
+    transition:
+        border-color 0.25s ease,
+        box-shadow 0.25s ease,
+        transform 0.2s ease;
+}
+
+
+input::placeholder {
+    color: #999;
+}
+
+
+/* Focus */
+
+input:focus,
+select:focus {
+
+    border-color: #5717a5;
+
+    box-shadow:
+        0 0 0 4px rgba(87, 23, 165, 0.12);
+}
+
+
+/* =========================================
+   PETIT TEXTE
+========================================= */
+
+small {
+    display: block;
+
+    margin-top: 6px;
+
+    color: #777;
+
+    font-size: 12px;
+}
+
+
+/* =========================================
+   CONDITIONS
+========================================= */
+
+.terms {
+    display: flex;
+
+    align-items: flex-start;
+
+    gap: 10px;
+
+    margin: 10px 0 25px;
+}
+
+
+.terms input {
+    width: 18px;
+    height: 18px;
+
+    min-height: 18px;
+
+    margin-top: 2px;
+
+    flex-shrink: 0;
+
+    accent-color: #5717a5;
+}
+
+
+.terms label {
+    margin: 0;
+
+    color: #666;
+
+    font-size: 13px;
+
+    line-height: 1.5;
+}
+
+
+a {
+    color: #5717a5;
+
+    font-weight: 600;
+
+    text-decoration: none;
+}
+
+
+a:hover {
+    color: #c50974;
+
+    text-decoration: underline;
+}
+
+
+/* =========================================
+   BOUTON
+========================================= */
+
+button {
+    width: 100%;
+
+    min-height: 52px;
+
+    padding: 14px 20px;
+
+    border: none;
+
+    border-radius: 10px;
+
+    background:
+        linear-gradient(
+            45deg,
+            #5717a5,
+            #490767,
+            #c50974
+        );
+
+    color: white;
+
+    font-size: 16px;
+
+    font-weight: 600;
+
+    cursor: pointer;
+
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.3s ease,
+        opacity 0.3s ease;
+}
+
+
+button:hover {
+
+    transform: translateY(-2px);
+
+    box-shadow:
+        0 10px 25px rgba(87, 23, 165, 0.3);
+}
+
+
+button:active {
+    transform: translateY(0);
+}
+
+
+/* =========================================
+   CONNEXION
+========================================= */
+
+.login-link {
+    margin-top: 25px;
+
+    text-align: center;
+}
+
+
+.login-link p {
+    margin: 0;
+
+    color: #666;
+
+    font-size: 14px;
+}
+
+
+/* =========================================
+   PETITS TÉLÉPHONES
+========================================= */
+
+@media (max-width: 550px) {
+
+    body {
+        padding: 10px;
+    }
+
+    .register-container {
+        min-height: calc(100vh - 20px);
+
+        align-items: flex-start;
+    }
+
+    .register-card {
+        margin: 10px 0;
+
+        padding: 25px 18px;
+
+        border-radius: 17px;
+    }
+
+    .register-header {
+        margin-bottom: 25px;
+    }
+
+    .logo {
+        width: 55px;
+        height: 55px;
+
+        margin-bottom: 15px;
+
+        border-radius: 15px;
+    }
+
+    .form-group {
+        margin-bottom: 17px;
+    }
+
+    input,
+    select {
+        min-height: 48px;
+
+        font-size: 16px;
+    }
+
+    button {
+        min-height: 50px;
+    }
+
+}
+
+
+/* =========================================
+   TRÈS PETITS ÉCRANS
+========================================= */
+
+@media (max-width: 360px) {
+
+    body {
+        padding: 5px;
+    }
+
+    .register-card {
+        padding: 22px 15px;
+    }
+
+    .terms label {
+        font-size: 12px;
+    }
+
+}
+
+
+/* =========================================
+   TABLETTES / PC
+========================================= */
+
+@media (min-width: 768px) {
+
+    .register-card {
+        max-width: 650px;
+    }
+
+}
+
+
+/* =========================================
+   ACCESSIBILITÉ
+========================================= */
+
+@media (prefers-reduced-motion: reduce) {
+
+    *,
+    *::before,
+    *::after {
+        animation: none !important;
+        transition: none !important;
+    }
+
+}
+
+
+/* =========================================
+   MESSAGES (succès / erreur / avertissement)
+========================================= */
+
+#formMessage {
+    display: none;
+
+    margin-bottom: 20px;
+
+    padding: 12px 15px;
+
+    border-radius: 9px;
+
+    font-size: 14px;
+
+    font-weight: 600;
+
+    text-align: center;
+}
+
+#formMessage.success {
+    display: block;
+
+    color: #1e7e34;
+
+    background-color: #d4edda;
+
+    border: 1px solid #c3e6cb;
+}
+
+#formMessage.error {
+    display: block;
+
+    color: #c0392b;
+
+    background-color: #fbe0dc;
+
+    border: 1px solid #f5c6cb;
+}

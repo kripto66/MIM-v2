@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Connexion — MyImmoManagement</title>
+
+    <link rel="stylesheet" href="connexion.css">
+
+</head>
+
+<body>
+
+    <main>
+
+        <section id="connexion">
+           <div class="title-login">
+    <span class="logo">MIM</span>
+    <h1>Connexion</h1>
+</div>
+
+            <p>
+                Connectez-vous à votre espace MyImmoManagement.
+            </p>
+
+            <form id="loginForm">
+
+                <label for="email">
+                    Adresse email
+                </label>
+
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    placeholder="exemple@email.com"
+                    required
+                >
+<br>
+                <label for="password">
+                    Mot de passe
+                </label>
+
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    placeholder="Votre mot de passe"
+                    required
+                >
+<br>
+                <button type="submit">
+                    Se connecter
+                </button>
+
+            </form>
+
+            <p>
+                <a href="forgot.html">
+                    Mot de passe oublié ?
+                </a>
+            </p>
+
+            <p>
+                Vous n'avez pas encore de compte ?
+                <a href="createCompte.html">
+                    Créer un compte
+                </a>
+            </p>
+
+        </section>
+
+    </main>
+
+    <div id="loginMessage"></div>
+
+    <script>
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const form = e.target;
+            const message = document.getElementById('loginMessage');
+            const button = form.querySelector('button[type="submit"]');
+
+            message.textContent = '';
+            button.disabled = true;
+            button.textContent = 'Connexion...';
+
+            const formData = new FormData(form);
+
+            try {
+                const response = await fetch('../auth/login.php', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    message.textContent = data.message;
+                    message.className = 'success';
+                    window.location.href = '../PartProprietaires/dashboard.html';
+                } else {
+                    message.textContent = data.message;
+                    message.className = 'error';
+                }
+            } catch (error) {
+                console.error('Erreur:', error);
+                message.textContent = 'Impossible de contacter le serveur.';
+                message.className = 'error';
+            }
+
+            button.disabled = false;
+            button.textContent = 'Se connecter';
+        });
+    </script>
+
+</body>
+
+</html>

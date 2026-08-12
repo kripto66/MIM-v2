@@ -1,0 +1,631 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>MIM — Dashboard Propriétaire</title>
+
+    <!--
+        CSS du dashboard.
+        Tu t'occupes entièrement du design.
+    -->
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+
+<body>
+
+
+    <!-- =========================================================
+         STRUCTURE PRINCIPALE DU DASHBOARD
+         ========================================================= -->
+
+    <div class="dashboard">
+
+
+        <!-- =====================================================
+             SIDEBAR / MENU
+             ===================================================== -->
+
+        <aside class="sidebar">
+
+            <!-- Logo MIM -->
+            <div class="logo">
+                MIM
+            </div>
+
+
+            <!-- Menu principal -->
+            <nav class="sidebar-menu">
+
+                <!-- Tableau de bord -->
+                <a href="dashboard.html">
+                    Tableau de bord
+                </a>
+
+
+                <!-- Gestion des biens -->
+                <a href="biens.html">
+                    Mes biens
+                </a>
+
+
+                <!-- Gestion des logements -->
+                <a href="logements.html">
+                    Logements
+                </a>
+
+
+                <!-- Gestion des locataires -->
+                <a href="locataires.html">
+                    Locataires
+                </a>
+
+
+                <!-- Gestion des paiements -->
+                <a href="paiements.html">
+                    Paiements
+                </a>
+
+
+                <!-- Incidents signalés -->
+                <a href="incidents.html">
+                    Incidents
+                </a>
+
+
+                <!-- Prestataires -->
+                <a href="prestataires.html">
+                    Prestataires
+                </a>
+
+
+                <!-- Interventions -->
+                <a href="interventions.html">
+                    Interventions
+                </a>
+
+
+                <!-- Notifications -->
+                <a href="notifications.html">
+                    Notifications
+                </a>
+
+
+                <!-- Paramètres -->
+                <a href="parametres.html">
+                    Paramètres
+                </a>
+
+            </nav>
+
+
+            <!-- Déconnexion -->
+            <div class="sidebar-footer">
+
+                <a href="../auth/logout.php">
+                    Déconnexion
+                </a>
+
+            </div>
+
+        </aside>
+
+
+
+        <!-- =====================================================
+             CONTENU PRINCIPAL
+             ===================================================== -->
+
+        <main class="main-content">
+
+
+            <!-- =================================================
+                 HEADER DU DASHBOARD
+                 ================================================= -->
+
+            <header class="dashboard-header">
+
+                <!-- Nom du propriétaire -->
+                <div class="welcome">
+
+                    <h1>
+                        Bonjour, <span id="ownerName">Propriétaire</span>
+                    </h1>
+
+                    <p>
+                        Voici un aperçu de votre activité.
+                    </p>
+
+                </div>
+
+
+                <!-- Notifications -->
+                <div class="header-actions">
+
+                    <a href="notifications.html">
+                        Notifications
+                    </a>
+
+
+                    <!-- Profil -->
+                    <a href="profil.html">
+                        Mon profil
+                    </a>
+
+                </div>
+
+            </header>
+
+
+
+            <!-- =================================================
+                 VUE D'ENSEMBLE
+                 ================================================= -->
+
+            <section class="dashboard-overview">
+
+
+                <!-- Nombre total de logements -->
+                <article class="stat-card">
+
+                    <h3>
+                        Logements
+                    </h3>
+
+                    <!--
+                        Cette valeur sera récupérée depuis la base
+                        de données.
+                    -->
+                    <strong id="totalProperties">
+                        0
+                    </strong>
+
+                    <p>
+                        Total des logements
+                    </p>
+
+                </article>
+
+
+
+                <!-- Logements occupés -->
+                <article class="stat-card">
+
+                    <h3>
+                        Occupés
+                    </h3>
+
+                    <strong id="occupiedProperties">
+                        0
+                    </strong>
+
+                    <p>
+                        Logements occupés
+                    </p>
+
+                </article>
+
+
+
+                <!-- Logements libres -->
+                <article class="stat-card">
+
+                    <h3>
+                        Libres
+                    </h3>
+
+                    <strong id="availableProperties">
+                        0
+                    </strong>
+
+                    <p>
+                        Logements disponibles
+                    </p>
+
+                </article>
+
+
+
+                <!-- Loyers attendus -->
+                <article class="stat-card">
+
+                    <h3>
+                        Loyers attendus
+                    </h3>
+
+                    <strong id="expectedRent">
+                        0 FCFA
+                    </strong>
+
+                    <p>
+                        Ce mois
+                    </p>
+
+                </article>
+
+
+
+                <!-- Loyers encaissés -->
+                <article class="stat-card">
+
+                    <h3>
+                        Loyers encaissés
+                    </h3>
+
+                    <strong id="paidRent">
+                        0 FCFA
+                    </strong>
+
+                    <p>
+                        Ce mois
+                    </p>
+
+                </article>
+
+
+
+                <!-- Loyers en retard -->
+                <article class="stat-card">
+
+                    <h3>
+                        Retards
+                    </h3>
+
+                    <strong id="lateRent">
+                        0 FCFA
+                    </strong>
+
+                    <p>
+                        Loyers en retard
+                    </p>
+
+                </article>
+
+
+
+                <!-- Incidents -->
+                <article class="stat-card">
+
+                    <h3>
+                        Incidents
+                    </h3>
+
+                    <strong id="activeIncidents">
+                        0
+                    </strong>
+
+                    <p>
+                        Incidents en cours
+                    </p>
+
+                </article>
+
+
+
+                <!-- Interventions -->
+                <article class="stat-card">
+
+                    <h3>
+                        Interventions
+                    </h3>
+
+                    <strong id="activeInterventions">
+                        0
+                    </strong>
+
+                    <p>
+                        En cours
+                    </p>
+
+                </article>
+
+
+            </section>
+
+
+
+            <!-- =================================================
+                 MES BIENS
+                 ================================================= -->
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+
+                    <h2>
+                        Mes biens
+                    </h2>
+
+                    <!--
+                        Permet au propriétaire d'ajouter
+                        un nouveau bien.
+                    -->
+                    <a href="biens.html">
+                        Gérer mes biens
+                    </a>
+
+                </div>
+
+
+                <div id="propertiesList">
+
+                    <!--
+                        Les biens du propriétaire seront
+                        affichés ici dynamiquement.
+
+                        Exemple de données :
+
+                        - Immeuble A
+                        - Maison Dakar
+                        - Hôtel MIM
+                    -->
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =================================================
+                 LOGEMENTS
+                 ================================================= -->
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+
+                    <h2>
+                        Logements
+                    </h2>
+
+                    <a href="logements.html">
+                        Gérer les logements
+                    </a>
+
+                </div>
+
+
+                <div id="housingSummary">
+
+                    <!--
+                        Résumé des logements :
+
+                        - Total
+                        - Occupés
+                        - Libres
+                        - En maintenance
+                    -->
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =================================================
+                 LOCATAIRES
+                 ================================================= -->
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+
+                    <h2>
+                        Locataires
+                    </h2>
+
+                    <a href="locataires.html">
+                        Gérer les locataires
+                    </a>
+
+                </div>
+
+
+                <div id="tenantsList">
+
+                    <!--
+                        Les locataires récents seront affichés ici.
+
+                        Exemple :
+
+                        Nom
+                        Logement
+                        Loyer
+                        Statut
+                    -->
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =================================================
+                 PAIEMENTS / LOYERS
+                 ================================================= -->
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+
+                    <h2>
+                        Paiements
+                    </h2>
+
+                    <a href="paiements.html">
+                        Voir tous les paiements
+                    </a>
+
+                </div>
+
+
+                <div id="paymentsSummary">
+
+                    <!--
+                        Résumé financier :
+
+                        - Loyers attendus
+                        - Loyers payés
+                        - Loyers en attente
+                        - Loyers en retard
+                    -->
+
+                </div>
+
+
+                <!-- Historique récent -->
+                <div id="recentPayments">
+
+                    <!--
+                        Les derniers paiements seront
+                        affichés ici.
+                    -->
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =================================================
+                 INCIDENTS
+                 ================================================= -->
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+
+                    <h2>
+                        Incidents récents
+                    </h2>
+
+                    <a href="incidents.html">
+                        Voir tous les incidents
+                    </a>
+
+                </div>
+
+
+                <div id="recentIncidents">
+
+                    <!--
+                        Exemple :
+
+                        🔴 Fuite d'eau
+                        Appartement A12
+                        Statut : Nouveau
+
+                        🟡 Climatisation
+                        Appartement B04
+                        Statut : En cours
+                    -->
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =================================================
+                 INTERVENTIONS
+                 ================================================= -->
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+
+                    <h2>
+                        Interventions en cours
+                    </h2>
+
+                    <a href="interventions.html">
+                        Voir les interventions
+                    </a>
+
+                </div>
+
+
+                <div id="activeInterventionsList">
+
+                    <!--
+                        Exemple :
+
+                        Intervention #125
+                        Plomberie
+                        Prestataire : ...
+                        Logement : A12
+                        Statut : En cours
+                    -->
+
+                </div>
+
+            </section>
+
+
+
+            <!-- =================================================
+                 NOTIFICATIONS RÉCENTES
+                 ================================================= -->
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+
+                    <h2>
+                        Notifications
+                    </h2>
+
+                    <a href="notifications.html">
+                        Voir toutes
+                    </a>
+
+                </div>
+
+
+                <div id="recentNotifications">
+
+                    <!--
+                        Les notifications récentes
+                        seront affichées ici.
+                    -->
+
+                </div>
+
+            </section>
+
+
+        </main>
+
+    </div>
+
+
+    <!--
+        JavaScript du dashboard.
+
+        Il servira plus tard à :
+        - récupérer les données du backend
+        - afficher les statistiques
+        - charger les biens
+        - charger les locataires
+        - charger les paiements
+        - afficher les incidents
+        - etc.
+    -->
+
+    <script src="dashboard.js"></script>
+
+
+</body>
+
+</html>
+

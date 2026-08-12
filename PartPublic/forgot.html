@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Mot de passe oublié — MIM</title>
+
+    <link rel="stylesheet" href="forgot.css">
+
+</head>
+
+<body>
+
+    <main class="container">
+
+        <section class="forgot-card">
+
+            <div class="logo">
+                MIM
+            </div>
+
+            <h1>
+                Mot de passe oublié ?
+            </h1>
+
+            <p class="description">
+                Pas de problème. Entrez votre adresse email
+                et nous vous enverrons un lien pour
+                réinitialiser votre mot de passe.
+            </p>
+
+            <form action="../auth/forgot.php" method="POST">
+
+                <div class="form-group">
+
+                    <label for="email">
+                        Adresse email
+                    </label>
+
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        placeholder="exemple@email.com"
+                        required
+                    >
+
+                </div>
+
+                <button type="submit">
+                    Envoyer le lien
+                </button>
+
+            </form>
+
+            <a class="back-login" href="connexion.html">
+                ← Retour à la connexion
+            </a>
+
+        </section>
+
+    </main>
+
+</body>
+
+</html>
