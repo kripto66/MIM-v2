@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import authRoutes from './routes/auth.js';
 import statsRoutes from './routes/stats.js';
 import gitRoutes from './routes/git.js';
+import { createCrudRouter } from './routes/crud.js';
 import { authenticate } from './middleware/auth.js';
 
 const app = express();
@@ -40,6 +41,15 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/stats', authenticate, statsRoutes);
 app.use('/api/git', authenticate, gitRoutes);
+
+app.use('/api/biens', authenticate, createCrudRouter('biens'));
+app.use('/api/logements', authenticate, createCrudRouter('logements'));
+app.use('/api/locataires', authenticate, createCrudRouter('locataires'));
+app.use('/api/paiements', authenticate, createCrudRouter('paiements'));
+app.use('/api/incidents', authenticate, createCrudRouter('incidents'));
+app.use('/api/prestataires', authenticate, createCrudRouter('prestataires'));
+app.use('/api/interventions', authenticate, createCrudRouter('interventions'));
+app.use('/api/notifications', authenticate, createCrudRouter('notifications'));
 
 const PORT = process.env.PORT || 3000;
 
