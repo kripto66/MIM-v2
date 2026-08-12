@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Prestataires</title>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+    <div class="dashboard">
+
+        <aside class="sidebar">
+
+            <div class="logo">
+                MIM
+            </div>
+
+            <nav class="sidebar-menu">
+
+                <a href="dashboard.html">Tableau de bord</a>
+                <a href="biens.html">Mes biens</a>
+                <a href="logements.html">Logements</a>
+                <a href="locataires.html">Locataires</a>
+                <a href="paiements.html">Paiements</a>
+                <a href="incidents.html">Incidents</a>
+                <a href="prestataires.html" class="active">Prestataires</a>
+                <a href="interventions.html">Interventions</a>
+                <a href="notifications.html">Notifications</a>
+                <a href="parametres.html">Paramètres</a>
+
+            </nav>
+
+            <div class="sidebar-footer">
+
+                <button id="backupBtn" type="button">Sauvegarder</button>
+                <button id="logoutBtn" type="button">Déconnexion</button>
+
+            </div>
+
+        </aside>
+
+        <main class="main-content">
+
+            <header class="dashboard-header">
+
+                <div class="welcome">
+                    <h1>Prestataires</h1>
+                    <p>Gérez vos artisans et prestataires de services.</p>
+                </div>
+
+                <button class="btn btn-primary" id="addPrestataireBtn">+ Ajouter un prestataire</button>
+
+            </header>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+                    <h2>Liste des prestataires</h2>
+                </div>
+
+                <div id="prestatairesList">
+                    <div class="empty-state">Chargement...</div>
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <div class="modal-overlay" id="prestataireModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="modalTitle">Ajouter un prestataire</h2>
+
+            <form id="prestataireForm">
+
+                <input type="hidden" id="prestataireId">
+
+                <div class="form-group">
+                    <label for="nom">Nom</label>
+                    <input type="text" id="nom" name="nom" placeholder="Ex : Plomberie Diop" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="specialite">Spécialité</label>
+                    <input type="text" id="specialite" name="specialite" placeholder="Ex : Plomberie, électricité...">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="phone">Téléphone</label>
+                        <input type="tel" id="phone" name="phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email">
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelModal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <script src="api.js"></script>
+    <script src="crud.js"></script>
+    <script>
+        CrudPage.init({
+            resource: "prestataires",
+            listEl: "prestatairesList",
+            addBtnEl: "addPrestataireBtn",
+            modalId: "prestataireModal",
+            modalTitleId: "modalTitle",
+            formId: "prestataireForm",
+            idFieldId: "prestataireId",
+            cancelBtnId: "cancelModal",
+            renderItem: (p) => `
+                <div class="crud-card">
+                    <div>
+                        <h3>${escapeHtml(p.nom)}</h3>
+                        <p>${escapeHtml(p.specialite || "")}</p>
+                        <p>${p.phone ? escapeHtml(p.phone) : ""}${p.email ? ' — ' + escapeHtml(p.email) : ""}</p>
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn btn-edit" data-edit="${p.id}">Modifier</button>
+                        <button class="btn btn-delete" data-delete="${p.id}">Supprimer</button>
+                    </div>
+                </div>`
+        });
+    </script>
+
+</body>
+
+</html>

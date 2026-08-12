@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Paramètres</title>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+    <div class="dashboard">
+
+        <aside class="sidebar">
+
+            <div class="logo">
+                MIM
+            </div>
+
+            <nav class="sidebar-menu">
+
+                <a href="dashboard.html">Tableau de bord</a>
+                <a href="biens.html">Mes biens</a>
+                <a href="logements.html">Logements</a>
+                <a href="locataires.html">Locataires</a>
+                <a href="paiements.html">Paiements</a>
+                <a href="incidents.html">Incidents</a>
+                <a href="prestataires.html">Prestataires</a>
+                <a href="interventions.html">Interventions</a>
+                <a href="notifications.html">Notifications</a>
+                <a href="parametres.html" class="active">Paramètres</a>
+
+            </nav>
+
+            <div class="sidebar-footer">
+
+                <button id="backupBtn" type="button">Sauvegarder</button>
+                <button id="logoutBtn" type="button">Déconnexion</button>
+
+            </div>
+
+        </aside>
+
+        <main class="main-content">
+
+            <header class="dashboard-header">
+
+                <div class="welcome">
+                    <h1>Paramètres</h1>
+                    <p>Gérez votre profil et vos informations personnelles.</p>
+                </div>
+
+            </header>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+                    <h2>Mon profil</h2>
+                </div>
+
+                <form id="profileForm" class="profile-form">
+
+                    <div class="form-group">
+                        <label for="name">Nom complet</label>
+                        <input type="text" id="name" name="name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email" disabled>
+                        <small class="muted">L'email ne peut pas être modifié ici.</small>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="phone">Téléphone</label>
+                            <input type="tel" id="phone" name="phone">
+                        </div>
+                        <div class="form-group">
+                            <label for="account_type">Type de compte</label>
+                            <input type="text" id="account_type" name="account_type" disabled>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Enregistrer les modifications</button>
+
+                </form>
+
+            </section>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+                    <h2>Sauvegarde</h2>
+                </div>
+
+                <p class="muted" style="margin-bottom:15px;">
+                    À chaque connexion, déconnexion et modification, une sauvegarde est automatiquement
+                    créée sur GitHub.
+                </p>
+
+                <button class="btn btn-secondary" id="manualBackupBtn">Effectuer une sauvegarde maintenant</button>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <script src="api.js"></script>
+    <script src="crud.js"></script>
+    <script>
+        const ACCOUNT_TYPE_LABEL = {
+            proprietaire: "Propriétaire",
+            agence: "Agence immobilière",
+            entreprise: "Entreprise",
+        };
+
+        async function loadProfile() {
+            try {
+                const { user } = await apiRequest("/auth/me");
+                document.getElementById("name").value = user.name || "";
+                document.getElementById("email").value = user.email || "";
+                document.getElementById("phone").value = user.phone || "";
+                document.getElementById("account_type").value =
+                    ACCOUNT_TYPE_LABEL[user.account_type] || user.account_type;
+            } catch (err) {
+                showToast(err.message, "error");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            loadProfile();
+
+            document.getElementById("profileForm").addEventListener("submit", async (e) => {
+                e.preventDefault();
+
+                try {
+                    await apiRequest("/auth/update-profile", {
+                        method: "PUT",
+                        body: JSON.stringify({
+                            name: document.getElementById("name").value,
+                            phone: document.getElementById("phone").value,
+                        }),
+                    });
+                    showToast("Profil mis à jour avec succès.");
+                } catch (err) {
+                    showToast(err.message, "error");
+                }
+            });
+
+            document.getElementById("manualBackupBtn").addEventListener("click", async () => {
+                try {
+                    const data = await apiRequest("/git/backup", { method: "POST" });
+                    showToast(data.message);
+                } catch (err) {
+                    showToast(err.message, "error");
+                }
+            });
+
+            const backupBtn = document.getElementById("backupBtn");
+            const logoutBtn = document.getElementById("logoutBtn");
+
+            backupBtn.addEventListener("click", async () => {
+                try {
+                    const data = await apiRequest("/git/backup", { method: "POST" });
+                    showToast(data.message);
+                } catch (err) {
+                    showToast(err.message, "error");
+                }
+            });
+
+            logoutBtn.addEventListener("click", async () => {
+                try { await apiRequest("/auth/logout", { method: "POST" }); } catch (err) {}
+                window.location.href = "../PartPublic/connexion.html";
+            });
+        });
+    </script>
+
+</body>
+
+</html>

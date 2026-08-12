@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Notifications</title>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+    <div class="dashboard">
+
+        <aside class="sidebar">
+
+            <div class="logo">
+                MIM
+            </div>
+
+            <nav class="sidebar-menu">
+
+                <a href="dashboard.html">Tableau de bord</a>
+                <a href="biens.html">Mes biens</a>
+                <a href="logements.html">Logements</a>
+                <a href="locataires.html">Locataires</a>
+                <a href="paiements.html">Paiements</a>
+                <a href="incidents.html">Incidents</a>
+                <a href="prestataires.html">Prestataires</a>
+                <a href="interventions.html">Interventions</a>
+                <a href="notifications.html" class="active">Notifications</a>
+                <a href="parametres.html">Paramètres</a>
+
+            </nav>
+
+            <div class="sidebar-footer">
+
+                <button id="backupBtn" type="button">Sauvegarder</button>
+                <button id="logoutBtn" type="button">Déconnexion</button>
+
+            </div>
+
+        </aside>
+
+        <main class="main-content">
+
+            <header class="dashboard-header">
+
+                <div class="welcome">
+                    <h1>Notifications</h1>
+                    <p>Retrouvez toutes les informations importantes de votre activité.</p>
+                </div>
+
+                <button class="btn btn-secondary" id="markAllBtn">Tout marquer comme lu</button>
+
+            </header>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+                    <h2>Notifications récentes</h2>
+                </div>
+
+                <div id="notificationsList">
+                    <div class="empty-state">Chargement...</div>
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <script src="api.js"></script>
+    <script src="crud.js"></script>
+    <script>
+        function formatDate(d) {
+            if (!d) return "";
+            const dt = new Date(d);
+            return dt.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+        }
+
+        async function load() {
+            try {
+                const { data } = await apiRequest("/notifications");
+                const list = document.getElementById("notificationsList");
+
+                if (!data.length) {
+                    list.innerHTML = '<div class="empty-state">Aucune notification.</div>';
+                    return;
+                }
+
+                list.innerHTML = data.map((n) => `
+                    <div class="crud-card ${n.lu ? "notification-read" : ""}">
+                        <div>
+                            <h3>${escapeHtml(n.message)}</h3>
+                            <p class="muted">${formatDate(n.created_at)}</p>
+                        </div>
+                        <button class="btn btn-edit" data-mark="${n.id}">${n.lu ? "Lue" : "Marquer comme lu"}</button>
+                    </div>
+                `).join("");
+            } catch (err) {
+                document.getElementById("notificationsList").innerHTML =
+                    `<div class="empty-state">${escapeHtml(err.message)}</div>`;
+            }
+        }
+
+        async function markRead(id) {
+            try {
+                await apiRequest(`/notifications/${id}`, { method: "PUT", body: JSON.stringify({ lu: true }) });
+                showToast("Notification marquée comme lue.");
+                load();
+            } catch (err) {
+                showToast(err.message, "error");
+            }
+        }
+
+        async function markAll() {
+            const list = document.getElementById("notificationsList");
+            const buttons = [...list.querySelectorAll("[data-mark]")];
+
+            try {
+                for (const btn of buttons) {
+                    await markRead(btn.dataset.mark);
+                }
+                showToast("Toutes les notifications sont lues.");
+            } catch (err) {
+                showToast(err.message, "error");
+            }
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            load();
+
+            document.getElementById("notificationsList").addEventListener("click", (e) => {
+                const btn = e.target.closest("[data-mark]");
+                if (btn && !btn.textContent.startsWith("Lue")) markRead(btn.dataset.mark);
+            });
+
+            document.getElementById("markAllBtn").addEventListener("click", markAll);
+
+            const backupBtn = document.getElementById("backupBtn");
+            const logoutBtn = document.getElementById("logoutBtn");
+
+            backupBtn.addEventListener("click", async () => {
+                try {
+                    const data = await apiRequest("/git/backup", { method: "POST" });
+                    showToast(data.message);
+                } catch (err) {
+                    showToast(err.message, "error");
+                }
+            });
+
+            logoutBtn.addEventListener("click", async () => {
+                try { await apiRequest("/auth/logout", { method: "POST" }); } catch (err) {}
+                window.location.href = "../PartPublic/connexion.html";
+            });
+        });
+    </script>
+
+</body>
+
+</html>

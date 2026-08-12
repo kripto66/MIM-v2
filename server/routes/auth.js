@@ -177,6 +177,30 @@ router.get('/me', authenticate, async (req, res) => {
   res.json({ success: true, user });
 });
 
+router.put('/update-profile', authenticate, async (req, res) => {
+  const { name, phone } = req.body;
+
+  if (!name || name.trim() === '') {
+    return res.status(400).json({ success: false, message: 'Le nom est obligatoire.' });
+  }
+
+  const sb = authedClient(req.user.supabase_token);
+
+  const { error } = await sb
+    .from('profiles')
+    .update({ name: name.trim(), phone: phone ? phone.trim() : '' })
+    .eq('id', req.user.id);
+
+  if (error) {
+    console.error('[update-profile]', error.message);
+    return res.status(400).json({ success: false, message: 'Erreur lors de la mise à jour du profil.' });
+  }
+
+  await gitAutoBackup(`Sauvegarde auto : mise à jour du profil ${req.user.id}`);
+
+  res.json({ success: true, message: 'Profil mis à jour avec succès.' });
+});
+
 router.post('/forgot', async (req, res) => {
   const { email } = req.body;
 

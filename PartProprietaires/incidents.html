@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Incidents</title>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+    <div class="dashboard">
+
+        <aside class="sidebar">
+
+            <div class="logo">
+                MIM
+            </div>
+
+            <nav class="sidebar-menu">
+
+                <a href="dashboard.html">Tableau de bord</a>
+                <a href="biens.html">Mes biens</a>
+                <a href="logements.html">Logements</a>
+                <a href="locataires.html">Locataires</a>
+                <a href="paiements.html">Paiements</a>
+                <a href="incidents.html" class="active">Incidents</a>
+                <a href="prestataires.html">Prestataires</a>
+                <a href="interventions.html">Interventions</a>
+                <a href="notifications.html">Notifications</a>
+                <a href="parametres.html">Paramètres</a>
+
+            </nav>
+
+            <div class="sidebar-footer">
+
+                <button id="backupBtn" type="button">Sauvegarder</button>
+                <button id="logoutBtn" type="button">Déconnexion</button>
+
+            </div>
+
+        </aside>
+
+        <main class="main-content">
+
+            <header class="dashboard-header">
+
+                <div class="welcome">
+                    <h1>Incidents</h1>
+                    <p>Suivez les incidents signalés dans vos logements.</p>
+                </div>
+
+                <button class="btn btn-primary" id="addIncidentBtn">+ Signaler un incident</button>
+
+            </header>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+                    <h2>Liste des incidents</h2>
+                </div>
+
+                <div id="incidentsList">
+                    <div class="empty-state">Chargement...</div>
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <div class="modal-overlay" id="incidentModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="modalTitle">Signaler un incident</h2>
+
+            <form id="incidentForm">
+
+                <input type="hidden" id="incidentId">
+
+                <div class="form-group">
+                    <label for="titre">Titre</label>
+                    <input type="text" id="titre" name="titre" placeholder="Ex : Fuite d'eau" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="logement_id">Logement</label>
+                    <select id="logement_id" name="logement_id">
+                        <option value="">— Aucun —</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="statut">Statut</label>
+                    <select id="statut" name="statut">
+                        <option value="nouveau">Nouveau</option>
+                        <option value="en_cours">En cours</option>
+                        <option value="resolu">Résolu</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" rows="3"></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelModal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <script src="api.js"></script>
+    <script src="crud.js"></script>
+    <script>
+        const INCIDENT_STATUS = {
+            nouveau: ["Nouveau", "status-danger"],
+            en_cours: ["En cours", "status-warning"],
+            resolu: ["Résolu", "status-success"],
+        };
+
+        let logementsCache = [];
+
+        async function loadLogements() {
+            try {
+                const { data } = await apiRequest("/logements");
+                logementsCache = data;
+                document.getElementById("logement_id").innerHTML =
+                    '<option value="">— Aucun —</option>' + data.map(
+                        (l) => `<option value="${l.id}">${escapeHtml(l.nom)}</option>`
+                    ).join("");
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function formatDate(d) {
+            if (!d) return "";
+            const dt = new Date(d);
+            return dt.toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+        }
+
+        CrudPage.init({
+            resource: "incidents",
+            listEl: "incidentsList",
+            addBtnEl: "addIncidentBtn",
+            modalId: "incidentModal",
+            modalTitleId: "modalTitle",
+            formId: "incidentForm",
+            idFieldId: "incidentId",
+            cancelBtnId: "cancelModal",
+            renderItem: (i) => {
+                const [label, cls] = INCIDENT_STATUS[i.statut] || [i.statut, "status-info"];
+                const logement = logementsCache.find((l) => String(l.id) === String(i.logement_id));
+                return `
+                    <div class="crud-card">
+                        <div>
+                            <h3>${escapeHtml(i.titre)}</h3>
+                            <p>${logement ? "Logement : " + escapeHtml(logement.nom) : "Aucun logement"}</p>
+                            ${i.description ? `<p class="muted">${escapeHtml(i.description)}</p>` : ''}
+                            <p><span class="status ${cls}">${label}</span> <span class="muted">${formatDate(i.created_at)}</span></p>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn btn-edit" data-edit="${i.id}">Modifier</button>
+                            <button class="btn btn-delete" data-delete="${i.id}">Supprimer</button>
+                        </div>
+                    </div>`;
+            }
+        });
+
+        loadLogements();
+    </script>
+
+</body>
+
+</html>
