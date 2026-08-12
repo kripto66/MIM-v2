@@ -598,10 +598,6 @@ router.get('/me', authenticate, async (req, res) => {
 router.put('/change-password', authenticate, async (req, res) => {
   const { current_password, password, password_confirm } = req.body;
 
-  if (!current_password) {
-    return res.status(400).json({ success: false, message: 'Veuillez saisir votre mot de passe actuel.' });
-  }
-
   if (!password || password.length < 8) {
     return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 8 caractères.' });
   }
@@ -611,6 +607,20 @@ router.put('/change-password', authenticate, async (req, res) => {
   }
 
   try {
+    // Changement forcé (première connexion) : le mot de passe actuel vient
+    // d'être validé à la connexion, on ne le redemande pas.
+    const { data: profile } = await serviceClient()
+      .from('profiles')
+      .select('must_change_password')
+      .eq('id', req.user.id)
+      .maybeSingle();
+
+    const isForcedChange = Boolean(profile?.must_change_password);
+
+    if (!isForcedChange && !current_password) {
+      return res.status(400).json({ success: false, message: 'Veuillez saisir votre mot de passe actuel.' });
+    }
+
     const sb = authedClient(req.user.supabase_token);
 
     // Les méthodes auth.* (GoTrue) n'utilisent pas le header Authorization
@@ -626,14 +636,16 @@ router.put('/change-password', authenticate, async (req, res) => {
       return res.status(401).json({ success: false, message: 'Session expirée, reconnectez-vous.' });
     }
 
-    // Vérifie le mot de passe actuel avant toute modification.
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: account.user.email,
-      password: current_password,
-    });
+    if (!isForcedChange) {
+      // Vérifie le mot de passe actuel avant toute modification.
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: account.user.email,
+        password: current_password,
+      });
 
-    if (signInError) {
-      return res.status(400).json({ success: false, message: 'Mot de passe actuel incorrect.' });
+      if (signInError) {
+        return res.status(400).json({ success: false, message: 'Mot de passe actuel incorrect.' });
+      }
     }
 
     const { error } = await sb.auth.updateUser({ password });
