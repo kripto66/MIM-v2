@@ -292,11 +292,20 @@
                     form.reset();
 
 
+                    const redirect = data.redirect;
+
+                    const timeout = data.emailConfirmationRequired ? 3500 : 1200;
+
+                    const target = data.emailConfirmationRequired
+                        ? "../PartPublic/connexion.html"
+                        : "../" + redirect;
+
+
                     setTimeout(function() {
 
-                        window.location.href = "../" + data.redirect;
+                        window.location.href = target;
 
-                    }, 1200);
+                    }, timeout);
 
 
                 } else {
