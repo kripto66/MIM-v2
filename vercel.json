@@ -1,0 +1,9 @@
+{
+  "version": 2,
+  "routes": [
+    { "src": "/api/(.*)", "dest": "/api/index.js" },
+    { "handle": "filesystem" },
+    { "src": "/", "dest": "/PartPublic/index.html" },
+    { "src": "/(.*)", "dest": "/PartPublic/$1" }
+  ]
+}

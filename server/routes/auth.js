@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
-import { supabase, authedClient } from '../server.js';
+import { supabase, authedClient } from '../app.js';
 import { signToken, authenticate } from '../middleware/auth.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
 import { logSession, closeSession } from '../utils/sessions.js';

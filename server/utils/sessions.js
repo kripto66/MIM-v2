@@ -1,4 +1,4 @@
-import { authedClient } from '../server.js';
+import { authedClient } from '../app.js';
 
 export async function logSession(userId, action, supabaseToken) {
   try {

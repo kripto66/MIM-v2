@@ -1,4 +1,8 @@
-const API = (window.location.origin || "http://localhost:3000") + "/api";
+const API = (() => {
+  const origin = window.location.origin || "http://localhost:3000";
+  const isLocal = origin.includes("localhost") || origin.includes("127.0.0.1");
+  return (isLocal ? "http://localhost:3000" : origin) + "/api";
+})();
 
 function escapeHtml(str) {
   return String(str ?? "").replace(/[&<>"']/g, (c) => ({

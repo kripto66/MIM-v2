@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authedClient } from '../server.js';
+import { authedClient } from '../app.js';
 
 const router = Router();
 

@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import { supabase } from '../server.js';
+import { supabase } from '../app.js';
 
 const SLIDING_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 

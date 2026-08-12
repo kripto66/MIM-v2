@@ -29,3 +29,6 @@ server/.env
 
 # OS temporaires
 *.tmp
+
+.vercel
+.env*
