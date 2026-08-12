@@ -112,7 +112,7 @@ const CrudPage = {
 
     if (editBtn) {
       const id = editBtn.dataset.edit;
-      const item = this.currentItems?.find((i) => String(i.id) === String(id));
+      const item = this._currentItems?.find((i) => String(i.id) === String(id));
       if (item) this.openEdit(item);
     }
 
@@ -121,13 +121,6 @@ const CrudPage = {
     }
   },
 
-  set currentItems(v) {
-    this._currentItems = v;
-  },
-
-  get currentItems() {
-    return this._currentItems;
-  },
   async deleteItem(id) {
     if (!confirm("Voulez-vous vraiment supprimer cet élément ?")) return;
 
