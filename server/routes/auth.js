@@ -596,7 +596,11 @@ router.get('/me', authenticate, async (req, res) => {
 });
 
 router.put('/change-password', authenticate, async (req, res) => {
-  const { password, password_confirm } = req.body;
+  const { current_password, password, password_confirm } = req.body;
+
+  if (!current_password) {
+    return res.status(400).json({ success: false, message: 'Veuillez saisir votre mot de passe actuel.' });
+  }
 
   if (!password || password.length < 8) {
     return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 8 caractères.' });
@@ -608,6 +612,29 @@ router.put('/change-password', authenticate, async (req, res) => {
 
   try {
     const sb = authedClient(req.user.supabase_token);
+
+    // Les méthodes auth.* (GoTrue) n'utilisent pas le header Authorization
+    // global du client : il faut charger la session dans le client pour que
+    // updateUser s'applique au bon compte.
+    await sb.auth.setSession({
+      access_token: req.user.supabase_token,
+      refresh_token: req.user.refresh_token || '',
+    });
+
+    const { data: account, error: userError } = await sb.auth.getUser();
+    if (userError || !account?.user?.email) {
+      return res.status(401).json({ success: false, message: 'Session expirée, reconnectez-vous.' });
+    }
+
+    // Vérifie le mot de passe actuel avant toute modification.
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: account.user.email,
+      password: current_password,
+    });
+
+    if (signInError) {
+      return res.status(400).json({ success: false, message: 'Mot de passe actuel incorrect.' });
+    }
 
     const { error } = await sb.auth.updateUser({ password });
 
@@ -796,7 +823,21 @@ router.post('/reset-password', async (req, res) => {
     supabaseToken = session.access_token;
   }
 
-  const { error: updateError } = await authedClient(supabaseToken).auth.updateUser({ password });
+  const sb = authedClient(supabaseToken);
+
+  if (session?.refresh_token) {
+    await sb.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    });
+  } else if (req.user?.refresh_token) {
+    await sb.auth.setSession({
+      access_token: supabaseToken,
+      refresh_token: req.user.refresh_token,
+    });
+  }
+
+  const { error: updateError } = await sb.auth.updateUser({ password });
 
   if (updateError) {
     console.error('[reset-password]', updateError.message);

@@ -60,5 +60,10 @@ export async function authenticate(req, res, next) {
 }
 
 export function signToken(payload, expiresIn = '7d') {
-  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn });
+  const clean = { ...payload };
+  delete clean.iat;
+  delete clean.exp;
+  delete clean.nbf;
+  delete clean.jti;
+  return jwt.sign(clean, process.env.JWT_SECRET, { expiresIn });
 }

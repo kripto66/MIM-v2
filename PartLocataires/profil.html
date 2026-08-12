@@ -203,6 +203,11 @@
             <form id="passwordForm">
 
                 <div class="form-group">
+                    <label for="currentPassword">Mot de passe actuel</label>
+                    <input type="password" id="currentPassword" autocomplete="current-password" required>
+                </div>
+
+                <div class="form-group">
                     <label for="newPassword">Nouveau mot de passe</label>
                     <input type="password" id="newPassword" minlength="8" autocomplete="new-password" required>
                 </div>
@@ -298,6 +303,7 @@
                     await tenantRequest("/auth/change-password", {
                         method: "PUT",
                         body: JSON.stringify({
+                            current_password: document.getElementById("currentPassword").value,
                             password: newPassword,
                             password_confirm: confirmPassword,
                         }),
