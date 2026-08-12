@@ -171,13 +171,17 @@ router.get('/dashboard', async (req, res) => {
 
     if (pErr) console.warn('[locataire/dashboard] paiements :', pErr.message);
 
-    const { data: incidents = [], error: iErr } = await sb
-      .from('incidents')
-      .select('*')
-      .eq('logement_id', logementId)
-      .order('created_at', { ascending: false });
+    let incidents = [];
+    if (logementId) {
+      const { data: incidentsData = [], error: iErr } = await sb
+        .from('incidents')
+        .select('*')
+        .eq('logement_id', logementId)
+        .order('created_at', { ascending: false });
 
-    if (iErr) console.warn('[locataire/dashboard] incidents :', iErr.message);
+      if (iErr) console.warn('[locataire/dashboard] incidents :', iErr.message);
+      incidents = incidentsData || [];
+    }
 
     // Notifications en base (liées au compte) + alertes calculées en temps réel.
     const { data: dbNotifications = [], error: nErr } = await sb
