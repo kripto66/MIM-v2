@@ -197,6 +197,11 @@ ALTER TABLE public.locataires ADD COLUMN IF NOT EXISTS account_uid UUID REFERENC
 CREATE POLICY "tenant_select_locataire" ON public.locataires
     FOR SELECT USING (account_uid = auth.uid());
 
+-- Sélection par email : nécessaire pour que la liaison (UPDATE) puisse
+-- cibler la fiche avant qu'elle ne soit rattachée au compte.
+CREATE POLICY "tenant_select_by_email" ON public.locataires
+    FOR SELECT USING (lower(email) = lower(auth.jwt() ->> 'email'));
+
 -- Liaison unique : le locataire s'attache à la fiche dont l'email correspond.
 -- Une fois lié (account_uid renseigné), il ne peut plus modifier la fiche.
 CREATE POLICY "tenant_link_locataire" ON public.locataires
