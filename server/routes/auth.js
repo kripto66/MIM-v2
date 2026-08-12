@@ -1,14 +1,17 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
-import { supabase, authedClient } from '../app.js';
+import { supabase, authedClient, serviceClient } from '../app.js';
 import { signToken, authenticate } from '../middleware/auth.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
 import { logSession, closeSession } from '../utils/sessions.js';
 import { newOAuthClient, storeFlow, getFlow, deleteFlow } from '../utils/oauth.js';
+import { resolveLoginEmail, tenantEmailFor, usernameIsValid } from '../utils/tenantAccount.js';
 
 const router = Router();
 
-const ALLOWED_TYPES = ['proprietaire', 'agence', 'entreprise', 'locataire'];
+// Un locataire ne crée jamais son compte lui-même : seul le propriétaire
+// peut créer un compte locataire depuis son espace.
+const ALLOWED_TYPES = ['proprietaire', 'agence', 'entreprise'];
 
 const PAGE_BY_TYPE = {
   proprietaire: 'PartProprietaires/dashboard.html',
@@ -59,14 +62,32 @@ function sessionPayload(user, session) {
   };
 }
 
-function publicUser(user) {
+function publicUser(user, profile) {
+  const p = profile || {};
   return {
     id: user.id,
     account_type: accountTypeOf(user),
-    name: user.user_metadata?.name || '',
-    email: user.email,
-    phone: user.user_metadata?.phone || '',
+    name: user.user_metadata?.name || p.name || '',
+    username: p.username || user.user_metadata?.username || '',
+    email: accountTypeOf(user) === 'locataire' ? '' : (user.email || p.email || ''),
+    phone: user.user_metadata?.phone || p.phone || '',
+    must_change_password: Boolean(p.must_change_password),
   };
+}
+
+async function profileOf(userId) {
+  const { data, error } = await serviceClient()
+    .from('profiles')
+    .select('name, email, phone, username, must_change_password')
+    .eq('id', userId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn('[profileOf]', error.message);
+    return null;
+  }
+
+  return data;
 }
 
 async function requireMfaFor(user, supabaseToken) {
@@ -95,28 +116,51 @@ async function finalizeLogin(res, user, session) {
   await logSession(user.id, 'login', session?.access_token);
   await gitAutoBackup(`Sauvegarde auto : connexion de ${user.email}`);
 
+  const profile = await profileOf(user.id);
+
   return {
-    user: publicUser(user),
+    user: publicUser(user, profile),
     redirect: PAGE_BY_TYPE[accountType],
+    mustChangePassword: accountType === 'locataire' && Boolean(profile?.must_change_password),
   };
 }
 
-// Relie un compte 'locataire' à sa fiche (par email) s'il n'est pas encore lié.
+// Relie un compte 'locataire' à sa fiche s'il n'est pas encore lié.
+// Liaison par username (nouveau) puis par email (ancien fonctionnement).
 async function linkTenantAccount(user, supabaseToken) {
-  if (accountTypeOf(user) !== 'locataire' || !user?.email) return;
+  if (accountTypeOf(user) !== 'locataire') return;
 
-  try {
-    const { error } = await authedClient(supabaseToken)
+  const username = user.user_metadata?.username;
+  const email = user.email;
+
+  const sb = authedClient(supabaseToken);
+  let matched = false;
+
+  if (username) {
+    const { data, error } = await sb
       .from('locataires')
       .update({ account_uid: user.id })
-      .ilike('email', user.email)
-      .is('account_uid', null);
+      .ilike('username', username)
+      .is('account_uid', null)
+      .select('id')
+      .maybeSingle();
 
-    if (error) {
-      console.warn('[linkTenantAccount]', error.message);
+    if (!error && data) matched = true;
+    else if (error) console.warn('[linkTenantAccount] username :', error.message);
+  }
+
+  if (!matched && email) {
+    try {
+      const { error } = await sb
+        .from('locataires')
+        .update({ account_uid: user.id })
+        .ilike('email', email)
+        .is('account_uid', null);
+
+      if (error) console.warn('[linkTenantAccount] email :', error.message);
+    } catch (err) {
+      console.warn('[linkTenantAccount]', err.message);
     }
-  } catch (err) {
-    console.warn('[linkTenantAccount]', err.message);
   }
 }
 
@@ -128,7 +172,7 @@ router.post('/register', async (req, res) => {
   }
 
   if (!ALLOWED_TYPES.includes(account_type)) {
-    return res.status(400).json({ success: false, message: 'Type de compte invalide.' });
+    return res.status(400).json({ success: false, message: 'Type de compte invalide. Les comptes locataires sont créés par votre propriétaire.' });
   }
 
   if (!emailIsValid(email)) {
@@ -202,7 +246,9 @@ router.post('/register', async (req, res) => {
 });
 
 router.post('/login', async (req, res) => {
-  const { email, password } = req.body;
+  const identifier = req.body?.identifier ?? req.body?.email ?? req.body?.username;
+  const email = resolveLoginEmail(identifier);
+  const { password } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ success: false, message: 'Veuillez remplir tous les champs.' });
@@ -534,7 +580,7 @@ router.get('/me', authenticate, async (req, res) => {
 
   const { data: user, error } = await sb
     .from('profiles')
-    .select('id, account_type, name, email, phone')
+    .select('id, account_type, name, email, phone, username, must_change_password')
     .eq('id', req.user.id)
     .maybeSingle();
 
@@ -542,7 +588,117 @@ router.get('/me', authenticate, async (req, res) => {
     return res.status(404).json({ success: false, message: 'Utilisateur introuvable.' });
   }
 
+  if (user.account_type === 'locataire') {
+    user.email = '';
+  }
+
   res.json({ success: true, user });
+});
+
+router.put('/change-password', authenticate, async (req, res) => {
+  const { password, password_confirm } = req.body;
+
+  if (!password || password.length < 8) {
+    return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 8 caractères.' });
+  }
+
+  if (password !== password_confirm) {
+    return res.status(400).json({ success: false, message: 'Les mots de passe ne correspondent pas.' });
+  }
+
+  try {
+    const sb = authedClient(req.user.supabase_token);
+
+    const { error } = await sb.auth.updateUser({ password });
+
+    if (error) {
+      console.error('[change-password]', error.message);
+      return res.status(400).json({ success: false, message: 'Impossible de modifier le mot de passe.' });
+    }
+
+    const { error: profileError } = await serviceClient()
+      .from('profiles')
+      .update({ must_change_password: false })
+      .eq('id', req.user.id);
+
+    if (profileError) {
+      console.warn('[change-password] mise à jour du profil :', profileError.message);
+    }
+
+    await gitAutoBackup(`Sauvegarde auto : changement de mot de passe ${req.user.id}`);
+
+    res.json({ success: true, message: 'Mot de passe modifié avec succès.' });
+  } catch (err) {
+    console.error('[change-password]', err.message);
+    res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
+  }
+});
+
+router.put('/update-username', authenticate, async (req, res) => {
+  const username = String(req.body?.username || '').trim().toLowerCase();
+
+  if (!usernameIsValid(username)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Username invalide (3 à 32 caractères : lettres minuscules, chiffres, . _ -).',
+    });
+  }
+
+  try {
+    const sb = serviceClient();
+
+    const { data: taken } = await sb
+      .from('profiles')
+      .select('id')
+      .ilike('username', username)
+      .neq('id', req.user.id)
+      .maybeSingle();
+
+    if (taken) {
+      return res.status(409).json({ success: false, message: 'Ce username est déjà utilisé.' });
+    }
+
+    // L'email interne dérive du username : on le met à jour pour que la
+    // connexion par username continue de fonctionner.
+    const newEmail = tenantEmailFor(username);
+
+    const { error: emailError } = await sb.auth.admin.updateUserById(req.user.id, {
+      email: newEmail,
+    });
+
+    if (emailError) {
+      console.error('[update-username]', emailError.message);
+      return res.status(409).json({ success: false, message: 'Ce username est déjà utilisé.' });
+    }
+
+    const { error: profileError } = await sb
+      .from('profiles')
+      .update({ username })
+      .eq('id', req.user.id);
+
+    if (profileError) {
+      console.error('[update-username] profil :', profileError.message);
+      return res.status(500).json({ success: false, message: 'Erreur lors de la mise à jour du username.' });
+    }
+
+    if (req.user.account_type === 'locataire') {
+      const { error: locataireError } = await sb
+        .from('locataires')
+        .update({ username })
+        .eq('account_uid', req.user.id);
+
+      if (locataireError) {
+        console.warn('[update-username] fiche locataire :', locataireError.message);
+      }
+    }
+
+    await gitAutoBackup(`Sauvegarde auto : changement de username ${req.user.id}`);
+
+    res.json({ success: true, message: 'Username modifié avec succès.', username });
+  } catch (err) {
+    console.error('[update-username]', err.message);
+    res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
+  }
 });
 
 router.put('/update-profile', authenticate, async (req, res) => {

@@ -29,15 +29,16 @@
 
             <form id="loginForm">
 
-                <label for="email">
-                    Adresse email
+                <label for="identifier">
+                    Username ou email
                 </label>
 
                 <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    placeholder="exemple@email.com"
+                    type="text"
+                    id="identifier"
+                    name="identifier"
+                    placeholder="Votre username ou email"
+                    autocomplete="username"
                     required
                 >
 <br>
@@ -135,7 +136,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
                     body: JSON.stringify({
-                        email: form.email.value,
+                        identifier: form.identifier.value,
                         password: form.password.value
                     })
                 });
@@ -145,7 +146,12 @@
                 if (data.success) {
                     message.textContent = data.message;
                     message.className = 'success';
-                    window.location.href = '../' + data.redirect;
+                    if (data.mustChangePassword) {
+                        const next = data.redirect ? '../' + data.redirect : '../PartLocataires/LocaDash.html';
+                        window.location.href = 'change-password.html?next=' + encodeURIComponent(next);
+                    } else {
+                        window.location.href = '../' + data.redirect;
+                    }
                 } else {
                     message.textContent = data.message;
                     message.className = 'error';

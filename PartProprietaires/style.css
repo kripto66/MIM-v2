@@ -949,6 +949,24 @@ tr:last-child td {
     margin-bottom: 16px;
 }
 
+.form-hint {
+    margin: -6px 0 14px;
+
+    padding: 9px 12px;
+
+    background: #f3edfb;
+
+    border: 1px solid #e0d1f5;
+
+    border-radius: 8px;
+
+    color: #5717a5;
+
+    font-size: 12px;
+
+    line-height: 1.5;
+}
+
 .form-row {
     display: grid;
 

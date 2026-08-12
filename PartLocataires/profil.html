@@ -156,9 +156,15 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="profileUsernameInput">Username (connexion)</label>
+                    <input type="text" id="profileUsernameInput" autocomplete="username">
+                    <p class="form-hint">Utilisé pour vous connecter. Vous pouvez le modifier.</p>
+                </div>
+
+                <div class="form-group">
                     <label for="profileEmail">Email</label>
                     <input type="email" id="profileEmail" disabled>
-                    <p class="form-hint">L'email ne peut pas être modifié ici.</p>
+                    <p class="form-hint">L'email n'est pas utilisé pour votre connexion.</p>
                 </div>
 
                 <div class="form-group">
@@ -184,14 +190,53 @@
 
         </section>
 
+        <section class="page-section">
+
+            <div class="section-title">
+
+                <h2>Changer le mot de passe</h2>
+
+                <p>Mettez à jour votre mot de passe de connexion.</p>
+
+            </div>
+
+            <form id="passwordForm">
+
+                <div class="form-group">
+                    <label for="newPassword">Nouveau mot de passe</label>
+                    <input type="password" id="newPassword" minlength="8" autocomplete="new-password" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="confirmPassword">Confirmer le mot de passe</label>
+                    <input type="password" id="confirmPassword" minlength="8" autocomplete="new-password" required>
+                </div>
+
+                <div id="passwordMessage" class="tenant-message success" style="display:none;"></div>
+
+                <button
+                    type="submit"
+                    class="primary-button"
+                >
+                    Changer le mot de passe
+                </button>
+
+            </form>
+
+        </section>
+
     </main>
 
     <script src="LocaDash.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", async () => {
+            let currentUser = null;
+
             try {
                 const { user } = await tenantRequest("/auth/me");
+                currentUser = user;
                 document.getElementById("profileNameInput").value = user.name || "";
+                document.getElementById("profileUsernameInput").value = user.username || "";
                 document.getElementById("profileEmail").value = user.email || "";
                 document.getElementById("profilePhoneInput").value = user.phone || "";
             } catch (err) {
@@ -204,7 +249,16 @@
                 const message = document.getElementById("profileMessage");
                 message.style.display = "none";
 
+                const newUsername = document.getElementById("profileUsernameInput").value.trim();
+
                 try {
+                    if (newUsername && currentUser && newUsername !== currentUser.username) {
+                        await tenantRequest("/auth/update-username", {
+                            method: "PUT",
+                            body: JSON.stringify({ username: newUsername }),
+                        });
+                    }
+
                     await tenantRequest("/auth/update-profile", {
                         method: "PUT",
                         body: JSON.stringify({
@@ -215,7 +269,43 @@
                     message.textContent = "Profil mis à jour avec succès.";
                     message.className = "tenant-message success";
                     message.style.display = "block";
+                    currentUser = { ...currentUser, username: newUsername };
                     loadTenantIdentity();
+                } catch (err) {
+                    message.textContent = err.message;
+                    message.className = "tenant-message danger";
+                    message.style.display = "block";
+                }
+            });
+
+            document.getElementById("passwordForm").addEventListener("submit", async (e) => {
+                e.preventDefault();
+
+                const message = document.getElementById("passwordMessage");
+                message.style.display = "none";
+
+                const newPassword = document.getElementById("newPassword").value;
+                const confirmPassword = document.getElementById("confirmPassword").value;
+
+                if (newPassword !== confirmPassword) {
+                    message.textContent = "Les mots de passe ne correspondent pas.";
+                    message.className = "tenant-message danger";
+                    message.style.display = "block";
+                    return;
+                }
+
+                try {
+                    await tenantRequest("/auth/change-password", {
+                        method: "PUT",
+                        body: JSON.stringify({
+                            password: newPassword,
+                            password_confirm: confirmPassword,
+                        }),
+                    });
+                    message.textContent = "Mot de passe modifié avec succès.";
+                    message.className = "tenant-message success";
+                    message.style.display = "block";
+                    e.target.reset();
                 } catch (err) {
                     message.textContent = err.message;
                     message.className = "tenant-message danger";

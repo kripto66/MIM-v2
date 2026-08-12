@@ -90,7 +90,23 @@
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="email">Email</label>
+                        <label for="username">Username (connexion locataire)</label>
+                        <input type="text" id="username" name="username" placeholder="ex : jean.diop" autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Mot de passe temporaire</label>
+                        <input type="password" id="password" name="password" placeholder="Minimum 8 caractères" autocomplete="new-password" minlength="8">
+                    </div>
+                </div>
+
+                <p class="form-hint">
+                    Renseignez username + mot de passe pour créer le compte locataire.
+                    L'email n'est pas obligatoire.
+                </p>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="email">Email (optionnel)</label>
                         <input type="email" id="email" name="email">
                     </div>
                     <div class="form-group">
@@ -169,8 +185,8 @@
                     <div class="crud-card">
                         <div>
                             <h3>${escapeHtml(t.nom)}</h3>
-                            <p>${t.phone ? escapeHtml(t.phone) : ""}${t.email ? ' — ' + escapeHtml(t.email) : ""}</p>
-                            <p>${logement ? "Logement : " + escapeHtml(logement.nom) : "Aucun logement"}</p>
+                            <p>${t.username ? "Username : " + escapeHtml(t.username) + " · " : ""}${t.phone ? escapeHtml(t.phone) : ""}${t.email ? ' — ' + escapeHtml(t.email) : ""}</p>
+                            <p>${logement ? "Logement : " + escapeHtml(logement.nom) : "Aucun logement"}${t.account_uid ? " · Compte actif" : ""}</p>
                             <p><span class="status ${cls}">${label}</span></p>
                         </div>
                         <div class="card-actions">
