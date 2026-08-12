@@ -93,9 +93,13 @@
             const formData = new FormData(form);
 
             try {
-                const response = await fetch('../auth/login.php', {
+                const response = await fetch('http://localhost:3000/api/auth/login', {
                     method: 'POST',
-                    body: formData
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: form.email.value,
+                        password: form.password.value
+                    })
                 });
 
                 const data = await response.json();
@@ -103,7 +107,7 @@
                 if (data.success) {
                     message.textContent = data.message;
                     message.className = 'success';
-                    window.location.href = '../PartProprietaires/dashboard.html';
+                    window.location.href = '../' + data.redirect;
                 } else {
                     message.textContent = data.message;
                     message.className = 'error';

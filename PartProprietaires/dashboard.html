@@ -112,9 +112,13 @@
             <!-- Déconnexion -->
             <div class="sidebar-footer">
 
-                <a href="../auth/logout.php">
+                <button id="backupBtn" type="button">
+                    Sauvegarder
+                </button>
+
+                <button id="logoutBtn" type="button">
                     Déconnexion
-                </a>
+                </button>
 
             </div>
 
@@ -134,6 +138,8 @@
                  ================================================= -->
 
             <header class="dashboard-header">
+
+                <div id="apiMessage" class="api-message" style="display:none;"></div>
 
                 <!-- Nom du propriétaire -->
                 <div class="welcome">

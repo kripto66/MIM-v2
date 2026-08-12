@@ -257,14 +257,24 @@
 
             const formData = new FormData(form);
 
+            const payload = {
+                account_type: formData.get('account_type'),
+                name: formData.get('name'),
+                email: formData.get('email'),
+                phone: formData.get('phone'),
+                password: formData.get('password'),
+                password_confirm: formData.get('password_confirm')
+            };
 
             try {
 
-                const response = await fetch("../auth/register.php", {
+                const response = await fetch("http://localhost:3000/api/auth/register", {
 
                     method: "POST",
 
-                    body: formData
+                    headers: { 'Content-Type': 'application/json' },
+
+                    body: JSON.stringify(payload)
 
                 });
 
@@ -284,7 +294,7 @@
 
                     setTimeout(function() {
 
-                        window.location.href = "../PartProprietaires/dashboard.html";
+                        window.location.href = "../" + data.redirect;
 
                     }, 1200);
 

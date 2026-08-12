@@ -23,5 +23,9 @@ desktop.ini
 vendor/
 composer.lock
 
+# Node.js
+server/node_modules/
+server/.env
+
 # OS temporaires
 *.tmp
