@@ -5,7 +5,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIM — Locataires</title>
+    <title>MIM — Locataires & Logements</title>
 
     <link rel="stylesheet" href="style.css">
 
@@ -25,8 +25,7 @@
 
                 <a href="dashboard.html">Tableau de bord</a>
                 <a href="biens.html">Mes biens</a>
-                <a href="logements.html">Logements</a>
-                <a href="locataires.html" class="active">Locataires</a>
+                <a href="locataires.html" class="active">Locataires & Logements</a>
                 <a href="paiements.html">Paiements</a>
                 <a href="incidents.html">Incidents</a>
                 <a href="prestataires.html">Prestataires</a>
@@ -50,15 +49,20 @@
             <header class="dashboard-header">
 
                 <div class="welcome">
-                    <h1>Locataires</h1>
-                    <p>Gérez vos locataires et leurs informations.</p>
+                    <h1>Locataires & Logements</h1>
+                    <p>Gérez vos locataires et leurs logements sur une seule page.</p>
                 </div>
 
-                <button class="btn btn-primary" id="addLocataireBtn">+ Ajouter un locataire</button>
+                <button class="btn btn-primary" id="addBtn">+ Ajouter un locataire</button>
 
             </header>
 
-            <section class="dashboard-section">
+            <div class="tabs">
+                <button type="button" class="tab active" data-tab="locataires">Locataires</button>
+                <button type="button" class="tab" data-tab="logements">Logements</button>
+            </div>
+
+            <section class="dashboard-section" id="locatairesSection">
 
                 <div class="section-header">
                     <h2>Liste des locataires</h2>
@@ -70,18 +74,32 @@
 
             </section>
 
+            <section class="dashboard-section" id="logementsSection" style="display:none;">
+
+                <div class="section-header">
+                    <h2>Liste des logements</h2>
+                </div>
+
+                <div id="logementsList">
+                    <div class="empty-state">Chargement...</div>
+                </div>
+
+            </section>
+
         </main>
 
     </div>
 
-    <div class="modal-overlay" id="locataireModal" style="display:none;">
+    <!-- ====================== MODAL LOCATAIRE ====================== -->
+
+    <div class="modal-overlay" id="tenantModal" style="display:none;">
         <div class="modal">
 
-            <h2 id="modalTitle">Ajouter un locataire</h2>
+            <h2 id="tenantModalTitle">Ajouter un locataire</h2>
 
-            <form id="locataireForm">
+            <form id="tenantForm">
 
-                <input type="hidden" id="locataireId">
+                <input type="hidden" id="tenantId">
 
                 <div class="form-group">
                     <label for="nom">Nom complet</label>
@@ -100,11 +118,6 @@
                     </div>
                 </div>
 
-                <p class="form-hint">
-                    Renseignez username + mot de passe pour créer le compte locataire.
-                    L'email n'est pas obligatoire.
-                </p>
-
                 <div class="form-row">
                     <div class="form-group">
                         <label for="email">Email (optionnel)</label>
@@ -116,35 +129,160 @@
                     </div>
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="logement_id">Logement</label>
-                        <select id="logement_id" name="logement_id">
-                            <option value="">— Aucun —</option>
-                        </select>
+                <div class="form-group">
+                    <label for="logement_id">Logement</label>
+                    <select id="logement_id" name="logement_id"></select>
+                </div>
+
+                <div class="form-group" style="display:none;">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="editLgCheckbox">
+                        Modifier ce logement (loyer, adresse, type…)
+                    </label>
+                </div>
+
+                <fieldset class="fieldset-block" id="logementFields" style="display:none;">
+                    <legend>Informations du logement</legend>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="lg_bien_id">Bien</label>
+                            <select id="lg_bien_id" name="lg_bien_id"></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="lg_nom">Nom du logement</label>
+                            <input type="text" id="lg_nom" name="lg_nom" placeholder="Ex : Appartement B3">
+                        </div>
                     </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="lg_type">Type de logement</label>
+                            <select id="lg_type" name="lg_type">
+                                <option value="appartement">Appartement</option>
+                                <option value="chambre">Chambre</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="lgChambresGroup">
+                            <label for="lg_nombre_chambres">Nombre de chambres</label>
+                            <input type="number" id="lg_nombre_chambres" name="lg_nombre_chambres" min="1" max="50" placeholder="ex : 3">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="lg_loyer_mensuel">Loyer mensuel (FCFA)</label>
+                            <input type="number" id="lg_loyer_mensuel" name="lg_loyer_mensuel" min="0" step="0.01">
+                        </div>
+                        <div class="form-group">
+                            <label for="lg_statut">Statut</label>
+                            <select id="lg_statut" name="lg_statut">
+                                <option value="libre">Libre</option>
+                                <option value="occupe">Occupé</option>
+                                <option value="maintenance">En maintenance</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="lg_adresse">Adresse du logement</label>
+                        <input type="text" id="lg_adresse" name="lg_adresse" placeholder="Ex : Rue 12, Sicap Mbao">
+                    </div>
+                </fieldset>
+
+                <div class="form-row">
                     <div class="form-group">
                         <label for="jour_echeance">Jour d'échéance (1-31)</label>
                         <input type="number" id="jour_echeance" name="jour_echeance" min="1" max="31" placeholder="ex : 5">
                     </div>
-                </div>
-
-                <div class="form-row">
                     <div class="form-group">
                         <label for="date_entree">Date d'entrée</label>
                         <input type="date" id="date_entree" name="date_entree">
                     </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="statut">Statut du locataire</label>
+                    <select id="statut" name="statut">
+                        <option value="actif">Actif</option>
+                        <option value="inactif">Inactif</option>
+                    </select>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelTenantModal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <!-- ====================== MODAL LOGEMENT ====================== -->
+
+    <div class="modal-overlay" id="logementModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="logementModalTitle">Ajouter un logement</h2>
+
+            <form id="logementForm">
+
+                <input type="hidden" id="logementId2">
+
+                <div class="form-group">
+                    <label for="lgm_nom">Nom du logement</label>
+                    <input type="text" id="lgm_nom" name="lgm_nom" placeholder="Ex : Appartement A12" required>
+                </div>
+
+                <div class="form-row">
                     <div class="form-group">
-                        <label for="statut">Statut</label>
-                        <select id="statut" name="statut">
-                            <option value="actif">Actif</option>
-                            <option value="inactif">Inactif</option>
+                        <label for="lgm_type">Type de logement</label>
+                        <select id="lgm_type" name="lgm_type">
+                            <option value="appartement">Appartement</option>
+                            <option value="chambre">Chambre</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="lgmChambresGroup">
+                        <label for="lgm_nombre_chambres">Nombre de chambres</label>
+                        <input type="number" id="lgm_nombre_chambres" name="lgm_nombre_chambres" min="1" max="50" placeholder="ex : 3">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="lgm_bien_id">Bien</label>
+                    <select id="lgm_bien_id" name="lgm_bien_id">
+                        <option value="">— Aucun —</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="lgm_loyer_mensuel">Loyer mensuel (FCFA)</label>
+                        <input type="number" id="lgm_loyer_mensuel" name="lgm_loyer_mensuel" min="0" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="lgm_statut">Statut</label>
+                        <select id="lgm_statut" name="lgm_statut">
+                            <option value="libre">Libre</option>
+                            <option value="occupe">Occupé</option>
+                            <option value="maintenance">En maintenance</option>
                         </select>
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label for="lgm_adresse">Adresse du logement</label>
+                    <input type="text" id="lgm_adresse" name="lgm_adresse" placeholder="Ex : Rue 12, Sicap Mbao">
+                </div>
+
+                <div class="form-group">
+                    <label for="lgm_description">Description</label>
+                    <textarea id="lgm_description" name="lgm_description" rows="3"></textarea>
+                </div>
+
                 <div class="modal-actions">
-                    <button type="button" class="btn btn-secondary" id="cancelModal">Annuler</button>
+                    <button type="button" class="btn btn-secondary" id="cancelLogementModal">Annuler</button>
                     <button type="submit" class="btn btn-primary">Enregistrer</button>
                 </div>
 
@@ -162,126 +300,606 @@
             actif: ["Actif", "status-success"],
             inactif: ["Inactif", "status-danger"],
         };
+        const LOGEMENT_STATUS = {
+            libre: ["Libre", "status-success"],
+            occupe: ["Occupé", "status-info"],
+            maintenance: ["En maintenance", "status-warning"],
+        };
 
-        let logementsCache = [];
+        const state = { tenants: [], logements: [], biens: [], tab: "locataires" };
+        let tenantEditId = null;
+        let logementEditId = null;
 
-        async function loadLogements() {
-            try {
-                const { data } = await apiRequest("/logements");
-                logementsCache = data;
-                const select = document.getElementById("logement_id");
-                select.innerHTML = '<option value="">— Aucun —</option>' + data.map(
-                    (l) => `<option value="${l.id}">${escapeHtml(l.nom)}</option>`
-                ).join("");
-            } catch (err) {
-                console.error(err);
-            }
-        }
+        const el = (id) => document.getElementById(id);
 
         function usernameValid(u) {
             return /^[a-z0-9._-]{3,30}$/.test(u);
         }
 
-        async function checkUsernameAvailability(input) {
-            const status = document.getElementById("usernameStatus");
-            const value = input.value.trim();
-            if (!value) {
-                status.textContent = "";
-                status.className = "username-status";
-                return;
+        function renderBienOptions() {
+            return '<option value="">— Aucun —</option>' + state.biens.map(
+                (b) => `<option value="${b.id}">${escapeHtml(b.nom)}</option>`
+            ).join("");
+        }
+
+        function renderLogementOptions(currentId) {
+            const currentIdStr = currentId == null ? null : String(currentId);
+            const occupied = new Set(state.tenants.filter((t) => t.logement_id).map((t) => String(t.logement_id)));
+            const sorted = [...state.logements].sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
+            const current = sorted.find((l) => String(l.id) === currentIdStr);
+
+            let html = '<option value="">— Aucun —</option>';
+            html += '<option value="__new__">+ Créer un logement…</option>';
+
+            if (current) html += `<option value="${current.id}">${escapeHtml(current.nom)} (actuel)</option>`;
+
+            for (const l of sorted) {
+                if (current && String(l.id) === currentIdStr) continue;
+                if (occupied.has(String(l.id))) continue;
+                const note = l.statut === "occupe" ? " (occupé)" : " (libre)";
+                html += `<option value="${l.id}">${escapeHtml(l.nom)}${note}</option>`;
             }
-            if (!usernameValid(value)) {
-                status.textContent = "Lettres minuscules, chiffres, . _ - (3 à 30 caractères).";
-                status.className = "username-status username-taken";
-                return;
-            }
-            try {
-                const { available } = await apiRequest(
-                    "/auth/username-available?username=" + encodeURIComponent(value)
-                );
-                if (available) {
-                    status.textContent = "Disponible";
-                    status.className = "username-status username-ok";
-                } else {
-                    status.textContent = "Ce nom d'utilisateur est déjà utilisé.";
-                    status.className = "username-status username-taken";
-                }
-            } catch (err) {
-                status.textContent = "";
+            return html;
+        }
+
+        function toggleChambresLg() {
+            const type = el("lg_type").value;
+            const group = el("lgChambresGroup");
+            if (type === "appartement") group.style.display = "block";
+            else {
+                group.style.display = "none";
+                el("lg_nombre_chambres").value = "";
             }
         }
 
-        CrudPage.init({
-            resource: "locataires",
-            listEl: "locatairesList",
-            addBtnEl: "addLocataireBtn",
-            modalId: "locataireModal",
-            modalTitleId: "modalTitle",
-            formId: "locataireForm",
-            idFieldId: "locataireId",
-            cancelBtnId: "cancelModal",
-            createSuccess: "Locataire créé avec succès.",
-            validate: (form) => {
-                if (form.username.disabled) return {};
-                const errors = validateFields(form, [
-                    {
-                        name: "nom",
-                        test: (i) => !i.value.trim(),
-                        message: "Le nom complet est obligatoire.",
-                    },
-                    {
-                        name: "username",
-                        test: (i) => !usernameValid(i.value.trim()),
-                        message: "Username invalide : lettres minuscules, chiffres, . _ - (3 à 30 caractères).",
-                    },
-                    {
-                        name: "password",
-                        test: (i) => mimPasswordRuleMessage(i.value) !== null,
-                        message: mimPasswordRuleMessage(document.getElementById("password").value) || "Mot de passe trop faible.",
-                    },
-                    {
-                        name: "jour_echeance",
-                        test: (i) => i.value !== "" && (Number(i.value) < 1 || Number(i.value) > 31),
-                        message: "Le jour d'échéance doit être entre 1 et 31.",
-                    },
+        function toggleChambresLgm() {
+            const type = el("lgm_type").value;
+            const group = el("lgmChambresGroup");
+            if (type === "appartement") group.style.display = "block";
+            else {
+                group.style.display = "none";
+                el("lgm_nombre_chambres").value = "";
+            }
+        }
+
+        function lgPayload(form) {
+            const payload = {
+                bien_id: form.lg_bien_id.value || null,
+                nom: form.lg_nom.value.trim(),
+                type: form.lg_type.value,
+                loyer_mensuel: form.lg_loyer_mensuel.value,
+                adresse: form.lg_adresse.value.trim(),
+                statut: form.lg_statut.value,
+            };
+            if (form.lg_type.value === "appartement") payload.nombre_chambres = form.lg_nombre_chambres.value || null;
+            return payload;
+        }
+
+        function resetLgFields() {
+            const form = el("tenantForm");
+            form.lg_bien_id.innerHTML = renderBienOptions();
+            form.lg_nom.value = "";
+            form.lg_type.value = "appartement";
+            form.lg_nombre_chambres.value = "";
+            form.lg_loyer_mensuel.value = "";
+            form.lg_statut.value = "libre";
+            form.lg_adresse.value = "";
+            toggleChambresLg();
+        }
+
+        function prefillLgFields(lg) {
+            const form = el("tenantForm");
+            form.lg_bien_id.value = lg.bien_id || "";
+            form.lg_nom.value = lg.nom || "";
+            form.lg_type.value = lg.type || "appartement";
+            form.lg_nombre_chambres.value = lg.nombre_chambres ?? "";
+            form.lg_loyer_mensuel.value = lg.loyer_mensuel ?? "";
+            form.lg_statut.value = lg.statut || "libre";
+            form.lg_adresse.value = lg.adresse || "";
+            toggleChambresLg();
+        }
+
+        function logementModeFromSelect() {
+            const val = el("logement_id").value;
+            if (val === "__new__") return "new";
+            if (val === "") return "none";
+            return "existing";
+        }
+
+        function selectedLogement() {
+            const val = el("logement_id").value;
+            return state.logements.find((l) => String(l.id) === String(val)) || null;
+        }
+
+        function onLogementSelectChange() {
+            const editChk = el("editLgCheckbox");
+            const fieldset = el("logementFields");
+            const mode = logementModeFromSelect();
+
+            editChk.checked = false;
+            editChk.closest(".form-group").style.display = mode === "existing" && tenantEditId != null ? "block" : "none";
+            fieldset.style.display = "none";
+
+            if (mode === "new") {
+                fieldset.style.display = "block";
+                resetLgFields();
+            }
+        }
+
+        // ============================================================
+        // Chargement + rendu
+        // ============================================================
+
+        async function loadAll() {
+            try {
+                const [tenants, logements, biens] = await Promise.all([
+                    apiRequest("/locataires"),
+                    apiRequest("/logements"),
+                    apiRequest("/biens"),
                 ]);
-                return errors;
-            },
-            onOpenAdd: (form) => {
-                form.username.disabled = false;
-                form.password.disabled = false;
-                document.getElementById("usernameStatus").textContent = "";
-            },
-            onOpenEdit: (form, item) => {
-                form.username.disabled = true;
-                form.password.disabled = true;
-                document.getElementById("usernameStatus").textContent =
-                    "Le username et le mot de passe ne se modifient pas ici.";
-            },
-            afterInit: () => {
-                const usernameInput = document.getElementById("username");
-                usernameInput.addEventListener("blur", () => checkUsernameAvailability(usernameInput));
-            },
-            renderItem: (t) => {
+                state.tenants = tenants.data;
+                state.logements = logements.data;
+                state.biens = biens.data;
+                renderLocataires();
+                renderLogements();
+            } catch (err) {
+                el("locatairesList").innerHTML = `<div class="empty-state">${escapeHtml(err.message)}</div>`;
+                el("logementsList").innerHTML = `<div class="empty-state">${escapeHtml(err.message)}</div>`;
+            }
+        }
+
+        function renderLocataires() {
+            const list = el("locatairesList");
+            if (!state.tenants.length) {
+                list.innerHTML = '<div class="empty-state">Aucun locataire pour le moment.</div>';
+                return;
+            }
+            list.innerHTML = state.tenants.map((t) => {
+                const lg = state.logements.find((l) => String(l.id) === String(t.logement_id));
                 const [label, cls] = LOCATAIRE_STATUS[t.statut] || [t.statut, "status-info"];
-                const logement = logementsCache.find((l) => String(l.id) === String(t.logement_id));
+                const typeLabel = lg && lg.type === "chambre" ? "Chambre" : "Appartement";
                 return `
                     <div class="crud-card">
                         <div>
                             <h3>${escapeHtml(t.nom)}</h3>
-                            <p>${t.username ? "Username : " + escapeHtml(t.username) + " · " : ""}${t.phone ? escapeHtml(t.phone) : ""}${t.email ? ' — ' + escapeHtml(t.email) : ""}</p>
-                            <p>${logement ? "Logement : " + escapeHtml(logement.nom) : "Aucun logement"}${t.jour_echeance ? " · Échéance le " + escapeHtml(t.jour_echeance) : ""}${t.account_uid ? " · Compte actif" : ""}</p>
-                            <p><span class="status ${cls}">${label}</span></p>
+                            <p>${t.username ? "Username : " + escapeHtml(t.username) + " · " : ""}${escapeHtml(t.phone || "")}${t.email ? " — " + escapeHtml(t.email) : ""}</p>
+                            ${lg
+                                ? `<p class="logement-chip"><strong>Logement :</strong> ${escapeHtml(lg.nom)} · ${typeLabel} · ${Number(lg.loyer_mensuel).toLocaleString("fr-FR")} FCFA/mois · ${escapeHtml(lg.adresse || "")}</p>`
+                                : `<p class="logement-chip logement-none">Aucun logement associé.</p>`}
+                            <p><span class="status ${cls}">${label}</span>${t.jour_echeance ? " · Échéance le " + escapeHtml(t.jour_echeance) : ""}${t.account_uid ? " · Compte actif" : ""}</p>
                         </div>
                         <div class="card-actions">
-                            <button class="btn btn-edit" data-edit="${t.id}">Modifier</button>
-                            <button class="btn btn-delete" data-delete="${t.id}">Supprimer</button>
+                            <button class="btn btn-edit" data-edit-t="${t.id}">Modifier</button>
+                            <button class="btn btn-delete" data-delete-t="${t.id}">Supprimer</button>
                         </div>
                     </div>`;
-            }
-        });
+            }).join("");
+        }
 
-        loadLogements();
+        function renderLogements() {
+            const list = el("logementsList");
+            if (!state.logements.length) {
+                list.innerHTML = '<div class="empty-state">Aucun logement pour le moment.</div>';
+                return;
+            }
+            list.innerHTML = state.logements.map((l) => {
+                const [label, cls] = LOGEMENT_STATUS[l.statut] || [l.statut, "status-info"];
+                const bien = state.biens.find((b) => String(b.id) === String(l.bien_id));
+                const tenant = state.tenants.find((t) => String(t.logement_id) === String(l.id));
+                const typeLabel = l.type === "chambre" ? "Chambre" : "Appartement";
+                return `
+                    <div class="crud-card">
+                        <div>
+                            <h3>${escapeHtml(l.nom)}</h3>
+                            <p>${bien ? escapeHtml(bien.nom) : "Sans bien"} · ${typeLabel}${l.nombre_chambres ? " · " + escapeHtml(l.nombre_chambres) + " chambres" : ""}</p>
+                            <p>${l.adresse ? escapeHtml(l.adresse) : ""}</p>
+                            <p><span class="status ${cls}">${label}</span></p>
+                            <p><strong>${Number(l.loyer_mensuel).toLocaleString("fr-FR")} FCFA</strong> / mois</p>
+                            ${tenant ? `<p class="logement-chip">Occupé par : ${escapeHtml(tenant.nom)}</p>` : ""}
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn btn-edit" data-edit-l="${l.id}">Modifier</button>
+                            <button class="btn btn-delete" data-delete-l="${l.id}">Supprimer</button>
+                        </div>
+                    </div>`;
+            }).join("");
+        }
+
+        // ============================================================
+        // Onglets
+        // ============================================================
+
+        function switchTab(tab) {
+            state.tab = tab;
+            document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === tab));
+            el("locatairesSection").style.display = tab === "locataires" ? "block" : "none";
+            el("logementsSection").style.display = tab === "logements" ? "block" : "none";
+            const btn = el("addBtn");
+            btn.textContent = tab === "locataires" ? "+ Ajouter un locataire" : "+ Ajouter un logement";
+        }
+
+        // ============================================================
+        // Modal locataire
+        // ============================================================
+
+        function openTenantAdd() {
+            tenantEditId = null;
+            const form = el("tenantForm");
+            form.reset();
+            clearFormErrors(form);
+            el("tenantId").value = "";
+            el("tenantModalTitle").textContent = "Ajouter un locataire";
+            form.username.disabled = false;
+            form.password.disabled = false;
+            el("usernameStatus").textContent = "";
+            el("logementFields").style.display = "none";
+            el("editLgCheckbox").checked = false;
+            el("editLgCheckbox").closest(".form-group").style.display = "none";
+            el("logement_id").innerHTML = renderLogementOptions(null);
+            el("logement_id").value = "";
+            el("lg_bien_id").innerHTML = renderBienOptions();
+            form.lg_statut.value = "libre";
+            form.lg_type.value = "appartement";
+            toggleChambresLg();
+            el("tenantModal").style.display = "flex";
+        }
+
+        function openTenantEdit(item) {
+            tenantEditId = item.id;
+            const form = el("tenantForm");
+            form.reset();
+            clearFormErrors(form);
+            el("tenantId").value = item.id;
+            el("tenantModalTitle").textContent = "Modifier le locataire";
+            form.username.disabled = true;
+            form.password.disabled = true;
+            el("usernameStatus").textContent = "Le username et le mot de passe ne se modifient pas ici.";
+            form.nom.value = item.nom || "";
+            form.email.value = item.email || "";
+            form.phone.value = item.phone || "";
+            form.jour_echeance.value = item.jour_echeance ?? "";
+            form.date_entree.value = item.date_entree || "";
+            form.statut.value = item.statut || "actif";
+
+            const currentId = item.logement_id || null;
+            el("logement_id").innerHTML = renderLogementOptions(currentId);
+            el("logement_id").value = currentId || "";
+            el("logementFields").style.display = "none";
+            el("editLgCheckbox").checked = false;
+            el("editLgCheckbox").closest(".form-group").style.display = currentId ? "block" : "none";
+            el("lg_bien_id").innerHTML = renderBienOptions();
+            el("tenantModal").style.display = "flex";
+        }
+
+        async function submitTenant(e) {
+            e.preventDefault();
+            const form = el("tenantForm");
+            const btn = form.querySelector('button[type="submit"]');
+            if (btn.disabled) return;
+            clearFormErrors(form);
+
+            const editing = tenantEditId != null;
+            const mode = logementModeFromSelect();
+            const editLinked = el("editLgCheckbox").checked;
+
+            const lgRules = [
+                { name: "lg_bien_id", test: (i) => !i.value, message: "Choisissez le bien du logement." },
+                { name: "lg_nom", test: (i) => !i.value.trim(), message: "Le nom du logement est obligatoire." },
+                { name: "lg_loyer_mensuel", test: (i) => i.value === "" || Number(i.value) <= 0, message: "Saisissez un loyer mensuel valide." },
+                { name: "lg_adresse", test: (i) => !i.value.trim(), message: "L'adresse du logement est obligatoire." },
+                {
+                    name: "lg_nombre_chambres",
+                    test: (i) => form.lg_type.value === "appartement" && (i.value === "" || Number(i.value) < 1),
+                    message: "Indiquez le nombre de chambres.",
+                },
+            ];
+
+            const errors = validateFields(form, [
+                { name: "nom", test: (i) => !i.value.trim(), message: "Le nom complet est obligatoire." },
+                ...(!editing
+                    ? [
+                        {
+                            name: "username",
+                            test: (i) => !usernameValid(i.value.trim()),
+                            message: "Username invalide : lettres minuscules, chiffres, . _ - (3 à 30 caractères).",
+                        },
+                        {
+                            name: "password",
+                            test: (i) => mimPasswordRuleMessage(i.value) !== null,
+                            message: mimPasswordRuleMessage(form.password.value) || "Mot de passe trop faible.",
+                        },
+                    ]
+                    : []),
+                {
+                    name: "jour_echeance",
+                    test: (i) => i.value !== "" && (Number(i.value) < 1 || Number(i.value) > 31),
+                    message: "Le jour d'échéance doit être entre 1 et 31.",
+                },
+                ...(mode === "new" || (mode === "existing" && editLinked) ? lgRules : []),
+            ]);
+
+            if (Object.keys(errors).length) {
+                applyServerErrors(form, errors);
+                return;
+            }
+
+            const payload = {
+                nom: form.nom.value.trim(),
+                email: form.email.value.trim(),
+                phone: form.phone.value.trim(),
+                jour_echeance: form.jour_echeance.value,
+                date_entree: form.date_entree.value,
+                statut: form.statut.value,
+            };
+            if (!editing) {
+                payload.username = form.username.value.trim();
+                payload.password = form.password.value;
+            }
+
+            if (mode === "new") {
+                if (editing) payload.logement_new = lgPayload(form);
+                else payload.logement = lgPayload(form);
+            } else if (mode === "existing") {
+                payload.logement_id = form.logement_id.value;
+                if (editLinked) payload.logement_update = { id: form.logement_id.value, ...lgPayload(form) };
+            } else {
+                payload.logement_id = "";
+            }
+
+            const originalLabel = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = "Enregistrement...";
+
+            try {
+                if (editing) {
+                    await apiRequest(`/locataires/${tenantEditId}`, { method: "PUT", body: JSON.stringify(payload) });
+                } else {
+                    await apiRequest("/locataires", { method: "POST", body: JSON.stringify(payload) });
+                }
+                showToast(editing ? "Locataire modifié avec succès." : "Locataire créé avec succès.");
+                el("tenantModal").style.display = "none";
+                await loadAll();
+            } catch (err) {
+                const mapped = {};
+                for (const [k, v] of Object.entries(err.errors || {})) {
+                    mapped[k.startsWith("logement_") ? k.replace("logement_", "lg_") : k] = v;
+                }
+                applyServerErrors(form, mapped);
+                showToast(err.message, "error");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalLabel;
+            }
+        }
+
+        async function deleteTenant(id) {
+            if (!confirm("Voulez-vous vraiment supprimer ce locataire ? Son compte d'accès (login) sera supprimé définitivement.")) return;
+            try {
+                const res = await apiRequest(`/locataires/${id}`, { method: "DELETE" });
+                showToast(res.message);
+                await loadAll();
+            } catch (err) {
+                showToast(err.message, "error");
+            }
+        }
+
+        // ============================================================
+        // Modal logement
+        // ============================================================
+
+        function openLogementAdd() {
+            logementEditId = null;
+            const form = el("logementForm");
+            form.reset();
+            clearFormErrors(form);
+            el("logementId2").value = "";
+            el("logementModalTitle").textContent = "Ajouter un logement";
+            form.lgm_type.value = "appartement";
+            form.lgm_statut.value = "libre";
+            el("lgm_bien_id").innerHTML = renderBienOptions();
+            toggleChambresLgm();
+            el("logementModal").style.display = "flex";
+        }
+
+        function openLogementEdit(item) {
+            logementEditId = item.id;
+            const form = el("logementForm");
+            form.reset();
+            clearFormErrors(form);
+            el("logementId2").value = item.id;
+            el("logementModalTitle").textContent = "Modifier le logement";
+            form.lgm_nom.value = item.nom || "";
+            form.lgm_type.value = item.type || "appartement";
+            form.lgm_nombre_chambres.value = item.nombre_chambres ?? "";
+            form.lgm_loyer_mensuel.value = item.loyer_mensuel ?? "";
+            form.lgm_statut.value = item.statut || "libre";
+            form.lgm_adresse.value = item.adresse || "";
+            form.lgm_description.value = item.description || "";
+            el("lgm_bien_id").innerHTML = renderBienOptions();
+            el("lgm_bien_id").value = item.bien_id || "";
+            toggleChambresLgm();
+            el("logementModal").style.display = "flex";
+        }
+
+        async function submitLogement(e) {
+            e.preventDefault();
+            const form = el("logementForm");
+            const btn = form.querySelector('button[type="submit"]');
+            if (btn.disabled) return;
+            clearFormErrors(form);
+
+            const errors = validateFields(form, [
+                { name: "lgm_nom", test: (i) => !i.value.trim(), message: "Le nom du logement est obligatoire." },
+                { name: "lgm_bien_id", test: (i) => !i.value, message: "Choisissez le bien du logement." },
+                { name: "lgm_loyer_mensuel", test: (i) => i.value === "" || Number(i.value) <= 0, message: "Saisissez un loyer mensuel valide." },
+                { name: "lgm_adresse", test: (i) => !i.value.trim(), message: "L'adresse du logement est obligatoire." },
+                {
+                    name: "lgm_nombre_chambres",
+                    test: (i) => form.lgm_type.value === "appartement" && (i.value === "" || Number(i.value) < 1),
+                    message: "Indiquez le nombre de chambres.",
+                },
+            ]);
+
+            if (Object.keys(errors).length) {
+                applyServerErrors(form, errors);
+                return;
+            }
+
+            const payload = {
+                bien_id: form.lgm_bien_id.value || null,
+                nom: form.lgm_nom.value.trim(),
+                type: form.lgm_type.value,
+                loyer_mensuel: form.lgm_loyer_mensuel.value,
+                statut: form.lgm_statut.value,
+                adresse: form.lgm_adresse.value.trim(),
+                description: form.lgm_description.value.trim(),
+            };
+            if (form.lgm_type.value === "appartement") payload.nombre_chambres = form.lgm_nombre_chambres.value || null;
+
+            const originalLabel = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = "Enregistrement...";
+
+            try {
+                if (logementEditId) {
+                    await apiRequest(`/logements/${logementEditId}`, { method: "PUT", body: JSON.stringify(payload) });
+                } else {
+                    await apiRequest("/logements", { method: "POST", body: JSON.stringify(payload) });
+                }
+                showToast(logementEditId ? "Logement modifié avec succès." : "Logement créé avec succès.");
+                el("logementModal").style.display = "none";
+                await loadAll();
+            } catch (err) {
+                applyServerErrors(form, err.errors);
+                showToast(err.message, "error");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalLabel;
+            }
+        }
+
+        async function deleteLogement(id) {
+            if (!confirm("Voulez-vous vraiment supprimer ce logement ?")) return;
+            try {
+                const res = await apiRequest(`/logements/${id}`, { method: "DELETE" });
+                showToast(res.message);
+                await loadAll();
+            } catch (err) {
+                showToast(err.message, "error");
+            }
+        }
+
+        // ============================================================
+        // Initialisation
+        // ============================================================
+
+        document.addEventListener("DOMContentLoaded", () => {
+            document.querySelectorAll(".tab").forEach((t) =>
+                t.addEventListener("click", () => switchTab(t.dataset.tab))
+            );
+
+            el("addBtn").addEventListener("click", () => {
+                if (state.tab === "logements") openLogementAdd();
+                else openTenantAdd();
+            });
+
+            el("cancelTenantModal").addEventListener("click", () => (el("tenantModal").style.display = "none"));
+            el("cancelLogementModal").addEventListener("click", () => (el("logementModal").style.display = "none"));
+            el("tenantModal").addEventListener("click", (e) => { if (e.target === el("tenantModal")) el("tenantModal").style.display = "none"; });
+            el("logementModal").addEventListener("click", (e) => { if (e.target === el("logementModal")) el("logementModal").style.display = "none"; });
+
+            el("tenantForm").addEventListener("submit", submitTenant);
+            el("logementForm").addEventListener("submit", submitLogement);
+            el("logement_id").addEventListener("change", onLogementSelectChange);
+            el("editLgCheckbox").addEventListener("change", () => {
+                const fieldset = el("logementFields");
+                if (el("editLgCheckbox").checked) {
+                    const lg = selectedLogement();
+                    if (lg) {
+                        fieldset.style.display = "block";
+                        prefillLgFields(lg);
+                    } else {
+                        el("editLgCheckbox").checked = false;
+                    }
+                } else {
+                    fieldset.style.display = "none";
+                }
+            });
+            el("lg_type").addEventListener("change", toggleChambresLg);
+            el("lgm_type").addEventListener("change", toggleChambresLgm);
+
+            el("username").addEventListener("blur", async () => {
+                const input = el("username");
+                const status = el("usernameStatus");
+                const value = input.value.trim();
+                if (!value) { status.textContent = ""; status.className = "username-status"; return; }
+                if (!usernameValid(value)) {
+                    status.textContent = "Lettres minuscules, chiffres, . _ - (3 à 30 caractères).";
+                    status.className = "username-status username-taken";
+                    return;
+                }
+                try {
+                    const { available } = await apiRequest("/auth/username-available?username=" + encodeURIComponent(value));
+                    if (available) {
+                        status.textContent = "Disponible";
+                        status.className = "username-status username-ok";
+                    } else {
+                        status.textContent = "Ce nom d'utilisateur est déjà utilisé.";
+                        status.className = "username-status username-taken";
+                    }
+                } catch (err) {
+                    status.textContent = "";
+                }
+            });
+
+            el("locatairesList").addEventListener("click", (e) => {
+                const editBtn = e.target.closest("[data-edit-t]");
+                const delBtn = e.target.closest("[data-delete-t]");
+                if (editBtn) {
+                    const item = state.tenants.find((t) => String(t.id) === String(editBtn.dataset.editT));
+                    if (item) openTenantEdit(item);
+                }
+                if (delBtn) deleteTenant(delBtn.dataset.deleteT);
+            });
+
+            el("logementsList").addEventListener("click", (e) => {
+                const editBtn = e.target.closest("[data-edit-l]");
+                const delBtn = e.target.closest("[data-delete-l]");
+                if (editBtn) {
+                    const item = state.logements.find((l) => String(l.id) === String(editBtn.dataset.editL));
+                    if (item) openLogementEdit(item);
+                }
+                if (delBtn) deleteLogement(delBtn.dataset.deleteL);
+            });
+
+            const backupBtn = el("backupBtn");
+            if (backupBtn) {
+                backupBtn.addEventListener("click", async () => {
+                    backupBtn.disabled = true;
+                    backupBtn.textContent = "Sauvegarde...";
+                    try {
+                        const data = await apiRequest("/git/backup", { method: "POST" });
+                        showToast(data.message);
+                    } catch (err) {
+                        showToast(err.message, "error");
+                    } finally {
+                        backupBtn.disabled = false;
+                        backupBtn.textContent = "Sauvegarder";
+                    }
+                });
+            }
+
+            el("logoutBtn").addEventListener("click", async () => {
+                try {
+                    await apiRequest("/auth/logout", { method: "POST" });
+                } catch (err) {
+                    /* on déconnecte quand même */
+                }
+                window.location.href = "../PartPublic/connexion.html";
+            });
+
+            loadAll();
+        });
     </script>
 
 </body>

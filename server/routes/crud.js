@@ -198,6 +198,74 @@ export function createCrudRouter(tableName) {
   }
 
   // ============================================================
+  // Helpers logements (page fusionnée locataires / logements).
+  // Le logement est créé/modifié par le propriétaire avec le rôle
+  // service : la RLS `owner_all_logements` n'autorise l'insertion
+  // que pour des logements dont user_id est l'utilisateur connecté,
+  // or l'utilisateur connecté (locataire/propriétaire côté RLS) peut
+  // ne pas correspondre ici selon le contexte d'exécution.
+  // ============================================================
+  async function createLogementForOwner(admin, ownerId, payload) {
+    const errors = validateResource('logements', sanitize('logements', payload), false);
+    if (Object.keys(errors).length) return { errors };
+
+    const body = {
+      ...sanitize('logements', payload),
+      user_id: ownerId,
+      statut: payload?.statut || 'libre',
+    };
+
+    const { data, error } = await admin.from('logements').insert(body).select().single();
+    if (error) {
+      console.error('[createLogement]', error.message);
+      return { error };
+    }
+    return { data };
+  }
+
+  async function updateLogementForOwner(admin, ownerId, payload) {
+    const { id, ...fields } = payload;
+    if (!id) return { errors: { logement_id: 'Logement introuvable.' } };
+
+    const clean = sanitize('logements', fields);
+    const errors = validateResource('logements', clean, true);
+    if (Object.keys(errors).length) return { errors };
+
+    const { data, error } = await admin
+      .from('logements')
+      .update(clean)
+      .eq('id', id)
+      .eq('user_id', ownerId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[updateLogement]', error.message);
+      return { error };
+    }
+    return { data };
+  }
+
+  // Remet un logement à « libre » s'il n'est plus occupé par personne.
+  async function freeLogementIfUnused(admin, logementId) {
+    if (!logementId) return;
+
+    try {
+      const { data } = await admin
+        .from('locataires')
+        .select('id')
+        .eq('logement_id', logementId)
+        .maybeSingle();
+
+      if (!data) {
+        await admin.from('logements').update({ statut: 'libre' }).eq('id', logementId);
+      }
+    } catch (err) {
+      console.warn('[freeLogementIfUnused]', err.message);
+    }
+  }
+
+  // ============================================================
   // Création d'un locataire AVEC un compte d'authentification.
   // Règle métier : seul le propriétaire crée les comptes locataires
   // (username + mot de passe temporaire, email optionnel).
@@ -209,7 +277,9 @@ export function createCrudRouter(tableName) {
     const username = String(req.body.username || '').trim().toLowerCase();
     const password = String(req.body.password || '');
     const nom = String(req.body.nom || '').trim();
-    const logementId = req.body.logement_id || null;
+    const logementNew = req.body.logement && typeof req.body.logement === 'object' ? req.body.logement : null;
+    const logementId = logementNew ? null : req.body.logement_id || null;
+    let createdLogementId = null;
     const email = req.body.email ? String(req.body.email).trim() : null;
     const phone = req.body.phone ? String(req.body.phone).trim() : null;
     const dateEntree = req.body.date_entree || null;
@@ -256,6 +326,7 @@ export function createCrudRouter(tableName) {
       }
     }
 
+    // Création d'un logement embarqué (page fusionnée locataires / logements).
     // Username unique dans toute l'application (messages clairs, pas d'erreur technique).
     const { data: existingUsername } = await admin
       .from('profiles')
@@ -265,6 +336,25 @@ export function createCrudRouter(tableName) {
 
     if (existingUsername) {
       return res.status(409).json({ success: false, message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+    }
+
+    // Création d'un logement embarqué (page fusionnée locataires / logements).
+    // Placée après la vérification du username pour ne pas laisser un logement
+    // orphelin en cas de rejet du formulaire.
+    if (logementNew) {
+      const created = await createLogementForOwner(admin, ownerId, logementNew);
+      if (created.errors || created.error) {
+        const errors = created.errors
+          ? Object.fromEntries(Object.entries(created.errors).map(([k, v]) => [`logement_${k}`, v]))
+          : {};
+        return res.status(400).json({
+          success: false,
+          message: 'Veuillez corriger les champs du logement.',
+          errors,
+        });
+      }
+      logementId = created.data.id;
+      createdLogementId = created.data.id;
     }
 
     const { data: createdUser, error: createError } = await admin.auth.admin.createUser({
@@ -282,6 +372,9 @@ export function createCrudRouter(tableName) {
     });
 
     if (createError || !createdUser?.user?.id) {
+      if (createdLogementId) {
+        await admin.from('logements').delete().eq('id', createdLogementId).catch(() => {});
+      }
       const msg = String(createError?.message || '').toLowerCase();
       if (msg.includes('already') || msg.includes('existe')) {
         return res.status(409).json({ success: false, message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
@@ -308,6 +401,9 @@ export function createCrudRouter(tableName) {
     const { data, error } = await admin.from(tableName).insert(body).select().single();
 
     if (error) {
+      if (createdLogementId) {
+        await admin.from('logements').delete().eq('id', createdLogementId).catch(() => {});
+      }
       await admin.auth.admin.deleteUser(accountUid).catch(() => {});
       console.error('[createTenant]', error.message);
       return res.status(400).json({ success: false, message: 'Erreur lors de la création du locataire.' });
@@ -371,6 +467,47 @@ export function createCrudRouter(tableName) {
       delete body.password;
     }
 
+    // Logements embarqués (page fusionnée locataires / logements).
+    // logement_new    : crée un logement puis l'attache au locataire.
+    // logement_update : modifie un logement existant du propriétaire.
+    const logementNew =
+      tableName === 'locataires' && req.body?.logement_new && typeof req.body.logement_new === 'object'
+        ? req.body.logement_new
+        : null;
+    const logementUpdate =
+      tableName === 'locataires' && req.body?.logement_update && typeof req.body.logement_update === 'object'
+        ? req.body.logement_update
+        : null;
+
+    if (logementNew) {
+      const admin = serviceClient();
+      const created = await createLogementForOwner(admin, userId(req), logementNew);
+      if (created.errors || created.error) {
+        const errors = created.errors
+          ? Object.fromEntries(Object.entries(created.errors).map(([k, v]) => [`logement_${k}`, v]))
+          : {};
+        return res.status(400).json({
+          success: false,
+          message: 'Veuillez corriger les champs du logement.',
+          errors,
+        });
+      }
+      body.logement_id = created.data.id;
+    } else if (logementUpdate) {
+      const admin = serviceClient();
+      const updated = await updateLogementForOwner(admin, userId(req), logementUpdate);
+      if (updated.errors || updated.error) {
+        const errors = updated.errors
+          ? Object.fromEntries(Object.entries(updated.errors).map(([k, v]) => [`logement_${k}`, v]))
+          : {};
+        return res.status(400).json({
+          success: false,
+          message: 'Veuillez corriger les champs du logement.',
+          errors,
+        });
+      }
+    }
+
     const errors = validateResource(tableName, body, true);
     if (Object.keys(errors).length) {
       return res.status(400).json({ success: false, message: 'Veuillez corriger les champs en rouge.', errors });
@@ -401,6 +538,34 @@ export function createCrudRouter(tableName) {
     }
 
     if (prev) await notifyOnUpdate(tableName, prev, data, userId(req));
+
+    // Synchronisation du statut des logements quand le locataire change de logement.
+    if (tableName === 'locataires' && prev) {
+      const admin = serviceClient();
+      const oldLogement = prev.logement_id;
+      const newLogement = data.logement_id;
+
+      if (newLogement && newLogement !== oldLogement) {
+        await admin
+          .from('logements')
+          .update({ statut: 'occupe' })
+          .eq('id', newLogement)
+          .eq('user_id', userId(req))
+          .catch(() => {});
+      }
+      if (oldLogement && oldLogement !== newLogement) {
+        await freeLogementIfUnused(admin, oldLogement);
+      } else if (newLogement) {
+        // Même logement conservé : il reste occupé par le locataire.
+        await admin
+          .from('logements')
+          .update({ statut: 'occupe' })
+          .eq('id', newLogement)
+          .eq('user_id', userId(req))
+          .catch(() => {});
+      }
+    }
+
     await gitAutoBackup(`Sauvegarde auto : modification dans ${tableName}`);
 
     res.json({ success: true, data });
@@ -408,6 +573,55 @@ export function createCrudRouter(tableName) {
 
   router.delete('/:id', async (req, res) => {
     const id = req.params.id;
+    const admin = serviceClient();
+
+    // Impossible de supprimer un logement encore occupé par un locataire :
+    // on évite de laisser la fiche du locataire sans logement par accident.
+    if (tableName === 'logements') {
+      const { data: ref } = await admin
+        .from('locataires')
+        .select('id')
+        .eq('logement_id', id)
+        .maybeSingle();
+
+      if (ref) {
+        return res.status(400).json({
+          success: false,
+          message: 'Ce logement est occupé par un locataire. Supprimez d\'abord le locataire.',
+        });
+      }
+    }
+
+    // La suppression d'un locataire désactive aussi son compte d'accès :
+    // plus aucun login ne fonctionnera avec ce username.
+    if (tableName === 'locataires') {
+      const { data: row } = await admin
+        .from('locataires')
+        .select('account_uid, logement_id')
+        .eq('id', id)
+        .eq('user_id', userId(req))
+        .maybeSingle();
+
+      const { error } = await sb(req)
+        .from('locataires')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId(req));
+
+      if (error) {
+        console.error('[locataires]', error.message);
+        return res.status(400).json({ success: false, message: 'Erreur lors de la suppression.' });
+      }
+
+      if (row?.account_uid) {
+        const { error: delErr } = await admin.auth.admin.deleteUser(row.account_uid);
+        if (delErr) console.warn('[locataires] suppression du compte :', delErr.message);
+      }
+
+      await freeLogementIfUnused(admin, row?.logement_id);
+      await gitAutoBackup(`Sauvegarde auto : suppression locataire (compte ${row?.account_uid || 'sans compte'})`);
+      return res.json({ success: true, message: 'Supprimé avec succès. Le compte du locataire est désactivé.' });
+    }
 
     const { error } = await sb(req)
       .from(tableName)
