@@ -177,4 +177,54 @@ router.get('/me', authenticate, async (req, res) => {
   res.json({ success: true, user });
 });
 
+router.post('/forgot', async (req, res) => {
+  const { email } = req.body;
+
+  if (!email || !emailIsValid(email)) {
+    return res.status(400).json({ success: false, message: 'Adresse email invalide.' });
+  }
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: 'http://localhost:3000/api/auth/reset-password',
+  });
+
+  if (error) {
+    console.error('[forgot]', error.message);
+  }
+
+  res.json({
+    success: true,
+    message: 'Si cette adresse est enregistrée, un lien de réinitialisation a été envoyé.',
+  });
+});
+
+router.post('/reset-password', async (req, res) => {
+  const { password, password_confirm } = req.body;
+
+  if (!password || password.length < 8) {
+    return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 8 caractères.' });
+  }
+
+  if (password !== password_confirm) {
+    return res.status(400).json({ success: false, message: 'Les mots de passe ne correspondent pas.' });
+  }
+
+  const supabaseToken = req.user?.supabase_token;
+
+  if (!supabaseToken) {
+    return res.status(401).json({ success: false, message: 'Jeton de réinitialisation manquant.' });
+  }
+
+  const { error } = await authedClient(supabaseToken).auth.updateUser({ password });
+
+  if (error) {
+    console.error('[reset-password]', error.message);
+    return res.status(400).json({ success: false, message: 'Impossible de réinitialiser le mot de passe.' });
+  }
+
+  await gitAutoBackup('Sauvegarde auto : réinitialisation de mot de passe');
+
+  res.json({ success: true, message: 'Mot de passe réinitialisé. Vous pouvez vous connecter.' });
+});
+
 export default router;
