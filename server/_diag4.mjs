@@ -17,7 +17,7 @@ async function ownerSide() {
     body: JSON.stringify({ email: 'owner.test20260812@example.com', password: 'OwnerTest2026!' }),
   });
   const cookie = login.headers.get('set-cookie').split(';')[0];
-  const list = await fetch(`${BASE}/api/crud/locataires`, { headers: { cookie } });
+  const list = await fetch(`${BASE}/api/locataires`, { headers: { cookie } });
   const data = await list.json();
   const rows = data.data || [];
   const amdi = rows.find(r => r.nom === 'Ahmadou Diop');
@@ -46,4 +46,5 @@ async function tenantSide() {
 
 await ownerSide();
 await tenantSide();
+
 
