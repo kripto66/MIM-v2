@@ -6,7 +6,7 @@
 -- Profil étendu (au-dessus de auth.users)
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    account_type TEXT NOT NULL CHECK (account_type IN ('proprietaire', 'agence', 'entreprise')),
+    account_type TEXT NOT NULL CHECK (account_type IN ('proprietaire', 'agence', 'entreprise', 'locataire')),
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     phone TEXT NOT NULL,
@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS public.logements (
 CREATE TABLE IF NOT EXISTS public.locataires (
     id BIGSERIAL PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    account_uid UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     logement_id BIGINT REFERENCES public.logements(id) ON DELETE SET NULL,
     nom TEXT NOT NULL,
     email TEXT,
@@ -181,3 +182,62 @@ CREATE POLICY "owner_all_notifications" ON public.notifications
     FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "owner_all_sessions" ON public.sessions
     FOR ALL USING (auth.uid() = user_id);
+
+-- ============================================================
+-- Espace locataire : compte en ligne (type de compte 'locataire')
+-- ============================================================
+-- Compatibilité bases existantes : ajuste la contrainte et ajoute la colonne
+ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_account_type_check;
+ALTER TABLE public.profiles ADD CONSTRAINT profiles_account_type_check
+    CHECK (account_type IN ('proprietaire', 'agence', 'entreprise', 'locataire'));
+
+ALTER TABLE public.locataires ADD COLUMN IF NOT EXISTS account_uid UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+
+-- Le locataire lit sa propre fiche
+CREATE POLICY "tenant_select_locataire" ON public.locataires
+    FOR SELECT USING (account_uid = auth.uid());
+
+-- Liaison unique : le locataire s'attache à la fiche dont l'email correspond.
+-- Une fois lié (account_uid renseigné), il ne peut plus modifier la fiche.
+CREATE POLICY "tenant_link_locataire" ON public.locataires
+    FOR UPDATE
+    USING (lower(email) = lower(auth.jwt() ->> 'email') AND account_uid IS NULL)
+    WITH CHECK (account_uid = auth.uid());
+
+-- Le locataire voit son logement
+CREATE POLICY "tenant_select_logement" ON public.logements
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.locataires l
+            WHERE l.account_uid = auth.uid() AND l.logement_id = logements.id
+        )
+    );
+
+-- Le locataire voit le bien auquel son logement appartient
+CREATE POLICY "tenant_select_bien" ON public.biens
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.logements lg
+            JOIN public.locataires l ON l.logement_id = lg.id
+            WHERE lg.bien_id = biens.id AND l.account_uid = auth.uid()
+        )
+    );
+
+-- Le locataire voit ses paiements
+CREATE POLICY "tenant_select_paiement" ON public.paiements
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.locataires l
+            WHERE l.account_uid = auth.uid() AND l.id = paiements.locataire_id
+        )
+    );
+
+-- Le locataire voit les incidents de son logement
+CREATE POLICY "tenant_select_incident" ON public.incidents
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.logements lg
+            JOIN public.locataires l ON l.logement_id = lg.id
+            WHERE lg.id = incidents.logement_id AND l.account_uid = auth.uid()
+        )
+    );

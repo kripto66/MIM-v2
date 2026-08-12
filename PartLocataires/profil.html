@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>MIM — Mon profil</title>
+
+    <link
+        rel="stylesheet"
+        href="LocaDash.css"
+    >
+
+</head>
+
+<body>
+
+    <aside class="sidebar" id="sidebar">
+
+        <div class="sidebar-header">
+
+            <a href="LocaDash.html" class="logo">
+                MIM
+            </a>
+
+            <button
+                class="close-menu"
+                id="closeMenu"
+            >
+                ×
+            </button>
+
+        </div>
+
+        <nav class="navigation">
+
+            <a href="LocaDash.html" class="nav-link">
+                <span>🏠</span>
+                <span>Accueil</span>
+            </a>
+
+            <a href="logement.html" class="nav-link">
+                <span>🏢</span>
+                <span>Mon logement</span>
+            </a>
+
+            <a href="paiements.html" class="nav-link">
+                <span>💰</span>
+                <span>Paiements</span>
+            </a>
+
+            <a href="incidents.html" class="nav-link">
+                <span>🛠️</span>
+                <span>Incidents</span>
+            </a>
+
+            <a href="notifications.html" class="nav-link">
+                <span>🔔</span>
+                <span>Notifications</span>
+            </a>
+
+            <a href="profil.html" class="nav-link active">
+                <span>⚙️</span>
+                <span>Mon profil</span>
+            </a>
+
+        </nav>
+
+        <div class="sidebar-footer">
+
+            <button
+                class="logout-button"
+                id="logoutButton"
+            >
+                🚪 Déconnexion
+            </button>
+
+        </div>
+
+    </aside>
+
+    <div
+        class="sidebar-overlay"
+        id="sidebarOverlay"
+    ></div>
+
+    <main class="main-content">
+
+        <header class="topbar">
+
+            <button
+                class="menu-button"
+                id="menuButton"
+            >
+                ☰
+            </button>
+
+            <div class="topbar-title">
+
+                <h1>Mon profil</h1>
+
+                <p>
+                    Vos informations personnelles.
+                </p>
+
+            </div>
+
+            <a
+                href="profil.html"
+                class="user-profile"
+            >
+
+                <div class="avatar">
+                    L
+                </div>
+
+                <div class="user-info">
+
+                    <strong id="userName">
+                        Locataire
+                    </strong>
+
+                    <span>
+                        Locataire
+                    </span>
+
+                </div>
+
+            </a>
+
+        </header>
+
+        <div id="tenantError" class="tenant-message danger" style="display:none;"></div>
+
+        <section class="page-section">
+
+            <div class="section-title">
+
+                <h2>Informations du compte</h2>
+
+                <p>Mettez à jour vos informations personnelles.</p>
+
+            </div>
+
+            <form id="profileForm">
+
+                <div class="form-group">
+                    <label for="profileNameInput">Nom complet</label>
+                    <input type="text" id="profileNameInput" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="profileEmail">Email</label>
+                    <input type="email" id="profileEmail" disabled>
+                    <p class="form-hint">L'email ne peut pas être modifié ici.</p>
+                </div>
+
+                <div class="form-group">
+                    <label for="profilePhoneInput">Téléphone</label>
+                    <input type="tel" id="profilePhoneInput">
+                </div>
+
+                <div class="form-group">
+                    <label for="profileType">Type de compte</label>
+                    <input type="text" id="profileType" value="Locataire" disabled>
+                </div>
+
+                <div id="profileMessage" class="tenant-message success" style="display:none;"></div>
+
+                <button
+                    type="submit"
+                    class="primary-button"
+                >
+                    Enregistrer les modifications
+                </button>
+
+            </form>
+
+        </section>
+
+    </main>
+
+    <script src="LocaDash.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", async () => {
+            try {
+                const { user } = await tenantRequest("/auth/me");
+                document.getElementById("profileNameInput").value = user.name || "";
+                document.getElementById("profileEmail").value = user.email || "";
+                document.getElementById("profilePhoneInput").value = user.phone || "";
+            } catch (err) {
+                showTenantError(err.message);
+            }
+
+            document.getElementById("profileForm").addEventListener("submit", async (e) => {
+                e.preventDefault();
+
+                const message = document.getElementById("profileMessage");
+                message.style.display = "none";
+
+                try {
+                    await tenantRequest("/auth/update-profile", {
+                        method: "PUT",
+                        body: JSON.stringify({
+                            name: document.getElementById("profileNameInput").value.trim(),
+                            phone: document.getElementById("profilePhoneInput").value.trim(),
+                        }),
+                    });
+                    message.textContent = "Profil mis à jour avec succès.";
+                    message.className = "tenant-message success";
+                    message.style.display = "block";
+                    loadTenantIdentity();
+                } catch (err) {
+                    message.textContent = err.message;
+                    message.className = "tenant-message danger";
+                    message.style.display = "block";
+                }
+            });
+        });
+    </script>
+
+</body>
+
+</html>

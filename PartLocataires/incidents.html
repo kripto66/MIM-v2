@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>MIM — Incidents</title>
+
+    <link
+        rel="stylesheet"
+        href="LocaDash.css"
+    >
+
+</head>
+
+<body>
+
+    <aside class="sidebar" id="sidebar">
+
+        <div class="sidebar-header">
+
+            <a href="LocaDash.html" class="logo">
+                MIM
+            </a>
+
+            <button
+                class="close-menu"
+                id="closeMenu"
+            >
+                ×
+            </button>
+
+        </div>
+
+        <nav class="navigation">
+
+            <a href="LocaDash.html" class="nav-link">
+                <span>🏠</span>
+                <span>Accueil</span>
+            </a>
+
+            <a href="logement.html" class="nav-link">
+                <span>🏢</span>
+                <span>Mon logement</span>
+            </a>
+
+            <a href="paiements.html" class="nav-link">
+                <span>💰</span>
+                <span>Paiements</span>
+            </a>
+
+            <a href="incidents.html" class="nav-link active">
+                <span>🛠️</span>
+                <span>Incidents</span>
+            </a>
+
+            <a href="notifications.html" class="nav-link">
+                <span>🔔</span>
+                <span>Notifications</span>
+            </a>
+
+            <a href="profil.html" class="nav-link">
+                <span>⚙️</span>
+                <span>Mon profil</span>
+            </a>
+
+        </nav>
+
+        <div class="sidebar-footer">
+
+            <button
+                class="logout-button"
+                id="logoutButton"
+            >
+                🚪 Déconnexion
+            </button>
+
+        </div>
+
+    </aside>
+
+    <div
+        class="sidebar-overlay"
+        id="sidebarOverlay"
+    ></div>
+
+    <main class="main-content">
+
+        <header class="topbar">
+
+            <button
+                class="menu-button"
+                id="menuButton"
+            >
+                ☰
+            </button>
+
+            <div class="topbar-title">
+
+                <h1>Incidents</h1>
+
+                <p>
+                    Les problèmes signalés sur votre logement.
+                </p>
+
+            </div>
+
+            <a
+                href="profil.html"
+                class="user-profile"
+            >
+
+                <div class="avatar">
+                    L
+                </div>
+
+                <div class="user-info">
+
+                    <strong id="userName">
+                        Locataire
+                    </strong>
+
+                    <span>
+                        Locataire
+                    </span>
+
+                </div>
+
+            </a>
+
+        </header>
+
+        <div id="tenantError" class="tenant-message danger" style="display:none;"></div>
+
+        <div id="unlinkedMessage" class="tenant-message warning" style="display:none;">
+            <h3>Compte non rattaché</h3>
+            <p>
+                Votre compte locataire n'est pas encore lié à une fiche. Demandez à votre propriétaire
+                d'enregistrer votre fiche avec la même adresse email.
+            </p>
+        </div>
+
+        <section class="page-section">
+
+            <div class="section-title">
+
+                <h2>Incidents de mon logement</h2>
+
+                <p>Suivi des incidents déclarés sur votre logement.</p>
+
+            </div>
+
+            <div id="incidentsList">
+                <div class="empty-state">Chargement…</div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <script src="LocaDash.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", async () => {
+            try {
+                const data = await tenantRequest("/locataire/dashboard");
+                const list = document.getElementById("incidentsList");
+
+                if (!data.linked) {
+                    document.getElementById("unlinkedMessage").style.display = "block";
+                    list.innerHTML = "";
+                    return;
+                }
+
+                const incidents = data.incidents || [];
+
+                if (!incidents.length) {
+                    list.innerHTML = '<div class="empty-state">Aucun incident signalé pour votre logement.</div>';
+                    return;
+                }
+
+                list.innerHTML = incidents
+                    .map((i) => `
+                        <div class="list-item">
+                            <div class="list-item-info">
+                                <h4>${escapeHtml(i.titre)}</h4>
+                                <p>${i.description ? escapeHtml(i.description) : "Pas de description"}</p>
+                                <p>Signalé le ${formatDate(i.created_at)}</p>
+                            </div>
+                            <div>${badgeStatut(i.statut, "incident")}</div>
+                        </div>`)
+                    .join("");
+            } catch (err) {
+                showTenantError(err.message);
+            }
+        });
+    </script>
+
+</body>
+
+</html>

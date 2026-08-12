@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>MIM — Notifications</title>
+
+    <link
+        rel="stylesheet"
+        href="LocaDash.css"
+    >
+
+</head>
+
+<body>
+
+    <aside class="sidebar" id="sidebar">
+
+        <div class="sidebar-header">
+
+            <a href="LocaDash.html" class="logo">
+                MIM
+            </a>
+
+            <button
+                class="close-menu"
+                id="closeMenu"
+            >
+                ×
+            </button>
+
+        </div>
+
+        <nav class="navigation">
+
+            <a href="LocaDash.html" class="nav-link">
+                <span>🏠</span>
+                <span>Accueil</span>
+            </a>
+
+            <a href="logement.html" class="nav-link">
+                <span>🏢</span>
+                <span>Mon logement</span>
+            </a>
+
+            <a href="paiements.html" class="nav-link">
+                <span>💰</span>
+                <span>Paiements</span>
+            </a>
+
+            <a href="incidents.html" class="nav-link">
+                <span>🛠️</span>
+                <span>Incidents</span>
+            </a>
+
+            <a href="notifications.html" class="nav-link active">
+                <span>🔔</span>
+                <span>Notifications</span>
+            </a>
+
+            <a href="profil.html" class="nav-link">
+                <span>⚙️</span>
+                <span>Mon profil</span>
+            </a>
+
+        </nav>
+
+        <div class="sidebar-footer">
+
+            <button
+                class="logout-button"
+                id="logoutButton"
+            >
+                🚪 Déconnexion
+            </button>
+
+        </div>
+
+    </aside>
+
+    <div
+        class="sidebar-overlay"
+        id="sidebarOverlay"
+    ></div>
+
+    <main class="main-content">
+
+        <header class="topbar">
+
+            <button
+                class="menu-button"
+                id="menuButton"
+            >
+                ☰
+            </button>
+
+            <div class="topbar-title">
+
+                <h1>Notifications</h1>
+
+                <p>
+                    Les informations importantes concernant votre logement.
+                </p>
+
+            </div>
+
+            <a
+                href="profil.html"
+                class="user-profile"
+            >
+
+                <div class="avatar">
+                    L
+                </div>
+
+                <div class="user-info">
+
+                    <strong id="userName">
+                        Locataire
+                    </strong>
+
+                    <span>
+                        Locataire
+                    </span>
+
+                </div>
+
+            </a>
+
+        </header>
+
+        <div id="tenantError" class="tenant-message danger" style="display:none;"></div>
+
+        <div id="unlinkedMessage" class="tenant-message warning" style="display:none;">
+            <h3>Compte non rattaché</h3>
+            <p>
+                Votre compte locataire n'est pas encore lié à une fiche. Demandez à votre propriétaire
+                d'enregistrer votre fiche avec la même adresse email.
+            </p>
+        </div>
+
+        <section class="page-section">
+
+            <div class="section-title">
+
+                <h2>Notifications récentes</h2>
+
+                <p>Paiements, incidents et informations de votre logement.</p>
+
+            </div>
+
+            <div id="notificationsList">
+                <div class="empty-state">Chargement…</div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <script src="LocaDash.js"></script>
+    <script>
+        document.addEventListener("DOMContentLoaded", async () => {
+            try {
+                const data = await tenantRequest("/locataire/dashboard");
+                const list = document.getElementById("notificationsList");
+
+                if (!data.linked) {
+                    document.getElementById("unlinkedMessage").style.display = "block";
+                    list.innerHTML = "";
+                    return;
+                }
+
+                const notifications = data.notifications || [];
+
+                if (!notifications.length) {
+                    list.innerHTML = '<div class="empty-state">Aucune notification.</div>';
+                    return;
+                }
+
+                list.innerHTML = notifications
+                    .map((n) => {
+                        const icon = n.type === "paiement" ? "💰" : n.type === "incident" ? "🛠️" : "🔔";
+                        const cls = n.niveau === "danger" ? "danger" : n.niveau === "warning" ? "warning" : "success";
+                        return `
+                            <div class="list-item">
+                                <div class="list-item-info">
+                                    <h4>${icon} ${escapeHtml(n.message)}</h4>
+                                    ${n.date ? `<p>${formatDate(n.date)}</p>` : ""}
+                                </div>
+                                <span class="status ${cls}">${cls === "danger" ? "Important" : cls === "warning" ? "À suivre" : "Info"}</span>
+                            </div>`;
+                    })
+                    .join("");
+            } catch (err) {
+                showTenantError(err.message);
+            }
+        });
+    </script>
+
+</body>
+
+</html>

@@ -8,12 +8,13 @@ import { newOAuthClient, storeFlow, getFlow, deleteFlow } from '../utils/oauth.j
 
 const router = Router();
 
-const ALLOWED_TYPES = ['proprietaire', 'agence', 'entreprise'];
+const ALLOWED_TYPES = ['proprietaire', 'agence', 'entreprise', 'locataire'];
 
 const PAGE_BY_TYPE = {
   proprietaire: 'PartProprietaires/dashboard.html',
   agence: 'PartProprietaires/dashboard.html',
   entreprise: 'PartProprietaires/dashboard.html',
+  locataire: 'PartLocataires/LocaDash.html',
 };
 
 const APP_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
@@ -90,6 +91,7 @@ async function finalizeLogin(res, user, session) {
 
   setAuthCookie(res, token);
 
+  await linkTenantAccount(user, session?.access_token);
   await logSession(user.id, 'login', session?.access_token);
   await gitAutoBackup(`Sauvegarde auto : connexion de ${user.email}`);
 
@@ -97,6 +99,25 @@ async function finalizeLogin(res, user, session) {
     user: publicUser(user),
     redirect: PAGE_BY_TYPE[accountType],
   };
+}
+
+// Relie un compte 'locataire' à sa fiche (par email) s'il n'est pas encore lié.
+async function linkTenantAccount(user, supabaseToken) {
+  if (accountTypeOf(user) !== 'locataire' || !user?.email) return;
+
+  try {
+    const { error } = await authedClient(supabaseToken)
+      .from('locataires')
+      .update({ account_uid: user.id })
+      .ilike('email', user.email)
+      .is('account_uid', null);
+
+    if (error) {
+      console.warn('[linkTenantAccount]', error.message);
+    }
+  } catch (err) {
+    console.warn('[linkTenantAccount]', err.message);
+  }
 }
 
 router.post('/register', async (req, res) => {
@@ -170,6 +191,7 @@ router.post('/register', async (req, res) => {
 
   setAuthCookie(res, signToken(sessionPayload(user, data.session)));
 
+  await linkTenantAccount(user, data.session?.access_token);
   await logSession(user.id, 'register', data.session?.access_token);
 
   res.status(201).json({

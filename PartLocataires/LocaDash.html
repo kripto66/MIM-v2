@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>MIM — Espace locataire</title>
+
+    <link
+        rel="stylesheet"
+        href="LocaDash.css"
+    >
+
+</head>
+
+<body>
+
+    <!-- =========================================
+         SIDEBAR
+    ========================================== -->
+
+    <aside class="sidebar" id="sidebar">
+
+        <div class="sidebar-header">
+
+            <a href="LocaDash.html" class="logo">
+                MIM
+            </a>
+
+            <button
+                class="close-menu"
+                id="closeMenu"
+            >
+                ×
+            </button>
+
+        </div>
+
+
+        <!-- Navigation -->
+
+        <nav class="navigation">
+
+            <a
+                href="LocaDash.html"
+                class="nav-link active"
+            >
+                <span>🏠</span>
+                <span>Accueil</span>
+            </a>
+
+
+            <a
+                href="logement.html"
+                class="nav-link"
+            >
+                <span>🏢</span>
+                <span>Mon logement</span>
+            </a>
+
+
+            <a
+                href="paiements.html"
+                class="nav-link"
+            >
+                <span>💰</span>
+                <span>Paiements</span>
+            </a>
+
+
+            <a
+                href="incidents.html"
+                class="nav-link"
+            >
+                <span>🛠️</span>
+                <span>Incidents</span>
+            </a>
+
+
+            <a
+                href="notifications.html"
+                class="nav-link"
+            >
+                <span>🔔</span>
+                <span>Notifications</span>
+            </a>
+
+
+            <a
+                href="profil.html"
+                class="nav-link"
+            >
+                <span>⚙️</span>
+                <span>Mon profil</span>
+            </a>
+
+        </nav>
+
+
+        <!-- Déconnexion -->
+
+        <div class="sidebar-footer">
+
+            <button
+                class="logout-button"
+                id="logoutButton"
+            >
+                🚪 Déconnexion
+            </button>
+
+        </div>
+
+    </aside>
+
+
+    <!-- =========================================
+         OVERLAY MOBILE
+    ========================================== -->
+
+    <div
+        class="sidebar-overlay"
+        id="sidebarOverlay"
+    ></div>
+
+
+    <!-- =========================================
+         CONTENU PRINCIPAL
+    ========================================== -->
+
+    <main class="main-content">
+
+
+        <!-- HEADER -->
+
+        <header class="topbar">
+
+            <button
+                class="menu-button"
+                id="menuButton"
+            >
+                ☰
+            </button>
+
+
+            <div class="topbar-title">
+
+                <h1>Espace locataire</h1>
+
+                <p>
+                    Gérez votre logement simplement.
+                </p>
+
+            </div>
+
+
+            <a
+                href="profil.html"
+                class="user-profile"
+            >
+
+                <div class="avatar">
+                    L
+                </div>
+
+                <div class="user-info">
+
+                    <strong id="userName">
+                        Locataire
+                    </strong>
+
+                    <span>
+                        Locataire
+                    </span>
+
+                </div>
+
+            </a>
+
+        </header>
+
+        <div id="tenantError" class="tenant-message danger" style="display:none;"></div>
+
+        <div id="unlinkedMessage" class="tenant-message warning" style="display:none;">
+            <h3>Compte non rattaché</h3>
+            <p>
+                Votre compte locataire est bien créé, mais il n'est pas encore lié à une fiche locataire.
+                Demandez à votre propriétaire d'enregistrer votre fiche avec la même adresse email
+                (<strong id="unlinkedEmail">votre email</strong>).
+            </p>
+        </div>
+
+        <div id="dashboardContent">
+
+            <!-- =====================================
+                 BIENVENUE
+            ====================================== -->
+
+            <section class="welcome-section">
+
+                <div>
+
+                    <h2>
+                        Bonjour <span id="welcomeName">Locataire</span> 👋
+                    </h2>
+
+                    <p>
+                        Voici un résumé de votre situation.
+                    </p>
+
+                </div>
+
+            </section>
+
+
+            <!-- =====================================
+                 STATISTIQUES
+            ====================================== -->
+
+            <section class="stats-grid">
+
+
+                <article class="stat-card">
+
+                    <div class="stat-icon">
+                        💰
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Loyer mensuel
+                        </span>
+
+                        <strong id="loyerMensuel">
+                            —
+                        </strong>
+
+                    </div>
+
+                </article>
+
+
+                <article class="stat-card">
+
+                    <div class="stat-icon">
+                        ✅
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Statut paiement
+                        </span>
+
+                        <span class="status warning" id="paiementStatut">
+                            …
+                        </span>
+
+                    </div>
+
+                </article>
+
+
+                <article class="stat-card">
+
+                    <div class="stat-icon">
+                        📅
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Prochain paiement
+                        </span>
+
+                        <strong id="prochainMontant">
+                            —
+                        </strong>
+
+                    </div>
+
+                </article>
+
+
+                <article class="stat-card">
+
+                    <div class="stat-icon">
+                        🛠️
+                    </div>
+
+                    <div>
+
+                        <span>
+                            Incidents ouverts
+                        </span>
+
+                        <strong id="incidentsOuverts">
+                            0
+                        </strong>
+
+                    </div>
+
+                </article>
+
+            </section>
+
+
+            <!-- =====================================
+                 CONTENU
+            ====================================== -->
+
+            <section class="dashboard-grid">
+
+
+                <!-- MON LOGEMENT -->
+
+                <article class="dashboard-card" id="logementCard">
+
+                    <div class="card-header">
+
+                        <div>
+
+                            <h3>
+                                Mon logement
+                            </h3>
+
+                            <p>
+                                Informations principales
+                            </p>
+
+                        </div>
+
+                        <a href="logement.html">
+                            Voir
+                        </a>
+
+                    </div>
+
+
+                    <div class="property-info">
+
+                        <div class="property-icon">
+                            🏢
+                        </div>
+
+                        <div>
+
+                            <h4 id="logementNom">
+                                —
+                            </h4>
+
+                            <p id="logementBien">
+                                —
+                            </p>
+
+                            <p id="logementAdresse">
+                                📍 —
+                            </p>
+
+                        </div>
+
+                    </div>
+
+                </article>
+
+
+                <!-- PROCHAIN PAIEMENT -->
+
+                <article class="dashboard-card">
+
+                    <div class="card-header">
+
+                        <div>
+
+                            <h3>
+                                Prochain paiement
+                            </h3>
+
+                            <p>
+                                Votre prochain loyer
+                            </p>
+
+                        </div>
+
+                        <span class="status success" id="paiementCardStatut">
+                            —
+                        </span>
+
+                    </div>
+
+
+                    <div class="payment-main">
+
+                        <strong id="paiementCardMontant">
+                            —
+                        </strong>
+
+                        <span id="paiementCardEcheance">
+                            —
+                        </span>
+
+                    </div>
+
+
+                    <a
+                        href="paiements.html"
+                        class="primary-button"
+                    >
+                        Voir mes paiements
+                    </a>
+
+                </article>
+
+
+                <!-- INCIDENT -->
+
+                <article class="dashboard-card">
+
+                    <div class="card-header">
+
+                        <div>
+
+                            <h3>
+                                Incident en cours
+                            </h3>
+
+                            <p>
+                                Dernier problème signalé
+                            </p>
+
+                        </div>
+
+                    </div>
+
+
+                    <div id="incidentPreview">
+                        <div class="incident-preview">
+                            <strong>…</strong>
+                        </div>
+                    </div>
+
+
+                    <a
+                        href="incidents.html"
+                        class="secondary-button"
+                    >
+                        Voir les incidents
+                    </a>
+
+                </article>
+
+
+                <!-- NOTIFICATIONS -->
+
+                <article class="dashboard-card">
+
+                    <div class="card-header">
+
+                        <div>
+
+                            <h3>
+                                Notifications
+                            </h3>
+
+                            <p>
+                                Dernières informations
+                            </p>
+
+                        </div>
+
+                        <a href="notifications.html">
+                            Voir tout
+                        </a>
+
+                    </div>
+
+
+                    <div id="notificationsFeed">
+                        <div class="notification-item">
+                            <span>🔔</span>
+                            <div><strong>Chargement…</strong></div>
+                        </div>
+                    </div>
+
+                </article>
+
+            </section>
+
+        </div>
+
+    </main>
+
+
+    <script src="LocaDash.js"></script>
+
+</body>
+
+</html>
