@@ -35,7 +35,7 @@ body {
     justify-content: center;
 }
 
-.forgot-card {
+.card {
     width: 100%;
     max-width: 480px;
 
@@ -122,7 +122,13 @@ input {
 
     outline: none;
 
-    font-size: 16px;
+    font-size: 24px;
+
+    font-weight: bold;
+
+    letter-spacing: 10px;
+
+    text-align: center;
 
     transition: 0.3s;
 }
@@ -170,6 +176,14 @@ button:hover {
         0 8px 20px rgba(87, 23, 165, 0.3);
 }
 
+button:disabled {
+    opacity: 0.7;
+
+    cursor: not-allowed;
+
+    transform: none;
+}
+
 .back-login {
     display: inline-block;
 
@@ -186,8 +200,7 @@ button:hover {
     text-decoration: underline;
 }
 
-#forgotMessage,
-#resetMessage {
+#verifyMessage {
     margin-top: 18px;
 
     padding: 12px 14px;
@@ -201,22 +214,18 @@ button:hover {
     display: none;
 }
 
-#forgotMessage.success,
-#forgotMessage.error,
-#resetMessage.success,
-#resetMessage.error {
+#verifyMessage.success,
+#verifyMessage.error {
     display: block;
 }
 
-#forgotMessage.success,
-#resetMessage.success {
+#verifyMessage.success {
     background: #e8f8ef;
 
     color: #168447;
 }
 
-#forgotMessage.error,
-#resetMessage.error {
+#verifyMessage.error {
     background: #ffe8e8;
 
     color: #c62828;
@@ -233,7 +242,7 @@ button:hover {
         padding: 15px;
     }
 
-    .forgot-card {
+    .card {
         padding: 35px 20px;
 
         border-radius: 16px;
@@ -261,6 +270,12 @@ button:hover {
         padding: 13px;
     }
 
+    input {
+        font-size: 20px;
+
+        letter-spacing: 8px;
+    }
+
 }
 
 
@@ -270,7 +285,7 @@ button:hover {
 
 @media (min-width: 551px) and (max-width: 1023px) {
 
-    .forgot-card {
+    .card {
         max-width: 500px;
     }
 
@@ -283,7 +298,7 @@ button:hover {
 
 @media (min-width: 1024px) {
 
-    .forgot-card {
+    .card {
         max-width: 480px;
     }
 

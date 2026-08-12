@@ -1,4 +1,6 @@
 import 'dotenv/config';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
@@ -9,6 +11,9 @@ import statsRoutes from './routes/stats.js';
 import gitRoutes from './routes/git.js';
 import { createCrudRouter } from './routes/crud.js';
 import { authenticate } from './middleware/auth.js';
+import { authRateLimit, apiRateLimit } from './middleware/rateLimit.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
@@ -25,20 +30,41 @@ export function authedClient(token) {
   });
 }
 
+const corsOrigins = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
+  : true;
+
 app.use(
   cors({
-    origin: true,
+    origin: corsOrigins,
     credentials: true,
   })
 );
-app.use(express.json());
+
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  next();
+});
+
+app.use(express.json({ limit: '100kb' }));
 app.use(cookieParser());
+
+const ROOT = path.join(__dirname, '..');
+
+app.use(express.static(path.join(ROOT, 'PartPublic')));
+app.use('/PartPublic', express.static(path.join(ROOT, 'PartPublic')));
+app.use('/PartProprietaires', express.static(path.join(ROOT, 'PartProprietaires')));
+app.use('/images', express.static(path.join(ROOT, 'images')));
 
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'MIM API OK' });
 });
 
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authRateLimit, authRoutes);
+app.use('/api', apiRateLimit);
 app.use('/api/stats', authenticate, statsRoutes);
 app.use('/api/git', authenticate, gitRoutes);
 

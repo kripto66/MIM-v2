@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Réinitialiser le mot de passe — MIM</title>
+
+    <link rel="stylesheet" href="forgot.css">
+
+</head>
+
+<body>
+
+    <main class="container">
+
+        <section class="forgot-card">
+
+            <div class="logo">
+                MIM
+            </div>
+
+            <h1>
+                Nouveau mot de passe
+            </h1>
+
+            <p class="description">
+                Choisissez un nouveau mot de passe
+                pour votre compte.
+            </p>
+
+            <form id="resetForm">
+
+                <div class="form-group">
+
+                    <label for="password">
+                        Nouveau mot de passe
+                    </label>
+
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="Minimum 8 caractères"
+                        minlength="8"
+                        autocomplete="new-password"
+                        required
+                    >
+
+                </div>
+
+                <div class="form-group">
+
+                    <label for="password_confirm">
+                        Confirmer le mot de passe
+                    </label>
+
+                    <input
+                        type="password"
+                        id="password_confirm"
+                        name="password_confirm"
+                        placeholder="Confirmer votre mot de passe"
+                        minlength="8"
+                        autocomplete="new-password"
+                        required
+                    >
+
+                </div>
+
+                <div id="resetMessage"></div>
+
+                <button type="submit">
+                    Réinitialiser mon mot de passe
+                </button>
+
+            </form>
+
+            <a class="back-login" href="connexion.html">
+                ← Retour à la connexion
+            </a>
+
+        </section>
+
+    </main>
+
+    <script>
+        const API = (window.location.origin || "http://localhost:3000") + "/api";
+
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get("code");
+        const token_hash = params.get("token_hash");
+        const type = params.get("type");
+
+        const form = document.getElementById("resetForm");
+        const message = document.getElementById("resetMessage");
+        const button = form.querySelector('button[type="submit"]');
+
+        if (!code && !token_hash) {
+            message.textContent = "Lien de réinitialisation invalide ou expiré.";
+            message.className = "error";
+            form.style.display = "none";
+        }
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const password = document.getElementById("password").value;
+            const password_confirm = document.getElementById("password_confirm").value;
+
+            if (password !== password_confirm) {
+                message.textContent = "Les mots de passe ne correspondent pas.";
+                message.className = "error";
+                return;
+            }
+
+            message.textContent = "";
+            button.disabled = true;
+            button.textContent = "Réinitialisation...";
+
+            try {
+                const response = await fetch(API + "/auth/reset-password", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ code, token_hash, type, password, password_confirm })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    message.textContent = data.message;
+                    message.className = "success";
+                    form.style.display = "none";
+                    setTimeout(() => (window.location.href = "connexion.html"), 2000);
+                } else {
+                    message.textContent = data.message;
+                    message.className = "error";
+                    button.disabled = false;
+                    button.textContent = "Réinitialiser mon mot de passe";
+                }
+            } catch (error) {
+                console.error(error);
+                message.textContent = "Impossible de contacter le serveur.";
+                message.className = "error";
+                button.disabled = false;
+                button.textContent = "Réinitialiser mon mot de passe";
+            }
+        });
+    </script>
+
+</body>
+
+</html>

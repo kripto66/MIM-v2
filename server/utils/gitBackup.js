@@ -13,10 +13,12 @@ export async function gitAutoBackup(message) {
     return { success: false, reason: 'no_path' };
   }
 
+  const branch = process.env.GIT_BRANCH || 'master';
+
   try {
     await exec(GIT, ['-C', repo, 'add', '-A']);
     await exec(GIT, ['-C', repo, 'commit', '-m', message]);
-    const { stdout } = await exec(GIT, ['-C', repo, 'push', 'origin', 'master']);
+    const { stdout } = await exec(GIT, ['-C', repo, 'push', 'origin', branch]);
 
     console.log(`[git] Sauvegarde automatique OK : ${message}`);
     return { success: true, output: stdout };

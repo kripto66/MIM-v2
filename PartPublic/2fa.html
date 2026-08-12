@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Vérification — MIM</title>
+
+    <link rel="stylesheet" href="2fa.css">
+
+</head>
+
+<body>
+
+    <main class="container">
+
+        <section class="card">
+
+            <div class="logo">
+                MIM
+            </div>
+
+            <h1>
+                Double authentification
+            </h1>
+
+            <p class="description">
+                Entrez le code à 6 chiffres affiché par
+                votre application d'authentification
+                pour continuer.
+            </p>
+
+            <form id="verifyForm">
+
+                <div class="form-group">
+
+                    <label for="code">
+                        Code de vérification
+                    </label>
+
+                    <input
+                        type="text"
+                        id="code"
+                        name="code"
+                        inputmode="numeric"
+                        pattern="\d{6}"
+                        maxlength="6"
+                        placeholder="000000"
+                        autocomplete="one-time-code"
+                        required
+                    >
+
+                </div>
+
+                <div id="verifyMessage"></div>
+
+                <button type="submit">
+                    Vérifier
+                </button>
+
+            </form>
+
+            <a class="back-login" href="connexion.html">
+                ← Retour à la connexion
+            </a>
+
+        </section>
+
+    </main>
+
+    <script>
+        const API = (window.location.origin || "http://localhost:3000") + "/api";
+
+        const form = document.getElementById("verifyForm");
+        const message = document.getElementById("verifyMessage");
+        const codeInput = document.getElementById("code");
+        const button = form.querySelector('button[type="submit"]');
+
+        codeInput.addEventListener("input", () => {
+            codeInput.value = codeInput.value.replace(/\D/g, "").slice(0, 6);
+        });
+
+        form.addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const code = codeInput.value;
+
+            if (!/^\d{6}$/.test(code)) {
+                message.textContent = "Veuillez saisir le code à 6 chiffres.";
+                message.className = "error";
+                return;
+            }
+
+            message.textContent = "";
+            button.disabled = true;
+            button.textContent = "Vérification...";
+
+            try {
+                const response = await fetch(API + "/auth/verify-2fa", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    credentials: "include",
+                    body: JSON.stringify({ code })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    message.textContent = data.message;
+                    message.className = "success";
+                    window.location.href = "../" + data.redirect;
+                    return;
+                }
+
+                message.textContent = data.message;
+                message.className = "error";
+            } catch (error) {
+                console.error(error);
+                message.textContent = "Impossible de contacter le serveur.";
+                message.className = "error";
+            }
+
+            button.disabled = false;
+            button.textContent = "Vérifier";
+            codeInput.focus();
+        });
+    </script>
+
+</body>
+
+</html>

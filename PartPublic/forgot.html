@@ -71,6 +71,8 @@
     </main>
 
     <script>
+        const API = (window.location.origin || "http://localhost:3000") + "/api";
+
         document.getElementById('forgotForm').addEventListener('submit', async (e) => {
             e.preventDefault();
 
@@ -83,7 +85,7 @@
             button.textContent = 'Envoi...';
 
             try {
-                const response = await fetch('http://localhost:3000/api/auth/forgot', {
+                const response = await fetch(API + '/auth/forgot', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ email: form.email.value })

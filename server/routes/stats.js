@@ -21,7 +21,8 @@ router.get('/dashboard', async (req, res) => {
     const occupied = logements?.filter((l) => l.statut === 'occupe').length ?? 0;
     const available = logements?.filter((l) => l.statut === 'libre').length ?? 0;
 
-    const thisMonth = new Date().toISOString().slice(0, 7);
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const monthPayments = paiements?.filter((p) => p.mois === thisMonth) ?? [];
     const expectedRent = monthPayments.reduce((s, p) => s + Number(p.montant), 0);
     const paidRent = monthPayments.filter((p) => p.statut === 'paye').reduce((s, p) => s + Number(p.montant), 0);

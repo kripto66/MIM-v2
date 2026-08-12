@@ -61,6 +61,8 @@ const CrudPage = {
     this.idField.value = item.id;
     this.titleEl.textContent = "Modifier";
 
+    this.form.reset();
+
     for (const field of this.form.elements) {
       if (field.name && field.name !== "id" && item[field.name] != null) {
         field.value = item[field.name];

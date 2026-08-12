@@ -120,13 +120,21 @@
 
         async function markAll() {
             const list = document.getElementById("notificationsList");
-            const buttons = [...list.querySelectorAll("[data-mark]")];
+            const ids = [...list.querySelectorAll("[data-mark]")]
+                .filter((btn) => !btn.textContent.startsWith("Lue"))
+                .map((btn) => btn.dataset.mark);
+
+            if (!ids.length) {
+                showToast("Aucune notification non lue.");
+                return;
+            }
 
             try {
-                for (const btn of buttons) {
-                    await markRead(btn.dataset.mark);
-                }
+                await Promise.all(ids.map((id) =>
+                    apiRequest(`/notifications/${id}`, { method: "PUT", body: JSON.stringify({ lu: true }) })
+                ));
                 showToast("Toutes les notifications sont lues.");
+                load();
             } catch (err) {
                 showToast(err.message, "error");
             }

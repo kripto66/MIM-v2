@@ -26,8 +26,15 @@ Crée le fichier `server/.env` :
 SUPABASE_URL=https://votre-projet.supabase.co
 SUPABASE_ANON_KEY=votre_cle_publishable
 JWT_SECRET=votre_secret
+PORT=3000
+APP_URL=http://localhost:3000
+CORS_ORIGINS=http://localhost:3000,http://localhost
 GIT_REPO_PATH=C:\xampp\htdocs\MIM2.1\MIM
+GIT_BRANCH=master
 ```
+
+Le serveur Node sert aussi le frontend (`PartPublic` et `PartProprietaires`) :
+l'application est accessible sur `http://localhost:3000` (l'usage via XAMPP reste possible).
 
 ## API
 
@@ -38,7 +45,7 @@ GIT_REPO_PATH=C:\xampp\htdocs\MIM2.1\MIM
 | POST | `/api/auth/logout` | Se déconnecter |
 | GET | `/api/auth/me` | Profil connecté |
 | POST | `/api/auth/forgot` | Demande de réinitialisation de mot de passe |
-| POST | `/api/auth/reset-password` | Nouveau mot de passe |
+| POST | `/api/auth/reset-password` | Nouveau mot de passe (avec `code` du lien envoyé par email) |
 | GET | `/api/stats/dashboard` | Statistiques du tableau de bord |
 | POST | `/api/git/backup` | Sauvegarde git manuelle |
 

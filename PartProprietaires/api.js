@@ -1,4 +1,4 @@
-const API = "http://localhost:3000/api";
+const API = (window.location.origin || "http://localhost:3000") + "/api";
 
 async function apiRequest(path, options = {}) {
   const res = await fetch(`${API}${path}`, {

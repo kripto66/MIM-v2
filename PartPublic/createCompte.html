@@ -233,6 +233,8 @@
 
     <script>
 
+        const API = (window.location.origin || "http://localhost:3000") + "/api";
+
         const form = document.getElementById("registerForm");
 
         const message = document.getElementById("formMessage");
@@ -268,11 +270,13 @@
 
             try {
 
-                const response = await fetch("http://localhost:3000/api/auth/register", {
+                const response = await fetch(API + "/auth/register", {
 
                     method: "POST",
 
                     headers: { 'Content-Type': 'application/json' },
+
+                    credentials: "include",
 
                     body: JSON.stringify(payload)
 
