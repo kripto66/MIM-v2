@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Locataires</title>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+    <div class="dashboard">
+
+        <aside class="sidebar">
+
+            <div class="logo">
+                MIM
+            </div>
+
+            <nav class="sidebar-menu">
+
+                <a href="dashboard.html">Tableau de bord</a>
+                <a href="biens.html">Mes biens</a>
+                <a href="logements.html">Logements</a>
+                <a href="locataires.html" class="active">Locataires</a>
+                <a href="paiements.html">Paiements</a>
+                <a href="incidents.html">Incidents</a>
+                <a href="prestataires.html">Prestataires</a>
+                <a href="interventions.html">Interventions</a>
+                <a href="notifications.html">Notifications</a>
+                <a href="parametres.html">Paramètres</a>
+
+            </nav>
+
+            <div class="sidebar-footer">
+
+                <button id="backupBtn" type="button">Sauvegarder</button>
+                <button id="logoutBtn" type="button">Déconnexion</button>
+
+            </div>
+
+        </aside>
+
+        <main class="main-content">
+
+            <header class="dashboard-header">
+
+                <div class="welcome">
+                    <h1>Locataires</h1>
+                    <p>Gérez vos locataires et leurs informations.</p>
+                </div>
+
+                <button class="btn btn-primary" id="addLocataireBtn">+ Ajouter un locataire</button>
+
+            </header>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+                    <h2>Liste des locataires</h2>
+                </div>
+
+                <div id="locatairesList">
+                    <div class="empty-state">Chargement...</div>
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <div class="modal-overlay" id="locataireModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="modalTitle">Ajouter un locataire</h2>
+
+            <form id="locataireForm">
+
+                <input type="hidden" id="locataireId">
+
+                <div class="form-group">
+                    <label for="nom">Nom complet</label>
+                    <input type="text" id="nom" name="nom" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" id="email" name="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">Téléphone</label>
+                        <input type="tel" id="phone" name="phone">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="logement_id">Logement</label>
+                    <select id="logement_id" name="logement_id">
+                        <option value="">— Aucun —</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="date_entree">Date d'entrée</label>
+                        <input type="date" id="date_entree" name="date_entree">
+                    </div>
+                    <div class="form-group">
+                        <label for="statut">Statut</label>
+                        <select id="statut" name="statut">
+                            <option value="actif">Actif</option>
+                            <option value="inactif">Inactif</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelModal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <script src="api.js"></script>
+    <script src="crud.js"></script>
+    <script>
+        const LOCATAIRE_STATUS = {
+            actif: ["Actif", "status-success"],
+            inactif: ["Inactif", "status-danger"],
+        };
+
+        let logementsCache = [];
+
+        async function loadLogements() {
+            try {
+                const { data } = await apiRequest("/logements");
+                logementsCache = data;
+                const select = document.getElementById("logement_id");
+                select.innerHTML = '<option value="">— Aucun —</option>' + data.map(
+                    (l) => `<option value="${l.id}">${escapeHtml(l.nom)}</option>`
+                ).join("");
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        CrudPage.init({
+            resource: "locataires",
+            listEl: "locatairesList",
+            addBtnEl: "addLocataireBtn",
+            modalId: "locataireModal",
+            modalTitleId: "modalTitle",
+            formId: "locataireForm",
+            idFieldId: "locataireId",
+            cancelBtnId: "cancelModal",
+            renderItem: (t) => {
+                const [label, cls] = LOCATAIRE_STATUS[t.statut] || [t.statut, "status-info"];
+                const logement = logementsCache.find((l) => String(l.id) === String(t.logement_id));
+                return `
+                    <div class="crud-card">
+                        <div>
+                            <h3>${escapeHtml(t.nom)}</h3>
+                            <p>${t.phone ? escapeHtml(t.phone) : ""}${t.email ? ' — ' + escapeHtml(t.email) : ""}</p>
+                            <p>${logement ? "Logement : " + escapeHtml(logement.nom) : "Aucun logement"}</p>
+                            <p><span class="status ${cls}">${label}</span></p>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn btn-edit" data-edit="${t.id}">Modifier</button>
+                            <button class="btn btn-delete" data-delete="${t.id}">Supprimer</button>
+                        </div>
+                    </div>`;
+            }
+        });
+
+        loadLogements();
+    </script>
+
+</body>
+
+</html>

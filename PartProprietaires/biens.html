@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Mes biens</title>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+    <div class="dashboard">
+
+        <aside class="sidebar">
+
+            <div class="logo">
+                MIM
+            </div>
+
+            <nav class="sidebar-menu">
+
+                <a href="dashboard.html">Tableau de bord</a>
+                <a href="biens.html" class="active">Mes biens</a>
+                <a href="logements.html">Logements</a>
+                <a href="locataires.html">Locataires</a>
+                <a href="paiements.html">Paiements</a>
+                <a href="incidents.html">Incidents</a>
+                <a href="prestataires.html">Prestataires</a>
+                <a href="interventions.html">Interventions</a>
+                <a href="notifications.html">Notifications</a>
+                <a href="parametres.html">Paramètres</a>
+
+            </nav>
+
+            <div class="sidebar-footer">
+
+                <button id="backupBtn" type="button">Sauvegarder</button>
+                <button id="logoutBtn" type="button">Déconnexion</button>
+
+            </div>
+
+        </aside>
+
+        <main class="main-content">
+
+            <header class="dashboard-header">
+
+                <div class="welcome">
+                    <h1>Mes biens</h1>
+                    <p>Gérez vos immeubles, maisons et autres propriétés.</p>
+                </div>
+
+                <button class="btn btn-primary" id="addBienBtn">+ Ajouter un bien</button>
+
+            </header>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+                    <h2>Liste des biens</h2>
+                </div>
+
+                <div id="biensList">
+                    <div class="empty-state">Chargement...</div>
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <!-- Modale ajout / édition -->
+    <div class="modal-overlay" id="bienModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="modalTitle">Ajouter un bien</h2>
+
+            <form id="bienForm">
+
+                <input type="hidden" id="bienId">
+
+                <div class="form-group">
+                    <label for="nom">Nom du bien</label>
+                    <input type="text" id="nom" name="nom" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="type">Type</label>
+                    <select id="type" name="type" required>
+                        <option value="immeuble">Immeuble</option>
+                        <option value="maison">Maison</option>
+                        <option value="villa">Villa</option>
+                        <option value="appartement">Appartement</option>
+                        <option value="bureau">Bureau</option>
+                        <option value="local">Local commercial</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="adresse">Adresse</label>
+                    <input type="text" id="adresse" name="adresse">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="ville">Ville</label>
+                        <input type="text" id="ville" name="ville">
+                    </div>
+                    <div class="form-group">
+                        <label for="pays">Pays</label>
+                        <input type="text" id="pays" name="pays">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" rows="3"></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelModal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <script src="api.js"></script>
+    <script src="crud.js"></script>
+    <script>
+        CrudPage.init({
+            resource: "biens",
+            listEl: "biensList",
+            addBtnEl: "addBienBtn",
+            modalId: "bienModal",
+            modalTitleId: "modalTitle",
+            formId: "bienForm",
+            idFieldId: "bienId",
+            cancelBtnId: "cancelModal",
+            renderItem: (b) => `
+                <div class="crud-card">
+                    <div>
+                        <h3>${escapeHtml(b.nom)}</h3>
+                        <p>${escapeHtml(b.type || '')}${b.ville ? ' — ' + escapeHtml(b.ville) : ''}</p>
+                        ${b.adresse ? `<p>${escapeHtml(b.adresse)}</p>` : ''}
+                        ${b.description ? `<p class="muted">${escapeHtml(b.description)}</p>` : ''}
+                    </div>
+                    <div class="card-actions">
+                        <button class="btn btn-edit" data-edit="${b.id}">Modifier</button>
+                        <button class="btn btn-delete" data-delete="${b.id}">Supprimer</button>
+                    </div>
+                </div>`
+        });
+    </script>
+
+</body>
+
+</html>

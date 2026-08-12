@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Paiements</title>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+    <div class="dashboard">
+
+        <aside class="sidebar">
+
+            <div class="logo">
+                MIM
+            </div>
+
+            <nav class="sidebar-menu">
+
+                <a href="dashboard.html">Tableau de bord</a>
+                <a href="biens.html">Mes biens</a>
+                <a href="logements.html">Logements</a>
+                <a href="locataires.html">Locataires</a>
+                <a href="paiements.html" class="active">Paiements</a>
+                <a href="incidents.html">Incidents</a>
+                <a href="prestataires.html">Prestataires</a>
+                <a href="interventions.html">Interventions</a>
+                <a href="notifications.html">Notifications</a>
+                <a href="parametres.html">Paramètres</a>
+
+            </nav>
+
+            <div class="sidebar-footer">
+
+                <button id="backupBtn" type="button">Sauvegarder</button>
+                <button id="logoutBtn" type="button">Déconnexion</button>
+
+            </div>
+
+        </aside>
+
+        <main class="main-content">
+
+            <header class="dashboard-header">
+
+                <div class="welcome">
+                    <h1>Paiements</h1>
+                    <p>Suivez les loyers et les échéances.</p>
+                </div>
+
+                <button class="btn btn-primary" id="addPaiementBtn">+ Enregistrer un paiement</button>
+
+            </header>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+                    <h2>Historique des paiements</h2>
+                </div>
+
+                <div id="paiementsList">
+                    <div class="empty-state">Chargement...</div>
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <div class="modal-overlay" id="paiementModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="modalTitle">Enregistrer un paiement</h2>
+
+            <form id="paiementForm">
+
+                <input type="hidden" id="paiementId">
+
+                <div class="form-group">
+                    <label for="locataire_id">Locataire</label>
+                    <select id="locataire_id" name="locataire_id" required>
+                        <option value="">— Choisir —</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="logement_id">Logement</label>
+                        <select id="logement_id" name="logement_id">
+                            <option value="">— Aucun —</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="montant">Montant (FCFA)</label>
+                        <input type="number" id="montant" name="montant" min="0" step="0.01" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="mois">Mois</label>
+                        <input type="month" id="mois" name="mois" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="statut">Statut</label>
+                        <select id="statut" name="statut">
+                            <option value="paye">Payé</option>
+                            <option value="attente">En attente</option>
+                            <option value="retard">En retard</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="date_paiement">Date de paiement</label>
+                    <input type="date" id="date_paiement" name="date_paiement">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelModal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <script src="api.js"></script>
+    <script src="crud.js"></script>
+    <script>
+        const PAIEMENT_STATUS = {
+            paye: ["Payé", "status-success"],
+            attente: ["En attente", "status-warning"],
+            retard: ["En retard", "status-danger"],
+        };
+
+        const MOIS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+
+        let locatairesCache = [];
+        let logementsCache = [];
+
+        async function loadData() {
+            try {
+                const [loc, log] = await Promise.all([
+                    apiRequest("/locataires"),
+                    apiRequest("/logements"),
+                ]);
+                locatairesCache = loc.data;
+                logementsCache = log.data;
+
+                document.getElementById("locataire_id").innerHTML =
+                    '<option value="">— Choisir —</option>' + loc.data.map(
+                        (t) => `<option value="${t.id}">${escapeHtml(t.nom)}</option>`
+                    ).join("");
+
+                document.getElementById("logement_id").innerHTML =
+                    '<option value="">— Aucun —</option>' + log.data.map(
+                        (l) => `<option value="${l.id}">${escapeHtml(l.nom)}</option>`
+                    ).join("");
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function formatMois(mois) {
+            if (!mois) return "";
+            const [y, m] = mois.split("-");
+            return `${MOIS_FR[Number(m) - 1]} ${y}`;
+        }
+
+        CrudPage.init({
+            resource: "paiements",
+            listEl: "paiementsList",
+            addBtnEl: "addPaiementBtn",
+            modalId: "paiementModal",
+            modalTitleId: "modalTitle",
+            formId: "paiementForm",
+            idFieldId: "paiementId",
+            cancelBtnId: "cancelModal",
+            renderItem: (p) => {
+                const [label, cls] = PAIEMENT_STATUS[p.statut] || [p.statut, "status-info"];
+                const locataire = locatairesCache.find((t) => String(t.id) === String(p.locataire_id));
+                const logement = logementsCache.find((l) => String(l.id) === String(p.logement_id));
+                return `
+                    <div class="crud-card">
+                        <div>
+                            <h3>${locataire ? escapeHtml(locataire.nom) : "Locataire inconnu"}</h3>
+                            <p>${formatMois(p.mois)} — ${logement ? escapeHtml(logement.nom) : ""}</p>
+                            <p><span class="status ${cls}">${label}</span></p>
+                        </div>
+                        <div class="card-amount">
+                            <strong>${Number(p.montant).toLocaleString("fr-FR")} FCFA</strong>
+                            <div class="card-actions">
+                                <button class="btn btn-edit" data-edit="${p.id}">Modifier</button>
+                                <button class="btn btn-delete" data-delete="${p.id}">Supprimer</button>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+        });
+
+        loadData();
+    </script>
+
+</body>
+
+</html>
