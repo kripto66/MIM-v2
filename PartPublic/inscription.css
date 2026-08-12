@@ -559,3 +559,102 @@ button:active {
 
     border: 1px solid #f5c6cb;
 }
+/* ========================================
+   VALIDATION (erreurs champ par champ)
+======================================== */
+
+.input-error {
+    border-color: #e74c3c !important;
+
+    box-shadow: 0 0 0 4px rgba(231, 76, 60, 0.12) !important;
+}
+
+.field-error-msg {
+    display: block;
+
+    margin: -6px 0 14px;
+
+    color: #c0392b;
+
+    font-size: 13px;
+
+    font-weight: 600;
+
+    text-align: left;
+}
+
+/* ========================================
+   INDICATEUR DE FORCE DU MOT DE PASSE
+======================================== */
+
+.password-meter {
+    display: flex;
+
+    align-items: center;
+
+    gap: 6px;
+
+    margin: -6px 0 16px;
+}
+
+.password-meter .meter-bar {
+    flex: 1;
+
+    height: 5px;
+
+    border-radius: 3px;
+
+    background: #e3e3e3;
+}
+
+.password-meter .meter-bar.active.weak {
+    background: #e74c3c;
+}
+
+.password-meter .meter-bar.active.medium {
+    background: #f39c12;
+}
+
+.password-meter .meter-bar.active.strong {
+    background: #27ae60;
+}
+
+.password-meter .meter-label {
+    min-width: 72px;
+
+    font-size: 12px;
+
+    font-weight: 700;
+
+    text-align: right;
+
+    color: #aaa;
+}
+
+.password-meter .meter-label.pw-weak {
+    color: #e74c3c;
+}
+
+.password-meter .meter-label.pw-medium {
+    color: #f39c12;
+}
+
+.password-meter .meter-label.pw-strong {
+    color: #27ae60;
+}
+
+input.pw-empty {
+    border-color: #d1d1d1;
+}
+
+input.pw-weak {
+    border-color: #e74c3c !important;
+}
+
+input.pw-medium {
+    border-color: #f39c12 !important;
+}
+
+input.pw-strong {
+    border-color: #27ae60 !important;
+}

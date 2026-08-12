@@ -100,6 +100,7 @@
                     <select id="statut" name="statut">
                         <option value="nouveau">Nouveau</option>
                         <option value="en_cours">En cours</option>
+                        <option value="intervention">Intervention</option>
                         <option value="resolu">Résolu</option>
                     </select>
                 </div>
@@ -119,12 +120,14 @@
         </div>
     </div>
 
+    <script src="../PartPublic/form-utils.js"></script>
     <script src="api.js"></script>
     <script src="crud.js"></script>
     <script>
         const INCIDENT_STATUS = {
             nouveau: ["Nouveau", "status-danger"],
             en_cours: ["En cours", "status-warning"],
+            intervention: ["Intervention", "status-warning"],
             resolu: ["Résolu", "status-success"],
         };
 
@@ -158,6 +161,23 @@
             formId: "incidentForm",
             idFieldId: "incidentId",
             cancelBtnId: "cancelModal",
+            validate: (form) => validateFields(form, [
+                {
+                    name: "titre",
+                    test: (i) => !i.value.trim(),
+                    message: "Le titre de l'incident est obligatoire.",
+                },
+                {
+                    name: "description",
+                    test: (i) => !i.value.trim(),
+                    message: "Décrivez l'incident.",
+                },
+                {
+                    name: "logement_id",
+                    test: (i) => !i.value,
+                    message: "Choisissez le logement concerné.",
+                },
+            ]),
             renderItem: (i) => {
                 const [label, cls] = INCIDENT_STATUS[i.statut] || [i.statut, "status-info"];
                 const logement = logementsCache.find((l) => String(l.id) === String(i.logement_id));
@@ -167,6 +187,7 @@
                             <h3>${escapeHtml(i.titre)}</h3>
                             <p>${logement ? "Logement : " + escapeHtml(logement.nom) : "Aucun logement"}</p>
                             ${i.description ? `<p class="muted">${escapeHtml(i.description)}</p>` : ''}
+                            ${i.photo ? `<img class="incident-photo" src="${escapeHtml(i.photo)}" alt="Photo de l'incident">` : ''}
                             <p><span class="status ${cls}">${label}</span> <span class="muted">${formatDate(i.created_at)}</span></p>
                         </div>
                         <div class="card-actions">

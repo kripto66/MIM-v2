@@ -92,10 +92,11 @@
                     <div class="form-group">
                         <label for="username">Username (connexion locataire)</label>
                         <input type="text" id="username" name="username" placeholder="ex : jean.diop" autocomplete="off">
+                        <small class="username-status" id="usernameStatus"></small>
                     </div>
                     <div class="form-group">
                         <label for="password">Mot de passe temporaire</label>
-                        <input type="password" id="password" name="password" placeholder="Minimum 8 caractères" autocomplete="new-password" minlength="8">
+                        <input type="password" id="password" name="password" placeholder="Minimum 8 caractères" autocomplete="new-password" minlength="8" data-strength>
                     </div>
                 </div>
 
@@ -115,11 +116,17 @@
                     </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="logement_id">Logement</label>
-                    <select id="logement_id" name="logement_id">
-                        <option value="">— Aucun —</option>
-                    </select>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="logement_id">Logement</label>
+                        <select id="logement_id" name="logement_id">
+                            <option value="">— Aucun —</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="jour_echeance">Jour d'échéance (1-31)</label>
+                        <input type="number" id="jour_echeance" name="jour_echeance" min="1" max="31" placeholder="ex : 5">
+                    </div>
                 </div>
 
                 <div class="form-row">
@@ -146,6 +153,8 @@
         </div>
     </div>
 
+    <script src="../PartPublic/form-utils.js"></script>
+    <script src="../PartPublic/password-strength.js"></script>
     <script src="api.js"></script>
     <script src="crud.js"></script>
     <script>
@@ -169,6 +178,39 @@
             }
         }
 
+        function usernameValid(u) {
+            return /^[a-z0-9._-]{3,30}$/.test(u);
+        }
+
+        async function checkUsernameAvailability(input) {
+            const status = document.getElementById("usernameStatus");
+            const value = input.value.trim();
+            if (!value) {
+                status.textContent = "";
+                status.className = "username-status";
+                return;
+            }
+            if (!usernameValid(value)) {
+                status.textContent = "Lettres minuscules, chiffres, . _ - (3 à 30 caractères).";
+                status.className = "username-status username-taken";
+                return;
+            }
+            try {
+                const { available } = await apiRequest(
+                    "/auth/username-available?username=" + encodeURIComponent(value)
+                );
+                if (available) {
+                    status.textContent = "Disponible";
+                    status.className = "username-status username-ok";
+                } else {
+                    status.textContent = "Ce nom d'utilisateur est déjà utilisé.";
+                    status.className = "username-status username-taken";
+                }
+            } catch (err) {
+                status.textContent = "";
+            }
+        }
+
         CrudPage.init({
             resource: "locataires",
             listEl: "locatairesList",
@@ -178,6 +220,48 @@
             formId: "locataireForm",
             idFieldId: "locataireId",
             cancelBtnId: "cancelModal",
+            createSuccess: "Locataire créé avec succès.",
+            validate: (form) => {
+                if (form.username.disabled) return {};
+                const errors = validateFields(form, [
+                    {
+                        name: "nom",
+                        test: (i) => !i.value.trim(),
+                        message: "Le nom complet est obligatoire.",
+                    },
+                    {
+                        name: "username",
+                        test: (i) => !usernameValid(i.value.trim()),
+                        message: "Username invalide : lettres minuscules, chiffres, . _ - (3 à 30 caractères).",
+                    },
+                    {
+                        name: "password",
+                        test: (i) => mimPasswordRuleMessage(i.value) !== null,
+                        message: mimPasswordRuleMessage(document.getElementById("password").value) || "Mot de passe trop faible.",
+                    },
+                    {
+                        name: "jour_echeance",
+                        test: (i) => i.value !== "" && (Number(i.value) < 1 || Number(i.value) > 31),
+                        message: "Le jour d'échéance doit être entre 1 et 31.",
+                    },
+                ]);
+                return errors;
+            },
+            onOpenAdd: (form) => {
+                form.username.disabled = false;
+                form.password.disabled = false;
+                document.getElementById("usernameStatus").textContent = "";
+            },
+            onOpenEdit: (form, item) => {
+                form.username.disabled = true;
+                form.password.disabled = true;
+                document.getElementById("usernameStatus").textContent =
+                    "Le username et le mot de passe ne se modifient pas ici.";
+            },
+            afterInit: () => {
+                const usernameInput = document.getElementById("username");
+                usernameInput.addEventListener("blur", () => checkUsernameAvailability(usernameInput));
+            },
             renderItem: (t) => {
                 const [label, cls] = LOCATAIRE_STATUS[t.statut] || [t.statut, "status-info"];
                 const logement = logementsCache.find((l) => String(l.id) === String(t.logement_id));
@@ -186,7 +270,7 @@
                         <div>
                             <h3>${escapeHtml(t.nom)}</h3>
                             <p>${t.username ? "Username : " + escapeHtml(t.username) + " · " : ""}${t.phone ? escapeHtml(t.phone) : ""}${t.email ? ' — ' + escapeHtml(t.email) : ""}</p>
-                            <p>${logement ? "Logement : " + escapeHtml(logement.nom) : "Aucun logement"}${t.account_uid ? " · Compte actif" : ""}</p>
+                            <p>${logement ? "Logement : " + escapeHtml(logement.nom) : "Aucun logement"}${t.jour_echeance ? " · Échéance le " + escapeHtml(t.jour_echeance) : ""}${t.account_uid ? " · Compte actif" : ""}</p>
                             <p><span class="status ${cls}">${label}</span></p>
                         </div>
                         <div class="card-actions">

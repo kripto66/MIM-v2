@@ -140,6 +140,7 @@
         </div>
     </div>
 
+    <script src="../PartPublic/form-utils.js"></script>
     <script src="api.js"></script>
     <script src="crud.js"></script>
     <script>
@@ -198,6 +199,18 @@
             formId: "interventionForm",
             idFieldId: "interventionId",
             cancelBtnId: "cancelModal",
+            validate: (form) => validateFields(form, [
+                {
+                    name: "titre",
+                    test: (i) => !i.value.trim(),
+                    message: "Le titre de l'intervention est obligatoire.",
+                },
+                {
+                    name: "incident_id",
+                    test: (i) => !i.value,
+                    message: "Choisissez l'incident concerné.",
+                },
+            ]),
             renderItem: (i) => {
                 const [label, cls] = INTERVENTION_STATUS[i.statut] || [i.statut, "status-info"];
                 const incident = incidentsCache.find((x) => String(x.id) === String(i.incident_id));

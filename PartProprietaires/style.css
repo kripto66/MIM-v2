@@ -1146,3 +1146,137 @@ tr:last-child td {
 
 }
 
+
+/* ========================================
+   VALIDATION (erreurs champ par champ)
+======================================== */
+
+.input-error {
+    border-color: #e74c3c !important;
+
+    box-shadow: 0 0 0 4px rgba(231, 76, 60, 0.12) !important;
+}
+
+.field-error-msg {
+    display: block;
+
+    margin: 4px 0 0;
+
+    color: #c0392b;
+
+    font-size: 13px;
+
+    font-weight: 600;
+}
+
+/* ========================================
+   INDICATEUR DE FORCE DU MOT DE PASSE
+======================================== */
+
+.password-meter {
+    display: flex;
+
+    align-items: center;
+
+    gap: 6px;
+
+    margin: 6px 0 2px;
+}
+
+.password-meter .meter-bar {
+    flex: 1;
+
+    height: 5px;
+
+    border-radius: 3px;
+
+    background: #e3e3e3;
+}
+
+.password-meter .meter-bar.active.weak {
+    background: #e74c3c;
+}
+
+.password-meter .meter-bar.active.medium {
+    background: #f39c12;
+}
+
+.password-meter .meter-bar.active.strong {
+    background: #27ae60;
+}
+
+.password-meter .meter-label {
+    min-width: 72px;
+
+    font-size: 12px;
+
+    font-weight: 700;
+
+    text-align: right;
+
+    color: #aaa;
+}
+
+.password-meter .meter-label.pw-weak {
+    color: #e74c3c;
+}
+
+.password-meter .meter-label.pw-medium {
+    color: #f39c12;
+}
+
+.password-meter .meter-label.pw-strong {
+    color: #27ae60;
+}
+
+input.pw-weak {
+    border-color: #e74c3c !important;
+}
+
+input.pw-medium {
+    border-color: #f39c12 !important;
+}
+
+input.pw-strong {
+    border-color: #27ae60 !important;
+}
+
+/* ========================================
+   VERIFICATION USERNAME (locataires)
+======================================== */
+
+.username-status {
+    display: block;
+
+    margin-top: 4px;
+
+    font-size: 12px;
+
+    font-weight: 600;
+}
+
+.username-status.username-ok {
+    color: #27ae60;
+}
+
+.username-status.username-taken {
+    color: #e74c3c;
+}
+
+/* ========================================
+   PHOTO INCIDENT
+======================================== */
+
+.incident-photo {
+    display: block;
+
+    max-width: 180px;
+
+    max-height: 140px;
+
+    margin-top: 8px;
+
+    border-radius: 8px;
+
+    object-fit: cover;
+}

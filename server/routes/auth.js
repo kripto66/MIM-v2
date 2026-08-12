@@ -6,6 +6,7 @@ import { gitAutoBackup } from '../utils/gitBackup.js';
 import { logSession, closeSession } from '../utils/sessions.js';
 import { newOAuthClient, storeFlow, getFlow, deleteFlow } from '../utils/oauth.js';
 import { resolveLoginEmail, tenantEmailFor, usernameIsValid } from '../utils/tenantAccount.js';
+import { passwordRuleError } from '../utils/passwordPolicy.js';
 
 const router = Router();
 
@@ -179,8 +180,9 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Adresse email invalide.' });
   }
 
-  if (password.length < 8) {
-    return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 8 caractères.' });
+  const pwError = passwordRuleError(password);
+  if (pwError) {
+    return res.status(400).json({ success: false, message: pwError, errors: { password: pwError } });
   }
 
   if (password !== password_confirm) {
@@ -598,8 +600,9 @@ router.get('/me', authenticate, async (req, res) => {
 router.put('/change-password', authenticate, async (req, res) => {
   const { current_password, password, password_confirm } = req.body;
 
-  if (!password || password.length < 8) {
-    return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 8 caractères.' });
+  const pwError = passwordRuleError(password);
+  if (pwError) {
+    return res.status(400).json({ success: false, message: pwError, errors: { password: pwError } });
   }
 
   if (password !== password_confirm) {
@@ -679,7 +682,8 @@ router.put('/update-username', authenticate, async (req, res) => {
   if (!usernameIsValid(username)) {
     return res.status(400).json({
       success: false,
-      message: 'Username invalide (3 à 32 caractères : lettres minuscules, chiffres, . _ -).',
+      message: 'Le username doit contenir entre 3 et 32 caractères (lettres minuscules, chiffres, . _ -).',
+      errors: { username: 'Le username doit contenir au moins 3 caractères (lettres minuscules, chiffres, . _ -).' },
     });
   }
 
@@ -694,7 +698,7 @@ router.put('/update-username', authenticate, async (req, res) => {
       .maybeSingle();
 
     if (taken) {
-      return res.status(409).json({ success: false, message: 'Ce username est déjà utilisé.' });
+      return res.status(409).json({ success: false, message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
     }
 
     // L'email interne dérive du username : on le met à jour pour que la
@@ -707,7 +711,7 @@ router.put('/update-username', authenticate, async (req, res) => {
 
     if (emailError) {
       console.error('[update-username]', emailError.message);
-      return res.status(409).json({ success: false, message: 'Ce username est déjà utilisé.' });
+      return res.status(409).json({ success: false, message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
     }
 
     const { error: profileError } = await sb
@@ -764,6 +768,32 @@ router.put('/update-profile', authenticate, async (req, res) => {
   res.json({ success: true, message: 'Profil mis à jour avec succès.' });
 });
 
+router.get('/username-available', authenticate, async (req, res) => {
+  const username = String(req.query?.username || '').trim().toLowerCase();
+
+  if (!username) {
+    return res.json({ success: true, available: true });
+  }
+
+  if (!usernameIsValid(username)) {
+    return res.json({ success: true, available: false, reason: 'format' });
+  }
+
+  try {
+    const { data } = await serviceClient()
+      .from('profiles')
+      .select('id')
+      .ilike('username', username)
+      .neq('id', req.user.id)
+      .maybeSingle();
+
+    res.json({ success: true, available: !data });
+  } catch (err) {
+    console.error('[username-available]', err.message);
+    res.status(500).json({ success: false, message: 'Vérification impossible.' });
+  }
+});
+
 router.post('/forgot', async (req, res) => {
   const { email } = req.body;
 
@@ -788,8 +818,9 @@ router.post('/forgot', async (req, res) => {
 router.post('/reset-password', async (req, res) => {
   const { password, password_confirm, code, token_hash } = req.body;
 
-  if (!password || password.length < 8) {
-    return res.status(400).json({ success: false, message: 'Le mot de passe doit contenir au moins 8 caractères.' });
+  const pwError = passwordRuleError(password);
+  if (pwError) {
+    return res.status(400).json({ success: false, message: pwError, errors: { password: pwError } });
   }
 
   if (password !== password_confirm) {

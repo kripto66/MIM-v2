@@ -29,31 +29,36 @@
 
             <form id="loginForm">
 
-                <label for="identifier">
-                    Username ou email
-                </label>
+                <div class="form-group">
+                    <label for="identifier">
+                        Username ou email
+                    </label>
 
-                <input
-                    type="text"
-                    id="identifier"
-                    name="identifier"
-                    placeholder="Votre username ou email"
-                    autocomplete="username"
-                    required
-                >
-<br>
-                <label for="password">
-                    Mot de passe
-                </label>
+                    <input
+                        type="text"
+                        id="identifier"
+                        name="identifier"
+                        placeholder="Votre username ou email"
+                        autocomplete="username"
+                        required
+                    >
+                </div>
 
-                <input
-                    type="password"
-                    id="password"
-                    name="password"
-                    placeholder="Votre mot de passe"
-                    required
-                >
-<br>
+                <div class="form-group">
+                    <label for="password">
+                        Mot de passe
+                    </label>
+
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        placeholder="Votre mot de passe"
+                        autocomplete="current-password"
+                        required
+                    >
+                </div>
+
                 <button type="submit">
                     Se connecter
                 </button>
@@ -96,6 +101,8 @@
 
     <div id="loginMessage"></div>
 
+    <script src="form-utils.js"></script>
+    <script src="password-strength.js"></script>
     <script>
         const API = (() => {
             const origin = window.location.origin || "http://localhost:3000";
@@ -124,11 +131,23 @@
             const message = document.getElementById('loginMessage');
             const button = form.querySelector('button[type="submit"]');
 
+            clearFormErrors(form);
             message.textContent = '';
+            message.className = '';
+
+            let hasErrors = false;
+            if (!form.identifier.value.trim()) {
+                formFieldError(form, 'identifier', 'Veuillez saisir votre username ou votre email.');
+                hasErrors = true;
+            }
+            if (!form.password.value) {
+                formFieldError(form, 'password', 'Veuillez saisir votre mot de passe.');
+                hasErrors = true;
+            }
+            if (hasErrors) return;
+
             button.disabled = true;
             button.textContent = 'Connexion...';
-
-            const formData = new FormData(form);
 
             try {
                 const response = await fetch(API + '/auth/login', {
@@ -155,6 +174,10 @@
                 } else {
                     message.textContent = data.message;
                     message.className = 'error';
+                    applyServerErrors(form, data.errors);
+                    if (!data.errors) {
+                        formFieldError(form, 'password', 'Mot de passe incorrect.');
+                    }
                 }
             } catch (error) {
                 console.error('Erreur:', error);

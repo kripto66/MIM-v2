@@ -8,6 +8,18 @@ function escapeHtml(str) {
   }[c]));
 }
 
+// Collecte les erreurs de champs à partir d'une liste de règles.
+// rule : { name, test(input) -> bool (en erreur), message }
+function validateFields(form, rules) {
+  const errors = {};
+  for (const rule of rules) {
+    const input = form.querySelector(`[name="${rule.name}"], #${rule.name}`);
+    if (!input) continue;
+    if (rule.test(input)) errors[rule.name] = rule.message;
+  }
+  return errors;
+}
+
 const CrudPage = {
   init(config) {
     this.config = config;
@@ -28,6 +40,8 @@ const CrudPage = {
     this.form.addEventListener("submit", (e) => this.handleSubmit(e));
     this.listEl.addEventListener("click", (e) => this.handleListClick(e));
 
+    if (config.afterInit) config.afterInit(this);
+
     this.setupSidebar();
   },
 
@@ -35,6 +49,7 @@ const CrudPage = {
     try {
       const { data } = await apiRequest(`/${this.config.resource}`);
       this.render(data);
+      if (this.config.afterLoad) this.config.afterLoad(data);
     } catch (err) {
       this.listEl.innerHTML = `<div class="empty-state">${escapeHtml(err.message)}</div>`;
     }
@@ -53,7 +68,9 @@ const CrudPage = {
   openAdd() {
     this.idField.value = "";
     this.form.reset();
-    this.titleEl.textContent = "Ajouter";
+    clearFormErrors(this.form);
+    if (this.config.onOpenAdd) this.config.onOpenAdd(this.form);
+    this.titleEl.textContent = this.config.addTitle || "Ajouter";
     this.modal.style.display = "flex";
   },
 
@@ -62,6 +79,7 @@ const CrudPage = {
     this.titleEl.textContent = "Modifier";
 
     this.form.reset();
+    clearFormErrors(this.form);
 
     for (const field of this.form.elements) {
       if (field.name && field.name !== "id" && item[field.name] != null) {
@@ -69,6 +87,7 @@ const CrudPage = {
       }
     }
 
+    if (this.config.onOpenEdit) this.config.onOpenEdit(this.form, item);
     this.modal.style.display = "flex";
   },
 
@@ -79,12 +98,31 @@ const CrudPage = {
   async handleSubmit(e) {
     e.preventDefault();
 
+    const submitBtn = this.form.querySelector('button[type="submit"]');
+    if (submitBtn && submitBtn.disabled) return; // anti double soumission
+
+    clearFormErrors(this.form);
+
+    if (this.config.validate) {
+      const errors = this.config.validate(this.form) || {};
+      if (Object.keys(errors).length) {
+        applyServerErrors(this.form, errors);
+        return;
+      }
+    }
+
     const payload = {};
     for (const field of this.form.elements) {
-      if (field.name) payload[field.name] = field.value;
+      if (field.name && !field.disabled) payload[field.name] = field.value;
     }
 
     const id = this.idField.value;
+
+    const originalLabel = submitBtn ? submitBtn.textContent : "";
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Enregistrement...";
+    }
 
     try {
       if (id) {
@@ -92,19 +130,25 @@ const CrudPage = {
           method: "PUT",
           body: JSON.stringify(payload),
         });
-        showToast("Modifié avec succès.");
+        showToast(this.config.editSuccess || "Modifié avec succès.");
       } else {
         await apiRequest(`/${this.config.resource}`, {
           method: "POST",
           body: JSON.stringify(payload),
         });
-        showToast("Ajouté avec succès.");
+        showToast(this.config.createSuccess || "Ajouté avec succès.");
       }
 
       this.closeModal();
       this.load();
     } catch (err) {
+      applyServerErrors(this.form, err.errors);
       showToast(err.message, "error");
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = originalLabel;
+      }
     }
   },
 
@@ -141,11 +185,16 @@ const CrudPage = {
 
     if (backupBtn) {
       backupBtn.addEventListener("click", async () => {
+        backupBtn.disabled = true;
+        backupBtn.textContent = "Sauvegarde...";
         try {
           const data = await apiRequest("/git/backup", { method: "POST" });
           showToast(data.message);
         } catch (err) {
           showToast(err.message, "error");
+        } finally {
+          backupBtn.disabled = false;
+          backupBtn.textContent = "Sauvegarder";
         }
       });
     }

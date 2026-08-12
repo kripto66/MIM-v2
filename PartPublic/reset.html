@@ -50,6 +50,7 @@
                         placeholder="Minimum 8 caractères"
                         minlength="8"
                         autocomplete="new-password"
+                        data-strength
                         required
                     >
 
@@ -89,6 +90,8 @@
 
     </main>
 
+    <script src="form-utils.js"></script>
+    <script src="password-strength.js"></script>
     <script>
         const API = (() => {
             const origin = window.location.origin || "http://localhost:3000";
@@ -114,16 +117,27 @@
         form.addEventListener("submit", async (e) => {
             e.preventDefault();
 
+            clearFormErrors(form);
+            message.textContent = "";
+
             const password = document.getElementById("password").value;
             const password_confirm = document.getElementById("password_confirm").value;
 
-            if (password !== password_confirm) {
-                message.textContent = "Les mots de passe ne correspondent pas.";
-                message.className = "error";
-                return;
+            let hasErrors = false;
+            const pwRule = mimPasswordRuleMessage(password);
+            if (pwRule) {
+                formFieldError(form, "password", pwRule);
+                hasErrors = true;
             }
+            if (!password_confirm) {
+                formFieldError(form, "password_confirm", "Confirmez votre nouveau mot de passe.");
+                hasErrors = true;
+            } else if (password !== password_confirm) {
+                formFieldError(form, "password_confirm", "Les mots de passe ne correspondent pas.");
+                hasErrors = true;
+            }
+            if (hasErrors) return;
 
-            message.textContent = "";
             button.disabled = true;
             button.textContent = "Réinitialisation...";
 
@@ -144,6 +158,7 @@
                 } else {
                     message.textContent = data.message;
                     message.className = "error";
+                    applyServerErrors(form, data.errors);
                     button.disabled = false;
                     button.textContent = "Réinitialiser mon mot de passe";
                 }

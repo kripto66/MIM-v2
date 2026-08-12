@@ -54,7 +54,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '100kb' }));
+app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 
 const ROOT = path.join(__dirname, '..');

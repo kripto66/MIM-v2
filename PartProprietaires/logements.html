@@ -88,6 +88,20 @@
                     <input type="text" id="nom" name="nom" placeholder="Ex : Appartement A12" required>
                 </div>
 
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="type">Type de logement</label>
+                        <select id="type" name="type">
+                            <option value="appartement">Appartement</option>
+                            <option value="chambre">Chambre</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="chambresGroup">
+                        <label for="nombre_chambres">Nombre de chambres</label>
+                        <input type="number" id="nombre_chambres" name="nombre_chambres" min="1" max="50" placeholder="ex : 3">
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label for="bien_id">Bien</label>
                     <select id="bien_id" name="bien_id">
@@ -111,6 +125,11 @@
                 </div>
 
                 <div class="form-group">
+                    <label for="adresse">Adresse du logement</label>
+                    <input type="text" id="adresse" name="adresse" placeholder="Ex : Rue 12, Sicap Mbao">
+                </div>
+
+                <div class="form-group">
                     <label for="description">Description</label>
                     <textarea id="description" name="description" rows="3"></textarea>
                 </div>
@@ -125,6 +144,7 @@
         </div>
     </div>
 
+    <script src="../PartPublic/form-utils.js"></script>
     <script src="api.js"></script>
     <script src="crud.js"></script>
     <script>
@@ -135,6 +155,20 @@
         };
 
         let biensCache = [];
+
+        function toggleChambres() {
+            const type = document.getElementById("type").value;
+            const group = document.getElementById("chambresGroup");
+            const field = document.getElementById("nombre_chambres");
+            if (type === "appartement") {
+                group.style.display = "block";
+                field.setAttribute("required", "");
+            } else {
+                group.style.display = "none";
+                field.removeAttribute("required");
+                field.value = "";
+            }
+        }
 
         async function loadBiens() {
             try {
@@ -158,14 +192,57 @@
             formId: "logementForm",
             idFieldId: "logementId",
             cancelBtnId: "cancelModal",
+            validate: (form) => {
+                const type = form.type.value;
+                return validateFields(form, [
+                    {
+                        name: "nom",
+                        test: (i) => !i.value.trim(),
+                        message: "Le nom du logement est obligatoire.",
+                    },
+                    {
+                        name: "bien_id",
+                        test: (i) => !i.value,
+                        message: "Choisissez le bien du logement.",
+                    },
+                    {
+                        name: "loyer_mensuel",
+                        test: (i) => i.value === "" || Number(i.value) < 0,
+                        message: "Saisissez un loyer mensuel valide.",
+                    },
+                    {
+                        name: "adresse",
+                        test: (i) => !i.value.trim(),
+                        message: "L'adresse du logement est obligatoire.",
+                    },
+                    {
+                        name: "nombre_chambres",
+                        test: (i) => type === "appartement" && (i.value === "" || Number(i.value) < 1),
+                        message: "Indiquez le nombre de chambres.",
+                    },
+                ]);
+            },
+            onOpenAdd: (form) => {
+                form.type.value = "appartement";
+                toggleChambres();
+            },
+            onOpenEdit: (form, item) => {
+                toggleChambres();
+            },
+            afterInit: () => {
+                document.getElementById("type").addEventListener("change", toggleChambres);
+                toggleChambres();
+            },
             renderItem: (l) => {
                 const [label, cls] = LOGEMENT_STATUS[l.statut] || [l.statut, "status-info"];
                 const bien = biensCache.find((b) => String(b.id) === String(l.bien_id));
+                const typeLabel = l.type === "chambre" ? "Chambre" : "Appartement";
                 return `
                     <div class="crud-card">
                         <div>
                             <h3>${escapeHtml(l.nom)}</h3>
-                            <p>${bien ? escapeHtml(bien.nom) : "Sans bien"}</p>
+                            <p>${bien ? escapeHtml(bien.nom) : "Sans bien"} · ${typeLabel}${l.nombre_chambres ? " · " + escapeHtml(l.nombre_chambres) + " chambres" : ""}</p>
+                            <p>${l.adresse ? escapeHtml(l.adresse) : ""}</p>
                             <p><span class="status ${cls}">${label}</span></p>
                             <p><strong>${Number(l.loyer_mensuel).toLocaleString("fr-FR")} FCFA</strong> / mois</p>
                         </div>

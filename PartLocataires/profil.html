@@ -152,13 +152,14 @@
 
                 <div class="form-group">
                     <label for="profileNameInput">Nom complet</label>
-                    <input type="text" id="profileNameInput" required>
+                    <input type="text" id="profileNameInput" name="name" required>
                 </div>
 
                 <div class="form-group">
                     <label for="profileUsernameInput">Username (connexion)</label>
-                    <input type="text" id="profileUsernameInput" autocomplete="username">
+                    <input type="text" id="profileUsernameInput" name="username" autocomplete="username">
                     <p class="form-hint">Utilisé pour vous connecter. Vous pouvez le modifier.</p>
+                    <small class="username-status" id="usernameStatus"></small>
                 </div>
 
                 <div class="form-group">
@@ -169,7 +170,7 @@
 
                 <div class="form-group">
                     <label for="profilePhoneInput">Téléphone</label>
-                    <input type="tel" id="profilePhoneInput">
+                    <input type="tel" id="profilePhoneInput" name="phone">
                 </div>
 
                 <div class="form-group">
@@ -182,6 +183,7 @@
                 <button
                     type="submit"
                     class="primary-button"
+                    id="profileSubmitBtn"
                 >
                     Enregistrer les modifications
                 </button>
@@ -204,17 +206,17 @@
 
                 <div class="form-group">
                     <label for="currentPassword">Mot de passe actuel</label>
-                    <input type="password" id="currentPassword" autocomplete="current-password" required>
+                    <input type="password" id="currentPassword" name="current_password" autocomplete="current-password" required>
                 </div>
 
                 <div class="form-group">
                     <label for="newPassword">Nouveau mot de passe</label>
-                    <input type="password" id="newPassword" minlength="8" autocomplete="new-password" required>
+                    <input type="password" id="newPassword" name="password" minlength="8" autocomplete="new-password" data-strength required>
                 </div>
 
                 <div class="form-group">
                     <label for="confirmPassword">Confirmer le mot de passe</label>
-                    <input type="password" id="confirmPassword" minlength="8" autocomplete="new-password" required>
+                    <input type="password" id="confirmPassword" name="password_confirm" minlength="8" autocomplete="new-password" required>
                 </div>
 
                 <div id="passwordMessage" class="tenant-message success" style="display:none;"></div>
@@ -222,6 +224,7 @@
                 <button
                     type="submit"
                     class="primary-button"
+                    id="passwordSubmitBtn"
                 >
                     Changer le mot de passe
                 </button>
@@ -232,10 +235,52 @@
 
     </main>
 
+    <script src="../PartPublic/form-utils.js"></script>
+    <script src="../PartPublic/password-strength.js"></script>
     <script src="LocaDash.js"></script>
     <script>
         document.addEventListener("DOMContentLoaded", async () => {
             let currentUser = null;
+
+            const profileForm = document.getElementById("profileForm");
+            const profileSubmitBtn = document.getElementById("profileSubmitBtn");
+            const usernameInput = document.getElementById("profileUsernameInput");
+            const usernameStatus = document.getElementById("usernameStatus");
+
+            function usernameValid(u) {
+                return /^[a-z0-9._-]{3,30}$/.test(u);
+            }
+
+            async function checkUsernameAvailability() {
+                const value = usernameInput.value.trim();
+                if (!value) {
+                    usernameStatus.textContent = "";
+                    return;
+                }
+                if (!usernameValid(value)) {
+                    usernameStatus.textContent = "Lettres minuscules, chiffres, . _ - (3 à 30 caractères).";
+                    usernameStatus.className = "username-status username-taken";
+                    return;
+                }
+                if (currentUser && value === currentUser.username) {
+                    usernameStatus.textContent = "";
+                    return;
+                }
+                try {
+                    const { available } = await tenantRequest(
+                        "/auth/username-available?username=" + encodeURIComponent(value)
+                    );
+                    if (available) {
+                        usernameStatus.textContent = "Disponible";
+                        usernameStatus.className = "username-status username-ok";
+                    } else {
+                        usernameStatus.textContent = "Ce nom d'utilisateur est déjà utilisé.";
+                        usernameStatus.className = "username-status username-taken";
+                    }
+                } catch (err) {
+                    usernameStatus.textContent = "";
+                }
+            }
 
             try {
                 const { user } = await tenantRequest("/auth/me");
@@ -248,13 +293,34 @@
                 showTenantError(err.message);
             }
 
-            document.getElementById("profileForm").addEventListener("submit", async (e) => {
-                e.preventDefault();
+            usernameInput.addEventListener("blur", checkUsernameAvailability);
 
+            profileForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                if (profileSubmitBtn.disabled) return;
+
+                clearFormErrors(profileForm);
                 const message = document.getElementById("profileMessage");
                 message.style.display = "none";
 
-                const newUsername = document.getElementById("profileUsernameInput").value.trim();
+                const newUsername = usernameInput.value.trim();
+
+                let hasErrors = false;
+                if (!profileForm.name.value.trim()) {
+                    formFieldError(profileForm, "name", "Le nom complet est obligatoire.");
+                    hasErrors = true;
+                }
+                if (!newUsername) {
+                    formFieldError(profileForm, "username", "Le username est obligatoire.");
+                    hasErrors = true;
+                } else if (!usernameValid(newUsername)) {
+                    formFieldError(profileForm, "username", "Username invalide : lettres minuscules, chiffres, . _ - (3 à 30 caractères).");
+                    hasErrors = true;
+                }
+                if (hasErrors) return;
+
+                profileSubmitBtn.disabled = true;
+                profileSubmitBtn.textContent = "Enregistrement...";
 
                 try {
                     if (newUsername && currentUser && newUsername !== currentUser.username) {
@@ -274,36 +340,61 @@
                     message.textContent = "Profil mis à jour avec succès.";
                     message.className = "tenant-message success";
                     message.style.display = "block";
+                    usernameStatus.textContent = "";
                     currentUser = { ...currentUser, username: newUsername };
                     loadTenantIdentity();
                 } catch (err) {
+                    applyServerErrors(profileForm, err.errors);
                     message.textContent = err.message;
                     message.className = "tenant-message danger";
                     message.style.display = "block";
+                } finally {
+                    profileSubmitBtn.disabled = false;
+                    profileSubmitBtn.textContent = "Enregistrer les modifications";
                 }
             });
 
-            document.getElementById("passwordForm").addEventListener("submit", async (e) => {
-                e.preventDefault();
+            const passwordForm = document.getElementById("passwordForm");
+            const passwordSubmitBtn = document.getElementById("passwordSubmitBtn");
 
+            passwordForm.addEventListener("submit", async (e) => {
+                e.preventDefault();
+                if (passwordSubmitBtn.disabled) return;
+
+                clearFormErrors(passwordForm);
                 const message = document.getElementById("passwordMessage");
                 message.style.display = "none";
 
-                const newPassword = document.getElementById("newPassword").value;
-                const confirmPassword = document.getElementById("confirmPassword").value;
+                const newPassword = passwordForm.password.value;
+                const confirmPassword = passwordForm.password_confirm.value;
 
-                if (newPassword !== confirmPassword) {
-                    message.textContent = "Les mots de passe ne correspondent pas.";
-                    message.className = "tenant-message danger";
-                    message.style.display = "block";
-                    return;
+                let hasErrors = false;
+                if (!passwordForm.current_password.value) {
+                    formFieldError(passwordForm, "current_password", "Saisissez votre mot de passe actuel.");
+                    hasErrors = true;
                 }
+                const pwRule = mimPasswordRuleMessage(newPassword);
+                if (pwRule) {
+                    formFieldError(passwordForm, "password", pwRule);
+                    hasErrors = true;
+                }
+                if (!confirmPassword) {
+                    formFieldError(passwordForm, "password_confirm", "Confirmez votre nouveau mot de passe.");
+                    hasErrors = true;
+                } else if (newPassword !== confirmPassword) {
+                    formFieldError(passwordForm, "password_confirm", "Les mots de passe ne correspondent pas.");
+                    hasErrors = true;
+                }
+                if (hasErrors) return;
+
+                passwordSubmitBtn.disabled = true;
+                passwordSubmitBtn.textContent = "Modification...";
 
                 try {
                     await tenantRequest("/auth/change-password", {
                         method: "PUT",
                         body: JSON.stringify({
-                            current_password: document.getElementById("currentPassword").value,
+                            current_password: passwordForm.current_password.value,
                             password: newPassword,
                             password_confirm: confirmPassword,
                         }),
@@ -313,9 +404,13 @@
                     message.style.display = "block";
                     e.target.reset();
                 } catch (err) {
+                    applyServerErrors(passwordForm, err.errors);
                     message.textContent = err.message;
                     message.className = "tenant-message danger";
                     message.style.display = "block";
+                } finally {
+                    passwordSubmitBtn.disabled = false;
+                    passwordSubmitBtn.textContent = "Changer le mot de passe";
                 }
             });
         });

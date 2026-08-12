@@ -19,7 +19,10 @@ async function tenantRequest(path, options = {}) {
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok || data.success === false) {
-    throw new Error(data.message || "Une erreur est survenue.");
+    const err = new Error(data.message || "Une erreur est survenue.");
+    err.errors = data.errors;
+    err.status = res.status;
+    throw err;
   }
 
   return data;
@@ -65,6 +68,7 @@ const PAIEMENT_LABEL = {
 const INCIDENT_LABEL = {
   nouveau: ["Nouveau", "danger"],
   en_cours: ["En cours", "warning"],
+  intervention: ["Intervention", "warning"],
   resolu: ["Résolu", "success"],
 };
 
@@ -170,10 +174,11 @@ function computeNextPaiement(paiements, loyer) {
   };
 }
 
-function showTenantError(message) {
+function showTenantError(message, isSuccess = false) {
   const box = document.getElementById("tenantError");
   if (!box) return;
   box.textContent = message;
+  box.className = `tenant-message ${isSuccess ? "success" : "danger"}`;
   box.style.display = "block";
 }
 

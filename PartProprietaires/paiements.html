@@ -133,6 +133,7 @@
         </div>
     </div>
 
+    <script src="../PartPublic/form-utils.js"></script>
     <script src="api.js"></script>
     <script src="crud.js"></script>
     <script>
@@ -185,6 +186,28 @@
             formId: "paiementForm",
             idFieldId: "paiementId",
             cancelBtnId: "cancelModal",
+            validate: (form) => validateFields(form, [
+                {
+                    name: "locataire_id",
+                    test: (i) => !i.value,
+                    message: "Choisissez le locataire.",
+                },
+                {
+                    name: "logement_id",
+                    test: (i) => !i.value,
+                    message: "Choisissez le logement.",
+                },
+                {
+                    name: "mois",
+                    test: (i) => !i.value,
+                    message: "Indiquez le mois concerné.",
+                },
+                {
+                    name: "montant",
+                    test: (i) => i.value === "" || Number(i.value) <= 0,
+                    message: "Saisissez un montant valide.",
+                },
+            ]),
             renderItem: (p) => {
                 const [label, cls] = PAIEMENT_STATUS[p.statut] || [p.statut, "status-info"];
                 const locataire = locatairesCache.find((t) => String(t.id) === String(p.locataire_id));

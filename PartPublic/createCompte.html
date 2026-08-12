@@ -147,6 +147,7 @@
                         placeholder="Créer un mot de passe"
                         autocomplete="new-password"
                         minlength="8"
+                        data-strength
                         required
                     >
 
@@ -236,6 +237,8 @@
     </main>
 
 
+    <script src="form-utils.js"></script>
+    <script src="password-strength.js"></script>
     <script>
 
         const API = (() => {
@@ -250,32 +253,75 @@
 
         const button = document.getElementById("submitButton");
 
+        bindAutoClear(form, ["account_type", "name", "email", "phone", "password", "password_confirm"]);
+
 
         form.addEventListener("submit", async function(event) {
 
             event.preventDefault();
 
+            clearFormErrors(form);
 
             message.textContent = "";
 
             message.className = "";
 
 
+            const payload = {
+                account_type: form.account_type.value,
+                name: form.name.value.trim(),
+                email: form.email.value.trim(),
+                phone: form.phone.value.trim(),
+                password: form.password.value,
+                password_confirm: form.password_confirm.value
+            };
+
+            let hasErrors = false;
+
+            if (!payload.account_type) {
+                formFieldError(form, "account_type", "Choisissez votre type de compte.");
+                hasErrors = true;
+            }
+
+            if (!payload.name) {
+                formFieldError(form, "name", "Le nom complet est obligatoire.");
+                hasErrors = true;
+            }
+
+            if (!payload.email) {
+                formFieldError(form, "email", "L'adresse email est obligatoire.");
+                hasErrors = true;
+            } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) {
+                formFieldError(form, "email", "Adresse email invalide.");
+                hasErrors = true;
+            }
+
+            if (!payload.phone) {
+                formFieldError(form, "phone", "Le numéro de téléphone est obligatoire.");
+                hasErrors = true;
+            }
+
+            const pwRule = mimPasswordRuleMessage(payload.password);
+            if (pwRule) {
+                formFieldError(form, "password", pwRule);
+                hasErrors = true;
+            }
+
+            if (payload.password !== payload.password_confirm) {
+                formFieldError(form, "password_confirm", "Les mots de passe ne correspondent pas.");
+                hasErrors = true;
+            }
+
+            if (!form.terms.checked) {
+                formFieldError(form, "terms", "Vous devez accepter les conditions d'utilisation.");
+                hasErrors = true;
+            }
+
+            if (hasErrors) return;
+
             button.disabled = true;
 
             button.textContent = "Création du compte...";
-
-
-            const formData = new FormData(form);
-
-            const payload = {
-                account_type: formData.get('account_type'),
-                name: formData.get('name'),
-                email: formData.get('email'),
-                phone: formData.get('phone'),
-                password: formData.get('password'),
-                password_confirm: formData.get('password_confirm')
-            };
 
             try {
 
@@ -326,6 +372,8 @@
                     message.textContent = data.message;
 
                     message.className = "error";
+
+                    applyServerErrors(form, data.errors);
 
 
                     button.disabled = false;

@@ -19,7 +19,10 @@ async function apiRequest(path, options = {}) {
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok || data.success === false) {
-    throw new Error(data.message || "Une erreur est survenue.");
+    const err = new Error(data.message || "Une erreur est survenue.");
+    err.errors = data.errors;
+    err.status = res.status;
+    throw err;
   }
 
   return data;
