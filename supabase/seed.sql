@@ -1,0 +1,2 @@
+-- MIM - Seed local (vide pour l'instant)
+-- Les données de production ne sont pas copiées automatiquement.
