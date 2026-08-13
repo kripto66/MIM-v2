@@ -29,7 +29,8 @@ for (const email of targets) {
     password: LT.tenantPw,
     user_metadata: { ...meta, must_change_password: true },
   });
-  if (err) console.log(`  echec ${email}: ${err.message}`);
+  const { error: err2 } = await service.from('profiles').update({ must_change_password: true }).eq('id', id);
+  if (err || err2) console.log(`  echec ${email}: ${err?.message || err2?.message}`);
   else { ok++; console.log(`  reset ${email}`); }
 }
 console.log(`Reset terminé : ${ok}/${targets.length} comptes → ${LT.tenantPw} / must_change_password=true`);
