@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "cron:loyers": "node scripts/checkLoyers.js"
   },
   "engines": {
     "node": ">=18"

@@ -9,7 +9,10 @@ setInterval(() => {
 
 function makeLimiter({ windowMs, max, message }) {
   return (req, res, next) => {
-    const key = `${req.ip}:${req.originalUrl}`;
+    // Clé sur le chemin (sans la query string) : évite de contourner la limite
+    // en variant les paramètres d'URL. req.ip reflète l'IP client quand le
+    // trust proxy est activé (voir app.js).
+    const key = `${req.ip}:${req.baseUrl || ''}${req.path}`;
     const now = Date.now();
     const entry = buckets.get(key);
 

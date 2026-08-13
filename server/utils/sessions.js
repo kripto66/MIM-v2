@@ -1,13 +1,13 @@
 import { authedClient } from '../app.js';
 
-export async function logSession(userId, action, supabaseToken) {
+export async function logSession(userId, action, supabaseToken, userAgent = '') {
   try {
     const sb = authedClient(supabaseToken);
 
     const { error } = await sb.from('sessions').insert({
       user_id: userId,
       action,
-      user_agent: '',
+      user_agent: String(userAgent || '').slice(0, 255),
     });
 
     if (error) {

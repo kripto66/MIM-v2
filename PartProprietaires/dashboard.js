@@ -1,18 +1,5 @@
-const API = (() => {
-  const origin = window.location.origin || "http://localhost:3000";
-  const isLocal = origin.includes("localhost") || origin.includes("127.0.0.1");
-  return (isLocal ? "http://localhost:3000" : origin) + "/api";
-})();
-
-function escapeHtml(str) {
-  return String(str ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  }[c]));
-}
+// API, apiRequest, showToast et escapeHtml sont fournis par api.js / crud.js
+// (chargés par dashboard.html avant ce fichier).
 
 function fmtFCFA(n) {
   return `${Number(n || 0).toLocaleString("fr-FR")} FCFA`;
@@ -53,6 +40,7 @@ const STATUS = {
   incident: {
     nouveau: ["Nouveau", "status-danger"],
     en_cours: ["En cours", "status-warning"],
+    intervention: ["Intervention", "status-info"],
     resolu: ["Résolu", "status-success"],
   },
   intervention: {

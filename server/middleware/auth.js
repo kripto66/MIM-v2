@@ -7,6 +7,7 @@ function setAuthCookie(res, token) {
   res.cookie('mim_token', token, {
     httpOnly: true,
     sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production',
     maxAge: SLIDING_MAX_AGE,
   });
 }

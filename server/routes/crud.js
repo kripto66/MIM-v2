@@ -205,9 +205,35 @@ export function createCrudRouter(tableName) {
   // or l'utilisateur connecté (locataire/propriétaire côté RLS) peut
   // ne pas correspondre ici selon le contexte d'exécution.
   // ============================================================
+
+  // Un logement ne peut être rattaché qu'à un bien du propriétaire
+  // connecté : la RLS ne protège pas cette référence croisée, on la
+  // vérifie donc explicitement côté serveur.
+  async function bienBelongsTo(admin, bienId, ownerId) {
+    if (!bienId) return true;
+
+    try {
+      const { data } = await admin
+        .from('biens')
+        .select('id')
+        .eq('id', bienId)
+        .eq('user_id', ownerId)
+        .maybeSingle();
+
+      return Boolean(data);
+    } catch (err) {
+      console.warn('[bienBelongsTo]', err.message);
+      return false;
+    }
+  }
+
   async function createLogementForOwner(admin, ownerId, payload) {
     const errors = validateResource('logements', sanitize('logements', payload), false);
     if (Object.keys(errors).length) return { errors };
+
+    if (!(await bienBelongsTo(admin, payload?.bien_id, ownerId))) {
+      return { errors: { bien_id: 'Bien introuvable ou ne vous appartient pas.' } };
+    }
 
     const body = {
       ...sanitize('logements', payload),
@@ -231,6 +257,10 @@ export function createCrudRouter(tableName) {
     const errors = validateResource('logements', clean, true);
     if (Object.keys(errors).length) return { errors };
 
+    if (!(await bienBelongsTo(admin, clean.bien_id, ownerId))) {
+      return { errors: { bien_id: 'Bien introuvable ou ne vous appartient pas.' } };
+    }
+
     const { data, error } = await admin
       .from('logements')
       .update(clean)
@@ -247,18 +277,25 @@ export function createCrudRouter(tableName) {
   }
 
   // Remet un logement à « libre » s'il n'est plus occupé par personne.
-  async function freeLogementIfUnused(admin, logementId) {
+  async function freeLogementIfUnused(admin, logementId, ownerId) {
     if (!logementId) return;
 
     try {
-      const { data } = await admin
+      let query = admin
         .from('locataires')
         .select('id')
-        .eq('logement_id', logementId)
-        .maybeSingle();
+        .eq('logement_id', logementId);
+
+      if (ownerId) {
+        query = query.eq('user_id', ownerId);
+      }
+
+      const { data } = await query.maybeSingle();
 
       if (!data) {
-        await admin.from('logements').update({ statut: 'libre' }).eq('id', logementId);
+        let update = admin.from('logements').update({ statut: 'libre' }).eq('id', logementId);
+        if (ownerId) update = update.eq('user_id', ownerId);
+        await update;
       }
     } catch (err) {
       console.warn('[freeLogementIfUnused]', err.message);
@@ -278,7 +315,7 @@ export function createCrudRouter(tableName) {
     const password = String(req.body.password || '');
     const nom = String(req.body.nom || '').trim();
     const logementNew = req.body.logement && typeof req.body.logement === 'object' ? req.body.logement : null;
-    const logementId = logementNew ? null : req.body.logement_id || null;
+    let logementId = logementNew ? null : req.body.logement_id || null;
     let createdLogementId = null;
     const email = req.body.email ? String(req.body.email).trim() : null;
     const phone = req.body.phone ? String(req.body.phone).trim() : null;
@@ -435,6 +472,15 @@ export function createCrudRouter(tableName) {
       return res.status(400).json({ success: false, message: 'Veuillez corriger les champs en rouge.', errors });
     }
 
+    if (tableName === 'logements' && !(await bienBelongsTo(serviceClient(), body.bien_id, userId(req)))) {
+      return res.status(400).json({ success: false, message: 'Bien introuvable ou ne vous appartient pas.', errors: { bien_id: 'Bien introuvable ou ne vous appartient pas.' } });
+    }
+
+    // Un paiement confirmé (« paye ») sans date renseignée est daté du jour.
+    if (tableName === 'paiements' && body.statut === 'paye' && !body.date_paiement) {
+      body.date_paiement = new Date().toISOString().slice(0, 10);
+    }
+
     if (Object.keys(body).length <= 1) {
       return res.status(400).json({ success: false, message: 'Aucun champ valide fourni.' });
     }
@@ -513,6 +559,15 @@ export function createCrudRouter(tableName) {
       return res.status(400).json({ success: false, message: 'Veuillez corriger les champs en rouge.', errors });
     }
 
+    if (tableName === 'logements' && !(await bienBelongsTo(serviceClient(), body.bien_id, userId(req)))) {
+      return res.status(400).json({ success: false, message: 'Bien introuvable ou ne vous appartient pas.', errors: { bien_id: 'Bien introuvable ou ne vous appartient pas.' } });
+    }
+
+    // Un paiement confirmé (« paye ») sans date renseignée est daté du jour.
+    if (tableName === 'paiements' && body.statut === 'paye' && !body.date_paiement) {
+      body.date_paiement = new Date().toISOString().slice(0, 10);
+    }
+
     if (Object.keys(body).length === 0) {
       return res.status(400).json({ success: false, message: 'Aucun champ valide fourni.' });
     }
@@ -554,7 +609,7 @@ export function createCrudRouter(tableName) {
           .catch(() => {});
       }
       if (oldLogement && oldLogement !== newLogement) {
-        await freeLogementIfUnused(admin, oldLogement);
+        await freeLogementIfUnused(admin, oldLogement, userId(req));
       } else if (newLogement) {
         // Même logement conservé : il reste occupé par le locataire.
         await admin
@@ -618,7 +673,7 @@ export function createCrudRouter(tableName) {
         if (delErr) console.warn('[locataires] suppression du compte :', delErr.message);
       }
 
-      await freeLogementIfUnused(admin, row?.logement_id);
+      await freeLogementIfUnused(admin, row?.logement_id, userId(req));
       await gitAutoBackup(`Sauvegarde auto : suppression locataire (compte ${row?.account_uid || 'sans compte'})`);
       return res.json({ success: true, message: 'Supprimé avec succès. Le compte du locataire est désactivé.' });
     }

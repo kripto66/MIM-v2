@@ -10,6 +10,7 @@ import authRoutes from './routes/auth.js';
 import statsRoutes from './routes/stats.js';
 import gitRoutes from './routes/git.js';
 import locataireRoutes from './routes/locataire.js';
+import notificationsRoutes from './routes/notifications.js';
 import { createCrudRouter } from './routes/crud.js';
 import { authenticate } from './middleware/auth.js';
 import { authRateLimit, apiRateLimit } from './middleware/rateLimit.js';
@@ -37,14 +38,28 @@ export function serviceClient() {
 
 const corsOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
-  : true;
+  : [];
+
+// En production, seules les origines listées dans CORS_ORIGINS sont autorisées.
+// Sans configuration, le CORS est désactivé (appelés en même origine uniquement).
+const corsOriginOption = corsOrigins.length
+  ? (origin, cb) => {
+      if (!origin || corsOrigins.includes(origin)) return cb(null, true);
+      return cb(null, false);
+    }
+  : false;
 
 app.use(
   cors({
-    origin: corsOrigins,
+    origin: corsOriginOption,
     credentials: true,
   })
 );
+
+// Derrière un reverse proxy (Vercel, Nginx…), req.ip doit refléter l'IP du client.
+if (process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -82,6 +97,6 @@ app.use('/api/paiements', authenticate, createCrudRouter('paiements'));
 app.use('/api/incidents', authenticate, createCrudRouter('incidents'));
 app.use('/api/prestataires', authenticate, createCrudRouter('prestataires'));
 app.use('/api/interventions', authenticate, createCrudRouter('interventions'));
-app.use('/api/notifications', authenticate, createCrudRouter('notifications'));
+app.use('/api/notifications', authenticate, notificationsRoutes);
 
 export default app;

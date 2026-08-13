@@ -10,7 +10,7 @@ router.get('/dashboard', async (req, res) => {
   try {
     const [{ data: logements }, { data: locataires }, { data: paiements }, { data: incidents }, { data: interventions }] =
       await Promise.all([
-        sb.from('logements').select('id, statut').eq('user_id', userId),
+        sb.from('logements').select('id, statut, loyer_mensuel').eq('user_id', userId),
         sb.from('locataires').select('id').eq('user_id', userId),
         sb.from('paiements').select('id, montant, statut, mois').eq('user_id', userId),
         sb.from('incidents').select('id, statut').eq('user_id', userId),
@@ -24,7 +24,14 @@ router.get('/dashboard', async (req, res) => {
     const now = new Date();
     const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
     const monthPayments = paiements?.filter((p) => p.mois === thisMonth) ?? [];
-    const expectedRent = monthPayments.reduce((s, p) => s + Number(p.montant), 0);
+
+    // Loyer attendu = somme des loyers des logements occupés, pas la somme des
+    // paiements déjà saisis (sinon le mois est affiché à 0 tant qu'aucun
+    // paiement n'a été enregistré).
+    const expectedRent = (logements ?? [])
+      .filter((l) => l.statut === 'occupe')
+      .reduce((s, l) => s + Number(l.loyer_mensuel || 0), 0);
+
     const paidRent = monthPayments.filter((p) => p.statut === 'paye').reduce((s, p) => s + Number(p.montant), 0);
     const lateRent = monthPayments.filter((p) => p.statut === 'retard').reduce((s, p) => s + Number(p.montant), 0);
 

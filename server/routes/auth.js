@@ -5,7 +5,7 @@ import { signToken, authenticate } from '../middleware/auth.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
 import { logSession, closeSession } from '../utils/sessions.js';
 import { newOAuthClient, storeFlow, getFlow, deleteFlow } from '../utils/oauth.js';
-import { resolveLoginEmail, tenantEmailFor, usernameIsValid } from '../utils/tenantAccount.js';
+import { resolveLoginEmail, tenantEmailFor, usernameIsValid, TENANT_EMAIL_DOMAIN } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 
 const router = Router();
@@ -23,9 +23,12 @@ const PAGE_BY_TYPE = {
 
 const APP_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
+const IS_PROD = process.env.NODE_ENV === 'production';
+
 const COOKIE_OPTIONS = {
   httpOnly: true,
   sameSite: 'lax',
+  secure: IS_PROD,
   maxAge: 7 * 24 * 60 * 60 * 1000,
 };
 
@@ -45,6 +48,7 @@ function setPendingMfaCookie(res, token) {
   res.cookie('mim_mfa_pending', token, {
     httpOnly: true,
     sameSite: 'lax',
+    secure: IS_PROD,
     maxAge: 10 * 60 * 1000,
   });
 }
@@ -106,7 +110,7 @@ async function requireMfaFor(user, supabaseToken) {
   return factors;
 }
 
-async function finalizeLogin(res, user, session) {
+async function finalizeLogin(res, user, session, userAgent) {
   const accountType = accountTypeOf(user);
 
   const token = signToken(sessionPayload(user, session));
@@ -114,7 +118,7 @@ async function finalizeLogin(res, user, session) {
   setAuthCookie(res, token);
 
   await linkTenantAccount(user, session?.access_token);
-  await logSession(user.id, 'login', session?.access_token);
+  await logSession(user.id, 'login', session?.access_token, userAgent);
   await gitAutoBackup(`Sauvegarde auto : connexion de ${user.email}`);
 
   const profile = await profileOf(user.id);
@@ -180,6 +184,13 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Adresse email invalide.' });
   }
 
+  if (email.toLowerCase().endsWith(`@${TENANT_EMAIL_DOMAIN}`)) {
+    return res.status(400).json({
+      success: false,
+      message: `Cette adresse email est réservée aux comptes locataires (créés par un propriétaire).`,
+    });
+  }
+
   const pwError = passwordRuleError(password);
   if (pwError) {
     return res.status(400).json({ success: false, message: pwError, errors: { password: pwError } });
@@ -238,7 +249,7 @@ router.post('/register', async (req, res) => {
   setAuthCookie(res, signToken(sessionPayload(user, data.session)));
 
   await linkTenantAccount(user, data.session?.access_token);
-  await logSession(user.id, 'register', data.session?.access_token);
+  await logSession(user.id, 'register', data.session?.access_token, req.headers['user-agent']);
 
   res.status(201).json({
     success: true,
@@ -281,7 +292,7 @@ router.post('/login', async (req, res) => {
     });
   }
 
-  const result = await finalizeLogin(res, data.user, data.session);
+  const result = await finalizeLogin(res, data.user, data.session, req.headers['user-agent']);
 
   res.json({
     success: true,
@@ -333,7 +344,14 @@ router.post('/verify-2fa', async (req, res) => {
 
     res.clearCookie('mim_mfa_pending');
 
-    const result = await finalizeLogin(res, verified.user, verified);
+    // mfa.verify renvoie access_token/refresh_token/expires_in (pas expires_at).
+    const session = {
+      access_token: verified.access_token,
+      refresh_token: verified.refresh_token || null,
+      expires_at: verified.expires_at ?? Math.floor(Date.now() / 1000) + (verified.expires_in || 3600),
+    };
+
+    const result = await finalizeLogin(res, verified.user, session, req.headers['user-agent']);
 
     res.json({
       success: true,
@@ -421,7 +439,7 @@ router.post('/mfa/confirm', authenticate, async (req, res) => {
       account_type: req.user.account_type,
       supabase_token: verified.access_token,
       refresh_token: verified.refresh_token || null,
-      supabase_expires_at: verified.expires_at || null,
+      supabase_expires_at: verified.expires_at ?? Math.floor(Date.now() / 1000) + (verified.expires_in || 3600),
     }));
 
     res.json({ success: true, message: 'Double authentification activée.' });
@@ -492,6 +510,7 @@ router.get('/google', async (req, res) => {
     res.cookie('oauth_flow', data.flowId, {
       httpOnly: true,
       sameSite: 'lax',
+      secure: IS_PROD,
       path: '/',
       maxAge: 10 * 60 * 1000,
     });
@@ -548,7 +567,7 @@ router.get('/callback', async (req, res) => {
       return res.redirect(`${APP_URL}/PartPublic/2fa.html`);
     }
 
-    const result = await finalizeLogin(res, user, session);
+    const result = await finalizeLogin(res, user, session, req.headers['user-agent']);
     return res.redirect(`${APP_URL}/${result.redirect}`);
   } catch (err) {
     console.error('[oauth callback]', err.message);
@@ -678,6 +697,16 @@ router.put('/change-password', authenticate, async (req, res) => {
 
 router.put('/update-username', authenticate, async (req, res) => {
   const username = String(req.body?.username || '').trim().toLowerCase();
+
+  // Seuls les comptes locataires ont un username : un propriétaire ne doit
+  // pas pouvoir réserver un username ni détourner l'email interne @mim.local.
+  if (req.user.account_type !== 'locataire') {
+    return res.status(403).json({
+      success: false,
+      message: 'Le nom d\'utilisateur ne peut être modifié que depuis un compte locataire.',
+      errors: { username: 'Modification réservée aux comptes locataires.' },
+    });
+  }
 
   if (!usernameIsValid(username)) {
     return res.status(400).json({
@@ -816,7 +845,7 @@ router.post('/forgot', async (req, res) => {
 });
 
 router.post('/reset-password', async (req, res) => {
-  const { password, password_confirm, code, token_hash } = req.body;
+  const { password, password_confirm, code, token_hash, access_token, refresh_token } = req.body;
 
   const pwError = passwordRuleError(password);
   if (pwError) {
@@ -828,6 +857,27 @@ router.post('/reset-password', async (req, res) => {
   }
 
   let supabaseToken = req.user?.supabase_token;
+  let session = null;
+
+  // Flow implicite : le lien de récupération contient access_token (+ refresh_token)
+  // dans le fragment d'URL. On restaure la session de récupération pour pouvoir
+  // modifier le mot de passe.
+  if (!supabaseToken && access_token) {
+    try {
+      const sbTemp = authedClient(access_token);
+      await sbTemp.auth.setSession({
+        access_token,
+        refresh_token: refresh_token || '',
+      });
+      const { data: sess } = await sbTemp.auth.getSession();
+      if (sess?.session) {
+        session = sess.session;
+        supabaseToken = session.access_token;
+      }
+    } catch (err) {
+      console.warn('[reset-password] session fragment :', err.message);
+    }
+  }
 
   if (!supabaseToken) {
     const candidate = token_hash || code;
@@ -835,8 +885,6 @@ router.post('/reset-password', async (req, res) => {
     if (!candidate) {
       return res.status(401).json({ success: false, message: 'Jeton de réinitialisation manquant.' });
     }
-
-    let session = null;
 
     const { data: otpData, error: otpError } = await supabase.auth.verifyOtp({
       type: 'recovery',

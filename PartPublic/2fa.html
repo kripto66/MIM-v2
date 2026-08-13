@@ -74,12 +74,9 @@
 
     </main>
 
+    <script src="form-utils.js"></script>
     <script>
-        const API = (() => {
-            const origin = window.location.origin || "http://localhost:3000";
-            const isLocal = origin.includes("localhost") || origin.includes("127.0.0.1");
-            return (isLocal ? "http://localhost:3000" : origin) + "/api";
-        })();
+        const API = mimApiBase();
 
         const form = document.getElementById("verifyForm");
         const message = document.getElementById("verifyMessage");
