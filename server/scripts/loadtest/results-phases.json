@@ -1,20 +1,80 @@
 {
-  "generatedAt": "2026-08-13T14:46:57.527Z",
+  "generatedAt": "2026-08-13T17:42:25.494Z",
   "results": [
     {
       "suite": "P5-auth",
-      "name": "échantillon",
+      "name": "login mot de passe incorrect → 401",
+      "ok": true,
+      "detail": "30/30"
+    },
+    {
+      "suite": "P5-auth",
+      "name": "login correct + must_change_password=true",
+      "ok": true,
+      "detail": "30/30"
+    },
+    {
+      "suite": "P5-auth",
+      "name": "change-password forcé → 200",
+      "ok": true,
+      "detail": "30/30"
+    },
+    {
+      "suite": "P5-auth",
+      "name": "re-login nouveau mot de passe + must_change_password=false",
+      "ok": true,
+      "detail": "30/30"
+    },
+    {
+      "suite": "P5-auth",
+      "name": "rename username + login par nouveau username + revert",
+      "ok": true,
+      "detail": "30/30"
+    },
+    {
+      "suite": "P5-auth",
+      "name": "latence login (30 échantillons)",
+      "ok": "perf",
+      "detail": "{\"n\":30,\"mean\":351.8,\"p95\":461,\"p99\":554,\"min\":263,\"max\":554}"
+    },
+    {
+      "suite": "P5-auth",
+      "name": "login username inexistant → 401",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "P5-auth",
+      "name": "locataire suspendu",
       "ok": "blocked",
-      "detail": "aucun locataire trouvé"
+      "detail": "tenant (1,2) inexistant"
     },
     {
-      "suite": "owner002",
+      "suite": "P5-auth",
+      "name": "connexions simultanées → toutes 200",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner005",
       "name": "suppression locataire désactive le compte",
       "ok": true,
       "detail": true
     },
     {
-      "suite": "owner002",
+      "suite": "owner005",
+      "name": "cycle CRUD complet 201→200→200→DELETE",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner010",
+      "name": "suppression locataire désactive le compte",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner010",
       "name": "cycle CRUD complet 201→200→200→DELETE",
       "ok": true,
       "detail": true
@@ -32,6 +92,66 @@
       "detail": true
     },
     {
+      "suite": "owner008",
+      "name": "suppression locataire désactive le compte",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner008",
+      "name": "cycle CRUD complet 201→200→200→DELETE",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner007",
+      "name": "suppression locataire désactive le compte",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner007",
+      "name": "cycle CRUD complet 201→200→200→DELETE",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner006",
+      "name": "suppression locataire désactive le compte",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner006",
+      "name": "cycle CRUD complet 201→200→200→DELETE",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner004",
+      "name": "suppression locataire désactive le compte",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner004",
+      "name": "cycle CRUD complet 201→200→200→DELETE",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner009",
+      "name": "suppression locataire désactive le compte",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner009",
+      "name": "cycle CRUD complet 201→200→200→DELETE",
+      "ok": true,
+      "detail": true
+    },
+    {
       "suite": "owner001",
       "name": "suppression locataire désactive le compte",
       "ok": true,
@@ -44,16 +164,226 @@
       "detail": true
     },
     {
+      "suite": "owner002",
+      "name": "suppression locataire désactive le compte",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner002",
+      "name": "cycle CRUD complet 201→200→200→DELETE",
+      "ok": true,
+      "detail": true
+    },
+    {
       "suite": "P6-listes",
-      "name": "liste logements owner003 = 100 sans fuite",
+      "name": "liste logements owner010 = 100 sans fuite",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "P6-listes",
+      "name": "liste logements owner005 = 100",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.005.003",
+      "name": "dashboard lié + logement + loyer + statut",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.005.003",
+      "name": "dashboard paiements 1 ligne",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.005.003",
+      "name": "signalement incident → 201 (logement déduit)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.005.003",
+      "name": "notifications propres non vides",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.005.003",
+      "name": "email masqué pour locataire",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.005.003",
+      "name": "update-profile → 200",
       "ok": true,
       "detail": false
     },
     {
-      "suite": "P6-listes",
-      "name": "liste logements owner002 = 100",
+      "suite": "locataire loadtest.tenant.005.003",
+      "name": "listes propriétaire vides pour locataire (RLS)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.005.003",
+      "name": "création prestataire refusée",
       "ok": true,
       "detail": false
+    },
+    {
+      "suite": "locataire loadtest.tenant.005.003",
+      "name": "suppression logement refusée (404/403)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.005.003",
+      "name": "admin/stats refusé → 403",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.005.003",
+      "name": "stats/dashboard propriétaire → vide mais 200",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.018.032",
+      "name": "dashboard lié + logement + loyer + statut",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.018.032",
+      "name": "dashboard paiements 1 ligne",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.018.032",
+      "name": "signalement incident → 201 (logement déduit)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.018.032",
+      "name": "notifications propres non vides",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.018.032",
+      "name": "email masqué pour locataire",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.018.032",
+      "name": "update-profile → 200",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "suite": "locataire loadtest.tenant.018.032",
+      "name": "listes propriétaire vides pour locataire (RLS)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.018.032",
+      "name": "création prestataire refusée",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "suite": "locataire loadtest.tenant.018.032",
+      "name": "suppression logement refusée (404/403)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.018.032",
+      "name": "admin/stats refusé → 403",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.018.032",
+      "name": "stats/dashboard propriétaire → vide mais 200",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.031.061",
+      "name": "dashboard lié + logement + loyer + statut",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.031.061",
+      "name": "dashboard paiements 1 ligne",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.031.061",
+      "name": "signalement incident → 201 (logement déduit)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.031.061",
+      "name": "notifications propres non vides",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.031.061",
+      "name": "email masqué pour locataire",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.031.061",
+      "name": "update-profile → 200",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "suite": "locataire loadtest.tenant.031.061",
+      "name": "listes propriétaire vides pour locataire (RLS)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.031.061",
+      "name": "création prestataire refusée",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "suite": "locataire loadtest.tenant.031.061",
+      "name": "suppression logement refusée (404/403)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.031.061",
+      "name": "admin/stats refusé → 403",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "locataire loadtest.tenant.031.061",
+      "name": "stats/dashboard propriétaire → vide mais 200",
+      "ok": true,
+      "detail": true
     },
     {
       "suite": "P8-admin",
@@ -65,7 +395,7 @@
       "suite": "P8-admin",
       "name": "temps de réponse admin/stats à l'échelle 10k",
       "ok": "perf",
-      "detail": "61ms"
+      "detail": "1069ms"
     },
     {
       "suite": "P8-admin",
@@ -75,9 +405,9 @@
     },
     {
       "suite": "P8-admin",
-      "name": "proprietaires attendu ≥ 10",
+      "name": "proprietaires attendu ≥ 107",
       "ok": true,
-      "detail": true
+      "detail": false
     },
     {
       "suite": "P8-admin",
@@ -89,7 +419,7 @@
       "suite": "P8-admin",
       "name": "biens attendu 100",
       "ok": true,
-      "detail": false
+      "detail": true
     },
     {
       "suite": "P8-admin",
@@ -113,7 +443,7 @@
       "suite": "P8-admin",
       "name": "incidentsActifs attendu 100",
       "ok": true,
-      "detail": false
+      "detail": true
     },
     {
       "suite": "P8-admin",
@@ -141,9 +471,27 @@
     },
     {
       "suite": "P8-admin",
-      "name": "suspension propriétaire",
-      "ok": "blocked",
-      "detail": "owner 50 absent"
+      "name": "propriétaire suspendu → login refusé",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "P8-admin",
+      "name": "réactivation → login OK",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "P8-admin",
+      "name": "PATCH sur compte locataire refusé",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "suite": "P8-admin",
+      "name": "statut invalide → 400",
+      "ok": true,
+      "detail": true
     },
     {
       "suite": "P8-admin",
@@ -155,7 +503,7 @@
       "suite": "P8-admin",
       "name": "locataire → admin/stats refusé 403",
       "ok": true,
-      "detail": false
+      "detail": true
     },
     {
       "suite": "P9-idor",
@@ -230,49 +578,97 @@
       "detail": true
     },
     {
-      "suite": "owner002",
+      "suite": "owner005",
       "name": "totalProperties=100",
       "ok": true,
-      "detail": false
+      "detail": true
     },
     {
-      "suite": "owner002",
+      "suite": "owner005",
       "name": "occupiedProperties=100 (occupation à la création)",
       "ok": true,
-      "detail": false
+      "detail": true
     },
     {
-      "suite": "owner002",
+      "suite": "owner005",
       "name": "totalTenants=100",
       "ok": true,
-      "detail": false
+      "detail": true
     },
     {
-      "suite": "owner002",
+      "suite": "owner005",
       "name": "expectedRent = somme loyers occupés",
       "ok": true,
       "detail": true
     },
     {
-      "suite": "owner002",
+      "suite": "owner005",
       "name": "paidRent = somme payés du mois",
       "ok": true,
       "detail": true
     },
     {
-      "suite": "owner002",
+      "suite": "owner005",
       "name": "lateRent = somme retard du mois",
       "ok": true,
       "detail": true
     },
     {
-      "suite": "owner002",
+      "suite": "owner005",
       "name": "activeIncidents = 1 (1 resolu sur 2)",
       "ok": true,
       "detail": true
     },
     {
-      "suite": "owner002",
+      "suite": "owner005",
+      "name": "activeInterventions = 1 (planifie)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner010",
+      "name": "totalProperties=100",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner010",
+      "name": "occupiedProperties=100 (occupation à la création)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner010",
+      "name": "totalTenants=100",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner010",
+      "name": "expectedRent = somme loyers occupés",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner010",
+      "name": "paidRent = somme payés du mois",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner010",
+      "name": "lateRent = somme retard du mois",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner010",
+      "name": "activeIncidents = 1 (1 resolu sur 2)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner010",
       "name": "activeInterventions = 1 (planifie)",
       "ok": true,
       "detail": true
@@ -281,19 +677,19 @@
       "suite": "owner003",
       "name": "totalProperties=100",
       "ok": true,
-      "detail": false
+      "detail": true
     },
     {
       "suite": "owner003",
       "name": "occupiedProperties=100 (occupation à la création)",
       "ok": true,
-      "detail": false
+      "detail": true
     },
     {
       "suite": "owner003",
       "name": "totalTenants=100",
       "ok": true,
-      "detail": false
+      "detail": true
     },
     {
       "suite": "owner003",
@@ -321,54 +717,6 @@
     },
     {
       "suite": "owner003",
-      "name": "activeInterventions = 1 (planifie)",
-      "ok": true,
-      "detail": true
-    },
-    {
-      "suite": "owner001",
-      "name": "totalProperties=100",
-      "ok": true,
-      "detail": false
-    },
-    {
-      "suite": "owner001",
-      "name": "occupiedProperties=100 (occupation à la création)",
-      "ok": true,
-      "detail": false
-    },
-    {
-      "suite": "owner001",
-      "name": "totalTenants=100",
-      "ok": true,
-      "detail": false
-    },
-    {
-      "suite": "owner001",
-      "name": "expectedRent = somme loyers occupés",
-      "ok": true,
-      "detail": true
-    },
-    {
-      "suite": "owner001",
-      "name": "paidRent = somme payés du mois",
-      "ok": true,
-      "detail": true
-    },
-    {
-      "suite": "owner001",
-      "name": "lateRent = somme retard du mois",
-      "ok": true,
-      "detail": true
-    },
-    {
-      "suite": "owner001",
-      "name": "activeIncidents = 1 (1 resolu sur 2)",
-      "ok": true,
-      "detail": true
-    },
-    {
-      "suite": "owner001",
       "name": "activeInterventions = 1 (planifie)",
       "ok": true,
       "detail": true
@@ -446,16 +794,28 @@
       "detail": true
     },
     {
+      "suite": "owner026",
+      "name": "dashboard = DB (locataires/logements)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner045",
+      "name": "dashboard = DB (locataires/logements)",
+      "ok": true,
+      "detail": true
+    },
+    {
       "suite": "P16-charge",
       "name": "docker stats AVANT charge",
       "ok": "perf",
-      "detail": "supabase_db_MIM cpu=0.61% mem=162.6MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.00% mem=44.78MiB / 3.678GiB"
+      "detail": "supabase_db_MIM cpu=3.43% mem=268.5MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.00% mem=47.43MiB / 3.678GiB"
     },
     {
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 10",
       "ok": "perf",
-      "detail": "total=143ms {\"200\":10}"
+      "detail": "total=2188ms {\"200\":10}"
     },
     {
       "suite": "P16-charge",
@@ -467,7 +827,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 25",
       "ok": "perf",
-      "detail": "total=333ms {\"200\":25}"
+      "detail": "total=4916ms {\"200\":25}"
     },
     {
       "suite": "P16-charge",
@@ -479,7 +839,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 50",
       "ok": "perf",
-      "detail": "total=804ms {\"200\":50}"
+      "detail": "total=10307ms {\"200\":50}"
     },
     {
       "suite": "P16-charge",
@@ -491,7 +851,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 100",
       "ok": "perf",
-      "detail": "total=1940ms {\"200\":100}"
+      "detail": "total=15061ms {\"200\":100}"
     },
     {
       "suite": "P16-charge",
@@ -503,7 +863,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 200",
       "ok": "perf",
-      "detail": "total=9047ms {\"200\":200}"
+      "detail": "total=16419ms {\"200\":200}"
     },
     {
       "suite": "P16-charge",
@@ -515,7 +875,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 500",
       "ok": "perf",
-      "detail": "total=17218ms {\"200\":500}"
+      "detail": "total=22338ms {\"200\":500}"
     },
     {
       "suite": "P16-charge",
@@ -527,7 +887,7 @@
       "suite": "P16-charge",
       "name": "GET /notifications × 50",
       "ok": "perf",
-      "detail": "total=130ms {\"200\":50}"
+      "detail": "total=254ms {\"200\":50}"
     },
     {
       "suite": "P16-charge",
@@ -539,7 +899,7 @@
       "suite": "P16-charge",
       "name": "GET /notifications × 200",
       "ok": "perf",
-      "detail": "total=588ms {\"200\":200}"
+      "detail": "total=1037ms {\"200\":200}"
     },
     {
       "suite": "P16-charge",
@@ -549,9 +909,9 @@
     },
     {
       "suite": "P16-charge",
-      "name": "1 connexions locataires simultanées",
+      "name": "25 connexions locataires simultanées",
       "ok": "perf",
-      "detail": "total=649ms {\"200\":1}"
+      "detail": "total=3375ms {\"200\":25}"
     },
     {
       "suite": "P16-charge",
@@ -563,13 +923,13 @@
       "suite": "P16-charge",
       "name": "docker stats APRÈS charge",
       "ok": "perf",
-      "detail": "supabase_db_MIM cpu=0.30% mem=170.5MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.00% mem=44.37MiB / 3.678GiB"
+      "detail": "supabase_db_MIM cpu=0.32% mem=272.7MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.02% mem=51.23MiB / 3.678GiB"
     },
     {
       "suite": "P16-charge",
       "name": "burst 350 GET /stats/dashboard sur :3000 (rate limit ON)",
       "ok": "perf",
-      "detail": "total=12679ms {\"200\":300,\"429\":50}"
+      "detail": "total=18800ms {\"200\":300,\"429\":50}"
     },
     {
       "suite": "P16-charge",
@@ -623,7 +983,7 @@
       "suite": "P19-sec",
       "name": "Set-Cookie mim_token",
       "ok": "note",
-      "detail": "mim_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY1YWExM2UxLTUwNzctNDk3Yy1iYThiLTFkOTJjY2UyMDVmYSIsImFjY291bnRfdHlwZSI6InByb3ByaWV0YWlyZSIsInN1cGFiYXNlX3Rva2VuIjoiZXlKaGJHY2lPaUpGVXpJMU5pSXNJbXRwWkNJNkltSTRNVEkyT1dZeExUSXhaRGd0TkdZeVpTMWlOekU1TFdNeU1qUXdZVGcwTUdRNU1DSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKb2RIUndPaTh2TVRJM0xqQXVNQzR4T2pZME16SXhMMkYxZEdndmRqRWlMQ0p6ZFdJaU9pSTJOV0ZoTVRObE1TMDFNRGMzTFRRNU4yTXRZbUU0WWkweFpEa3lZMk5sTWpBMVptRWlMQ0poZFdRaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVpYaHdJam94TnpnMk5qTTJNREUzTENKcFlYUWlPakUzT0RZMk16STBNVGNzSW1WdFlXbHNJam9pYkc5aFpIUmxjM1F1YjNkdVpYSXVNREF5UUd4dllXUjBaWE4wTG0xcGJTSXNJbkJvYjI1bElqb2lJaXdpWVhCd1gyMWxkR0ZrWVhSaElqcDdJbkJ5YjNacFpHVnlJam9pWlcxaGFXd2lMQ0p3Y205MmFXUmxjbk1pT2xzaVpXMWhhV3dpWFgwc0luVnpaWEpmYldWMFlXUmhkR0VpT25zaVlXTmpiM1Z1ZEY5MGVYQmxJam9pY0hKdmNISnBaWFJoYVhKbElpd2laVzFoYVd4ZmRtVnlhV1pwWldRaU9uUnlkV1VzSW01aGJXVWlPaUpNYjJGa1ZHVnpkQ0JQZDI1bGNpQXdNRElpTENKeWIyeGxJam9pY0hKdmNISnBaWFJoYVhKbEluMHNJbkp2YkdVaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVlXRnNJam9pWVdGc01TSXNJbUZ0Y2lJNlczc2liV1YwYUc5a0lqb2ljR0Z6YzNkdmNtUWlMQ0owYVcxbGMzUmhiWEFpT2pFM09EWTJNekkwTVRkOVhTd2ljMlZ6YzJsdmJsOXBaQ0k2SW1KbFpHUmhNVEF5TFdFeE16a3RORGRrWXkwNU9XRXpMV0ZtTjJVNU1URmxOek15T1NJc0ltbHpYMkZ1YjI1NWJXOTFjeUk2Wm1Gc2MyVjkuMWNxY2hfN0Zfc3VmaktyT0RNdE9zUDNENW9hRDIzM0Z1eF9iNTFOSnFBalFDR3BYZm9YcFIweW8ydGdQN2dBay1PbkFuc1Q5b05sOEpEZXc0Nk9KYVEiLCJyZWZyZXNoX3Rva2VuIjoid2s0b2l2b2IycXk2Iiwic3VwYWJhc2VfZXhwaXJlc19hdCI6MTc4NjYzNjAxNywiaWF0IjoxNzg2NjMyNDE3LCJleHAiOjE3ODcyMzcyMTd9.IqjhEBK9R_rh-6Jn-zve0xEvHd34G3bOaRlfeHgfwsk; Max-Age=604800; Path=/; Expires=Thu, 20 Aug 2026 14:46:57 GMT; HttpOnly; SameSite=Lax"
+      "detail": "mim_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjlmZjhhMjlkLTNjNTItNGJiYi1hMzcwLTA0NjU1NWZlOTdkOSIsImFjY291bnRfdHlwZSI6InByb3ByaWV0YWlyZSIsInN1cGFiYXNlX3Rva2VuIjoiZXlKaGJHY2lPaUpGVXpJMU5pSXNJbXRwWkNJNkltSTRNVEkyT1dZeExUSXhaRGd0TkdZeVpTMWlOekU1TFdNeU1qUXdZVGcwTUdRNU1DSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKb2RIUndPaTh2TVRJM0xqQXVNQzR4T2pZME16SXhMMkYxZEdndmRqRWlMQ0p6ZFdJaU9pSTVabVk0WVRJNVpDMHpZelV5TFRSaVltSXRZVE0zTUMwd05EWTFOVFZtWlRrM1pEa2lMQ0poZFdRaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVpYaHdJam94TnpnMk5qUTJOVFEwTENKcFlYUWlPakUzT0RZMk5ESTVORFFzSW1WdFlXbHNJam9pYkc5aFpIUmxjM1F1YjNkdVpYSXVNREF5UUd4dllXUjBaWE4wTG0xcGJTSXNJbkJvYjI1bElqb2lJaXdpWVhCd1gyMWxkR0ZrWVhSaElqcDdJbkJ5YjNacFpHVnlJam9pWlcxaGFXd2lMQ0p3Y205MmFXUmxjbk1pT2xzaVpXMWhhV3dpWFgwc0luVnpaWEpmYldWMFlXUmhkR0VpT25zaVlXTmpiM1Z1ZEY5MGVYQmxJam9pY0hKdmNISnBaWFJoYVhKbElpd2laVzFoYVd4ZmRtVnlhV1pwWldRaU9uUnlkV1VzSW01aGJXVWlPaUpNYjJGa1ZHVnpkQ0JQZDI1bGNpQXdNRElpTENKeWIyeGxJam9pY0hKdmNISnBaWFJoYVhKbEluMHNJbkp2YkdVaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVlXRnNJam9pWVdGc01TSXNJbUZ0Y2lJNlczc2liV1YwYUc5a0lqb2ljR0Z6YzNkdmNtUWlMQ0owYVcxbGMzUmhiWEFpT2pFM09EWTJOREk1TkRSOVhTd2ljMlZ6YzJsdmJsOXBaQ0k2SWpkaE1UTTBORGsxTFRKbE1tRXROREEyWlMwNVkySmtMVEptWVRCbE16aGxOelprWmlJc0ltbHpYMkZ1YjI1NWJXOTFjeUk2Wm1Gc2MyVjkudERoSkl4eXc5MlZCRWFVZGRvTGY1bzNtRkxJVlZweXk4SWl1anpNX3lBOThDSzRvcGl6RkNCZk0yR2FkSFFJbHhaeXBZVlIxR3BsRFBCWU9lU2dUcGciLCJyZWZyZXNoX3Rva2VuIjoiM2lyeGp6aXJhYjVnIiwic3VwYWJhc2VfZXhwaXJlc19hdCI6MTc4NjY0NjU0NCwiaWF0IjoxNzg2NjQyOTQ0LCJleHAiOjE3ODcyNDc3NDR9.ZI_ZWjU2THsPi5WcMe6b9dp6-5EBiKjxrbCl2Kxm2jg; Max-Age=604800; Path=/; Expires=Thu, 20 Aug 2026 17:42:24 GMT; HttpOnly; SameSite=Lax"
     },
     {
       "suite": "P19-sec",
@@ -659,7 +1019,7 @@
       "suite": "P19-sec",
       "name": "change-password mauvais actuel → 400",
       "ok": true,
-      "detail": false
+      "detail": true
     },
     {
       "suite": "P19-sec",
@@ -671,7 +1031,7 @@
       "suite": "P19-sec",
       "name": "champs hors-schéma sur /biens",
       "ok": "note",
-      "detail": "reçu 201 — données: {\"id\":232,\"user_id\":\"16a28f93-7553-4c8a-be97-f021663eb9ef\",\"nom\":\"Extra Field\",\"type\":\"maison\",\"adresse\":null,\"ville\":null,\"pays\":null,\"description\":n"
+      "detail": "reçu 201 — données: {\"id\":585,\"user_id\":\"c8219ba3-53d5-4acd-86f5-375c90580538\",\"nom\":\"Extra Field\",\"type\":\"maison\",\"adresse\":null,\"ville\":null,\"pays\":null,\"description\":n"
     }
   ]
 }
