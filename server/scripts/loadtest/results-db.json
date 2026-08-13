@@ -1,11 +1,11 @@
 {
-  "generatedAt": "2026-08-13T14:38:18.355Z",
+  "generatedAt": "2026-08-13T14:44:16.700Z",
   "counts": {
     "lt": {
       "locataires": "9",
-      "logements": "12",
+      "logements": "9",
       "paiements": "9",
-      "biens": "6",
+      "biens": "3",
       "incidents": "6",
       "prestataires": "3",
       "interventions": "3",
@@ -38,12 +38,12 @@
     {
       "name": "global biens",
       "ok": true,
-      "detail": "n=6"
+      "detail": "n=3"
     },
     {
       "name": "global logements",
       "ok": true,
-      "detail": "n=12"
+      "detail": "n=9"
     },
     {
       "name": "global locataires",
@@ -73,12 +73,12 @@
     {
       "name": "global notifications",
       "ok": true,
-      "detail": "n=48"
+      "detail": "n=51"
     },
     {
       "name": "global sessions",
       "ok": true,
-      "detail": "n=51"
+      "detail": "n=53"
     },
     {
       "name": "global auth.users",
@@ -93,7 +93,7 @@
     {
       "name": "loadtest logements = 10000",
       "ok": false,
-      "detail": "reçu 12"
+      "detail": "reçu 9"
     },
     {
       "name": "loadtest paiements = 10000",
@@ -103,12 +103,7 @@
     {
       "name": "loadtest biens = 100",
       "ok": false,
-      "detail": "reçu 6"
-    },
-    {
-      "name": "loadtest incidents = 200",
-      "ok": false,
-      "detail": "reçu 6"
+      "detail": "reçu 3"
     },
     {
       "name": "loadtest prestataires = 100",
@@ -119,6 +114,11 @@
       "name": "loadtest interventions = 100",
       "ok": false,
       "detail": "reçu 3"
+    },
+    {
+      "name": "loadtest incidents ≥ 200 (202 avec signalements P7 nettoyés)",
+      "ok": false,
+      "detail": "reçu 6"
     },
     {
       "name": "loadtest notifications (prévu ≥ 30 000)",
@@ -222,8 +222,8 @@
     },
     {
       "name": "must_change_password reset sur comptes testés",
-      "ok": false,
-      "detail": "reçu 8 (attendu 9, 0 changés en phase 5)"
+      "ok": true,
+      "detail": "reçu 8 (attendu 8, 1 changés: phase 5 + frontend)"
     },
     {
       "name": "RLS : client anon ne lit pas de logements",
