@@ -40,6 +40,24 @@ GIT_REPO_PATH=C:\xampp\htdocs\MIM2.1\MIM
 GIT_BRANCH=master
 ```
 
+### Supabase local
+
+Ce projet tourne sur une stack Supabase **locale** (pas de projet cloud). Les ports
+standard (54xxx) sont réservés par Windows (Hyper-V) sur cette machine, ils sont
+donc configurés en `64xxx` dans `supabase/config.toml` :
+
+| Service   | URL |
+|-----------|-----|
+| API       | `http://127.0.0.1:64321` |
+| Studio    | `http://127.0.0.1:64323` |
+| Mailpit   | `http://127.0.0.1:64324` |
+| Base SQL  | `postgresql://postgres:postgres@127.0.0.1:64322/postgres` |
+
+Démarrage : ouvrir **Docker Desktop**, puis depuis `supabase/` :
+`supabase start`. Les clés `SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` sont
+affichées par `supabase status` et copiées dans `server/.env`. Les migrations
+s'appliquent via `supabase migration up --local` (pas `db push`, réservé au cloud).
+
 Le serveur Node sert aussi le frontend (`PartPublic` et `PartProprietaires`) :
 l'application est accessible sur `http://localhost:3000` (l'usage via XAMPP reste possible).
 
