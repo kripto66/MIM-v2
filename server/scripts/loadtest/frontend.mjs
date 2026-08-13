@@ -78,6 +78,15 @@ async function textOf(selector) {
   const v = await evalJs(`(document.querySelector('${selector}')||{innerText:''}).innerText`);
   return String(v).trim();
 }
+async function waitText(selector, timeout = 30000) {
+  const start = Date.now();
+  while (Date.now() - start < timeout) {
+    const t = await textOf(selector);
+    if (/\d/.test(t)) return t;
+    await sleep(300);
+  }
+  return await textOf(selector);
+}
 async function pageFetch(url) {
   return JSON.parse(await evalJs(`fetch(${JSON.stringify(url)}).then(r => r.text())`));
 }
@@ -147,9 +156,8 @@ async function main() {
     await setField('#password', LT.ownerPw);
     await submitForm('#loginForm');
     const url = await waitForUrl('dashboard.html', 25000);
-    await sleep(1200);
-    const total = await textOf('#totalProperties');
-    const occupied = await textOf('#occupiedProperties');
+    const total = await waitText('#totalProperties', 40000);
+    const occupied = await waitText('#occupiedProperties', 15000);
     const owner = await textOf('#ownerName');
     record('P18 propriétaire redirection dashboard', url.includes('PartProprietaires/dashboard.html'), url);
     record(`P18 propriétaire ${PER} logements`, total.replace(/\D/g, '') === String(PER), `total='${total}'`);
@@ -200,7 +208,9 @@ async function main() {
   });
 
   // ── Bilan console ──
-  record('P18 aucune exception console', pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
+  const httpErrs = pageErrors.filter((e) => e.startsWith('HTTP '));
+  const detail = (httpErrs.length ? httpErrs : pageErrors).slice(0, 4).join(' | ');
+  record('P18 aucune exception console', pageErrors.length === 0, detail);
 
   const fails = results.filter((x) => !x.ok);
   console.log('──────────────────────────────────────────');
