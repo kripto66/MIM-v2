@@ -100,13 +100,36 @@ export async function api(base, url, { method = 'GET', body, jar, headers = {}, 
   const h = { 'Content-Type': 'application/json', ...headers };
   const cookie = cookieHeader(jar);
   if (cookie) h.Cookie = cookie;
-  const res = await fetch(base + url, {
+  const mk = (signal) => fetch(base + url, {
     method,
     headers: h,
     body: body !== undefined ? JSON.stringify(body) : undefined,
     redirect: 'manual',
-    signal: AbortSignal.timeout(60000),
+    signal,
   });
+  const transient = (e) => e?.name === 'TimeoutError' || e?.cause?.code === 'ECONNRESET' || e?.cause?.code === 'ECONNREFUSED' || e?.cause?.code === 'ETIMEDOUT' || e?.cause?.code === 'EPIPE' || /fetch failed/i.test(String(e?.message));
+  const backoff = [2000, 5000, 12000];
+  let res = null;
+  let lastErr = null;
+  for (let a = 0; a <= backoff.length; a++) {
+    try {
+      res = await mk(AbortSignal.timeout(60000));
+      if (!res.ok && (res.status === 500 || res.status === 502 || res.status === 503 || res.status === 504) && a < backoff.length) {
+        lastErr = new Error(`HTTP ${res.status}`);
+        await new Promise((r) => setTimeout(r, backoff[a]));
+        continue;
+      }
+      break;
+    } catch (e) {
+      lastErr = e;
+      if (transient(e) && a < backoff.length) {
+        await new Promise((r) => setTimeout(r, backoff[a]));
+        continue;
+      }
+      throw e;
+    }
+  }
+  if (!res) throw lastErr || new Error('api: aucune réponse');
   if (jar && typeof res.headers.getSetCookie === 'function') {
     for (const sc of res.headers.getSetCookie()) {
       const [kv] = sc.split(';');
