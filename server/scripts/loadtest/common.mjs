@@ -170,11 +170,11 @@ export function statSummary(times) {
 
 // ---- Base (service role) ----
 export async function countAll(table, filter) {
-  let q = service.from(table).select('id');
+  let q = service.from(table).select('*', { count: 'exact', head: true });
   if (filter) q = q.or(filter);
-  const { data, error } = await q;
+  const { count, error } = await q;
   if (error) throw new Error(`count ${table}: ${error.message}`);
-  return data?.length || 0;
+  return count || 0;
 }
 
 // Comptage des données LOADTEST uniquement.
