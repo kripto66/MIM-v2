@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-13T17:50:39.620Z",
+  "generatedAt": "2026-08-13T18:07:18.014Z",
   "results": [
     {
       "suite": "P5-auth",
@@ -10,8 +10,8 @@
     {
       "suite": "P5-auth",
       "name": "login correct + must_change_password=true",
-      "ok": false,
-      "detail": "0/30"
+      "ok": true,
+      "detail": "30/30"
     },
     {
       "suite": "P5-auth",
@@ -22,26 +22,20 @@
     {
       "suite": "P5-auth",
       "name": "re-login nouveau mot de passe + must_change_password=false",
-      "ok": false,
-      "detail": "0/30"
+      "ok": true,
+      "detail": "30/30"
     },
     {
       "suite": "P5-auth",
       "name": "rename username + login par nouveau username + revert",
-      "ok": false,
-      "detail": "0/30"
+      "ok": true,
+      "detail": "30/30"
     },
     {
       "suite": "P5-auth",
       "name": "latence login (30 échantillons)",
       "ok": "perf",
-      "detail": "{\"n\":30,\"mean\":128.2,\"p95\":158,\"p99\":165,\"min\":105,\"max\":165}"
-    },
-    {
-      "suite": "P5-auth",
-      "name": "aucun détail d'échec",
-      "ok": false,
-      "detail": "loadtest.tenant.005.003 login:401 | loadtest.tenant.018.032 login:401 | loadtest.tenant.031.061 login:401 | loadtest.tenant.044.090 login:401 | loadtest.tenant.057.021 login:401"
+      "detail": "{\"n\":30,\"mean\":340.5,\"p95\":444,\"p99\":587,\"min\":248,\"max\":587}"
     },
     {
       "suite": "P5-auth",
@@ -58,8 +52,8 @@
     {
       "suite": "P5-auth",
       "name": "connexions simultanées → toutes 200",
-      "ok": false,
-      "detail": "24/25 en 4329ms"
+      "ok": true,
+      "detail": "25/25 en 4039ms"
     },
     {
       "suite": "owner005",
@@ -401,13 +395,13 @@
       "suite": "P8-admin",
       "name": "temps de réponse admin/stats à l'échelle 10k",
       "ok": "perf",
-      "detail": "1036ms"
+      "detail": "1096ms"
     },
     {
       "suite": "P8-admin",
       "name": "admin/stats → 200",
       "ok": true,
-      "detail": "reçu 200 (1036ms)"
+      "detail": "reçu 200 (1096ms)"
     },
     {
       "suite": "P8-admin",
@@ -551,7 +545,7 @@
       "suite": "P9-idor",
       "name": "UUID inexistant → 404 sur 7 ressources",
       "ok": false,
-      "detail": "404,404,404,400,400,404,400"
+      "detail": "404,404,404,400,400,404,400 (incohérent: paiements=400, incidents=400, interventions=400)"
     },
     {
       "suite": "P9-idor",
@@ -730,8 +724,8 @@
     {
       "suite": "P12-inc",
       "name": "signalement locataire → 201",
-      "ok": false,
-      "detail": "reçu 401"
+      "ok": true,
+      "detail": "reçu 201"
     },
     {
       "suite": "P12-inc",
@@ -742,14 +736,14 @@
     {
       "suite": "P12-inc",
       "name": "propriétaire résout → 200",
-      "ok": false,
-      "detail": "reçu 404"
+      "ok": true,
+      "detail": "reçu 200"
     },
     {
       "suite": "P12-inc",
       "name": "locataire voit le statut résolu",
-      "ok": false,
-      "detail": "statut=undefined"
+      "ok": true,
+      "detail": "statut=resolu"
     },
     {
       "suite": "P13-prest",
@@ -779,7 +773,7 @@
       "suite": "P14-notif",
       "name": "propriétaire a des notifications",
       "ok": true,
-      "detail": "n=108"
+      "detail": "n=112"
     },
     {
       "suite": "P14-notif",
@@ -815,13 +809,13 @@
       "suite": "P16-charge",
       "name": "docker stats AVANT charge",
       "ok": "perf",
-      "detail": "supabase_db_MIM cpu=1.74% mem=262.6MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.02% mem=46.99MiB / 3.678GiB"
+      "detail": "supabase_db_MIM cpu=0.36% mem=227MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.00% mem=15.38MiB / 3.678GiB"
     },
     {
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 10",
       "ok": "perf",
-      "detail": "total=1983ms {\"200\":10}"
+      "detail": "total=2152ms {\"200\":10}"
     },
     {
       "suite": "P16-charge",
@@ -833,7 +827,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 25",
       "ok": "perf",
-      "detail": "total=5090ms {\"200\":25}"
+      "detail": "total=5691ms {\"200\":25}"
     },
     {
       "suite": "P16-charge",
@@ -845,7 +839,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 50",
       "ok": "perf",
-      "detail": "total=9303ms {\"200\":50}"
+      "detail": "total=10282ms {\"200\":50}"
     },
     {
       "suite": "P16-charge",
@@ -857,7 +851,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 100",
       "ok": "perf",
-      "detail": "total=14014ms {\"200\":100}"
+      "detail": "total=15080ms {\"200\":100}"
     },
     {
       "suite": "P16-charge",
@@ -869,7 +863,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 200",
       "ok": "perf",
-      "detail": "total=15093ms {\"200\":200}"
+      "detail": "total=15259ms {\"200\":200}"
     },
     {
       "suite": "P16-charge",
@@ -881,7 +875,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 500",
       "ok": "perf",
-      "detail": "total=23339ms {\"200\":500}"
+      "detail": "total=24277ms {\"200\":500}"
     },
     {
       "suite": "P16-charge",
@@ -893,7 +887,7 @@
       "suite": "P16-charge",
       "name": "GET /notifications × 50",
       "ok": "perf",
-      "detail": "total=220ms {\"200\":50}"
+      "detail": "total=291ms {\"200\":50}"
     },
     {
       "suite": "P16-charge",
@@ -905,7 +899,7 @@
       "suite": "P16-charge",
       "name": "GET /notifications × 200",
       "ok": "perf",
-      "detail": "total=846ms {\"200\":200}"
+      "detail": "total=1297ms {\"200\":200}"
     },
     {
       "suite": "P16-charge",
@@ -917,25 +911,25 @@
       "suite": "P16-charge",
       "name": "25 connexions locataires simultanées",
       "ok": "perf",
-      "detail": "total=3603ms {\"200\":24,\"401\":1}"
+      "detail": "total=3495ms {\"200\":25}"
     },
     {
       "suite": "P16-charge",
       "name": "logins simultanés → 200",
-      "ok": false,
-      "detail": "{\"200\":24,\"401\":1}"
+      "ok": true,
+      "detail": "{\"200\":25}"
     },
     {
       "suite": "P16-charge",
       "name": "docker stats APRÈS charge",
       "ok": "perf",
-      "detail": "supabase_db_MIM cpu=0.34% mem=267.4MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.00% mem=50.75MiB / 3.678GiB"
+      "detail": "supabase_db_MIM cpu=0.28% mem=241.2MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.06% mem=21.54MiB / 3.678GiB"
     },
     {
       "suite": "P16-charge",
       "name": "burst 350 GET /stats/dashboard sur :3000 (rate limit ON)",
       "ok": "perf",
-      "detail": "total=20738ms {\"200\":300,\"429\":50}"
+      "detail": "total=19997ms {\"200\":300,\"429\":50}"
     },
     {
       "suite": "P16-charge",
@@ -952,8 +946,8 @@
     {
       "suite": "P17-stab",
       "name": "décomptes DB intacts après toutes les phases",
-      "ok": false,
-      "detail": "{\"locataires\":1000,\"logements\":1000,\"paiements\":1000,\"biens\":100,\"incidents\":200,\"prestataires\":100,\"interventions\":100}"
+      "ok": true,
+      "detail": "{\"locataires\":10000,\"logements\":10000,\"paiements\":10000,\"biens\":100,\"incidents\":200,\"prestataires\":100,\"interventions\":100}"
     },
     {
       "suite": "P17-stab",
@@ -964,8 +958,8 @@
     {
       "suite": "P17-stab",
       "name": "notifications locataire OK après charge",
-      "ok": false,
-      "detail": "reçu 401"
+      "ok": true,
+      "detail": "reçu 200"
     },
     {
       "suite": "P19-sec",
@@ -989,19 +983,19 @@
       "suite": "P19-sec",
       "name": "Set-Cookie mim_token",
       "ok": "note",
-      "detail": "mim_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjlmZjhhMjlkLTNjNTItNGJiYi1hMzcwLTA0NjU1NWZlOTdkOSIsImFjY291bnRfdHlwZSI6InByb3ByaWV0YWlyZSIsInN1cGFiYXNlX3Rva2VuIjoiZXlKaGJHY2lPaUpGVXpJMU5pSXNJbXRwWkNJNkltSTRNVEkyT1dZeExUSXhaRGd0TkdZeVpTMWlOekU1TFdNeU1qUXdZVGcwTUdRNU1DSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKb2RIUndPaTh2TVRJM0xqQXVNQzR4T2pZME16SXhMMkYxZEdndmRqRWlMQ0p6ZFdJaU9pSTVabVk0WVRJNVpDMHpZelV5TFRSaVltSXRZVE0zTUMwd05EWTFOVFZtWlRrM1pEa2lMQ0poZFdRaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVpYaHdJam94TnpnMk5qUTNNRE00TENKcFlYUWlPakUzT0RZMk5ETTBNemdzSW1WdFlXbHNJam9pYkc5aFpIUmxjM1F1YjNkdVpYSXVNREF5UUd4dllXUjBaWE4wTG0xcGJTSXNJbkJvYjI1bElqb2lJaXdpWVhCd1gyMWxkR0ZrWVhSaElqcDdJbkJ5YjNacFpHVnlJam9pWlcxaGFXd2lMQ0p3Y205MmFXUmxjbk1pT2xzaVpXMWhhV3dpWFgwc0luVnpaWEpmYldWMFlXUmhkR0VpT25zaVlXTmpiM1Z1ZEY5MGVYQmxJam9pY0hKdmNISnBaWFJoYVhKbElpd2laVzFoYVd4ZmRtVnlhV1pwWldRaU9uUnlkV1VzSW01aGJXVWlPaUpNYjJGa1ZHVnpkQ0JQZDI1bGNpQXdNRElpTENKeWIyeGxJam9pY0hKdmNISnBaWFJoYVhKbEluMHNJbkp2YkdVaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVlXRnNJam9pWVdGc01TSXNJbUZ0Y2lJNlczc2liV1YwYUc5a0lqb2ljR0Z6YzNkdmNtUWlMQ0owYVcxbGMzUmhiWEFpT2pFM09EWTJORE0wTXpoOVhTd2ljMlZ6YzJsdmJsOXBaQ0k2SWpnNFpEWTFOakJtTFRVd1pUWXROREprWWkwNE1UZzJMVGhtTTJJMVptSXhOR1ZoWlNJc0ltbHpYMkZ1YjI1NWJXOTFjeUk2Wm1Gc2MyVjkuUFZtYlRLNFZjcHlyT1hBMEllTVF5YXV1Nkx2T3g0UjNiZW5fQ0NlaDhpVFJhamdUSlRkdTI1TmlGb2lfR0NTVzFuVFZrUUYxUDU5VU9pOWh6ZWM3c1EiLCJyZWZyZXNoX3Rva2VuIjoib3Vkb3ByZXNmNGo2Iiwic3VwYWJhc2VfZXhwaXJlc19hdCI6MTc4NjY0NzAzOCwiaWF0IjoxNzg2NjQzNDM4LCJleHAiOjE3ODcyNDgyMzh9.jxt9S3Qc0iqas2YE3W8a7cRMlPqLevpN2I-7Q2xnwVU; Max-Age=604800; Path=/; Expires=Thu, 20 Aug 2026 17:50:38 GMT; HttpOnly; SameSite=Lax"
+      "detail": "mim_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjlmZjhhMjlkLTNjNTItNGJiYi1hMzcwLTA0NjU1NWZlOTdkOSIsImFjY291bnRfdHlwZSI6InByb3ByaWV0YWlyZSIsInN1cGFiYXNlX3Rva2VuIjoiZXlKaGJHY2lPaUpGVXpJMU5pSXNJbXRwWkNJNkltSTRNVEkyT1dZeExUSXhaRGd0TkdZeVpTMWlOekU1TFdNeU1qUXdZVGcwTUdRNU1DSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKb2RIUndPaTh2TVRJM0xqQXVNQzR4T2pZME16SXhMMkYxZEdndmRqRWlMQ0p6ZFdJaU9pSTVabVk0WVRJNVpDMHpZelV5TFRSaVltSXRZVE0zTUMwd05EWTFOVFZtWlRrM1pEa2lMQ0poZFdRaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVpYaHdJam94TnpnMk5qUTRNRE0yTENKcFlYUWlPakUzT0RZMk5EUTBNellzSW1WdFlXbHNJam9pYkc5aFpIUmxjM1F1YjNkdVpYSXVNREF5UUd4dllXUjBaWE4wTG0xcGJTSXNJbkJvYjI1bElqb2lJaXdpWVhCd1gyMWxkR0ZrWVhSaElqcDdJbkJ5YjNacFpHVnlJam9pWlcxaGFXd2lMQ0p3Y205MmFXUmxjbk1pT2xzaVpXMWhhV3dpWFgwc0luVnpaWEpmYldWMFlXUmhkR0VpT25zaVlXTmpiM1Z1ZEY5MGVYQmxJam9pY0hKdmNISnBaWFJoYVhKbElpd2laVzFoYVd4ZmRtVnlhV1pwWldRaU9uUnlkV1VzSW01aGJXVWlPaUpNYjJGa1ZHVnpkQ0JQZDI1bGNpQXdNRElpTENKeWIyeGxJam9pY0hKdmNISnBaWFJoYVhKbEluMHNJbkp2YkdVaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVlXRnNJam9pWVdGc01TSXNJbUZ0Y2lJNlczc2liV1YwYUc5a0lqb2ljR0Z6YzNkdmNtUWlMQ0owYVcxbGMzUmhiWEFpT2pFM09EWTJORFEwTXpaOVhTd2ljMlZ6YzJsdmJsOXBaQ0k2SWpWaFpqYzVaakppTFRoa1lUa3ROREEyTVMxaE9EVmhMVGRsTURCaFlqSm1NMlkwWWlJc0ltbHpYMkZ1YjI1NWJXOTFjeUk2Wm1Gc2MyVjkuVVJsT1JUOV9POTcwa2oyd1A0ZnVrVFBiRWI0VGZ6a0QtNmJrVlRCZUNqNlFyeTQ2b2doQUhaVjBmelVxOTFObmhYeTRQZ3pTRS1GVzVZQmJhZ2Q4eEEiLCJyZWZyZXNoX3Rva2VuIjoidzV6b2d5bWFxZ2R1Iiwic3VwYWJhc2VfZXhwaXJlc19hdCI6MTc4NjY0ODAzNiwiaWF0IjoxNzg2NjQ0NDM2LCJleHAiOjE3ODcyNDkyMzZ9.H5SubrKV9NokKi4uPi-oE_jzHwyJmK2Fbxn-T_O355g; Max-Age=604800; Path=/; Expires=Thu, 20 Aug 2026 18:07:16 GMT; HttpOnly; SameSite=Lax"
     },
     {
       "suite": "P19-sec",
       "name": "cookie HttpOnly",
       "ok": true,
-      "detail": "mim_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjlmZjhhMjlkLTNjNTItNGJiYi1hMzcwLTA0NjU1NWZlOTdkOSIsImFjY291bnRfdHlwZSI6InByb3ByaWV0YWlyZSIsInN1cGFiYXNlX3Rva2VuIjoiZXlKaGJHY2lPaUpGVXpJMU5pSXNJbXRwWkNJNkltSTRNVEkyT1dZeExUSXhaRGd0TkdZeVpTMWlOekU1TFdNeU1qUXdZVGcwTUdRNU1DSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKb2RIUndPaTh2TVRJM0xqQXVNQzR4T2pZME16SXhMMkYxZEdndmRqRWlMQ0p6ZFdJaU9pSTVabVk0WVRJNVpDMHpZelV5TFRSaVltSXRZVE0zTUMwd05EWTFOVFZtWlRrM1pEa2lMQ0poZFdRaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVpYaHdJam94TnpnMk5qUTNNRE00TENKcFlYUWlPakUzT0RZMk5ETTBNemdzSW1WdFlXbHNJam9pYkc5aFpIUmxjM1F1YjNkdVpYSXVNREF5UUd4dllXUjBaWE4wTG0xcGJTSXNJbkJvYjI1bElqb2lJaXdpWVhCd1gyMWxkR0ZrWVhSaElqcDdJbkJ5YjNacFpHVnlJam9pWlcxaGFXd2lMQ0p3Y205MmFXUmxjbk1pT2xzaVpXMWhhV3dpWFgwc0luVnpaWEpmYldWMFlXUmhkR0VpT25zaVlXTmpiM1Z1ZEY5MGVYQmxJam9pY0hKdmNISnBaWFJoYVhKbElpd2laVzFoYVd4ZmRtVnlhV1pwWldRaU9uUnlkV1VzSW01aGJXVWlPaUpNYjJGa1ZHVnpkQ0JQZDI1bGNpQXdNRElpTENKeWIyeGxJam9pY0hKdmNISnBaWFJoYVhKbEluMHNJbkp2YkdVaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVlXRnNJam9pWVdGc01TSXNJbUZ0Y2lJNlczc2liV1YwYUc5a0lqb2ljR0Z6YzNkdmNtUWlMQ0owYVcxbGMzUmhiWEFpT2pFM09EWTJORE0wTXpoOVhTd2ljMlZ6YzJsdmJsOXBaQ0k2SWpnNFpEWTFOakJtTFRVd1pUWXROREprWWkwNE1UZzJMVGhtTTJJMVptSXhOR1ZoWlNJc0ltbHpYMkZ1YjI1NWJXOTFjeUk2Wm1Gc2MyVjkuUFZtYlRLNFZjcHlyT1hBMEllTVF5YXV1Nkx2T3g0UjNiZW5fQ0NlaDhpVFJhamdUSlRkdTI1TmlGb2lfR0NTVzFuVFZrUUYxUDU5VU9pOWh6ZWM3c1EiLCJyZWZyZXNoX3Rva2VuIjoib3Vkb3ByZXNmNGo2Iiwic3VwYWJhc2VfZXhwaXJlc19hdCI6MTc4NjY0NzAzOCwiaWF0IjoxNzg2NjQzNDM4LCJleHAiOjE3ODcyNDgyMzh9.jxt9S3Qc0iqas2YE3W8a7cRMlPqLevpN2I-7Q2xnwVU; Max-Age=604800; Path=/; Expires=Thu, 20 Aug 2026 17:50:38 GMT; HttpOnly; SameSite=Lax"
+      "detail": "mim_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjlmZjhhMjlkLTNjNTItNGJiYi1hMzcwLTA0NjU1NWZlOTdkOSIsImFjY291bnRfdHlwZSI6InByb3ByaWV0YWlyZSIsInN1cGFiYXNlX3Rva2VuIjoiZXlKaGJHY2lPaUpGVXpJMU5pSXNJbXRwWkNJNkltSTRNVEkyT1dZeExUSXhaRGd0TkdZeVpTMWlOekU1TFdNeU1qUXdZVGcwTUdRNU1DSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKb2RIUndPaTh2TVRJM0xqQXVNQzR4T2pZME16SXhMMkYxZEdndmRqRWlMQ0p6ZFdJaU9pSTVabVk0WVRJNVpDMHpZelV5TFRSaVltSXRZVE0zTUMwd05EWTFOVFZtWlRrM1pEa2lMQ0poZFdRaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVpYaHdJam94TnpnMk5qUTRNRE0yTENKcFlYUWlPakUzT0RZMk5EUTBNellzSW1WdFlXbHNJam9pYkc5aFpIUmxjM1F1YjNkdVpYSXVNREF5UUd4dllXUjBaWE4wTG0xcGJTSXNJbkJvYjI1bElqb2lJaXdpWVhCd1gyMWxkR0ZrWVhSaElqcDdJbkJ5YjNacFpHVnlJam9pWlcxaGFXd2lMQ0p3Y205MmFXUmxjbk1pT2xzaVpXMWhhV3dpWFgwc0luVnpaWEpmYldWMFlXUmhkR0VpT25zaVlXTmpiM1Z1ZEY5MGVYQmxJam9pY0hKdmNISnBaWFJoYVhKbElpd2laVzFoYVd4ZmRtVnlhV1pwWldRaU9uUnlkV1VzSW01aGJXVWlPaUpNYjJGa1ZHVnpkQ0JQZDI1bGNpQXdNRElpTENKeWIyeGxJam9pY0hKdmNISnBaWFJoYVhKbEluMHNJbkp2YkdVaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVlXRnNJam9pWVdGc01TSXNJbUZ0Y2lJNlczc2liV1YwYUc5a0lqb2ljR0Z6YzNkdmNtUWlMQ0owYVcxbGMzUmhiWEFpT2pFM09EWTJORFEwTXpaOVhTd2ljMlZ6YzJsdmJsOXBaQ0k2SWpWaFpqYzVaakppTFRoa1lUa3ROREEyTVMxaE9EVmhMVGRsTURCaFlqSm1NMlkwWWlJc0ltbHpYMkZ1YjI1NWJXOTFjeUk2Wm1Gc2MyVjkuVVJsT1JUOV9POTcwa2oyd1A0ZnVrVFBiRWI0VGZ6a0QtNmJrVlRCZUNqNlFyeTQ2b2doQUhaVjBmelVxOTFObmhYeTRQZ3pTRS1GVzVZQmJhZ2Q4eEEiLCJyZWZyZXNoX3Rva2VuIjoidzV6b2d5bWFxZ2R1Iiwic3VwYWJhc2VfZXhwaXJlc19hdCI6MTc4NjY0ODAzNiwiaWF0IjoxNzg2NjQ0NDM2LCJleHAiOjE3ODcyNDkyMzZ9.H5SubrKV9NokKi4uPi-oE_jzHwyJmK2Fbxn-T_O355g; Max-Age=604800; Path=/; Expires=Thu, 20 Aug 2026 18:07:16 GMT; HttpOnly; SameSite=Lax"
     },
     {
       "suite": "P19-sec",
       "name": "cookie SameSite",
       "ok": true,
-      "detail": "mim_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjlmZjhhMjlkLTNjNTItNGJiYi1hMzcwLTA0NjU1NWZlOTdkOSIsImFjY291bnRfdHlwZSI6InByb3ByaWV0YWlyZSIsInN1cGFiYXNlX3Rva2VuIjoiZXlKaGJHY2lPaUpGVXpJMU5pSXNJbXRwWkNJNkltSTRNVEkyT1dZeExUSXhaRGd0TkdZeVpTMWlOekU1TFdNeU1qUXdZVGcwTUdRNU1DSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKb2RIUndPaTh2TVRJM0xqQXVNQzR4T2pZME16SXhMMkYxZEdndmRqRWlMQ0p6ZFdJaU9pSTVabVk0WVRJNVpDMHpZelV5TFRSaVltSXRZVE0zTUMwd05EWTFOVFZtWlRrM1pEa2lMQ0poZFdRaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVpYaHdJam94TnpnMk5qUTNNRE00TENKcFlYUWlPakUzT0RZMk5ETTBNemdzSW1WdFlXbHNJam9pYkc5aFpIUmxjM1F1YjNkdVpYSXVNREF5UUd4dllXUjBaWE4wTG0xcGJTSXNJbkJvYjI1bElqb2lJaXdpWVhCd1gyMWxkR0ZrWVhSaElqcDdJbkJ5YjNacFpHVnlJam9pWlcxaGFXd2lMQ0p3Y205MmFXUmxjbk1pT2xzaVpXMWhhV3dpWFgwc0luVnpaWEpmYldWMFlXUmhkR0VpT25zaVlXTmpiM1Z1ZEY5MGVYQmxJam9pY0hKdmNISnBaWFJoYVhKbElpd2laVzFoYVd4ZmRtVnlhV1pwWldRaU9uUnlkV1VzSW01aGJXVWlPaUpNYjJGa1ZHVnpkQ0JQZDI1bGNpQXdNRElpTENKeWIyeGxJam9pY0hKdmNISnBaWFJoYVhKbEluMHNJbkp2YkdVaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVlXRnNJam9pWVdGc01TSXNJbUZ0Y2lJNlczc2liV1YwYUc5a0lqb2ljR0Z6YzNkdmNtUWlMQ0owYVcxbGMzUmhiWEFpT2pFM09EWTJORE0wTXpoOVhTd2ljMlZ6YzJsdmJsOXBaQ0k2SWpnNFpEWTFOakJtTFRVd1pUWXROREprWWkwNE1UZzJMVGhtTTJJMVptSXhOR1ZoWlNJc0ltbHpYMkZ1YjI1NWJXOTFjeUk2Wm1Gc2MyVjkuUFZtYlRLNFZjcHlyT1hBMEllTVF5YXV1Nkx2T3g0UjNiZW5fQ0NlaDhpVFJhamdUSlRkdTI1TmlGb2lfR0NTVzFuVFZrUUYxUDU5VU9pOWh6ZWM3c1EiLCJyZWZyZXNoX3Rva2VuIjoib3Vkb3ByZXNmNGo2Iiwic3VwYWJhc2VfZXhwaXJlc19hdCI6MTc4NjY0NzAzOCwiaWF0IjoxNzg2NjQzNDM4LCJleHAiOjE3ODcyNDgyMzh9.jxt9S3Qc0iqas2YE3W8a7cRMlPqLevpN2I-7Q2xnwVU; Max-Age=604800; Path=/; Expires=Thu, 20 Aug 2026 17:50:38 GMT; HttpOnly; SameSite=Lax"
+      "detail": "mim_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjlmZjhhMjlkLTNjNTItNGJiYi1hMzcwLTA0NjU1NWZlOTdkOSIsImFjY291bnRfdHlwZSI6InByb3ByaWV0YWlyZSIsInN1cGFiYXNlX3Rva2VuIjoiZXlKaGJHY2lPaUpGVXpJMU5pSXNJbXRwWkNJNkltSTRNVEkyT1dZeExUSXhaRGd0TkdZeVpTMWlOekU1TFdNeU1qUXdZVGcwTUdRNU1DSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKb2RIUndPaTh2TVRJM0xqQXVNQzR4T2pZME16SXhMMkYxZEdndmRqRWlMQ0p6ZFdJaU9pSTVabVk0WVRJNVpDMHpZelV5TFRSaVltSXRZVE0zTUMwd05EWTFOVFZtWlRrM1pEa2lMQ0poZFdRaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVpYaHdJam94TnpnMk5qUTRNRE0yTENKcFlYUWlPakUzT0RZMk5EUTBNellzSW1WdFlXbHNJam9pYkc5aFpIUmxjM1F1YjNkdVpYSXVNREF5UUd4dllXUjBaWE4wTG0xcGJTSXNJbkJvYjI1bElqb2lJaXdpWVhCd1gyMWxkR0ZrWVhSaElqcDdJbkJ5YjNacFpHVnlJam9pWlcxaGFXd2lMQ0p3Y205MmFXUmxjbk1pT2xzaVpXMWhhV3dpWFgwc0luVnpaWEpmYldWMFlXUmhkR0VpT25zaVlXTmpiM1Z1ZEY5MGVYQmxJam9pY0hKdmNISnBaWFJoYVhKbElpd2laVzFoYVd4ZmRtVnlhV1pwWldRaU9uUnlkV1VzSW01aGJXVWlPaUpNYjJGa1ZHVnpkQ0JQZDI1bGNpQXdNRElpTENKeWIyeGxJam9pY0hKdmNISnBaWFJoYVhKbEluMHNJbkp2YkdVaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVlXRnNJam9pWVdGc01TSXNJbUZ0Y2lJNlczc2liV1YwYUc5a0lqb2ljR0Z6YzNkdmNtUWlMQ0owYVcxbGMzUmhiWEFpT2pFM09EWTJORFEwTXpaOVhTd2ljMlZ6YzJsdmJsOXBaQ0k2SWpWaFpqYzVaakppTFRoa1lUa3ROREEyTVMxaE9EVmhMVGRsTURCaFlqSm1NMlkwWWlJc0ltbHpYMkZ1YjI1NWJXOTFjeUk2Wm1Gc2MyVjkuVVJsT1JUOV9POTcwa2oyd1A0ZnVrVFBiRWI0VGZ6a0QtNmJrVlRCZUNqNlFyeTQ2b2doQUhaVjBmelVxOTFObmhYeTRQZ3pTRS1GVzVZQmJhZ2Q4eEEiLCJyZWZyZXNoX3Rva2VuIjoidzV6b2d5bWFxZ2R1Iiwic3VwYWJhc2VfZXhwaXJlc19hdCI6MTc4NjY0ODAzNiwiaWF0IjoxNzg2NjQ0NDM2LCJleHAiOjE3ODcyNDkyMzZ9.H5SubrKV9NokKi4uPi-oE_jzHwyJmK2Fbxn-T_O355g; Max-Age=604800; Path=/; Expires=Thu, 20 Aug 2026 18:07:16 GMT; HttpOnly; SameSite=Lax"
     },
     {
       "suite": "P19-sec",
@@ -1017,8 +1011,8 @@
     },
     {
       "suite": "P19-sec",
-      "name": "update-username injection → 400",
-      "ok": false,
+      "name": "update-username injection → refusé",
+      "ok": true,
       "detail": "reçu 403 — biens intact"
     },
     {
@@ -1037,7 +1031,7 @@
       "suite": "P19-sec",
       "name": "champs hors-schéma sur /biens",
       "ok": "note",
-      "detail": "reçu 201 — données: {\"id\":596,\"user_id\":\"c8219ba3-53d5-4acd-86f5-375c90580538\",\"nom\":\"Extra Field\",\"type\":\"maison\",\"adresse\":null,\"ville\":null,\"pays\":null,\"description\":n"
+      "detail": "reçu 201 — données: {\"id\":607,\"user_id\":\"c8219ba3-53d5-4acd-86f5-375c90580538\",\"nom\":\"Extra Field\",\"type\":\"maison\",\"adresse\":null,\"ville\":null,\"pays\":null,\"description\":n"
     }
   ]
 }
