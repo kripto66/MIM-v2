@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-13T14:43:58.783Z",
+  "generatedAt": "2026-08-13T14:46:57.527Z",
   "results": [
     {
       "suite": "P5-auth",
@@ -8,18 +8,6 @@
       "detail": "aucun locataire trouvé"
     },
     {
-      "suite": "owner001",
-      "name": "suppression locataire désactive le compte",
-      "ok": true,
-      "detail": true
-    },
-    {
-      "suite": "owner001",
-      "name": "cycle CRUD complet 201→200→200→DELETE",
-      "ok": true,
-      "detail": true
-    },
-    {
       "suite": "owner002",
       "name": "suppression locataire désactive le compte",
       "ok": true,
@@ -39,19 +27,31 @@
     },
     {
       "suite": "owner003",
+      "name": "cycle CRUD complet 201→200→200→DELETE",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner001",
+      "name": "suppression locataire désactive le compte",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner001",
       "name": "cycle CRUD complet 201→200→200→DELETE",
       "ok": true,
       "detail": true
     },
     {
       "suite": "P6-listes",
-      "name": "liste logements owner002 = 100 sans fuite",
+      "name": "liste logements owner003 = 100 sans fuite",
       "ok": true,
       "detail": false
     },
     {
       "suite": "P6-listes",
-      "name": "liste logements owner001 = 100",
+      "name": "liste logements owner002 = 100",
       "ok": true,
       "detail": false
     },
@@ -65,7 +65,7 @@
       "suite": "P8-admin",
       "name": "temps de réponse admin/stats à l'échelle 10k",
       "ok": "perf",
-      "detail": "53ms"
+      "detail": "61ms"
     },
     {
       "suite": "P8-admin",
@@ -230,54 +230,6 @@
       "detail": true
     },
     {
-      "suite": "owner001",
-      "name": "totalProperties=100",
-      "ok": true,
-      "detail": false
-    },
-    {
-      "suite": "owner001",
-      "name": "occupiedProperties=100 (occupation à la création)",
-      "ok": true,
-      "detail": false
-    },
-    {
-      "suite": "owner001",
-      "name": "totalTenants=100",
-      "ok": true,
-      "detail": false
-    },
-    {
-      "suite": "owner001",
-      "name": "expectedRent = somme loyers occupés",
-      "ok": true,
-      "detail": true
-    },
-    {
-      "suite": "owner001",
-      "name": "paidRent = somme payés du mois",
-      "ok": true,
-      "detail": true
-    },
-    {
-      "suite": "owner001",
-      "name": "lateRent = somme retard du mois",
-      "ok": true,
-      "detail": true
-    },
-    {
-      "suite": "owner001",
-      "name": "activeIncidents = 1 (1 resolu sur 2)",
-      "ok": true,
-      "detail": true
-    },
-    {
-      "suite": "owner001",
-      "name": "activeInterventions = 1 (planifie)",
-      "ok": true,
-      "detail": true
-    },
-    {
       "suite": "owner002",
       "name": "totalProperties=100",
       "ok": true,
@@ -369,6 +321,54 @@
     },
     {
       "suite": "owner003",
+      "name": "activeInterventions = 1 (planifie)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner001",
+      "name": "totalProperties=100",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "suite": "owner001",
+      "name": "occupiedProperties=100 (occupation à la création)",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "suite": "owner001",
+      "name": "totalTenants=100",
+      "ok": true,
+      "detail": false
+    },
+    {
+      "suite": "owner001",
+      "name": "expectedRent = somme loyers occupés",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner001",
+      "name": "paidRent = somme payés du mois",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner001",
+      "name": "lateRent = somme retard du mois",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner001",
+      "name": "activeIncidents = 1 (1 resolu sur 2)",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner001",
       "name": "activeInterventions = 1 (planifie)",
       "ok": true,
       "detail": true
@@ -449,13 +449,13 @@
       "suite": "P16-charge",
       "name": "docker stats AVANT charge",
       "ok": "perf",
-      "detail": "supabase_db_MIM cpu=0.26% mem=161.8MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.03% mem=45.08MiB / 3.678GiB"
+      "detail": "supabase_db_MIM cpu=0.61% mem=162.6MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.00% mem=44.78MiB / 3.678GiB"
     },
     {
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 10",
       "ok": "perf",
-      "detail": "total=169ms {\"200\":10}"
+      "detail": "total=143ms {\"200\":10}"
     },
     {
       "suite": "P16-charge",
@@ -467,7 +467,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 25",
       "ok": "perf",
-      "detail": "total=334ms {\"200\":25}"
+      "detail": "total=333ms {\"200\":25}"
     },
     {
       "suite": "P16-charge",
@@ -479,7 +479,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 50",
       "ok": "perf",
-      "detail": "total=1511ms {\"200\":50}"
+      "detail": "total=804ms {\"200\":50}"
     },
     {
       "suite": "P16-charge",
@@ -491,7 +491,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 100",
       "ok": "perf",
-      "detail": "total=2020ms {\"200\":100}"
+      "detail": "total=1940ms {\"200\":100}"
     },
     {
       "suite": "P16-charge",
@@ -503,7 +503,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 200",
       "ok": "perf",
-      "detail": "total=5144ms {\"200\":200}"
+      "detail": "total=9047ms {\"200\":200}"
     },
     {
       "suite": "P16-charge",
@@ -515,7 +515,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 500",
       "ok": "perf",
-      "detail": "total=16730ms {\"200\":500}"
+      "detail": "total=17218ms {\"200\":500}"
     },
     {
       "suite": "P16-charge",
@@ -527,7 +527,7 @@
       "suite": "P16-charge",
       "name": "GET /notifications × 50",
       "ok": "perf",
-      "detail": "total=193ms {\"200\":50}"
+      "detail": "total=130ms {\"200\":50}"
     },
     {
       "suite": "P16-charge",
@@ -539,7 +539,7 @@
       "suite": "P16-charge",
       "name": "GET /notifications × 200",
       "ok": "perf",
-      "detail": "total=651ms {\"200\":200}"
+      "detail": "total=588ms {\"200\":200}"
     },
     {
       "suite": "P16-charge",
@@ -551,7 +551,7 @@
       "suite": "P16-charge",
       "name": "1 connexions locataires simultanées",
       "ok": "perf",
-      "detail": "total=722ms {\"200\":1}"
+      "detail": "total=649ms {\"200\":1}"
     },
     {
       "suite": "P16-charge",
@@ -563,13 +563,13 @@
       "suite": "P16-charge",
       "name": "docker stats APRÈS charge",
       "ok": "perf",
-      "detail": "supabase_db_MIM cpu=0.23% mem=168.9MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.00% mem=45.01MiB / 3.678GiB"
+      "detail": "supabase_db_MIM cpu=0.30% mem=170.5MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.00% mem=44.37MiB / 3.678GiB"
     },
     {
       "suite": "P16-charge",
       "name": "burst 350 GET /stats/dashboard sur :3000 (rate limit ON)",
       "ok": "perf",
-      "detail": "total=14664ms {\"200\":300,\"429\":50}"
+      "detail": "total=12679ms {\"200\":300,\"429\":50}"
     },
     {
       "suite": "P16-charge",
@@ -623,7 +623,7 @@
       "suite": "P19-sec",
       "name": "Set-Cookie mim_token",
       "ok": "note",
-      "detail": "mim_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImM3ZjE3NDhiLTlmOTItNDJiMy1hNmZkLTY3NzVkZGU3ZjRiOSIsImFjY291bnRfdHlwZSI6InByb3ByaWV0YWlyZSIsInN1cGFiYXNlX3Rva2VuIjoiZXlKaGJHY2lPaUpGVXpJMU5pSXNJbXRwWkNJNkltSTRNVEkyT1dZeExUSXhaRGd0TkdZeVpTMWlOekU1TFdNeU1qUXdZVGcwTUdRNU1DSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKb2RIUndPaTh2TVRJM0xqQXVNQzR4T2pZME16SXhMMkYxZEdndmRqRWlMQ0p6ZFdJaU9pSmpOMll4TnpRNFlpMDVaamt5TFRReVlqTXRZVFptWkMwMk56YzFaR1JsTjJZMFlqa2lMQ0poZFdRaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVpYaHdJam94TnpnMk5qTTFPRE00TENKcFlYUWlPakUzT0RZMk16SXlNemdzSW1WdFlXbHNJam9pYkc5aFpIUmxjM1F1YjNkdVpYSXVNREF5UUd4dllXUjBaWE4wTG0xcGJTSXNJbkJvYjI1bElqb2lJaXdpWVhCd1gyMWxkR0ZrWVhSaElqcDdJbkJ5YjNacFpHVnlJam9pWlcxaGFXd2lMQ0p3Y205MmFXUmxjbk1pT2xzaVpXMWhhV3dpWFgwc0luVnpaWEpmYldWMFlXUmhkR0VpT25zaVlXTmpiM1Z1ZEY5MGVYQmxJam9pY0hKdmNISnBaWFJoYVhKbElpd2laVzFoYVd4ZmRtVnlhV1pwWldRaU9uUnlkV1VzSW01aGJXVWlPaUpNYjJGa1ZHVnpkQ0JQZDI1bGNpQXdNRElpTENKeWIyeGxJam9pY0hKdmNISnBaWFJoYVhKbEluMHNJbkp2YkdVaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVlXRnNJam9pWVdGc01TSXNJbUZ0Y2lJNlczc2liV1YwYUc5a0lqb2ljR0Z6YzNkdmNtUWlMQ0owYVcxbGMzUmhiWEFpT2pFM09EWTJNekl5TXpoOVhTd2ljMlZ6YzJsdmJsOXBaQ0k2SWpCaVpqZ3laVEV6TFRjek5UY3ROREUxTWkxaU1tSXhMVGcwT0RZd01HTXhabUV6TnlJc0ltbHpYMkZ1YjI1NWJXOTFjeUk2Wm1Gc2MyVjkudEhzNkJKSWRIaW02QkZyY2E1T1JfLVBlbndvSXloWUNCLTgwMkFLcEp0Rkx6U05pMFRIMFhLTnJ4Rkl1UkExTFNiM3RkWlFGS0x2WkVtcVlPbGg4LUEiLCJyZWZyZXNoX3Rva2VuIjoiYmZuenJxNDRtbzVmIiwic3VwYWJhc2VfZXhwaXJlc19hdCI6MTc4NjYzNTgzOCwiaWF0IjoxNzg2NjMyMjM4LCJleHAiOjE3ODcyMzcwMzh9.9bPpZn6Slw7MwYs30a7bhhNUmPhUwxLAqU0B6P8B1EQ; Max-Age=604800; Path=/; Expires=Thu, 20 Aug 2026 14:43:58 GMT; HttpOnly; SameSite=Lax"
+      "detail": "mim_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY1YWExM2UxLTUwNzctNDk3Yy1iYThiLTFkOTJjY2UyMDVmYSIsImFjY291bnRfdHlwZSI6InByb3ByaWV0YWlyZSIsInN1cGFiYXNlX3Rva2VuIjoiZXlKaGJHY2lPaUpGVXpJMU5pSXNJbXRwWkNJNkltSTRNVEkyT1dZeExUSXhaRGd0TkdZeVpTMWlOekU1TFdNeU1qUXdZVGcwTUdRNU1DSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKb2RIUndPaTh2TVRJM0xqQXVNQzR4T2pZME16SXhMMkYxZEdndmRqRWlMQ0p6ZFdJaU9pSTJOV0ZoTVRObE1TMDFNRGMzTFRRNU4yTXRZbUU0WWkweFpEa3lZMk5sTWpBMVptRWlMQ0poZFdRaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVpYaHdJam94TnpnMk5qTTJNREUzTENKcFlYUWlPakUzT0RZMk16STBNVGNzSW1WdFlXbHNJam9pYkc5aFpIUmxjM1F1YjNkdVpYSXVNREF5UUd4dllXUjBaWE4wTG0xcGJTSXNJbkJvYjI1bElqb2lJaXdpWVhCd1gyMWxkR0ZrWVhSaElqcDdJbkJ5YjNacFpHVnlJam9pWlcxaGFXd2lMQ0p3Y205MmFXUmxjbk1pT2xzaVpXMWhhV3dpWFgwc0luVnpaWEpmYldWMFlXUmhkR0VpT25zaVlXTmpiM1Z1ZEY5MGVYQmxJam9pY0hKdmNISnBaWFJoYVhKbElpd2laVzFoYVd4ZmRtVnlhV1pwWldRaU9uUnlkV1VzSW01aGJXVWlPaUpNYjJGa1ZHVnpkQ0JQZDI1bGNpQXdNRElpTENKeWIyeGxJam9pY0hKdmNISnBaWFJoYVhKbEluMHNJbkp2YkdVaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVlXRnNJam9pWVdGc01TSXNJbUZ0Y2lJNlczc2liV1YwYUc5a0lqb2ljR0Z6YzNkdmNtUWlMQ0owYVcxbGMzUmhiWEFpT2pFM09EWTJNekkwTVRkOVhTd2ljMlZ6YzJsdmJsOXBaQ0k2SW1KbFpHUmhNVEF5TFdFeE16a3RORGRrWXkwNU9XRXpMV0ZtTjJVNU1URmxOek15T1NJc0ltbHpYMkZ1YjI1NWJXOTFjeUk2Wm1Gc2MyVjkuMWNxY2hfN0Zfc3VmaktyT0RNdE9zUDNENW9hRDIzM0Z1eF9iNTFOSnFBalFDR3BYZm9YcFIweW8ydGdQN2dBay1PbkFuc1Q5b05sOEpEZXc0Nk9KYVEiLCJyZWZyZXNoX3Rva2VuIjoid2s0b2l2b2IycXk2Iiwic3VwYWJhc2VfZXhwaXJlc19hdCI6MTc4NjYzNjAxNywiaWF0IjoxNzg2NjMyNDE3LCJleHAiOjE3ODcyMzcyMTd9.IqjhEBK9R_rh-6Jn-zve0xEvHd34G3bOaRlfeHgfwsk; Max-Age=604800; Path=/; Expires=Thu, 20 Aug 2026 14:46:57 GMT; HttpOnly; SameSite=Lax"
     },
     {
       "suite": "P19-sec",
@@ -671,7 +671,7 @@
       "suite": "P19-sec",
       "name": "champs hors-schéma sur /biens",
       "ok": "note",
-      "detail": "reçu 201 — données: {\"id\":225,\"user_id\":\"389df9be-71cc-41aa-b8b5-c7d0fd57ed46\",\"nom\":\"Extra Field\",\"type\":\"maison\",\"adresse\":null,\"ville\":null,\"pays\":null,\"description\":n"
+      "detail": "reçu 201 — données: {\"id\":232,\"user_id\":\"16a28f93-7553-4c8a-be97-f021663eb9ef\",\"nom\":\"Extra Field\",\"type\":\"maison\",\"adresse\":null,\"ville\":null,\"pays\":null,\"description\":n"
     }
   ]
 }
