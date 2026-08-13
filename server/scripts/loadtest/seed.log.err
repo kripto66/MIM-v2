@@ -1,0 +1,4 @@
+[seed] Error: locataire o84-1 : 400 {"success":false,"message":"Impossible de créer le compte locataire."}
+    at buildOwner (file:///C:/xampp/htdocs/MIM2.1/MIM/server/scripts/loadtest/seed.mjs:157:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async file:///C:/xampp/htdocs/MIM2.1/MIM/server/scripts/loadtest/seed.mjs:271:15
