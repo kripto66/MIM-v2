@@ -455,7 +455,7 @@ export function createCrudRouter(tableName) {
     }
 
     await notify(accountUid, 'info', 'Votre compte locataire a été créé par votre propriétaire. À votre première connexion, vous devrez choisir un nouveau mot de passe.');
-    await gitAutoBackup(`Sauvegarde auto : ajout dans locataires (avec compte ${username})`);
+    gitAutoBackup(`Sauvegarde auto : ajout dans locataires (avec compte ${username})`);
 
     res.status(201).json({ success: true, data, accountCreated: true });
   }
@@ -497,7 +497,7 @@ export function createCrudRouter(tableName) {
     }
 
     await notifyOnCreate(tableName, data, userId(req));
-    await gitAutoBackup(`Sauvegarde auto : ajout dans ${tableName}`);
+    gitAutoBackup(`Sauvegarde auto : ajout dans ${tableName}`);
 
     res.status(201).json({ success: true, data });
   });
@@ -621,7 +621,7 @@ export function createCrudRouter(tableName) {
       }
     }
 
-    await gitAutoBackup(`Sauvegarde auto : modification dans ${tableName}`);
+    gitAutoBackup(`Sauvegarde auto : modification dans ${tableName}`);
 
     res.json({ success: true, data });
   });
@@ -674,7 +674,7 @@ export function createCrudRouter(tableName) {
       }
 
       await freeLogementIfUnused(admin, row?.logement_id, userId(req));
-      await gitAutoBackup(`Sauvegarde auto : suppression locataire (compte ${row?.account_uid || 'sans compte'})`);
+      gitAutoBackup(`Sauvegarde auto : suppression locataire (compte ${row?.account_uid || 'sans compte'})`);
       return res.json({ success: true, message: 'Supprimé avec succès. Le compte du locataire est désactivé.' });
     }
 
@@ -689,7 +689,7 @@ export function createCrudRouter(tableName) {
       return res.status(400).json({ success: false, message: 'Erreur lors de la suppression.' });
     }
 
-    await gitAutoBackup(`Sauvegarde auto : suppression dans ${tableName}`);
+    gitAutoBackup(`Sauvegarde auto : suppression dans ${tableName}`);
 
     res.json({ success: true, message: 'Supprimé avec succès.' });
   });

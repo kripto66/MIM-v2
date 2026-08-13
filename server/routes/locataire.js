@@ -98,7 +98,7 @@ router.post('/incidents', async (req, res) => {
 
     const nom = await logementNomOf(logementId);
     await notify(logement.user_id, 'incident', `Nouvel incident signalé par le locataire${nom ? ` (${nom})` : ''} : ${titre}.`);
-    await gitAutoBackup(`Sauvegarde auto : incident signalé par le locataire ${uid}`);
+    gitAutoBackup(`Sauvegarde auto : incident signalé par le locataire ${uid}`);
 
     res.status(201).json({ success: true, data, message: 'Incident signalé avec succès.' });
   } catch (err) {

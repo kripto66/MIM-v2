@@ -76,9 +76,14 @@ l'application est accessible sur `http://localhost:3000` (l'usage via XAMPP rest
 
 ## Sauvegarde automatique
 
-À chaque **connexion** et **déconnexion** :
-1. La session est enregistrée dans la table `sessions` (Supabase)
-2. Une sauvegarde git (commit + push) est automatiquement créée
+À chaque **connexion**, **déconnexion** et **écriture**, une sauvegarde git
+(commit + push) est lancée de manière **non bloquante** (le requête n'attend pas)
+et **sérialisée** (une seule opération git à la fois, pas de conflit d'index).
+
+La sauvegarde est **désactivée en production** (Vercel) sauf si `GIT_BACKUP=true`
+est défini — le binaire git et les identifiants GitHub n'y existent pas.
+Variables optionnelles : `GIT_BIN` (chemin du binaire git, sinon `git` du PATH),
+`GIT_REPO_PATH` (dépôt), `GIT_BRANCH` (défaut `master`).
 
 ## Tâche périodique (loyers)
 

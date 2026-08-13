@@ -119,7 +119,7 @@ async function finalizeLogin(res, user, session, userAgent) {
 
   await linkTenantAccount(user, session?.access_token);
   await logSession(user.id, 'login', session?.access_token, userAgent);
-  await gitAutoBackup(`Sauvegarde auto : connexion de ${user.email}`);
+  gitAutoBackup(`Sauvegarde auto : connexion de ${user.email}`);
 
   const profile = await profileOf(user.id);
 
@@ -588,7 +588,7 @@ router.post('/logout', authenticate, async (req, res) => {
 
   if (req.user?.id) {
     await closeSession(req.user.id, supabaseToken);
-    await gitAutoBackup(`Sauvegarde auto : déconnexion utilisateur ${req.user.id}`);
+    gitAutoBackup(`Sauvegarde auto : déconnexion utilisateur ${req.user.id}`);
   }
 
   res.clearCookie('mim_token');
@@ -686,7 +686,7 @@ router.put('/change-password', authenticate, async (req, res) => {
       console.warn('[change-password] mise à jour du profil :', profileError.message);
     }
 
-    await gitAutoBackup(`Sauvegarde auto : changement de mot de passe ${req.user.id}`);
+    gitAutoBackup(`Sauvegarde auto : changement de mot de passe ${req.user.id}`);
 
     res.json({ success: true, message: 'Mot de passe modifié avec succès.' });
   } catch (err) {
@@ -764,7 +764,7 @@ router.put('/update-username', authenticate, async (req, res) => {
       }
     }
 
-    await gitAutoBackup(`Sauvegarde auto : changement de username ${req.user.id}`);
+    gitAutoBackup(`Sauvegarde auto : changement de username ${req.user.id}`);
 
     res.json({ success: true, message: 'Username modifié avec succès.', username });
   } catch (err) {
@@ -792,7 +792,7 @@ router.put('/update-profile', authenticate, async (req, res) => {
     return res.status(400).json({ success: false, message: 'Erreur lors de la mise à jour du profil.' });
   }
 
-  await gitAutoBackup(`Sauvegarde auto : mise à jour du profil ${req.user.id}`);
+  gitAutoBackup(`Sauvegarde auto : mise à jour du profil ${req.user.id}`);
 
   res.json({ success: true, message: 'Profil mis à jour avec succès.' });
 });
@@ -935,7 +935,7 @@ router.post('/reset-password', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Impossible de réinitialiser le mot de passe.' });
   }
 
-  await gitAutoBackup('Sauvegarde auto : réinitialisation de mot de passe');
+  gitAutoBackup('Sauvegarde auto : réinitialisation de mot de passe');
 
   res.json({ success: true, message: 'Mot de passe réinitialisé. Vous pouvez vous connecter.' });
 });
