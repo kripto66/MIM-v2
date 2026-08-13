@@ -280,7 +280,7 @@ async function main() {
   const owners = [];
   const idx = Array.from({ length: OWNERS }, (_, k) => k + 1);
   let done = 0;
-  await pool(idx, 8, async (i) => {
+  await pool(idx, 6, async (i) => {
     const o = await buildOwner(i, ownerIds.get(i));
     owners.push(o);
     done++;
