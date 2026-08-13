@@ -4,7 +4,15 @@
 // ============================================================
 
 function mimApiBase() {
-  if (typeof API !== 'undefined') return API;
+  // try/catch : évite la ReferenceError « API is not defined » quand la page
+  // fait `const API = mimApiBase()` (API est alors en zone morte temporelle
+  // pendant l'appel) — sinon le listener submit ne s'attache jamais et le
+  // formulaire recharge la page au lieu d'appeler l'API.
+  try {
+    if (typeof API !== 'undefined') return API;
+  } catch {
+    /* API en TDZ : on calcule la base ci-dessous */
+  }
   const origin = window.location.origin || 'http://localhost:3000';
   const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1');
   return (isLocal ? 'http://localhost:3000' : origin) + '/api';

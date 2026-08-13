@@ -7,8 +7,11 @@ setInterval(() => {
   }
 }, 5 * 60 * 1000).unref();
 
+const RATE_LIMIT_OFF = process.env.RATE_LIMIT_OFF === 'true';
+
 function makeLimiter({ windowMs, max, message }) {
   return (req, res, next) => {
+    if (RATE_LIMIT_OFF) return next();
     // Clé sur le chemin (sans la query string) : évite de contourner la limite
     // en variant les paramètres d'URL. req.ip reflète l'IP client quand le
     // trust proxy est activé (voir app.js).

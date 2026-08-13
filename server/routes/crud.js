@@ -227,6 +227,60 @@ export function createCrudRouter(tableName) {
     }
   }
 
+  // Références croisées (Phase 6) : chaque référence vers une autre
+  // ressource doit pointer vers une entité DU MÊME propriétaire, sinon
+  // le locataire cible pourrait recevoir des notifications/appels qui ne
+  // le concernent pas et les listes d'un tiers révéleraient ses données.
+  const REF_RULES = {
+    locataires: { logement_id: 'logements' },
+    paiements: { locataire_id: 'locataires', logement_id: 'logements' },
+    incidents: { logement_id: 'logements' },
+    interventions: { incident_id: 'incidents', prestataire_id: 'prestataires', logement_id: 'logements' },
+  };
+
+  async function belongsToOwner(admin, ownerId, tableName, body) {
+    const rules = REF_RULES[tableName];
+    if (!rules) return null;
+
+    for (const [field, refTable] of Object.entries(rules)) {
+      const refId = body[field];
+      if (refId === undefined || refId === null || refId === '') continue;
+
+      try {
+        const { data } = await admin
+          .from(refTable)
+          .select('user_id')
+          .eq('id', refId)
+          .maybeSingle();
+        if (!data || data.user_id !== ownerId) {
+          return { field, message: 'Introuvable ou ne vous appartient pas.' };
+        }
+      } catch (err) {
+        console.warn(`[belongsToOwner] ${refTable}.${field}`, err.message);
+        return { field, message: 'Introuvable ou ne vous appartient pas.' };
+      }
+    }
+    return null;
+  }
+
+  // Invariant occupation (Phase 7) : un logement = un seul locataire actif.
+  async function logementHasOtherActiveTenant(admin, ownerId, logementId, excludeLocataireId) {
+    if (!logementId) return false;
+
+    try {
+      const { data } = await admin
+        .from('locataires')
+        .select('id')
+        .eq('logement_id', logementId)
+        .eq('statut', 'actif')
+        .eq('user_id', ownerId);
+      return (data || []).some((l) => String(l.id) !== String(excludeLocataireId));
+    } catch (err) {
+      console.warn('[logementHasOtherActiveTenant]', err.message);
+      return false;
+    }
+  }
+
   async function createLogementForOwner(admin, ownerId, payload) {
     const errors = validateResource('logements', sanitize('logements', payload), false);
     if (Object.keys(errors).length) return { errors };
@@ -394,6 +448,15 @@ export function createCrudRouter(tableName) {
       createdLogementId = created.data.id;
     }
 
+    // Un logement ne peut avoir qu'un seul locataire actif.
+    if (statut === 'actif' && (await logementHasOtherActiveTenant(admin, ownerId, logementId, null))) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ce logement est déjà occupé par un autre locataire actif.',
+        errors: { logement_id: 'Ce logement est déjà occupé par un autre locataire actif.' },
+      });
+    }
+
     const { data: createdUser, error: createError } = await admin.auth.admin.createUser({
       email: tenantEmailFor(username),
       password,
@@ -410,7 +473,7 @@ export function createCrudRouter(tableName) {
 
     if (createError || !createdUser?.user?.id) {
       if (createdLogementId) {
-        await admin.from('logements').delete().eq('id', createdLogementId).catch(() => {});
+        await admin.from('logements').delete().eq('id', createdLogementId);
       }
       const msg = String(createError?.message || '').toLowerCase();
       if (msg.includes('already') || msg.includes('existe')) {
@@ -439,7 +502,7 @@ export function createCrudRouter(tableName) {
 
     if (error) {
       if (createdLogementId) {
-        await admin.from('logements').delete().eq('id', createdLogementId).catch(() => {});
+        await admin.from('logements').delete().eq('id', createdLogementId);
       }
       await admin.auth.admin.deleteUser(accountUid).catch(() => {});
       console.error('[createTenant]', error.message);
@@ -474,6 +537,17 @@ export function createCrudRouter(tableName) {
 
     if (tableName === 'logements' && !(await bienBelongsTo(serviceClient(), body.bien_id, userId(req)))) {
       return res.status(400).json({ success: false, message: 'Bien introuvable ou ne vous appartient pas.', errors: { bien_id: 'Bien introuvable ou ne vous appartient pas.' } });
+    }
+
+    // Références croisées : toute référence doit appartenir au propriétaire.
+    const badRef = await belongsToOwner(serviceClient(), userId(req), tableName, body);
+    if (badRef) {
+      return res.status(400).json({ success: false, message: badRef.message, errors: { [badRef.field]: badRef.message } });
+    }
+
+    // Un logement ne peut avoir qu'un seul locataire actif.
+    if (tableName === 'locataires' && body.statut !== 'inactif' && (await logementHasOtherActiveTenant(serviceClient(), userId(req), body.logement_id, null))) {
+      return res.status(400).json({ success: false, message: 'Ce logement est déjà occupé par un autre locataire actif.', errors: { logement_id: 'Ce logement est déjà occupé par un autre locataire actif.' } });
     }
 
     // Un paiement confirmé (« paye ») sans date renseignée est daté du jour.
@@ -579,6 +653,25 @@ export function createCrudRouter(tableName) {
       .eq('user_id', userId(req))
       .maybeSingle();
 
+    if (!prev) {
+      return res.status(404).json({ success: false, message: 'Introuvable.' });
+    }
+
+    // Références croisées : toute référence doit appartenir au propriétaire.
+    const badRef = await belongsToOwner(serviceClient(), userId(req), tableName, body);
+    if (badRef) {
+      return res.status(400).json({ success: false, message: badRef.message, errors: { [badRef.field]: badRef.message } });
+    }
+
+    // Un logement ne peut avoir qu'un seul locataire actif.
+    if (tableName === 'locataires') {
+      const targetLogementId = body.logement_id ?? prev.logement_id;
+      const willBeActive = (body.statut ?? prev.statut) === 'actif';
+      if (willBeActive && (await logementHasOtherActiveTenant(serviceClient(), userId(req), targetLogementId, id))) {
+        return res.status(400).json({ success: false, message: 'Ce logement est déjà occupé par un autre locataire actif.', errors: { logement_id: 'Ce logement est déjà occupé par un autre locataire actif.' } });
+      }
+    }
+
     const { data, error } = await sb(req)
       .from(tableName)
       .update(body)
@@ -592,7 +685,7 @@ export function createCrudRouter(tableName) {
       return res.status(400).json({ success: false, message: 'Erreur lors de la modification.' });
     }
 
-    if (prev) await notifyOnUpdate(tableName, prev, data, userId(req));
+    await notifyOnUpdate(tableName, prev, data, userId(req));
 
     // Synchronisation du statut des logements quand le locataire change de logement.
     if (tableName === 'locataires' && prev) {
@@ -605,8 +698,7 @@ export function createCrudRouter(tableName) {
           .from('logements')
           .update({ statut: 'occupe' })
           .eq('id', newLogement)
-          .eq('user_id', userId(req))
-          .catch(() => {});
+          .eq('user_id', userId(req));
       }
       if (oldLogement && oldLogement !== newLogement) {
         await freeLogementIfUnused(admin, oldLogement, userId(req));
@@ -616,8 +708,7 @@ export function createCrudRouter(tableName) {
           .from('logements')
           .update({ statut: 'occupe' })
           .eq('id', newLogement)
-          .eq('user_id', userId(req))
-          .catch(() => {});
+          .eq('user_id', userId(req));
       }
     }
 
@@ -629,6 +720,19 @@ export function createCrudRouter(tableName) {
   router.delete('/:id', async (req, res) => {
     const id = req.params.id;
     const admin = serviceClient();
+
+    // Introuvable ou ne nous appartient pas : on ne renvoie pas 200
+    // (un succès vide masquerait une tentative sur les données d'un tiers).
+    const { data: existing } = await admin
+      .from(tableName)
+      .select('id')
+      .eq('id', id)
+      .eq('user_id', userId(req))
+      .maybeSingle();
+
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Introuvable.' });
+    }
 
     // Impossible de supprimer un logement encore occupé par un locataire :
     // on évite de laisser la fiche du locataire sans logement par accident.

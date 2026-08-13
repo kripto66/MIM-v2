@@ -267,9 +267,25 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Veuillez remplir tous les champs.' });
   }
 
+  const isTransient = (e) => {
+    const status = Number(e?.status);
+    return !status || status >= 500;
+  };
+
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error || !data.user || !data.session) {
+    const status = Number(error?.status);
+    const msg = String(error?.message || '').toLowerCase();
+    if (isTransient(error)) {
+      // Panne transitoire du backend auth (500/504 GoTrue) : on renvoie 503
+      // (rétentable) plutôt qu'un faux 401 « mauvais identifiants ».
+      console.warn('[login] erreur transitoire auth :', error?.status, error?.message);
+      return res.status(503).json({ success: false, message: 'Service temporairement indisponible. Réessayez dans un instant.' });
+    }
+    if (status === 429 || msg.includes('rate limit') || msg.includes('too many') || msg.includes('trop de')) {
+      return res.status(429).json({ success: false, message: 'Trop de tentatives. Réessayez dans un instant.' });
+    }
     return res.status(401).json({ success: false, message: 'Email ou mot de passe incorrect.' });
   }
 
