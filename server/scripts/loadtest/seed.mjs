@@ -156,18 +156,15 @@ async function buildOwner(i, ownerId) {
   const locataires = [];
   for (let j = 1; j <= PER_OWNER; j++) {
     const username = tenantUsername(i, j);
-    const loc = await apiLt('/locataires', {
-      method: 'POST', jar,
-      body: {
-        logement_id: logements[j - 1].id,
-        nom: tenantName(i, j),
-        username,
-        password: LT.tenantPw,
-        phone: `+2217${pad(i)}${pad(j)}`,
-        date_entree: '2026-06-01',
-        jour_echeance: (j % 28) + 1,
-        statut: 'actif',
-      },
+    const loc = await createTenant(jar, {
+      logement_id: logements[j - 1].id,
+      nom: tenantName(i, j),
+      username,
+      password: LT.tenantPw,
+      phone: `+2217${pad(i)}${pad(j)}`,
+      date_entree: '2026-06-01',
+      jour_echeance: (j % 28) + 1,
+      statut: 'actif',
     });
     if (loc.status !== 201 || !loc.data?.accountCreated) {
       throw new Error(`locataire o${i}-${j} : ${loc.status} ${JSON.stringify(loc.data).slice(0, 200)}`);
