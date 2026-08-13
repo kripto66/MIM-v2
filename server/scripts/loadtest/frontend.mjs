@@ -116,7 +116,7 @@ async function main() {
       return;
     }
     if (msg.method === 'Runtime.exceptionThrown') pageErrors.push(JSON.stringify(msg.params.exceptionDetails).slice(0, 300));
-    if (msg.method === 'Log.entryAdded' && msg.params.entry.level === 'error') pageErrors.push(msg.params.entry.text);
+    if (msg.method === 'Log.entryAdded' && msg.params.entry.level === 'error' && !/favicon/i.test(msg.params.entry.text)) pageErrors.push(msg.params.entry.text);
     if (msg.method === 'Network.responseReceived' && msg.params.response.status >= 400) {
       const u = msg.params.response.url;
       if (!/favicon/i.test(u)) pageErrors.push(`HTTP ${msg.params.response.status} ${u}`);
