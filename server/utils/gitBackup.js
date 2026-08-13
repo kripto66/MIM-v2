@@ -9,7 +9,7 @@
 //   * non bloquant : l'appelant n'attend pas la fin du backup ;
 //   * sérialisé : une seule opération git à la fois (pas de
 //     collision index.lock / refs) ;
-//   * désactivé en production (Vercel) sauf GIT_BACKUP=true ;
+//   * désactivé en production sauf GIT_BACKUP=true ;
 //   * binaire git localisé via GIT_BIN, puis PATH, puis chemin
 //     Windows historique (résultat mis en cache) ;
 //   * erreurs discrètes (warn court), jamais de crash.

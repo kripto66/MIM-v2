@@ -21,7 +21,7 @@ Le serveur écoute sur `http://localhost:3000`.
 Le CORS n'autorise que les origines listées dans `CORS_ORIGINS`. Sans cette
 variable, le CORS est désactivé : l'application doit alors être servie par ce
 même serveur (même origine). En production, les cookies sont marqués `Secure`
-et le serveur fait confiance à un reverse proxy (Vercel/Nginx) si
+et le serveur fait confiance à un reverse proxy (Nginx…) si
 `TRUST_PROXY=true` (ou `NODE_ENV=production`).
 
 ## Configuration
@@ -80,14 +80,15 @@ l'application est accessible sur `http://localhost:3000` (l'usage via XAMPP rest
 (commit + push) est lancée de manière **non bloquante** (le requête n'attend pas)
 et **sérialisée** (une seule opération git à la fois, pas de conflit d'index).
 
-La sauvegarde est **désactivée en production** (Vercel) sauf si `GIT_BACKUP=true`
-est défini — le binaire git et les identifiants GitHub n'y existent pas.
+La sauvegarde est **désactivée en production** (`NODE_ENV=production`) sauf si
+`GIT_BACKUP=true` est défini — le binaire git et les identifiants GitHub n'y
+existent pas forcément.
 Variables optionnelles : `GIT_BIN` (chemin du binaire git, sinon `git` du PATH),
 `GIT_REPO_PATH` (dépôt), `GIT_BRANCH` (défaut `master`).
 
 ## Tâche périodique (loyers)
 
-À lancer quotidiennement (cron externe : crontab, Vercel Cron, GitHub Actions…) :
+À lancer quotidiennement (cron externe : crontab, GitHub Actions…) :
 
 ```
 cd server && npm run cron:loyers

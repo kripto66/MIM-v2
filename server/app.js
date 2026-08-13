@@ -56,7 +56,7 @@ app.use(
   })
 );
 
-// Derrière un reverse proxy (Vercel, Nginx…), req.ip doit refléter l'IP du client.
+// Derrière un reverse proxy (Nginx…), req.ip doit refléter l'IP du client.
 if (process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production') {
   app.set('trust proxy', 1);
 }

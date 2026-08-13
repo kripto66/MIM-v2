@@ -3,11 +3,10 @@
   "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "MyImmoManagement - SaaS de gestion immobilière (déploiement Vercel)",
+  "description": "MyImmoManagement - SaaS de gestion immobilière",
   "scripts": {
     "dev": "node server/server.js",
-    "start": "node server/server.js",
-    "vercel-build": "echo OK"
+    "start": "node server/server.js"
   },
   "engines": {
     "node": ">=18"
