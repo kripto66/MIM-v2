@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-13T14:37:57.892Z",
+  "generatedAt": "2026-08-13T14:43:58.783Z",
   "results": [
     {
       "suite": "P5-auth",
@@ -8,32 +8,50 @@
       "detail": "aucun locataire trouvé"
     },
     {
-      "suite": "owner002",
-      "name": "cycle CRUD",
-      "ok": false,
-      "detail": "@supabase/auth-js: Expected parameter to be UUID but is not"
+      "suite": "owner001",
+      "name": "suppression locataire désactive le compte",
+      "ok": true,
+      "detail": true
     },
     {
       "suite": "owner001",
-      "name": "cycle CRUD",
-      "ok": false,
-      "detail": "@supabase/auth-js: Expected parameter to be UUID but is not"
+      "name": "cycle CRUD complet 201→200→200→DELETE",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner002",
+      "name": "suppression locataire désactive le compte",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner002",
+      "name": "cycle CRUD complet 201→200→200→DELETE",
+      "ok": true,
+      "detail": true
     },
     {
       "suite": "owner003",
-      "name": "cycle CRUD",
-      "ok": false,
-      "detail": "@supabase/auth-js: Expected parameter to be UUID but is not"
+      "name": "suppression locataire désactive le compte",
+      "ok": true,
+      "detail": true
+    },
+    {
+      "suite": "owner003",
+      "name": "cycle CRUD complet 201→200→200→DELETE",
+      "ok": true,
+      "detail": true
     },
     {
       "suite": "P6-listes",
-      "name": "liste logements owner001 = 100 sans fuite",
+      "name": "liste logements owner002 = 100 sans fuite",
       "ok": true,
       "detail": false
     },
     {
       "suite": "P6-listes",
-      "name": "liste logements owner002 = 100",
+      "name": "liste logements owner001 = 100",
       "ok": true,
       "detail": false
     },
@@ -47,7 +65,7 @@
       "suite": "P8-admin",
       "name": "temps de réponse admin/stats à l'échelle 10k",
       "ok": "perf",
-      "detail": "44ms"
+      "detail": "53ms"
     },
     {
       "suite": "P8-admin",
@@ -57,9 +75,9 @@
     },
     {
       "suite": "P8-admin",
-      "name": "proprietaires attendu 107",
+      "name": "proprietaires attendu ≥ 10",
       "ok": true,
-      "detail": false
+      "detail": true
     },
     {
       "suite": "P8-admin",
@@ -212,97 +230,97 @@
       "detail": true
     },
     {
-      "suite": "owner002",
+      "suite": "owner001",
       "name": "totalProperties=100",
       "ok": true,
       "detail": false
     },
     {
-      "suite": "owner002",
+      "suite": "owner001",
       "name": "occupiedProperties=100 (occupation à la création)",
       "ok": true,
       "detail": false
     },
     {
-      "suite": "owner002",
+      "suite": "owner001",
       "name": "totalTenants=100",
       "ok": true,
       "detail": false
     },
     {
-      "suite": "owner002",
+      "suite": "owner001",
       "name": "expectedRent = somme loyers occupés",
       "ok": true,
       "detail": true
     },
     {
-      "suite": "owner002",
+      "suite": "owner001",
       "name": "paidRent = somme payés du mois",
       "ok": true,
       "detail": true
     },
     {
-      "suite": "owner002",
+      "suite": "owner001",
       "name": "lateRent = somme retard du mois",
       "ok": true,
       "detail": true
     },
     {
-      "suite": "owner002",
+      "suite": "owner001",
       "name": "activeIncidents = 1 (1 resolu sur 2)",
       "ok": true,
       "detail": true
     },
     {
-      "suite": "owner002",
+      "suite": "owner001",
       "name": "activeInterventions = 1 (planifie)",
       "ok": true,
       "detail": true
     },
     {
-      "suite": "owner001",
+      "suite": "owner002",
       "name": "totalProperties=100",
       "ok": true,
       "detail": false
     },
     {
-      "suite": "owner001",
+      "suite": "owner002",
       "name": "occupiedProperties=100 (occupation à la création)",
       "ok": true,
       "detail": false
     },
     {
-      "suite": "owner001",
+      "suite": "owner002",
       "name": "totalTenants=100",
       "ok": true,
       "detail": false
     },
     {
-      "suite": "owner001",
+      "suite": "owner002",
       "name": "expectedRent = somme loyers occupés",
       "ok": true,
       "detail": true
     },
     {
-      "suite": "owner001",
+      "suite": "owner002",
       "name": "paidRent = somme payés du mois",
       "ok": true,
       "detail": true
     },
     {
-      "suite": "owner001",
+      "suite": "owner002",
       "name": "lateRent = somme retard du mois",
       "ok": true,
       "detail": true
     },
     {
-      "suite": "owner001",
+      "suite": "owner002",
       "name": "activeIncidents = 1 (1 resolu sur 2)",
       "ok": true,
       "detail": true
     },
     {
-      "suite": "owner001",
+      "suite": "owner002",
       "name": "activeInterventions = 1 (planifie)",
       "ok": true,
       "detail": true
@@ -431,13 +449,13 @@
       "suite": "P16-charge",
       "name": "docker stats AVANT charge",
       "ok": "perf",
-      "detail": "supabase_db_MIM cpu=0.41% mem=149.2MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.00% mem=46.07MiB / 3.678GiB"
+      "detail": "supabase_db_MIM cpu=0.26% mem=161.8MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.03% mem=45.08MiB / 3.678GiB"
     },
     {
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 10",
       "ok": "perf",
-      "detail": "total=321ms {\"200\":10}"
+      "detail": "total=169ms {\"200\":10}"
     },
     {
       "suite": "P16-charge",
@@ -449,7 +467,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 25",
       "ok": "perf",
-      "detail": "total=489ms {\"200\":25}"
+      "detail": "total=334ms {\"200\":25}"
     },
     {
       "suite": "P16-charge",
@@ -461,7 +479,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 50",
       "ok": "perf",
-      "detail": "total=1692ms {\"200\":50}"
+      "detail": "total=1511ms {\"200\":50}"
     },
     {
       "suite": "P16-charge",
@@ -473,7 +491,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 100",
       "ok": "perf",
-      "detail": "total=2341ms {\"200\":100}"
+      "detail": "total=2020ms {\"200\":100}"
     },
     {
       "suite": "P16-charge",
@@ -485,7 +503,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 200",
       "ok": "perf",
-      "detail": "total=8958ms {\"200\":200}"
+      "detail": "total=5144ms {\"200\":200}"
     },
     {
       "suite": "P16-charge",
@@ -497,7 +515,7 @@
       "suite": "P16-charge",
       "name": "GET /stats/dashboard × 500",
       "ok": "perf",
-      "detail": "total=26261ms {\"200\":500}"
+      "detail": "total=16730ms {\"200\":500}"
     },
     {
       "suite": "P16-charge",
@@ -509,7 +527,7 @@
       "suite": "P16-charge",
       "name": "GET /notifications × 50",
       "ok": "perf",
-      "detail": "total=264ms {\"200\":50}"
+      "detail": "total=193ms {\"200\":50}"
     },
     {
       "suite": "P16-charge",
@@ -521,7 +539,7 @@
       "suite": "P16-charge",
       "name": "GET /notifications × 200",
       "ok": "perf",
-      "detail": "total=568ms {\"200\":200}"
+      "detail": "total=651ms {\"200\":200}"
     },
     {
       "suite": "P16-charge",
@@ -533,7 +551,7 @@
       "suite": "P16-charge",
       "name": "1 connexions locataires simultanées",
       "ok": "perf",
-      "detail": "total=801ms {\"200\":1}"
+      "detail": "total=722ms {\"200\":1}"
     },
     {
       "suite": "P16-charge",
@@ -545,13 +563,13 @@
       "suite": "P16-charge",
       "name": "docker stats APRÈS charge",
       "ok": "perf",
-      "detail": "supabase_db_MIM cpu=0.70% mem=164.3MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.22% mem=44.86MiB / 3.678GiB"
+      "detail": "supabase_db_MIM cpu=0.23% mem=168.9MiB / 3.678GiB\nsupabase_auth_MIM cpu=0.00% mem=45.01MiB / 3.678GiB"
     },
     {
       "suite": "P16-charge",
       "name": "burst 350 GET /stats/dashboard sur :3000 (rate limit ON)",
       "ok": "perf",
-      "detail": "total=20363ms {\"200\":300,\"429\":50}"
+      "detail": "total=14664ms {\"200\":300,\"429\":50}"
     },
     {
       "suite": "P16-charge",
@@ -605,7 +623,7 @@
       "suite": "P19-sec",
       "name": "Set-Cookie mim_token",
       "ok": "note",
-      "detail": "mim_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImIzZDk2YzU1LTEzMzItNGQ0Zi05ODBlLWIzNDYyMjJkNDVhMSIsImFjY291bnRfdHlwZSI6InByb3ByaWV0YWlyZSIsInN1cGFiYXNlX3Rva2VuIjoiZXlKaGJHY2lPaUpGVXpJMU5pSXNJbXRwWkNJNkltSTRNVEkyT1dZeExUSXhaRGd0TkdZeVpTMWlOekU1TFdNeU1qUXdZVGcwTUdRNU1DSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKb2RIUndPaTh2TVRJM0xqQXVNQzR4T2pZME16SXhMMkYxZEdndmRqRWlMQ0p6ZFdJaU9pSmlNMlE1Tm1NMU5TMHhNek15TFRSa05HWXRPVGd3WlMxaU16UTJNakl5WkRRMVlURWlMQ0poZFdRaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVpYaHdJam94TnpnMk5qTTFORGMzTENKcFlYUWlPakUzT0RZMk16RTROemNzSW1WdFlXbHNJam9pYkc5aFpIUmxjM1F1YjNkdVpYSXVNREF5UUd4dllXUjBaWE4wTG0xcGJTSXNJbkJvYjI1bElqb2lJaXdpWVhCd1gyMWxkR0ZrWVhSaElqcDdJbkJ5YjNacFpHVnlJam9pWlcxaGFXd2lMQ0p3Y205MmFXUmxjbk1pT2xzaVpXMWhhV3dpWFgwc0luVnpaWEpmYldWMFlXUmhkR0VpT25zaVlXTmpiM1Z1ZEY5MGVYQmxJam9pY0hKdmNISnBaWFJoYVhKbElpd2laVzFoYVd4ZmRtVnlhV1pwWldRaU9uUnlkV1VzSW01aGJXVWlPaUpNYjJGa1ZHVnpkQ0JQZDI1bGNpQXdNRElpTENKeWIyeGxJam9pY0hKdmNISnBaWFJoYVhKbEluMHNJbkp2YkdVaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVlXRnNJam9pWVdGc01TSXNJbUZ0Y2lJNlczc2liV1YwYUc5a0lqb2ljR0Z6YzNkdmNtUWlMQ0owYVcxbGMzUmhiWEFpT2pFM09EWTJNekU0TnpkOVhTd2ljMlZ6YzJsdmJsOXBaQ0k2SW1WbE1qQXdNRE00TFRFMU5XSXROR1prTnkxaFpqaG1MV0pqWkdFMU1HVTNNRGxrTUNJc0ltbHpYMkZ1YjI1NWJXOTFjeUk2Wm1Gc2MyVjkubThkWGxRYlV5WVlMX0RYdjZNVThScUhPMld3c1E0ank4Q0ZVTXRjYThaMWZ3TXlIRjc3Vzd5V1Z6c0JQc3hnU1V0Mm1rUU9RdDhuYzZfeXNKWG1FWmciLCJyZWZyZXNoX3Rva2VuIjoiZWo3NnB4YmZ6bXhxIiwic3VwYWJhc2VfZXhwaXJlc19hdCI6MTc4NjYzNTQ3NywiaWF0IjoxNzg2NjMxODc3LCJleHAiOjE3ODcyMzY2Nzd9.ldswT3LHJH51GbVssbhB6ViEMFf-kIMD0BRyWL_6JQA; Max-Age=604800; Path=/; Expires=Thu, 20 Aug 2026 14:37:57 GMT; HttpOnly; SameSite=Lax"
+      "detail": "mim_token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6ImM3ZjE3NDhiLTlmOTItNDJiMy1hNmZkLTY3NzVkZGU3ZjRiOSIsImFjY291bnRfdHlwZSI6InByb3ByaWV0YWlyZSIsInN1cGFiYXNlX3Rva2VuIjoiZXlKaGJHY2lPaUpGVXpJMU5pSXNJbXRwWkNJNkltSTRNVEkyT1dZeExUSXhaRGd0TkdZeVpTMWlOekU1TFdNeU1qUXdZVGcwTUdRNU1DSXNJblI1Y0NJNklrcFhWQ0o5LmV5SnBjM01pT2lKb2RIUndPaTh2TVRJM0xqQXVNQzR4T2pZME16SXhMMkYxZEdndmRqRWlMQ0p6ZFdJaU9pSmpOMll4TnpRNFlpMDVaamt5TFRReVlqTXRZVFptWkMwMk56YzFaR1JsTjJZMFlqa2lMQ0poZFdRaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVpYaHdJam94TnpnMk5qTTFPRE00TENKcFlYUWlPakUzT0RZMk16SXlNemdzSW1WdFlXbHNJam9pYkc5aFpIUmxjM1F1YjNkdVpYSXVNREF5UUd4dllXUjBaWE4wTG0xcGJTSXNJbkJvYjI1bElqb2lJaXdpWVhCd1gyMWxkR0ZrWVhSaElqcDdJbkJ5YjNacFpHVnlJam9pWlcxaGFXd2lMQ0p3Y205MmFXUmxjbk1pT2xzaVpXMWhhV3dpWFgwc0luVnpaWEpmYldWMFlXUmhkR0VpT25zaVlXTmpiM1Z1ZEY5MGVYQmxJam9pY0hKdmNISnBaWFJoYVhKbElpd2laVzFoYVd4ZmRtVnlhV1pwWldRaU9uUnlkV1VzSW01aGJXVWlPaUpNYjJGa1ZHVnpkQ0JQZDI1bGNpQXdNRElpTENKeWIyeGxJam9pY0hKdmNISnBaWFJoYVhKbEluMHNJbkp2YkdVaU9pSmhkWFJvWlc1MGFXTmhkR1ZrSWl3aVlXRnNJam9pWVdGc01TSXNJbUZ0Y2lJNlczc2liV1YwYUc5a0lqb2ljR0Z6YzNkdmNtUWlMQ0owYVcxbGMzUmhiWEFpT2pFM09EWTJNekl5TXpoOVhTd2ljMlZ6YzJsdmJsOXBaQ0k2SWpCaVpqZ3laVEV6TFRjek5UY3ROREUxTWkxaU1tSXhMVGcwT0RZd01HTXhabUV6TnlJc0ltbHpYMkZ1YjI1NWJXOTFjeUk2Wm1Gc2MyVjkudEhzNkJKSWRIaW02QkZyY2E1T1JfLVBlbndvSXloWUNCLTgwMkFLcEp0Rkx6U05pMFRIMFhLTnJ4Rkl1UkExTFNiM3RkWlFGS0x2WkVtcVlPbGg4LUEiLCJyZWZyZXNoX3Rva2VuIjoiYmZuenJxNDRtbzVmIiwic3VwYWJhc2VfZXhwaXJlc19hdCI6MTc4NjYzNTgzOCwiaWF0IjoxNzg2NjMyMjM4LCJleHAiOjE3ODcyMzcwMzh9.9bPpZn6Slw7MwYs30a7bhhNUmPhUwxLAqU0B6P8B1EQ; Max-Age=604800; Path=/; Expires=Thu, 20 Aug 2026 14:43:58 GMT; HttpOnly; SameSite=Lax"
     },
     {
       "suite": "P19-sec",
@@ -653,7 +671,7 @@
       "suite": "P19-sec",
       "name": "champs hors-schéma sur /biens",
       "ok": "note",
-      "detail": "reçu 201 — données: {\"id\":218,\"user_id\":\"139faa29-37d2-4cdd-a831-c9e76e20f9bd\",\"nom\":\"Extra Field\",\"type\":\"maison\",\"adresse\":null,\"ville\":null,\"pays\":null,\"description\":n"
+      "detail": "reçu 201 — données: {\"id\":225,\"user_id\":\"389df9be-71cc-41aa-b8b5-c7d0fd57ed46\",\"nom\":\"Extra Field\",\"type\":\"maison\",\"adresse\":null,\"ville\":null,\"pays\":null,\"description\":n"
     }
   ]
 }
