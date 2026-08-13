@@ -70,7 +70,10 @@ async function runBackup(message) {
     console.log(`[git] Sauvegarde OK : ${message}`);
     return { success: true };
   } catch (err) {
-    const detail = String(err.stderr || err);
+    // git écrit « nothing to commit » sur stdout (stderr vide) : il faut
+    // examiner les deux flux, sinon chaque backup « à vide » serait loggé
+    // comme une erreur.
+    const detail = String(err.stderr || err.stdout || err);
     if (detail.includes('nothing to commit')) {
       return { success: true, reason: 'nothing_to_commit' };
     }
