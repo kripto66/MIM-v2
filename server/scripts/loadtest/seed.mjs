@@ -93,6 +93,23 @@ async function registerReal(i) {  const jar = newJar();
   return { ok: me.status === 200 && me.data?.user?.account_type === 'proprietaire', detail: `me ${me.status}` };
 }
 
+// Retry de la création d'un locataire (échecs transitoires de admin.createUser
+// sous charge — GoTrue/DB) avec backoff. Renvoie la dernière réponse après épuisement.
+async function createTenant(jar, body) {
+  const backoff = [3000, 8000, 15000, 25000, 40000];
+  let loc = null;
+  for (let a = 1; a <= backoff.length + 1; a++) {
+    loc = await apiLt('/locataires', { method: 'POST', jar, body });
+    if (loc.status === 201 && loc.data?.accountCreated) return loc;
+    if (loc.status === 409) return loc;
+    if (a <= backoff.length) {
+      console.log(`  retry locataire (${body.username}) tentative ${a} → ${loc.status} ${String(loc.data?.message).slice(0, 80)}`);
+      await new Promise((r) => setTimeout(r, backoff[a - 1]));
+    }
+  }
+  return loc;
+}
+
 // Un propriétaire complet : login, me, bien, logements, locataires, paiements…
 async function buildOwner(i, ownerId) {
   const jar = newJar();
