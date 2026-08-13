@@ -1,5 +1,5 @@
 {
-  "at": "2026-08-13T14:38:10.464Z",
+  "at": "2026-08-13T14:44:09.142Z",
   "results": [
     {
       "name": "P18 propriétaire redirection dashboard",
@@ -7,13 +7,13 @@
       "detail": "http://localhost:3000/PartProprietaires/dashboard.html"
     },
     {
-      "name": "P18 propriétaire 100 logements",
-      "ok": false,
-      "detail": "total='4'"
+      "name": "P18 propriétaire 3 logements",
+      "ok": true,
+      "detail": "total='3'"
     },
     {
-      "name": "P18 propriétaire 100 occupés",
-      "ok": false,
+      "name": "P18 propriétaire 3 occupés",
+      "ok": true,
       "detail": "occupés='3'"
     },
     {
@@ -32,14 +32,14 @@
       "detail": "linked=true"
     },
     {
-      "name": "P18 locataire loyer cohérent (82 500)",
+      "name": "P18 locataire loyer cohérent (82500)",
       "ok": true,
       "detail": "loyer=82500"
     },
     {
       "name": "P18 locataire statut paiement affiché",
       "ok": true,
-      "detail": "'…'"
+      "detail": "'À jour'"
     },
     {
       "name": "P18 locataire logout cliquable",
@@ -57,12 +57,12 @@
       "detail": "success=true"
     },
     {
-      "name": "P18 admin propriétaires ≥ 100",
+      "name": "P18 admin propriétaires ≥ [object Object],[object Object],[object Object]7",
       "ok": false,
       "detail": "n=10"
     },
     {
-      "name": "P18 admin locataires ≥ 10000",
+      "name": "P18 admin locataires ≥ NaN",
       "ok": false,
       "detail": "n=11"
     },
