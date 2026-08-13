@@ -26,7 +26,7 @@ function prevMonth(ym) {
 // y compris les résidus d'anciennes campagnes (final/owner.test/dev).
 // Les FK user_id -> auth.users étant ON DELETE CASCADE, supprimer les
 // utilisateurs efface aussi profils, biens, logements, locataires, etc.
-const WIPE_EMAIL_PATTERNS = ['owner%@mimtest.com', '%@mim.local', 'owner.test%@example.com', 'final%@example.com', 'owner.%@mim.com'];
+const WIPE_EMAIL_PATTERNS = ['%@mimtest.com', '%@mim.local', 'owner.test%@example.com', 'final%@example.com', 'owner.%@mim.com'];
 const WIPE_USERNAME_PATTERNS = ['own%loc%'];
 const CHILD_TABLES = ['biens', 'logements', 'locataires', 'paiements', 'incidents', 'prestataires', 'interventions', 'notifications', 'sessions'];
 
