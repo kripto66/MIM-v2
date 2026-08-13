@@ -65,21 +65,43 @@ export async function runAdmin(r, ctx) {
 
   const month = ctx.seed.month;
 
+  // ----------------------------------------------------------
+  // Attentes dynamiques : les suites précédentes créent des
+  // comptes / modifient des statuts → on compare à la base réelle.
+  // ----------------------------------------------------------
+  const db = {
+    proprietaires: (await service.from('profiles').select('id').in('account_type', ['proprietaire', 'agence', 'entreprise'])).data.length,
+    locataires: (await service.from('locataires').select('id')).data.length,
+    biens: (await service.from('biens').select('id')).data.length,
+    logements: (await service.from('logements').select('id')).data.length,
+    logementsOccupes: (await service.from('logements').select('id').eq('statut', 'occupe')).data.length,
+    incidents: (await service.from('incidents').select('id')).data.length,
+    incidentsActifs: (await service.from('incidents').select('id').neq('statut', 'resolu')).data.length,
+    interventionsActives: (await service.from('interventions').select('id').neq('statut', 'termine')).data.length,
+    paiements: (await service.from('paiements').select('id')).data.length,
+    paiementsMois: (await service.from('paiements').select('montant, statut').eq('mois', month)).data,
+  };
+
+  db.paiementsEnAttente = db.paiementsMois.filter((p) => p.statut === 'attente').length;
+  db.paiementsEnRetard = db.paiementsMois.filter((p) => p.statut === 'retard').length;
+  db.revenusMois = db.paiementsMois.filter((p) => p.statut === 'paye').reduce((s, p) => s + Number(p.montant), 0);
+
   await r.section('admin : statistiques globales', async () => {
     const res = await api('/admin/stats', { jar: adminJar });
     if (!expectSuccess(r, res, S, 'statistiques admin')) return;
 
     const s = res.data.stats;
     const checks = [
-      ['propriétaires = 10', s.proprietaires, 10],
-      ['locataires = 100', s.locataires, 100],
-      ['biens = 10', s.biens, 10],
-      ['logements = 100', s.logements, 100],
-      ['logements occupés = 0 (seed libre)', s.logementsOccupes, 0],
-      ['paiements en attente = 50', s.paiementsEnAttente, 50],
-      ['paiements en retard ce mois = 0', s.paiementsEnRetard, 0],
-      ['incidents actifs = 10', s.incidentsActifs, 10],
-      ['interventions actives = 10', s.interventionsActives, 10],
+      ['propriétaires', s.proprietaires, db.proprietaires],
+      ['locataires', s.locataires, db.locataires],
+      ['biens', s.biens, db.biens],
+      ['logements', s.logements, db.logements],
+      ['logements occupés', s.logementsOccupes, db.logementsOccupes],
+      ['paiements en attente ce mois', s.paiementsEnAttente, db.paiementsEnAttente],
+      ['paiements en retard ce mois', s.paiementsEnRetard, db.paiementsEnRetard],
+      ['incidents actifs', s.incidentsActifs, db.incidentsActifs],
+      ['interventions actives', s.interventionsActives, db.interventionsActives],
+      ['revenus du mois', Number(s.revenusMois), db.revenusMois],
       ['12 mois de revenus', s.revenue12.length, 12],
     ];
 
@@ -88,58 +110,75 @@ export async function runAdmin(r, ctx) {
       else r.fail(S, name, `reçu ${got} (attendu ${want})`);
     }
 
-    const sum12 = s.revenue12.reduce((acc, m) => acc + m.total, 0);
-    if (Math.abs(sum12 - s.revenusMois) < 0.01) {
-      r.pass(S, `revenus 12 mois cohérents (= ${s.revenusMois})`);
+    const lastMonth = s.revenue12[s.revenue12.length - 1];
+    if (Math.abs(Number(lastMonth.total) - db.revenusMois) < 0.01) {
+      r.pass(S, 'dernier mois du graphique = revenus du mois');
     } else {
-      r.fail(S, 'revenus 12 mois cohérents', `somme=${sum12} mois=${s.revenusMois}`);
+      r.fail(S, 'dernier mois du graphique = revenus du mois', `graph=${lastMonth?.total} base=${db.revenusMois}`);
     }
 
-    // Revenus attendus = loyers des logements occupés... mais le seed laisse
-    // les logements libres → revenus payés = paiements 'paye' du mois.
-    if (s.revenusMois > 0) r.pass(S, `revenus du mois > 0 (${s.revenusMois})`);
-    else r.fail(S, 'revenus du mois > 0', `reçu ${s.revenusMois}`);
+    const sum12 = s.revenue12.reduce((acc, m) => acc + m.total, 0);
+    if (sum12 >= db.revenusMois) r.pass(S, 'revenus 12 mois cohérents');
+    else r.fail(S, 'revenus 12 mois cohérents', `somme=${sum12} mois=${db.revenusMois}`);
   });
 
   await r.section('admin : listes globales', async () => {
     const prop = await api('/admin/proprietaires', { jar: adminJar });
     if (expectSuccess(r, prop, S, 'propriétaires')) {
-      if (prop.data.data.length === 10) r.pass(S, '10 propriétaires');
-      else r.fail(S, '10 propriétaires', `reçu ${prop.data.data.length}`);
-      const allOneBien = prop.data.data.every((p) => p.biens === 1);
-      if (allOneBien) r.pass(S, 'chaque propriétaire a 1 bien');
-      else r.fail(S, 'chaque propriétaire a 1 bien', JSON.stringify(prop.data.data.slice(0, 2)));
-      if (prop.data.data.every((p) => p.statut === 'actif')) r.pass(S, 'tous les propriétaires actifs');
+      const data = prop.data.data;
+      if (data.length === db.proprietaires) r.pass(S, `propriétaires (${data.length})`);
+      else r.fail(S, 'propriétaires', `API=${data.length} base=${db.proprietaires}`);
+
+      // Chaque propriétaire du seed est présent avec ses biens comptés.
+      let seedOk = true;
+      for (const owner of ctx.seed.owners) {
+        const row = data.find((p) => p.id === owner.id);
+        const wantBiens = (await service.from('biens').select('id').eq('user_id', owner.id)).data.length;
+        if (!row || row.biens !== wantBiens) seedOk = false;
+      }
+      if (seedOk) r.pass(S, 'propriétaires du seed présents avec biens comptés');
+      else r.fail(S, 'propriétaires du seed présents avec biens comptés');
+
+      if (data.every((p) => p.statut === 'actif')) r.pass(S, 'tous les propriétaires actifs');
       else r.fail(S, 'tous les propriétaires actifs');
     }
 
     const locs = await api('/admin/locataires', { jar: adminJar });
     if (expectSuccess(r, locs, S, 'locataires')) {
-      if (locs.data.data.length === 100) r.pass(S, '100 locataires');
-      else r.fail(S, '100 locataires', `reçu ${locs.data.data.length}`);
-      const linked = locs.data.data.every((l) => l.logement !== '—');
-      if (linked) r.pass(S, 'locataires reliés à un logement');
-      else r.fail(S, 'locataires reliés à un logement');
+      const data = locs.data.data;
+      if (data.length === db.locataires) r.pass(S, `locataires (${data.length})`);
+      else r.fail(S, 'locataires', `API=${data.length} base=${db.locataires}`);
+
+      const linked = data.filter((l) => l.logement !== '—').length;
+      if (linked >= 100) r.pass(S, `locataires du seed reliés à un logement (${linked})`);
+      else r.fail(S, 'locataires du seed reliés à un logement', `reliés ${linked}`);
     }
 
     const biens = await api('/admin/biens', { jar: adminJar });
     if (expectSuccess(r, biens, S, 'biens')) {
-      if (biens.data.data.length === 10) r.pass(S, '10 biens');
-      else r.fail(S, '10 biens', `reçu ${biens.data.data.length}`);
-      if (biens.data.data.every((b) => b.logements === 10)) r.pass(S, 'chaque bien a 10 logements');
-      else r.fail(S, 'chaque bien a 10 logements');
+      const data = biens.data.data;
+      if (data.length === db.biens) r.pass(S, `biens (${data.length})`);
+      else r.fail(S, 'biens', `API=${data.length} base=${db.biens}`);
+
+      let seedOk = true;
+      for (const owner of ctx.seed.owners) {
+        const row = data.find((b) => b.id === owner.bienId);
+        if (!row || row.logements !== 10) seedOk = false;
+      }
+      if (seedOk) r.pass(S, 'biens du seed avec 10 logements comptés');
+      else r.fail(S, 'biens du seed avec 10 logements comptés');
     }
 
     const pays = await api('/admin/paiements', { jar: adminJar });
     if (expectSuccess(r, pays, S, 'paiements')) {
-      if (pays.data.data.length >= 100) r.pass(S, `paiements visibles (${pays.data.data.length})`);
-      else r.fail(S, 'paiements visibles', `reçu ${pays.data.data.length}`);
+      if (pays.data.data.length >= ctx.seed.countPaiements) r.pass(S, `paiements visibles (${pays.data.data.length})`);
+      else r.fail(S, 'paiements visibles', `API=${pays.data.data.length} seed=${ctx.seed.countPaiements}`);
     }
 
     const incs = await api('/admin/incidents', { jar: adminJar });
     if (expectSuccess(r, incs, S, 'incidents')) {
-      if (incs.data.data.length === 20) r.pass(S, '20 incidents');
-      else r.fail(S, '20 incidents', `reçu ${incs.data.data.length}`);
+      if (incs.data.data.length >= db.incidents) r.pass(S, `incidents (${incs.data.data.length})`);
+      else r.fail(S, 'incidents', `API=${incs.data.data.length} base=${db.incidents}`);
     }
 
     const act = await api('/admin/activite', { jar: adminJar });
