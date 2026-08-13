@@ -1,0 +1,28 @@
+{
+  "ts": "2026-08-13-14-36-16",
+  "port": 3200,
+  "owners": [
+    {
+      "i": 2,
+      "email": "loadtest.owner.002@loadtest.mim",
+      "password": "LoadTest!2026",
+      "id": "b3d96c55-1332-4d4f-980e-b346222d45a1"
+    },
+    {
+      "i": 1,
+      "email": "loadtest.owner.001@loadtest.mim",
+      "password": "LoadTest!2026",
+      "id": "139faa29-37d2-4cdd-a831-c9e76e20f9bd"
+    },
+    {
+      "i": 3,
+      "email": "loadtest.owner.003@loadtest.mim",
+      "password": "LoadTest!2026",
+      "id": "118f510a-4d38-44d0-8569-f145b37f372b"
+    }
+  ],
+  "perOwner": 3,
+  "month": "2026-08",
+  "tenantPasswordChanged": [],
+  "createdAt": "2026-08-13T14:36:25.792Z"
+}
