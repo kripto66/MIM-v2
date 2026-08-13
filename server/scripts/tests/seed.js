@@ -30,12 +30,15 @@ const WIPE_EMAIL_PATTERNS = ['owner%@mimtest.com', '%@mim.local', 'owner.test%@e
 const WIPE_USERNAME_PATTERNS = ['own%loc%'];
 const CHILD_TABLES = ['biens', 'logements', 'locataires', 'paiements', 'incidents', 'prestataires', 'interventions', 'notifications', 'sessions'];
 
+// Comptes « production » jamais supprimés par le wipe (admin + comptes réels).
+const PROTECTED_EMAILS = new Set(['admin@mim.local']);
+
 export async function wipeTestData(service) {
   const ids = [];
 
   for (const pat of WIPE_EMAIL_PATTERNS) {
-    const { data } = await service.from('profiles').select('id').ilike('email', pat);
-    if (data) ids.push(...data.map((p) => p.id));
+    const { data } = await service.from('profiles').select('id, email').ilike('email', pat);
+    if (data) ids.push(...data.filter((p) => !PROTECTED_EMAILS.has(p.email)).map((p) => p.id));
   }
   for (const pat of WIPE_USERNAME_PATTERNS) {
     const { data } = await service.from('profiles').select('id').ilike('username', pat);

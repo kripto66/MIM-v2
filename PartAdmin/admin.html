@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MIM — Administration</title>
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="brand-logo">M</div>
+      <div><strong>MIM</strong><span>Administration</span></div>
+    </div>
+
+    <nav>
+      <button class="nav-item active" data-section="dashboard">⌂ <span>Dashboard</span></button>
+      <button class="nav-item" data-section="proprietaires">◉ <span>Propriétaires</span></button>
+      <button class="nav-item" data-section="locataires">◎ <span>Locataires</span></button>
+      <button class="nav-item" data-section="biens">▣ <span>Biens & logements</span></button>
+      <button class="nav-item" data-section="paiements">₣ <span>Paiements</span></button>
+      <button class="nav-item" data-section="incidents">⚠ <span>Incidents</span></button>
+      <button class="nav-item" data-section="activite">◷ <span>Activité</span></button>
+      <button class="nav-item" data-section="parametres">⚙ <span>Paramètres</span></button>
+    </nav>
+
+    <div class="sidebar-bottom">
+      <div class="admin-mini">
+        <div class="avatar">AD</div>
+        <div><strong>Admin MIM</strong><small>Administrateur</small></div>
+      </div>
+      <button id="logoutBtn" class="logout">↪ Déconnexion</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button id="menuBtn" class="icon-btn mobile-only">☰</button>
+      <div>
+        <h1 id="pageTitle">Dashboard</h1>
+        <p id="pageSubtitle">Vue globale de votre plateforme.</p>
+      </div>
+      <div class="top-actions">
+        <button class="icon-btn" id="refreshBtn" title="Actualiser">↻</button>
+        <button class="icon-btn notification-btn" title="Notifications">🔔<b id="notificationCount">3</b></button>
+      </div>
+    </header>
+
+    <div id="app" class="content"></div>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="admin.js"></script>
+</body>
+</html>

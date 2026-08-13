@@ -68,3 +68,10 @@ export function signToken(payload, expiresIn = '7d') {
   delete clean.jti;
   return jwt.sign(clean, process.env.JWT_SECRET, { expiresIn });
 }
+
+export function requireAdmin(req, res, next) {
+  if (req.user?.account_type !== 'admin') {
+    return res.status(403).json({ success: false, message: "Accès réservé à l'administration." });
+  }
+  next();
+}

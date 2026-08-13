@@ -1,6 +1,6 @@
 ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_account_type_check;
 ALTER TABLE public.profiles ADD CONSTRAINT profiles_account_type_check
-    CHECK (account_type IN ('proprietaire', 'agence', 'entreprise', 'locataire'));
+    CHECK (account_type IN ('proprietaire', 'agence', 'entreprise', 'locataire', 'admin'));
 
 ALTER TABLE public.locataires ADD COLUMN IF NOT EXISTS account_uid UUID REFERENCES auth.users(id) ON DELETE SET NULL;
 

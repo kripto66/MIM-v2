@@ -19,6 +19,7 @@ const PAGE_BY_TYPE = {
   agence: 'PartProprietaires/dashboard.html',
   entreprise: 'PartProprietaires/dashboard.html',
   locataire: 'PartLocataires/LocaDash.html',
+  admin: 'PartAdmin/admin.html',
 };
 
 const APP_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');

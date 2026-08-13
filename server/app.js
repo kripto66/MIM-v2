@@ -11,8 +11,9 @@ import statsRoutes from './routes/stats.js';
 import gitRoutes from './routes/git.js';
 import locataireRoutes from './routes/locataire.js';
 import notificationsRoutes from './routes/notifications.js';
+import adminRoutes from './routes/admin.js';
 import { createCrudRouter } from './routes/crud.js';
-import { authenticate } from './middleware/auth.js';
+import { authenticate, requireAdmin } from './middleware/auth.js';
 import { authRateLimit, apiRateLimit } from './middleware/rateLimit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -78,6 +79,7 @@ app.use(express.static(path.join(ROOT, 'PartPublic')));
 app.use('/PartPublic', express.static(path.join(ROOT, 'PartPublic')));
 app.use('/PartProprietaires', express.static(path.join(ROOT, 'PartProprietaires')));
 app.use('/PartLocataires', express.static(path.join(ROOT, 'PartLocataires')));
+app.use('/PartAdmin', express.static(path.join(ROOT, 'PartAdmin')));
 app.use('/images', express.static(path.join(ROOT, 'images')));
 
 app.get('/api/health', (req, res) => {
@@ -89,6 +91,7 @@ app.use('/api', apiRateLimit);
 app.use('/api/stats', authenticate, statsRoutes);
 app.use('/api/git', authenticate, gitRoutes);
 app.use('/api/locataire', authenticate, locataireRoutes);
+app.use('/api/admin', authenticate, requireAdmin, adminRoutes);
 
 app.use('/api/biens', authenticate, createCrudRouter('biens'));
 app.use('/api/logements', authenticate, createCrudRouter('logements'));

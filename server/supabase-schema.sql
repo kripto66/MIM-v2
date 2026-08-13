@@ -6,7 +6,7 @@
 -- Profil étendu (au-dessus de auth.users)
 CREATE TABLE IF NOT EXISTS public.profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    account_type TEXT NOT NULL CHECK (account_type IN ('proprietaire', 'agence', 'entreprise', 'locataire')),
+    account_type TEXT NOT NULL CHECK (account_type IN ('proprietaire', 'agence', 'entreprise', 'locataire', 'admin')),
     name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     phone TEXT NOT NULL,
@@ -189,7 +189,7 @@ CREATE POLICY "owner_all_sessions" ON public.sessions
 -- Compatibilité bases existantes : ajuste la contrainte et ajoute la colonne
 ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_account_type_check;
 ALTER TABLE public.profiles ADD CONSTRAINT profiles_account_type_check
-    CHECK (account_type IN ('proprietaire', 'agence', 'entreprise', 'locataire'));
+    CHECK (account_type IN ('proprietaire', 'agence', 'entreprise', 'locataire', 'admin'));
 
 ALTER TABLE public.locataires ADD COLUMN IF NOT EXISTS account_uid UUID REFERENCES auth.users(id) ON DELETE SET NULL;
 

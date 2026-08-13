@@ -18,6 +18,7 @@ import { runStats } from './stats.test.js';
 import { runSecurity } from './security.test.js';
 import { runConcurrency } from './concurrency.test.js';
 import { runFinal } from './final.test.js';
+import { runAdmin } from './admin.test.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.join(__dirname, '..', '..');
@@ -37,6 +38,7 @@ const SUITES = [
   ['security', runSecurity],
   ['concurrency', runConcurrency],
   ['final', runFinal],
+  ['admin', runAdmin],
 ];
 
 const runner = new Runner();
