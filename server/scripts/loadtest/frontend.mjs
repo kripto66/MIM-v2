@@ -21,8 +21,8 @@ const USER_DIR = path.join(os.tmpdir(), 'opencode', 'cdp-lt-profile');
 const BASE = process.env.LOADTEST_BASE || 'http://localhost:3000';
 
 const state = loadState();
-const PER = state.perOwner;
-const OWNERS = state.owners;
+const PER = LT.perOwner;
+const OWNERS = LT.owners;
 
 const results = [];
 const record = (name, ok, detail = '') => results.push({ name, ok, detail });
