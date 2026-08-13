@@ -281,7 +281,8 @@ async function phase7() {
       const me = await apiLt('/auth/me', { jar });
       r.pass(s, 'email masqué pour locataire', me.status === 200 && me.data?.user?.email === '', `email='${me.data?.user?.email}'`);
 
-      const prof = await apiLt('/auth/update-profile', { method: 'PUT', jar, body: { phone: '+221770000001' } });
+      const parts = u.split('.').map((x) => Number(x));
+      const prof = await apiLt('/auth/update-profile', { method: 'PUT', jar, body: { name: tenantName(parts[2], parts[3]), phone: '+221770000001' } });
       r.pass(s, 'update-profile → 200', prof.status === 200, `reçu ${prof.status}`);
 
       // Permissions : routes propriétaire/admin interdites
@@ -297,6 +298,7 @@ async function phase7() {
       const emptyLists = [resL, resB, resLog, resP, resI].every((x) => x.status === 200 && (x.data?.data?.length ?? 0) === 0);
       r.pass(s, 'listes propriétaire vides pour locataire (RLS)', emptyLists, `L=${resL.status}/${resL.data?.data?.length} B=${resB.status}/${resB.data?.data?.length} Log=${resLog.status}/${resLog.data?.data?.length} P=${resP.status}/${resP.data?.data?.length} I=${resI.status}/${resI.data?.data?.length}`);
       r.pass(s, 'création prestataire refusée', pst.status === 400 || pst.status === 403, `reçu ${pst.status}`);
+      if (pst.status === 201) await apiLt(`/prestataires/${pst.data?.data?.id}`, { method: 'DELETE', jar });
       r.pass(s, 'suppression logement refusée (404/403)', lgDel.status === 404 || lgDel.status === 403, `reçu ${lgDel.status}`);
       r.pass(s, 'admin/stats refusé → 403', resAdmin.status === 403, `reçu ${resAdmin.status}`);
       r.pass(s, 'stats/dashboard propriétaire → vide mais 200', stDash.status === 200 && stDash.data?.stats?.totalProperties === 0, `reçu ${stDash.status} total=${stDash.data?.stats?.totalProperties}`);
