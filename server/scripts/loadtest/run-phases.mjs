@@ -113,11 +113,11 @@ async function phase5() {
       saveState(state);
     }
 
-    r.pass('P5-auth', 'login mot de passe incorrect → 401', `${wrongOk}/30`);
-    r.pass('P5-auth', 'login correct + must_change_password=true', `${forcedOk}/30`);
-    r.pass('P5-auth', 'change-password forcé → 200', `${sample.length - details.filter((d) => d.includes('change-pw')).length}/30`);
-    r.pass('P5-auth', 're-login nouveau mot de passe + must_change_password=false', `${Math.floor(reloginOk / 2)}/30`);
-    r.pass('P5-auth', 'rename username + login par nouveau username + revert', `${renameOk}/30`);
+    r.pass('P5-auth', 'login mot de passe incorrect → 401', wrongOk === 30, `${wrongOk}/30`);
+    r.pass('P5-auth', 'login correct + must_change_password=true', forcedOk === 30, `${forcedOk}/30`);
+    r.pass('P5-auth', 'change-password forcé → 200', sample.length - details.filter((d) => d.includes('change-pw')).length === 30, `${sample.length - details.filter((d) => d.includes('change-pw')).length}/30`);
+    r.pass('P5-auth', 're-login nouveau mot de passe + must_change_password=false', Math.floor(reloginOk / 2) === 30, `${Math.floor(reloginOk / 2)}/30`);
+    r.pass('P5-auth', 'rename username + login par nouveau username + revert', renameOk === 30, `${renameOk}/30`);
     r.record('P5-auth', 'latence login (30 échantillons)', 'perf', JSON.stringify(statSummary(loginTimes)));
     if (details.length) r.fail('P5-auth', 'aucun détail d\'échec', details.slice(0, 5).join(' | '));
 
