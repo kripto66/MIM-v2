@@ -189,7 +189,11 @@ export async function ltCounts() {
 export class Runner {
   constructor() { this.results = []; }
   record(suite, name, ok, detail = '') { this.results.push({ suite, name, ok, detail }); }
-  pass(suite, name, detail = '') { this.record(suite, name, true, detail); }
+  pass(suite, name, ok, detail) {
+    // ok est un booléen → test réel ; sinon c'est un détail avec pass conditionnel.
+    if (typeof ok === 'boolean') return this.record(suite, name, ok, detail ?? '');
+    return this.record(suite, name, true, ok ?? '');
+  }
   fail(suite, name, detail = '') { this.record(suite, name, false, detail); }
   blocked(suite, name, detail = '') { this.record(suite, name, 'blocked', detail); }
   summary() {

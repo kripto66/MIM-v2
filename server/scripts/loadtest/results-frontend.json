@@ -1,5 +1,5 @@
 {
-  "at": "2026-08-13T14:45:11.634Z",
+  "at": "2026-08-13T17:44:00.828Z",
   "results": [
     {
       "name": "P18 propriétaire redirection dashboard",
@@ -9,12 +9,12 @@
     {
       "name": "P18 propriétaire 100 logements",
       "ok": false,
-      "detail": "total='3'"
+      "detail": "total='—'"
     },
     {
       "name": "P18 propriétaire 100 occupés",
       "ok": false,
-      "detail": "occupés='3'"
+      "detail": "occupés='—'"
     },
     {
       "name": "P18 propriétaire nom",
@@ -22,9 +22,29 @@
       "detail": "owner='LoadTest Owner 001'"
     },
     {
-      "name": "P18 locataire change-password + LocaDash",
-      "ok": false,
-      "detail": "URL \"change-password\" non atteinte (actuelle: http://localhost:3000/PartPublic/connexion.html)"
+      "name": "P18 locataire redirigé change-password",
+      "ok": true,
+      "detail": "http://localhost:3000/PartPublic/change-password.html?next=..%2FPartLocataires%2FLocaDash.html"
+    },
+    {
+      "name": "P18 locataire LocaDash chargé",
+      "ok": true,
+      "detail": "linked=true"
+    },
+    {
+      "name": "P18 locataire loyer cohérent (82500)",
+      "ok": true,
+      "detail": "loyer=82500"
+    },
+    {
+      "name": "P18 locataire statut paiement affiché",
+      "ok": true,
+      "detail": "'À jour'"
+    },
+    {
+      "name": "P18 locataire logout cliquable",
+      "ok": true,
+      "detail": ""
     },
     {
       "name": "P18 admin redirection",
@@ -39,17 +59,17 @@
     {
       "name": "P18 admin propriétaires ≥ 107",
       "ok": false,
-      "detail": "n=10"
+      "detail": "n=26"
     },
     {
       "name": "P18 admin locataires ≥ 10000",
       "ok": false,
-      "detail": "n=11"
+      "detail": "n=1000"
     },
     {
       "name": "P18 aucune exception console",
       "ok": false,
-      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found) | HTTP 401 http://localhost:3000/api/auth/login | Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)"
     }
   ]
 }
