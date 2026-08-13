@@ -170,6 +170,9 @@ async function dashboard() {
   app.innerHTML = `<div class="empty">Chargement…</div>`;
   const { stats } = await apiRequest("/admin/stats");
 
+  const notif = document.getElementById("notificationCount");
+  if (notif) notif.textContent = stats.paiementsEnRetard + stats.incidentsActifs;
+
   const maxRev = Math.max(...stats.revenue12.map((r) => r.total), 1);
   const chart = stats.revenue12.map((r) => {
     const pct = Math.max(4, Math.round((r.total / maxRev) * 100));
