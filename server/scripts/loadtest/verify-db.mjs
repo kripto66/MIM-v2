@@ -11,8 +11,9 @@ import { createClient } from '@supabase/supabase-js';
 import { service, loadState, LT, ownerEmail, tenantUsername } from './common.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const state = loadState();
-const ownerIds = state.owners.map((o) => o.id);
-const ownerIdList = `(${ownerIds.map((id) => `'${id}'`).join(',')})`;
+// Sous-requête au lieu de la liste inline d'UUID (évite la limite de longueur
+// de ligne de commande Windows ~8191 car. et reste correct après un re-seed).
+const ownerSubq = "SELECT id FROM auth.users WHERE email LIKE 'loadtest.owner.%'";
 
 function sql(q) {
   const out = execSync(
@@ -38,15 +39,15 @@ async function main() {
 
   // --- Comptages loadtest (par les propriétaires) ---
   const lt = {
-    locataires: sql(`SELECT count(*) FROM public.locataires WHERE user_id IN ${ownerIdList};`),
-    logements: sql(`SELECT count(*) FROM public.logements WHERE user_id IN ${ownerIdList};`),
-    paiements: sql(`SELECT count(*) FROM public.paiements WHERE user_id IN ${ownerIdList};`),
-    biens: sql(`SELECT count(*) FROM public.biens WHERE user_id IN ${ownerIdList};`),
-    incidents: sql(`SELECT count(*) FROM public.incidents WHERE user_id IN ${ownerIdList};`),
-    prestataires: sql(`SELECT count(*) FROM public.prestataires WHERE user_id IN ${ownerIdList};`),
-    interventions: sql(`SELECT count(*) FROM public.interventions WHERE user_id IN ${ownerIdList};`),
-    notifications: sql(`SELECT count(*) FROM public.notifications WHERE user_id IN ${ownerIdList};`),
-    sessions: sql(`SELECT count(*) FROM public.sessions WHERE user_id IN ${ownerIdList};`),
+    locataires: sql(`SELECT count(*) FROM public.locataires WHERE user_id IN (${ownerSubq});`),
+    logements: sql(`SELECT count(*) FROM public.logements WHERE user_id IN (${ownerSubq});`),
+    paiements: sql(`SELECT count(*) FROM public.paiements WHERE user_id IN (${ownerSubq});`),
+    biens: sql(`SELECT count(*) FROM public.biens WHERE user_id IN (${ownerSubq});`),
+    incidents: sql(`SELECT count(*) FROM public.incidents WHERE user_id IN (${ownerSubq});`),
+    prestataires: sql(`SELECT count(*) FROM public.prestataires WHERE user_id IN (${ownerSubq});`),
+    interventions: sql(`SELECT count(*) FROM public.interventions WHERE user_id IN (${ownerSubq});`),
+    notifications: sql(`SELECT count(*) FROM public.notifications WHERE user_id IN (${ownerSubq});`),
+    sessions: sql(`SELECT count(*) FROM public.sessions WHERE user_id IN (${ownerSubq});`),
   };
   const OWNERS = LT.owners, PER = LT.perOwner;
   const expected = { locataires: OWNERS * PER, logements: OWNERS * PER, paiements: OWNERS * PER, biens: OWNERS, prestataires: OWNERS, interventions: OWNERS };
@@ -59,29 +60,29 @@ async function main() {
 
   // --- Orphelins ---
   const orphans = {
-    'paiements sans locataire': sql(`SELECT count(*) FROM public.paiements p LEFT JOIN public.locataires l ON l.id = p.locataire_id WHERE p.user_id IN ${ownerIdList} AND l.id IS NULL;`),
-    'locataires sans logement': sql(`SELECT count(*) FROM public.locataires WHERE user_id IN ${ownerIdList} AND logement_id IS NULL;`),
-    'locataires sur logement absent': sql(`SELECT count(*) FROM public.locataires lo LEFT JOIN public.logements lg ON lg.id = lo.logement_id WHERE lo.user_id IN ${ownerIdList} AND lo.logement_id IS NOT NULL AND lg.id IS NULL;`),
-    'logements sans bien': sql(`SELECT count(*) FROM public.logements WHERE user_id IN ${ownerIdList} AND bien_id IS NULL;`),
-    'logements sur bien absent': sql(`SELECT count(*) FROM public.logements lo LEFT JOIN public.biens b ON b.id = lo.bien_id WHERE lo.user_id IN ${ownerIdList} AND lo.bien_id IS NOT NULL AND b.id IS NULL;`),
-    'incidents sans logement': sql(`SELECT count(*) FROM public.incidents WHERE user_id IN ${ownerIdList} AND logement_id IS NULL;`),
-    'incidents sur logement absent': sql(`SELECT count(*) FROM public.incidents i LEFT JOIN public.logements lg ON lg.id = i.logement_id WHERE i.user_id IN ${ownerIdList} AND i.logement_id IS NOT NULL AND lg.id IS NULL;`),
-    'interventions sans incident': sql(`SELECT count(*) FROM public.interventions WHERE user_id IN ${ownerIdList} AND incident_id IS NULL;`),
-    'interventions sans prestataire': sql(`SELECT count(*) FROM public.interventions WHERE user_id IN ${ownerIdList} AND prestataire_id IS NULL;`),
-    'prestataires sans intervention (possibles)': sql(`SELECT count(*) FROM public.prestataires pr LEFT JOIN public.interventions i ON i.prestataire_id = pr.id WHERE pr.user_id IN ${ownerIdList} AND i.id IS NULL;`),
-    'fiches locataires sans compte (account_uid NULL)': sql(`SELECT count(*) FROM public.locataires WHERE user_id IN ${ownerIdList} AND account_uid IS NULL;`),
-    'fiches locataires avec compte supprimé': sql(`SELECT count(*) FROM public.locataires lo LEFT JOIN auth.users u ON u.id = lo.account_uid WHERE lo.user_id IN ${ownerIdList} AND lo.account_uid IS NOT NULL AND u.id IS NULL;`),
-    'notifications sans utilisateur': sql(`SELECT count(*) FROM public.notifications n LEFT JOIN auth.users u ON u.id = n.user_id WHERE n.user_id IN ${ownerIdList} AND u.id IS NULL;`),
-    'sessions sans utilisateur': sql(`SELECT count(*) FROM public.sessions s LEFT JOIN auth.users u ON u.id = s.user_id WHERE s.user_id IN ${ownerIdList} AND u.id IS NULL;`),
+    'paiements sans locataire': sql(`SELECT count(*) FROM public.paiements p LEFT JOIN public.locataires l ON l.id = p.locataire_id WHERE p.user_id IN (${ownerSubq}) AND l.id IS NULL;`),
+    'locataires sans logement': sql(`SELECT count(*) FROM public.locataires WHERE user_id IN (${ownerSubq}) AND logement_id IS NULL;`),
+    'locataires sur logement absent': sql(`SELECT count(*) FROM public.locataires lo LEFT JOIN public.logements lg ON lg.id = lo.logement_id WHERE lo.user_id IN (${ownerSubq}) AND lo.logement_id IS NOT NULL AND lg.id IS NULL;`),
+    'logements sans bien': sql(`SELECT count(*) FROM public.logements WHERE user_id IN (${ownerSubq}) AND bien_id IS NULL;`),
+    'logements sur bien absent': sql(`SELECT count(*) FROM public.logements lo LEFT JOIN public.biens b ON b.id = lo.bien_id WHERE lo.user_id IN (${ownerSubq}) AND lo.bien_id IS NOT NULL AND b.id IS NULL;`),
+    'incidents sans logement': sql(`SELECT count(*) FROM public.incidents WHERE user_id IN (${ownerSubq}) AND logement_id IS NULL;`),
+    'incidents sur logement absent': sql(`SELECT count(*) FROM public.incidents i LEFT JOIN public.logements lg ON lg.id = i.logement_id WHERE i.user_id IN (${ownerSubq}) AND i.logement_id IS NOT NULL AND lg.id IS NULL;`),
+    'interventions sans incident': sql(`SELECT count(*) FROM public.interventions WHERE user_id IN (${ownerSubq}) AND incident_id IS NULL;`),
+    'interventions sans prestataire': sql(`SELECT count(*) FROM public.interventions WHERE user_id IN (${ownerSubq}) AND prestataire_id IS NULL;`),
+    'prestataires sans intervention (possibles)': sql(`SELECT count(*) FROM public.prestataires pr LEFT JOIN public.interventions i ON i.prestataire_id = pr.id WHERE pr.user_id IN (${ownerSubq}) AND i.id IS NULL;`),
+    'fiches locataires sans compte (account_uid NULL)': sql(`SELECT count(*) FROM public.locataires WHERE user_id IN (${ownerSubq}) AND account_uid IS NULL;`),
+    'fiches locataires avec compte supprimé': sql(`SELECT count(*) FROM public.locataires lo LEFT JOIN auth.users u ON u.id = lo.account_uid WHERE lo.user_id IN (${ownerSubq}) AND lo.account_uid IS NOT NULL AND u.id IS NULL;`),
+    'notifications sans utilisateur': sql(`SELECT count(*) FROM public.notifications n LEFT JOIN auth.users u ON u.id = n.user_id WHERE n.user_id IN (${ownerSubq}) AND u.id IS NULL;`),
+    'sessions sans utilisateur': sql(`SELECT count(*) FROM public.sessions s LEFT JOIN auth.users u ON u.id = s.user_id WHERE s.user_id IN (${ownerSubq}) AND u.id IS NULL;`),
   };
   for (const [k, v] of Object.entries(orphans)) {
     add(`orphelin ${k}`, Number(v) === 0, `reçu ${v}`);
   }
 
   // --- Cohérence occupation ---
-  const occupeSansActif = sql(`SELECT count(*) FROM public.logements lg WHERE lg.user_id IN ${ownerIdList} AND lg.statut='occupe' AND NOT EXISTS (SELECT 1 FROM public.locataires lo WHERE lo.logement_id = lg.id AND lo.statut='actif');`);
+  const occupeSansActif = sql(`SELECT count(*) FROM public.logements lg WHERE lg.user_id IN (${ownerSubq}) AND lg.statut='occupe' AND NOT EXISTS (SELECT 1 FROM public.locataires lo WHERE lo.logement_id = lg.id AND lo.statut='actif');`);
   add('logements "occupe" sans locataire actif', Number(occupeSansActif) === 0, `reçu ${occupeSansActif}`);
-  const libreAvecActif = sql(`SELECT count(*) FROM public.logements lg WHERE lg.user_id IN ${ownerIdList} AND lg.statut='libre' AND EXISTS (SELECT 1 FROM public.locataires lo WHERE lo.logement_id = lg.id AND lo.statut='actif');`);
+  const libreAvecActif = sql(`SELECT count(*) FROM public.logements lg WHERE lg.user_id IN (${ownerSubq}) AND lg.statut='libre' AND EXISTS (SELECT 1 FROM public.locataires lo WHERE lo.logement_id = lg.id AND lo.statut='actif');`);
   add('logements "libre" avec locataire actif', Number(libreAvecActif) === 0, `reçu ${libreAvecActif}`);
 
   // --- Doublons / email interne ---
@@ -100,7 +101,7 @@ async function main() {
   add('RLS : client anon ne lit pas de logements', anonErr !== null && (anonRes?.length ?? 0) === 0, `err=${anonErr?.message || 'aucune'} n=${anonRes?.length}`);
 
   // --- Sommes paiements vs loyers (cohérence financière) ---
-  const sums = sql(`SELECT (SELECT sum(montant) FROM public.paiements WHERE user_id IN ${ownerIdList})::bigint AS total, (SELECT sum(loyer_mensuel) FROM public.logements WHERE user_id IN ${ownerIdList} AND statut='occupe')::bigint AS loyers, (SELECT count(*) FROM public.paiements WHERE user_id IN ${ownerIdList} AND statut='paye') AS payes, (SELECT count(*) FROM public.paiements WHERE user_id IN ${ownerIdList} AND statut='attente') AS attentes, (SELECT count(*) FROM public.paiements WHERE user_id IN ${ownerIdList} AND statut='retard') AS retards;`);
+  const sums = sql(`SELECT (SELECT sum(montant) FROM public.paiements WHERE user_id IN (${ownerSubq}))::bigint AS total, (SELECT sum(loyer_mensuel) FROM public.logements WHERE user_id IN (${ownerSubq}) AND statut='occupe')::bigint AS loyers, (SELECT count(*) FROM public.paiements WHERE user_id IN (${ownerSubq}) AND statut='paye') AS payes, (SELECT count(*) FROM public.paiements WHERE user_id IN (${ownerSubq}) AND statut='attente') AS attentes, (SELECT count(*) FROM public.paiements WHERE user_id IN (${ownerSubq}) AND statut='retard') AS retards;`);
   add('somme paiements = somme loyers occupés', true, sums);
   const [totalP, totalL, payes, attentes, retards] = sums.split(',');
   add('cohérence montants (paiements = loyers)', Number(totalP) === Number(totalL), `paiements=${totalP} loyers=${totalL}`);
