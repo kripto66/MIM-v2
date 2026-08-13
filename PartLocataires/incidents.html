@@ -248,8 +248,8 @@
                     photoInput.value = "";
                     return;
                 }
-                if (file.size > 8 * 1024 * 1024) {
-                    photoStatus.textContent = "Image trop lourde (maximum 8 Mo).";
+                if (file.size > 2.5 * 1024 * 1024) {
+                    photoStatus.textContent = "Image trop lourde (maximum 2,5 Mo).";
                     photoInput.value = "";
                     return;
                 }
@@ -289,7 +289,7 @@
                 submitBtn.textContent = "Envoi...";
 
                 try {
-                    await tenantRequest("/locataire/incidents", {
+                    const created = await tenantRequest("/locataire/incidents", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify(body),
@@ -297,7 +297,7 @@
                     form.reset();
                     photoInput.dataset.photoDataUrl = "";
                     photoStatus.textContent = "";
-                    showTenantError("Incident signalé. Le propriétaire a été notifié.", true);
+                    showTenantError(created.message || "Incident signalé.", true);
                     try {
                         const data = await tenantRequest("/locataire/dashboard");
                         const list = document.getElementById("incidentsList");

@@ -41,7 +41,6 @@ const sections = {
   paiements: ["Paiements", "Suivi global des paiements."],
   incidents: ["Incidents", "Incidents et interventions."],
   activite: ["Activité", "Historique des événements de la plateforme."],
-  parametres: ["Paramètres", "Configuration de l'administration."],
 };
 
 const LABELS = {
@@ -117,7 +116,6 @@ function tablePage(title, data, columns, headers, actions, onAction) {
   return `<div class="panel">
     <div class="toolbar">
       <input class="search" id="tableSearch" placeholder="Rechercher dans ${title.toLowerCase()}...">
-      <button class="btn" onclick="showToast('Création côté administration non disponible dans cette version.')">+ Ajouter</button>
       <button class="btn secondary" onclick="exportCSV()">Exporter CSV</button>
     </div>
     <div class="table-wrap"><table class="table"><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}${actions ? "<th>Actions</th>" : ""}</tr></thead>
@@ -170,9 +168,6 @@ async function dashboard() {
   app.innerHTML = `<div class="empty">Chargement…</div>`;
   const { stats } = await apiRequest("/admin/stats");
 
-  const notif = document.getElementById("notificationCount");
-  if (notif) notif.textContent = stats.paiementsEnRetard + stats.incidentsActifs;
-
   const maxRev = Math.max(...stats.revenue12.map((r) => r.total), 1);
   const chart = stats.revenue12.map((r) => {
     const pct = Math.max(4, Math.round((r.total / maxRev) * 100));
@@ -224,8 +219,7 @@ async function proprietaires() {
     ["ID", "Nom", "Email", "Biens", "Statut", "Dernière connexion"],
     true,
     (r) =>
-      `<button class="btn secondary" onclick="showToast('${r.nom} — ${r.biens} biens')">Voir</button>
-       <button class="btn ${r.statut === "suspendu" ? "secondary" : "danger"}" onclick="setStatut('${r.id}','${r.statut}')">${r.statut === "suspendu" ? "Réactiver" : "Suspendre"}</button>`
+      `<button class="btn ${r.statut === "suspendu" ? "secondary" : "danger"}" onclick="setStatut('${r.id}','${r.statut}')">${r.statut === "suspendu" ? "Réactiver" : "Suspendre"}</button>`
   );
   bindSearch();
 }
@@ -233,14 +227,14 @@ async function proprietaires() {
 async function locataires() {
   app.innerHTML = `<div class="empty">Chargement…</div>`;
   const { data } = await apiRequest("/admin/locataires");
-  app.innerHTML = tablePage("locataires", data, ["id", "nom", "proprietaire", "logement", "statut"], ["ID", "Nom", "Propriétaire", "Logement", "Statut"], true, (r) => `<button class="btn secondary" onclick="showToast('${r.nom}')">Voir</button>`);
+  app.innerHTML = tablePage("locataires", data, ["id", "nom", "proprietaire", "logement", "statut"], ["ID", "Nom", "Propriétaire", "Logement", "Statut"]);
   bindSearch();
 }
 
 async function biens() {
   app.innerHTML = `<div class="empty">Chargement…</div>`;
   const { data } = await apiRequest("/admin/biens");
-  app.innerHTML = tablePage("biens", data, ["id", "nom", "logements", "occupes", "proprietaire"], ["ID", "Bien", "Logements", "Occupés", "Propriétaire"], true, (r) => `<button class="btn secondary" onclick="showToast('${r.nom}')">Voir</button>`);
+  app.innerHTML = tablePage("biens", data, ["id", "nom", "logements", "occupes", "proprietaire"], ["ID", "Bien", "Logements", "Occupés", "Propriétaire"]);
   bindSearch();
 }
 
@@ -250,12 +244,12 @@ async function paiements() {
   const rows = (data || []).map((r) => ({
     id: r.id,
     locataire: r.locataire,
+    logement: r.logement,
     periode: r.periode,
     montant: money(r.montant),
     statut: r.statut,
-    _amount: r.montant,
   }));
-  app.innerHTML = tablePage("paiements", rows, ["id", "locataire", "periode", "montant", "statut"], ["ID", "Locataire", "Période", "Montant", "Statut"], true, (r) => `<button class="btn secondary" onclick="showToast('${r.locataire} — ${money(r._amount)}')">Voir</button>`);
+  app.innerHTML = tablePage("paiements", rows, ["id", "locataire", "logement", "periode", "montant", "statut"], ["ID", "Locataire", "Logement", "Période", "Montant", "Statut"]);
   bindSearch();
 }
 
@@ -263,7 +257,7 @@ async function incidents() {
   app.innerHTML = `<div class="empty">Chargement…</div>`;
   const { data } = await apiRequest("/admin/incidents");
   const rows = (data || []).map((r) => ({ ...r, date: fmtDate(r.date) }));
-  app.innerHTML = tablePage("incidents", rows, ["id", "titre", "locataire", "statut", "date"], ["ID", "Incident", "Locataire", "Statut", "Date"], true, (r) => `<button class="btn secondary" onclick="showToast('${r.titre}')">Voir</button>`);
+  app.innerHTML = tablePage("incidents", rows, ["id", "titre", "locataire", "logement", "statut", "date"], ["ID", "Incident", "Locataire", "Logement", "Statut", "Date"]);
   bindSearch();
 }
 
@@ -274,18 +268,7 @@ async function activite() {
     <div class="activity">${(data || []).map((a) => activity(a.action, `${a.user} — ${a.detail}`, a.date)).join("") || `<div class="empty">Aucune activité.</div>`}</div></div>`;
 }
 
-async function parametres() {
-  app.innerHTML = `<div class="panel"><div class="panel-header"><h2>Configuration</h2></div><div class="settings">
-    <div class="field"><label>Nom de la plateforme</label><input value="MyImmoManagement"></div>
-    <div class="field"><label>Email administrateur</label><input type="email" value="admin@mim.local"></div>
-    <div class="switch-row"><span><strong>Notifications système</strong><small>Recevoir les alertes importantes.</small></span><div class="switch on"><i></i></div></div>
-    <div class="switch-row"><span><strong>Mode maintenance</strong><small>Bloquer temporairement les nouveaux accès.</small></span><div class="switch"><i></i></div></div>
-    <button class="btn" onclick="showToast('Configuration de la plateforme non disponible dans cette version.')">Enregistrer</button>
-  </div></div>`;
-  document.querySelectorAll(".switch").forEach((s) => s.addEventListener("click", () => s.classList.toggle("on")));
-}
-
-const RENDERERS = { dashboard, proprietaires, locataires, biens, paiements, incidents, activite, parametres };
+const RENDERERS = { dashboard, proprietaires, locataires, biens, paiements, incidents, activite };
 
 // ============================================================
 // Navigation & actions

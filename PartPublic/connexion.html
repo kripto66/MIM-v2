@@ -171,9 +171,6 @@
                     message.textContent = data.message;
                     message.className = 'error';
                     applyServerErrors(form, data.errors);
-                    if (!data.errors) {
-                        formFieldError(form, 'password', 'Mot de passe incorrect.');
-                    }
                 }
             } catch (error) {
                 console.error('Erreur:', error);

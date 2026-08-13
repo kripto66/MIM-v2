@@ -290,29 +290,14 @@
     <footer>
 
         <p>
-            &copy; 2026 MyImmoManagement. Tous droits réservés.
+            &copy; <span id="footerYear">2026</span> MyImmoManagement. Tous droits réservés.
         </p>
 
-        <nav>
-
-           
-<br>
-                
-                    <a href="#">Politique de confidentialité</a>
-                <br>
-
-               
-                    <a href="#">Conditions d'utilisation</a>
-               <br>
-
-                
-                    <a href="#">Contact</a>
-                
-            
-
-        </nav>
-
     </footer>
+
+    <script>
+        document.getElementById('footerYear').textContent = new Date().getFullYear();
+    </script>
 
 </body>
 

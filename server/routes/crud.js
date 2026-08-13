@@ -34,10 +34,6 @@ const SCHEMAS = {
     fields: ['incident_id', 'prestataire_id', 'logement_id', 'titre', 'description', 'statut', 'date_prevue'],
     emptyToNull: ['incident_id', 'prestataire_id', 'logement_id', 'description', 'date_prevue'],
   },
-  notifications: {
-    fields: ['type', 'message', 'lu'],
-    emptyToNull: [],
-  },
 };
 
 function sanitize(tableName, body) {

@@ -186,8 +186,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initTenantShell();
   loadTenantIdentity();
 
-  const dashboardDataEl = document.getElementById("dashboardData");
-  if (!dashboardDataEl) return;
+  const dashboardContentEl = document.getElementById("dashboardContent");
+  if (!dashboardContentEl) return;
 
   (async () => {
     try {
@@ -195,6 +195,8 @@ document.addEventListener("DOMContentLoaded", () => {
       renderDashboard(data);
     } catch (err) {
       showTenantError(err.message);
+      const content = document.getElementById("dashboardContent");
+      if (content) content.style.display = "none";
     }
   })();
 });
@@ -226,7 +228,6 @@ function renderDashboard(data) {
 
   const prochain = computeNextPaiement(data.paiements, s.loyer);
   setText("prochainMontant", prochain.montant);
-  setText("prochainEcheance", prochain.echeance);
   setText("incidentsOuverts", s.incidentsOuverts);
 
   if (data.logement) {

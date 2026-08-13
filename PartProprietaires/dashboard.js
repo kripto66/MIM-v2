@@ -68,81 +68,8 @@ function listItem(html) {
   return `<div class="list-item"><div class="list-item-info">${html}</div></div>`;
 }
 
-const DEMO_MODE = new URLSearchParams(window.location.search).get("demo") === "1";
-
-const DEMO = {
-  user: { name: "Ahmadou Diop", email: "amathd988@gmail.com" },
-  stats: {
-    totalProperties: 12,
-    occupiedProperties: 8,
-    availableProperties: 3,
-    expectedRent: 1450000,
-    paidRent: 980000,
-    lateRent: 250000,
-    activeIncidents: 4,
-    activeInterventions: 2,
-  },
-  biens: [
-    { id: 1, nom: "Immeuble Amadou", type: "immeuble", adresse: "Rue 12", ville: "Dakar", pays: "Sénégal", description: "Immeuble de 8 logements" },
-    { id: 2, nom: "Villa Almadies", type: "villa", adresse: "Route des Almadies", ville: "Dakar", pays: "Sénégal", description: "" },
-    { id: 3, nom: "Résidence Mermoz", type: "appartement", adresse: "Avenue Bourguiba", ville: "Dakar", pays: "Sénégal", description: "" },
-  ],
-  logements: [
-    { id: 1, bien_id: 1, nom: "Appartement A1", loyer_mensuel: 150000, statut: "occupe", description: "" },
-    { id: 2, bien_id: 1, nom: "Appartement A2", loyer_mensuel: 150000, statut: "libre", description: "" },
-    { id: 3, bien_id: 2, nom: "Villa complète", loyer_mensuel: 400000, statut: "occupe", description: "" },
-    { id: 4, bien_id: 3, nom: "Studio B1", loyer_mensuel: 90000, statut: "maintenance", description: "" },
-  ],
-  locataires: [
-    { id: 1, logement_id: 1, nom: "Moussa Fall", email: "moussa@mail.com", phone: "+221770000001", date_entree: "2025-01-15", statut: "actif" },
-    { id: 2, logement_id: 3, nom: "Aïssatou Ndiaye", email: "aissa@mail.com", phone: "+221770000002", date_entree: "2025-03-01", statut: "actif" },
-    { id: 3, logement_id: null, nom: "Ousmane Sarr", email: "ouss@mail.com", phone: "+221770000003", date_entree: null, statut: "inactif" },
-  ],
-  paiements: [
-    { id: 1, locataire_id: 1, logement_id: 1, montant: 150000, mois: "2026-08", statut: "paye", date_paiement: "2026-08-02" },
-    { id: 2, locataire_id: 2, logement_id: 3, montant: 400000, mois: "2026-08", statut: "attente", date_paiement: null },
-    { id: 3, locataire_id: 1, logement_id: 1, montant: 150000, mois: "2026-07", statut: "retard", date_paiement: null },
-  ],
-  incidents: [
-    { id: 1, logement_id: 4, titre: "Fuite d'eau", description: "Fuite sous l'évier", statut: "en_cours", created_at: "2026-08-10T10:00:00Z" },
-    { id: 2, logement_id: 1, titre: "Climatisation en panne", description: "", statut: "nouveau", created_at: "2026-08-11T09:30:00Z" },
-  ],
-  prestataires: [
-    { id: 1, nom: "Plomberie Diop", specialite: "Plomberie", phone: "+221770000010", email: "diop@mail.com" },
-    { id: 2, nom: "Élec Services", specialite: "Électricité", phone: "+221770000011", email: "" },
-  ],
-  interventions: [
-    { id: 1, incident_id: 1, prestataire_id: 1, logement_id: 4, titre: "Réparation fuite d'eau", description: "", statut: "en_cours", date_prevue: "2026-08-13" },
-    { id: 2, incident_id: 2, prestataire_id: 2, logement_id: 1, titre: "Remplacement climatiseur", description: "", statut: "planifie", date_prevue: "2026-08-15" },
-  ],
-  notifications: [
-    { id: 1, type: "paiement", message: "Paiement de 400 000 FCFA en attente (Aïssatou Ndiaye)", lu: false, created_at: "2026-08-11T08:00:00Z" },
-    { id: 2, type: "incident", message: "Nouvel incident : Climatisation en panne", lu: false, created_at: "2026-08-11T09:30:00Z" },
-    { id: 3, type: "info", message: "Bienvenue sur MIM !", lu: true, created_at: "2026-08-01T10:00:00Z" },
-  ],
-};
-
 async function loadStats() {
   try {
-    if (DEMO_MODE) {
-      const s = DEMO.stats;
-      const map = {
-        totalProperties: s.totalProperties,
-        occupiedProperties: s.occupiedProperties,
-        availableProperties: s.availableProperties,
-        expectedRent: fmtFCFA(s.expectedRent),
-        paidRent: fmtFCFA(s.paidRent),
-        lateRent: fmtFCFA(s.lateRent),
-        activeIncidents: s.activeIncidents,
-        activeInterventions: s.activeInterventions,
-      };
-      for (const [id, value] of Object.entries(map)) {
-        const el = document.getElementById(id);
-        if (el) el.textContent = value;
-      }
-      return;
-    }
-
     const res = await fetch(`${API}/stats/dashboard`, {
       credentials: "include",
     });
@@ -183,12 +110,6 @@ async function loadStats() {
 }
 
 async function loadUserName() {
-  if (DEMO_MODE) {
-    const el = document.getElementById("ownerName");
-    if (el) el.textContent = DEMO.user.name;
-    return;
-  }
-
   try {
     const res = await fetch(`${API}/auth/me`, { credentials: "include" });
     const data = await res.json();
@@ -332,37 +253,30 @@ function renderNotifications(notifications) {
 }
 
 async function loadOverview() {
-  if (DEMO_MODE) {
-    renderProperties(DEMO.biens);
-    renderHousing(DEMO.logements);
-    renderTenants(DEMO.locataires, DEMO.logements);
-    renderPayments(DEMO.paiements, DEMO.locataires, DEMO.logements);
-    renderIncidents(DEMO.incidents, DEMO.logements);
-    renderInterventions(DEMO.interventions, DEMO.prestataires, DEMO.logements);
-    renderNotifications(DEMO.notifications);
-    return;
-  }
-
   try {
-    const [biens, logements, locataires, paiements, incidents, prestataires, interventions, notifications] =
-      await Promise.all([
-        fetch(`${API}/biens`, { credentials: "include" }),
-        fetch(`${API}/logements`, { credentials: "include" }),
-        fetch(`${API}/locataires`, { credentials: "include" }),
-        fetch(`${API}/paiements`, { credentials: "include" }),
-        fetch(`${API}/incidents`, { credentials: "include" }),
-        fetch(`${API}/prestataires`, { credentials: "include" }),
-        fetch(`${API}/interventions`, { credentials: "include" }),
-        fetch(`${API}/notifications`, { credentials: "include" }),
-      ]);
+    const responses = await Promise.all([
+      fetch(`${API}/biens`, { credentials: "include" }),
+      fetch(`${API}/logements`, { credentials: "include" }),
+      fetch(`${API}/locataires`, { credentials: "include" }),
+      fetch(`${API}/paiements`, { credentials: "include" }),
+      fetch(`${API}/incidents`, { credentials: "include" }),
+      fetch(`${API}/prestataires`, { credentials: "include" }),
+      fetch(`${API}/interventions`, { credentials: "include" }),
+      fetch(`${API}/notifications`, { credentials: "include" }),
+    ]);
 
-    if (biens.status === 401) {
+    if (responses[0].status === 401) {
       window.location.href = "../PartPublic/connexion.html";
       return;
     }
 
-    const responses = [biens, logements, locataires, paiements, incidents, prestataires, interventions, notifications];
-    const parse = async (res) => (res.ok ? (await res.json()).data || [] : []);
+    const notOk = responses.find((res) => !res.ok);
+    if (notOk) {
+      const errData = await notOk.json().catch(() => ({}));
+      throw new Error(errData.message || "Erreur de chargement des données.");
+    }
+
+    const parse = async (res) => (await res.json()).data || [];
     const data = await Promise.all(responses.map(parse));
 
     renderProperties(data[0]);
@@ -374,6 +288,20 @@ async function loadOverview() {
     renderNotifications(data[7]);
   } catch (error) {
     console.error(error);
+    const sections = [
+      "propertiesList",
+      "housingSummary",
+      "tenantsList",
+      "paymentsSummary",
+      "recentPayments",
+      "recentIncidents",
+      "activeInterventionsList",
+      "recentNotifications",
+    ];
+    for (const id of sections) {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = '<div class="empty-state">Impossible de charger les données.</div>';
+    }
   }
 }
 

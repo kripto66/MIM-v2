@@ -51,7 +51,7 @@ async function loadPlatformData() {
     fetchAll('biens', 'id, user_id, nom, type, ville'),
     fetchAll('logements', 'id, user_id, bien_id, nom, statut, loyer_mensuel'),
     fetchAll('locataires', 'id, user_id, account_uid, logement_id, nom, email, statut'),
-    fetchAll('paiements', 'id, user_id, locataire_id, montant, mois, statut, date_paiement, created_at'),
+    fetchAll('paiements', 'id, user_id, locataire_id, logement_id, montant, mois, statut, date_paiement, created_at'),
     fetchAll('incidents', 'id, user_id, logement_id, titre, statut, created_at'),
     fetchAll('interventions', 'id, user_id, logement_id, statut, created_at'),
     fetchAll('sessions', 'id, user_id, action, created_at, logout_at, user_agent'),
