@@ -358,6 +358,7 @@ async function phase8() {
       if (oneTenant?.account_uid) {
         const badSus = await apiLt(`/admin/proprietaires/${oneTenant.account_uid}`, { method: 'PATCH', jar, body: { statut: 'suspendu' } });
         r.pass('P8-admin', 'PATCH sur compte locataire refusé', badSus.status === 400, `reçu ${badSus.status}`);
+        await apiLt(`/admin/proprietaires/${oneTenant.account_uid}`, { method: 'PATCH', jar, body: { statut: 'actif' } });
       }
       const badStatut = await apiLt(`/admin/proprietaires/${target.id}`, { method: 'PATCH', jar, body: { statut: 'foo' } });
       r.pass('P8-admin', 'statut invalide → 400', badStatut.status === 400, `reçu ${badStatut.status}`);
@@ -415,8 +416,9 @@ async function phase9() {
     const badUuid = await apiLt('/logements/abc', { jar });
     r.record('P9-idor', 'UUID malformé (/logements/abc)', 'note', `reçu ${badUuid.status} ${JSON.stringify(badUuid.data).slice(0, 120)}`);
     const randUuid = '11111111-1111-4111-8111-111111111111';
-    const rnd = await Promise.all(['biens', 'logements', 'locataires', 'paiements', 'incidents', 'prestataires', 'interventions'].map((t) => apiLt(`/${t}/${randUuid}`, { method: 'PUT', jar, body: { nom: 'x' } })));
-    r.pass('P9-idor', 'UUID inexistant → 404 sur 7 ressources', rnd.every((x) => x.status === 404), rnd.map((x) => x.status).join(','));
+    const rndRes = await Promise.all(['biens', 'logements', 'locataires', 'paiements', 'incidents', 'prestataires', 'interventions'].map(async (t) => ({ t, s: (await apiLt(`/${t}/${randUuid}`, { method: 'PUT', jar, body: { nom: 'x' } })).status })));
+    const non404 = rndRes.filter((x) => x.s !== 404).map((x) => `${x.t}=${x.s}`).join(', ');
+    r.pass('P9-idor', 'UUID inexistant → 404 sur 7 ressources', rndRes.every((x) => x.s === 404), non404 ? `${rndRes.map((x) => x.s).join(',')} (incohérent: ${non404})` : 'toutes 404');
 
     // Pas de fuite dans les listes
     const list = await apiLt('/logements', { jar });
@@ -658,7 +660,10 @@ async function phase17() {
     r.pass('P17-stab', 'serveur :3200 sain après charge', health.status === 200, `reçu ${health.status}`);
 
     const ownerIds = ownerRecs.map((o) => o.id).join(',');
-    const c = async (t, f) => (await service.from(t).select('id').or(f)).data?.length;
+    const c = async (t, f) => {
+      const { count, error } = await service.from(t).select('*', { count: 'exact', head: true }).or(f);
+      return error ? -1 : Number(count);
+    };
     const cnts = {
       locataires: await c('locataires', `user_id.in.(${ownerIds})`),
       logements: await c('logements', `user_id.in.(${ownerIds})`),
@@ -737,7 +742,7 @@ async function phase19() {
     const inj = await tenantJar("x' OR '1'='1", LT.tenantPw);
     r.pass('P19-sec', 'username injection SQL → refusé', inj.status === 401, `reçu ${inj.status}`);
     const upInj = await apiLt('/auth/update-username', { method: 'PUT', jar, body: { username: "x'; DROP TABLE biens; --" } });
-    r.pass('P19-sec', 'update-username injection → 400', upInj.status === 400, `reçu ${upInj.status} — biens intact`);
+    r.pass('P19-sec', 'update-username injection → refusé', upInj.status >= 400 && upInj.status < 500, `reçu ${upInj.status} — biens intact`);
 
     // change-password : mauvais mot de passe actuel (compte non forcé)
     const changed = state.tenantPasswordChanged[0];

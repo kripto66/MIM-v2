@@ -13,9 +13,10 @@ const psqlId = (email) => {
 };
 
 const state = loadState();
-const targets = [...(state.tenantPasswordChanged || [])];
+const raw = [...(state.tenantPasswordChanged || [])];
 const forced = `${tenantUsername(1, 3)}@mim.local`;
-if (!targets.includes(forced)) targets.push(forced);
+if (!raw.includes(forced)) raw.push(forced);
+const targets = raw.map((t) => (t.endsWith('@mim.local') ? t : `${t}@mim.local`));
 
 let ok = 0;
 for (const email of targets) {
