@@ -38,6 +38,14 @@ export async function runAdmin(r, ctx) {
     const owner = await api('/admin/stats', { jar: ctx.seed.owners[0].jar });
     if (owner.status === 403) r.pass(S, 'propriétaire → 403 (rôle refusé)');
     else r.fail(S, 'propriétaire → 403 (rôle refusé)', `statut ${owner.status}`);
+
+    const postNotif = await api('/notifications', {
+      method: 'POST',
+      jar: ctx.seed.owners[0].jar,
+      body: { type: 'info', message: 'intrusion', lu: false },
+    });
+    if (postNotif.status === 404) r.pass(S, 'création de notification via CRUD refusée (404)');
+    else r.fail(S, 'création de notification via CRUD refusée (404)', `statut ${postNotif.status}`);
   });
 
   await r.section('admin : connexion et redirection', async () => {
@@ -173,6 +181,10 @@ export async function runAdmin(r, ctx) {
     if (expectSuccess(r, pays, S, 'paiements')) {
       if (pays.data.data.length >= ctx.seed.countPaiements) r.pass(S, `paiements visibles (${pays.data.data.length})`);
       else r.fail(S, 'paiements visibles', `API=${pays.data.data.length} seed=${ctx.seed.countPaiements}`);
+
+      const avecLogement = pays.data.data.some((p) => p.logement && p.logement !== '—');
+      if (avecLogement) r.pass(S, 'paiements : colonne logement renseignée');
+      else r.fail(S, 'paiements : colonne logement renseignée');
     }
 
     const incs = await api('/admin/incidents', { jar: adminJar });
