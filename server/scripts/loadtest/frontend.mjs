@@ -12,13 +12,17 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LT, tenantUsername, ownerEmail } from './common.mjs';
+import { LT, tenantUsername, ownerEmail, loadState } from './common.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CDP_PORT = 9224;
 const EDGE = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe';
 const USER_DIR = path.join(os.tmpdir(), 'opencode', 'cdp-lt-profile');
 const BASE = process.env.LOADTEST_BASE || 'http://localhost:3000';
+
+const state = loadState();
+const PER = state.perOwner;
+const OWNERS = state.owners;
 
 const results = [];
 const record = (name, ok, detail = '') => results.push({ name, ok, detail });
@@ -113,12 +117,17 @@ async function main() {
     }
     if (msg.method === 'Runtime.exceptionThrown') pageErrors.push(JSON.stringify(msg.params.exceptionDetails).slice(0, 300));
     if (msg.method === 'Log.entryAdded' && msg.params.entry.level === 'error') pageErrors.push(msg.params.entry.text);
+    if (msg.method === 'Network.responseReceived' && msg.params.response.status >= 400) {
+      const u = msg.params.response.url;
+      if (!/favicon/i.test(u)) pageErrors.push(`HTTP ${msg.params.response.status} ${u}`);
+    }
   };
   await new Promise((res) => { ws.onopen = res; });
 
   await send('Runtime.enable');
   await send('Log.enable');
   await send('Page.enable');
+  await send('Network.enable');
 
   // Le serveur :3000 (prod local) doit être disponible pour la phase frontend.
   let prodOk = false;
@@ -143,8 +152,8 @@ async function main() {
     const occupied = await textOf('#occupiedProperties');
     const owner = await textOf('#ownerName');
     record('P18 propriétaire redirection dashboard', url.includes('PartProprietaires/dashboard.html'), url);
-    record('P18 propriétaire 100 logements', total.replace(/\D/g, '') === '100', `total='${total}'`);
-    record('P18 propriétaire 100 occupés', occupied.replace(/\D/g, '') === '100', `occupés='${occupied}'`);
+    record(`P18 propriétaire ${PER} logements`, total.replace(/\D/g, '') === String(PER), `total='${total}'`);
+    record(`P18 propriétaire ${PER} occupés`, occupied.replace(/\D/g, '') === String(PER), `occupés='${occupied}'`);
     record('P18 propriétaire nom', owner.includes('LoadTest Owner'), `owner='${owner}'`);
   });
 
@@ -163,9 +172,10 @@ async function main() {
     await waitForUrl('LocaDash.html', 25000);
     await sleep(1200);
     const dash = await pageFetch(`${BASE}/api/locataire/dashboard`);
-    const loyerOk = dash.linked && dash.logement?.loyer_mensuel === 82500;
+    const loyer = 80000 + 1 * 1000 + 3 * 500;
+    const loyerOk = dash.linked && dash.logement?.loyer_mensuel === loyer;
     record('P18 locataire LocaDash chargé', !!dash.linked, `linked=${dash.linked}`);
-    record('P18 locataire loyer cohérent (82 500)', loyerOk, `loyer=${dash.logement?.loyer_mensuel}`);
+    record(`P18 locataire loyer cohérent (${loyer})`, loyerOk, `loyer=${dash.logement?.loyer_mensuel}`);
     const statut = await textOf('#paiementStatut');
     record('P18 locataire statut paiement affiché', statut.length > 0, `'${statut}'`);
     // logout
@@ -185,8 +195,8 @@ async function main() {
     const stats = await pageFetch(`${BASE}/api/admin/stats`);
     record('P18 admin redirection', url.includes('PartAdmin/admin.html'), url);
     record('P18 admin stats chargées', stats.success === true, `success=${stats.success}`);
-    record('P18 admin propriétaires ≥ 100', (stats.stats?.proprietaires ?? 0) >= 100, `n=${stats.stats?.proprietaires}`);
-    record('P18 admin locataires ≥ 10000', (stats.stats?.locataires ?? 0) >= 10000, `n=${stats.stats?.locataires}`);
+    record(`P18 admin propriétaires ≥ ${OWNERS + 7}`, (stats.stats?.proprietaires ?? 0) >= OWNERS + 7, `n=${stats.stats?.proprietaires}`);
+    record(`P18 admin locataires ≥ ${OWNERS * PER}`, (stats.stats?.locataires ?? 0) >= OWNERS * PER, `n=${stats.stats?.locataires}`);
   });
 
   // ── Bilan console ──
