@@ -105,6 +105,7 @@ export async function api(base, url, { method = 'GET', body, jar, headers = {}, 
     headers: h,
     body: body !== undefined ? JSON.stringify(body) : undefined,
     redirect: 'manual',
+    signal: AbortSignal.timeout(60000),
   });
   if (jar && typeof res.headers.getSetCookie === 'function') {
     for (const sc of res.headers.getSetCookie()) {
