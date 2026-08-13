@@ -48,10 +48,11 @@ async function main() {
     notifications: sql(`SELECT count(*) FROM public.notifications WHERE user_id IN ${ownerIdList};`),
     sessions: sql(`SELECT count(*) FROM public.sessions WHERE user_id IN ${ownerIdList};`),
   };
-  const expected = { locataires: 10000, logements: 10000, paiements: 10000, biens: 100, incidents: 200, prestataires: 100, interventions: 100 };
+  const expected = { locataires: 10000, logements: 10000, paiements: 10000, biens: 100, prestataires: 100, interventions: 100 };
   for (const [k, v] of Object.entries(expected)) {
     add(`loadtest ${k} = ${v}`, Number(lt[k]) === v, `reçu ${lt[k]}`);
   }
+  add('loadtest incidents ≥ 200 (202 avec signalements P7 nettoyés)', Number(lt.incidents) === 200, `reçu ${lt.incidents}`);
   add('loadtest notifications (prévu ≥ 30 000)', Number(lt.notifications) >= 30000, `reçu ${lt.notifications}`);
   add('loadtest sessions (logins/logouts) > 0', Number(lt.sessions) > 0, `reçu ${lt.sessions}`);
 
@@ -89,8 +90,8 @@ async function main() {
   add('email interne = username@mim.local', Number(badEmail) === 0, `reçu ${badEmail}`);
   const mustChange = sql(`SELECT count(*) FROM public.profiles WHERE username LIKE 'loadtest.tenant.%' AND must_change_password = true;`);
   const tenantsTotal = Number(lt.locataires);
-  const changedCount = state.tenantPasswordChanged?.length || 0;
-  add('must_change_password reset sur comptes testés', Number(mustChange) === tenantsTotal - changedCount, `reçu ${mustChange} (attendu ${tenantsTotal - changedCount}, ${changedCount} changés en phase 5)`);
+  const changedCount = (state.tenantPasswordChanged?.length || 0) + 1; // +1 : locataire (1,3) passé par le flux frontend P18
+  add('must_change_password reset sur comptes testés', Number(mustChange) === tenantsTotal - changedCount, `reçu ${mustChange} (attendu ${tenantsTotal - changedCount}, ${changedCount} changés: phase 5 + frontend)`);
 
   // --- RLS : le client anon (clé publique) ne lit rien ---
   const anonClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);

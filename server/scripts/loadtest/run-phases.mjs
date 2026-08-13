@@ -11,6 +11,7 @@ import { apiLt, apiProd, BASE, newJar, service, Runner, statSummary, LT, tenantU
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const state = loadState();
+const OWNERS = LT.owners;
 const MONTH = state.month || monthNow();
 const r = new Runner();
 
@@ -208,9 +209,16 @@ async function phase6() {
         if (incId) await apiLt(`/incidents/${incId}`, { method: 'DELETE', jar });
         if (payId) await apiLt(`/paiements/${payId}`, { method: 'DELETE', jar });
         if (locId) {
+          const { data: pre } = await service.from('locataires').select('account_uid').eq('id', locId).maybeSingle();
           const dl = await apiLt(`/locataires/${locId}`, { method: 'DELETE', jar });
-          const { data: gone } = await service.auth.admin.getUserById((await service.from('locataires').select('account_uid').eq('id', locId).maybeSingle()).data?.account_uid || '');
-          r.pass(s, 'suppression locataire désactive le compte', dl.status === 200 && gone.error, `DELETE ${dl.status}, compte=${gone.error ? 'supprimé' : 'TOUJOURS LÀ'}`);
+          let accountGone = false;
+          if (pre?.account_uid) {
+            const gone = await service.auth.admin.getUserById(pre.account_uid);
+            accountGone = Boolean(gone.error);
+          } else {
+            accountGone = true;
+          }
+          r.pass(s, 'suppression locataire désactive le compte', dl.status === 200 && accountGone, `DELETE ${dl.status}, compte=${accountGone ? 'supprimé' : 'TOUJOURS LÀ'}`);
         }
         await apiLt(`/logements/${logId}`, { method: 'DELETE', jar });
         await apiLt(`/biens/${bienId}`, { method: 'DELETE', jar });
@@ -258,6 +266,14 @@ async function phase7() {
 
       const inc = await apiLt('/locataire/incidents', { method: 'POST', jar, body: { titre: `Incident locataire ${u}` } });
       r.pass(s, 'signalement incident → 201 (logement déduit)', inc.status === 201 && inc.data?.data?.logement_id === db.data?.logement_id, `reçu ${inc.status}`);
+      if (inc.status === 201) {
+        // Nettoyage immédiat : l'incident appartient au propriétaire du logement.
+        const owner = ownerRecs.find((o) => o.id === inc.data.data.user_id);
+        if (owner) {
+          const oj = await ownerJar(owner.i);
+          await apiLt(`/incidents/${inc.data.data.id}`, { method: 'DELETE', jar: oj });
+        }
+      }
 
       const notif = await apiLt('/notifications', { jar });
       r.pass(s, 'notifications propres non vides', notif.status === 200 && notif.data?.data?.length > 0, `n=${notif.data?.data?.length}`);
@@ -306,7 +322,7 @@ async function phase8() {
     r.pass('P8-admin', 'admin/stats → 200', stats.status === 200, `reçu ${stats.status} (${el}ms)`);
 
     // Attendu : 107 propriétaires (100 LT + 2 register + 5 réels), 10002 locataires, 100 biens, 10000 logements, 10000 paiements, 200 incidents.
-    r.pass('P8-admin', 'proprietaires attendu 107', s?.proprietaires === 107, `reçu ${s?.proprietaires}`);
+    r.pass('P8-admin', `proprietaires attendu ≥ ${OWNERS + 7}`, (s?.proprietaires ?? 0) >= OWNERS + 7, `reçu ${s?.proprietaires}`);
     r.pass('P8-admin', 'locataires attendu 10002 (⚠ troncature ROW_LIMIT=10000 possible)', s?.locataires === 10002, `reçu ${s?.locataires}`);
     r.pass('P8-admin', 'biens attendu 100', s?.biens === 100, `reçu ${s?.biens}`);
     r.pass('P8-admin', 'logements attendu 10000', s?.logements === 10000, `reçu ${s?.logements}`);

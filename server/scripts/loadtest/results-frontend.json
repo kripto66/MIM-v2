@@ -1,25 +1,75 @@
 {
-  "at": "2026-08-13T14:34:31.411Z",
+  "at": "2026-08-13T14:38:10.464Z",
   "results": [
     {
-      "name": "P18 propriétaire login+dashboard",
-      "ok": false,
-      "detail": "URL \"dashboard.html\" non atteinte (actuelle: http://127.0.0.1:3200/PartPublic/connexion.html)"
+      "name": "P18 propriétaire redirection dashboard",
+      "ok": true,
+      "detail": "http://localhost:3000/PartProprietaires/dashboard.html"
     },
     {
-      "name": "P18 locataire change-password + LocaDash",
+      "name": "P18 propriétaire 100 logements",
       "ok": false,
-      "detail": "URL \"change-password\" non atteinte (actuelle: http://127.0.0.1:3200/PartPublic/connexion.html)"
+      "detail": "total='4'"
     },
     {
-      "name": "P18 admin login+stats",
+      "name": "P18 propriétaire 100 occupés",
       "ok": false,
-      "detail": "URL \"admin.html\" non atteinte (actuelle: http://127.0.0.1:3200/PartPublic/connexion.html)"
+      "detail": "occupés='3'"
+    },
+    {
+      "name": "P18 propriétaire nom",
+      "ok": true,
+      "detail": "owner='LoadTest Owner 001'"
+    },
+    {
+      "name": "P18 locataire redirigé change-password",
+      "ok": true,
+      "detail": "http://localhost:3000/PartPublic/change-password.html?next=..%2FPartLocataires%2FLocaDash.html"
+    },
+    {
+      "name": "P18 locataire LocaDash chargé",
+      "ok": true,
+      "detail": "linked=true"
+    },
+    {
+      "name": "P18 locataire loyer cohérent (82 500)",
+      "ok": true,
+      "detail": "loyer=82500"
+    },
+    {
+      "name": "P18 locataire statut paiement affiché",
+      "ok": true,
+      "detail": "'…'"
+    },
+    {
+      "name": "P18 locataire logout cliquable",
+      "ok": true,
+      "detail": ""
+    },
+    {
+      "name": "P18 admin redirection",
+      "ok": true,
+      "detail": "http://localhost:3000/PartAdmin/admin.html"
+    },
+    {
+      "name": "P18 admin stats chargées",
+      "ok": true,
+      "detail": "success=true"
+    },
+    {
+      "name": "P18 admin propriétaires ≥ 100",
+      "ok": false,
+      "detail": "n=10"
+    },
+    {
+      "name": "P18 admin locataires ≥ 10000",
+      "ok": false,
+      "detail": "n=11"
     },
     {
       "name": "P18 aucune exception console",
       "ok": false,
-      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found) | Access to fetch at 'http://localhost:3000/api/auth/login' from origin 'http://127.0.0.1:3200' has been blocked by CORS policy: Response to preflight request doesn't pass access control check: No 'Access-Control-Allow-Origin' header is present on the requested resource. | Failed to load resource: net::ERR_FAILED"
+      "detail": "Failed to load resource: the server responded with a status of 404 (Not Found)"
     }
   ]
 }
