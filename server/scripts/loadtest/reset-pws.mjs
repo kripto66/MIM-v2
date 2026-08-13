@@ -4,7 +4,13 @@
 // pour permettre un re-run propre des phases.
 //   node scripts/loadtest/reset-pws.mjs
 // ============================================================
+import { execSync } from 'node:child_process';
 import { service, loadState, LT, tenantUsername } from './common.mjs';
+
+const psqlId = (email) => {
+  const out = execSync(`docker exec supabase_db_MIM psql -U postgres -d postgres -tA -c "SELECT id FROM auth.users WHERE email='${email}';"`, { encoding: 'utf8' }).trim();
+  return out || null;
+};
 
 const state = loadState();
 const targets = [...(state.tenantPasswordChanged || [])];
@@ -13,11 +19,12 @@ if (!targets.includes(forced)) targets.push(forced);
 
 let ok = 0;
 for (const email of targets) {
-  const { data: users, error } = await service.auth.admin.listUsers({ filter: `email=eq.${email}` });
-  const u = users?.users?.[0];
-  if (!u) { console.log(`  introuvable: ${email}`); continue; }
-  const meta = u.user_metadata || {};
-  const { error: err } = await service.auth.admin.updateUserById(u.id, {
+  const id = psqlId(email);
+  if (!id) { console.log(`  introuvable: ${email}`); continue; }
+  const { data: user } = await service.auth.admin.getUserById(id);
+  if (!user) { console.log(`  getUserById échec: ${email}`); continue; }
+  const meta = user.user_metadata || {};
+  const { error: err } = await service.auth.admin.updateUserById(id, {
     password: LT.tenantPw,
     user_metadata: { ...meta, must_change_password: true },
   });
