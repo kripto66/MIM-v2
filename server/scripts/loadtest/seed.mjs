@@ -73,8 +73,7 @@ async function provisionOwners() {
   return ids;
 }
 
-async function registerReal(i) {
-  const jar = newJar();
+async function registerReal(i) {  const jar = newJar();
   const email = `loadtest.register.${pad(i)}@loadtest.mim`;
   const r = await apiLt('/auth/register', {
     method: 'POST',
