@@ -898,6 +898,16 @@ tr:last-child td {
     background: #ffd2d2;
 }
 
+.btn-pay {
+    background: #e6f6ea;
+
+    color: #1d7a3f;
+}
+
+.btn-pay:hover {
+    background: #d3eeda;
+}
+
 .sidebar-footer .btn {
     width: 100%;
 

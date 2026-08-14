@@ -75,6 +75,10 @@ app.use((req, res, next) => {
   next();
 });
 
+// Le webhook UnitechPay est monté AVANT express.json : il doit recevoir le
+// corps brut (Buffer) pour vérifier la signature HMAC-SHA256.
+app.use('/api/unitech/webhook', webhookRouter);
+
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
 
@@ -108,7 +112,6 @@ app.use('/api/subscription', authenticate, requireRole('proprietaire', 'agence',
 app.use('/api/employes', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), employesRoutes);
 app.use('/api/tasks', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), tasksRoutes);
 app.use('/api/employe', authenticate, requireActive, requireRole('employe'), employeRoutes);
-app.use('/api/unitech/webhook', webhookRouter);
 app.use('/api/unitech', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), unitechRoutes);
 
 const ownerOnly = requireRole('proprietaire', 'agence', 'entreprise');

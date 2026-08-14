@@ -20,6 +20,7 @@ import { runConcurrency } from './concurrency.test.js';
 import { runFinal } from './final.test.js';
 import { runAdmin } from './admin.test.js';
 import { runAbonnement } from './abonnement.test.js';
+import { runUnitech, startUnitechMock, stopUnitechMock } from './unitech.test.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.join(__dirname, '..', '..');
@@ -41,6 +42,7 @@ const SUITES = [
   ['final', runFinal],
   ['admin', runAdmin],
   ['abonnement', runAbonnement],
+  ['unitech', runUnitech],
 ];
 
 const runner = new Runner();
@@ -64,6 +66,10 @@ async function waitForHealth(port, timeoutMs = 30000) {
 let serverProc = null;
 
 async function startServer() {
+  // Pendant les tests, les appels UnitechPay sont redirigés vers un mock
+  // local (aucun paiement réel, aucune clé exposée au frontend).
+  await startUnitechMock();
+
   const env = {
     ...process.env,
     PORT: '3100',
@@ -72,6 +78,7 @@ async function startServer() {
     GIT_BACKUP: 'false',
     NODE_ENV: '',
     TEST_BASE: BASE,
+    UNITECH_API_URL: 'http://127.0.0.1:64330/api',
   };
   serverProc = spawn(process.execPath, ['server.js'], {
     cwd: SERVER_DIR,
@@ -128,10 +135,12 @@ async function main() {
 main()
   .then(() => {
     if (serverProc) serverProc.kill();
+    stopUnitechMock();
     process.exit(0);
   })
   .catch((err) => {
     console.error('[run]', err);
     if (serverProc) serverProc.kill();
+    stopUnitechMock();
     process.exit(1);
   });
