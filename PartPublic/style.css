@@ -87,7 +87,7 @@ h2 {
 
     #logo , #dashboard-image {
         width: 100%;
-        height: 300px;
+        height: 260px;
         
         background-size: contain;
         background-repeat: no-repeat;
@@ -102,12 +102,17 @@ h2 {
     #header {
         display: flex;
         flex-direction: column;
-        margin-left: 10px;
-        margin-right: 10px;
+        width: calc(100% - 20px);
+        margin: 0 auto;
         background-color: hsl(216, 91%, 18%);
         padding: 15px 20px;
         border-radius: 10px;
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    #header button {
+        width: 100%;
+        margin: 4px 0;
     }
 
     p {
@@ -130,7 +135,7 @@ h2 {
 
     #logo , #dashboard-image{
         width: 100%;
-        height: 300px;
+        height: 280px;
         
         background-size: contain;
         background-repeat: no-repeat;
@@ -138,19 +143,25 @@ h2 {
     }
 
     button {
-        padding: 13px 24px;
-        font-size: 15px;
+        padding: 12px 20px;
+        font-size: 14px;
     }
 
     #header {
         display: flex;
-        justify-content: space-between;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
         margin-left: 15px;
         margin-right: 15px;
-        padding: 20px 30px;
+        padding: 18px 20px;
         background-color: hsl(216, 91%, 18%);
         border-radius: 10px;
         box-shadow: 0 4px 8px;
+    }
+
+    #header button {
+        margin: 2px;
     }
 
     p {
@@ -187,13 +198,19 @@ h2 {
 
     #header {
         display: flex;
-        justify-content: space-between;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 8px;
         margin-left: 30px;
         margin-right: 30px;
-        padding: 30px 40px;
+        padding: 22px 24px;
         background-color: hsl(216, 91%, 18%);
         border-radius: 10px;
         box-shadow: 0 4px 8px;
+    }
+
+    #header button {
+        margin: 2px;
     }
 
     p {

@@ -271,9 +271,9 @@ button:disabled {
     }
 
     input {
-        font-size: 20px;
+        font-size: 18px;
 
-        letter-spacing: 8px;
+        letter-spacing: 6px;
     }
 
 }
