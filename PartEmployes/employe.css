@@ -355,7 +355,15 @@ header button {
     margin-left: 0
   }
   header button {
-    display: block
+    display: block;
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+    line-height: 1;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: #fff;
+    cursor: pointer
   }
   .sidebar-overlay {
     display: block;
