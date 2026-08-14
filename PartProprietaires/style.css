@@ -1081,6 +1081,8 @@ tr:last-child td {
     top: 20px;
     right: 20px;
 
+    max-width: min(420px, calc(100vw - 40px));
+
     padding: 14px 22px;
 
     border-radius: 9px;
@@ -1091,6 +1093,8 @@ tr:last-child td {
 
     font-size: 14px;
     font-weight: 600;
+
+    text-align: center;
 
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
 
@@ -1142,6 +1146,26 @@ tr:last-child td {
 
     .card-amount {
         text-align: left;
+    }
+
+
+    .modal-overlay {
+        padding: 12px;
+    }
+
+
+    .modal {
+        padding: 22px 16px;
+    }
+
+
+    .modal-actions {
+        flex-direction: column;
+    }
+
+
+    .modal-actions .btn {
+        width: 100%;
     }
 
 }
