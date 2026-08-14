@@ -437,10 +437,8 @@ function exportCSV() {
 async function dashboard() {
   app.innerHTML = skeleton();
   const { stats } = await apiRequest("/admin/stats");
-  const paiements = await apiRequest("/admin/paiements");
-  const incidents = await apiRequest("/admin/incidents");
-  const recentPayments = (paiements.data || []).slice(0, 5);
-  const recentIncidents = (incidents.data || []).slice(0, 4);
+  const recentPayments = stats.recentPayments || [];
+  const recentIncidents = stats.recentIncidents || [];
 
   app.innerHTML = `
   <div class="cards">

@@ -11,8 +11,36 @@ const router = Router();
 const OWNER_TYPES = ['proprietaire', 'agence', 'entreprise'];
 const ROW_LIMIT = 10000;
 
+// Cache mémoire court : les agrégations admin sont en lecture seule et coûteuses,
+// un TTL de 8 s suffit pour un tableau de bord, sans jamais bloquer l'écriture
+// (le cache est invalidé dès qu'une action de mutation passe par ces routes).
+const CACHE_TTL_MS = 8000;
+let platformCache = { at: 0, data: null };
+
+function platformCacheGet() {
+  if (platformCache.data && Date.now() - platformCache.at < CACHE_TTL_MS) return platformCache.data;
+  return null;
+}
+
+function platformCacheSet(data) {
+  platformCache = { at: Date.now(), data };
+}
+
+export function invalidatePlatformCache() {
+  platformCache = { at: 0, data: null };
+}
+
 // Charge l'ensemble des données utiles en parallèle (agrégation en mémoire).
 async function loadPlatformData() {
+  const cached = platformCacheGet();
+  if (cached) return cached;
+
+  const data = await loadPlatformDataUncached();
+  platformCacheSet(data);
+  return data;
+}
+
+async function loadPlatformDataUncached() {
   const sb = serviceClient();
 
   const fetchAll = async (table, columns) => {
@@ -140,6 +168,40 @@ router.get('/stats', async (req, res) => {
         time: s.created_at,
       }));
 
+    const logementById = new Map(d.logements.map((l) => [l.id, l]));
+    const locataireById = new Map(d.locataires.map((l) => [l.id, l]));
+
+    const recentPayments = [...d.paiements]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 5)
+      .map((p) => ({
+        id: p.id,
+        locataire: locataireById.get(p.locataire_id)?.nom || '—',
+        logement: logementById.get(p.logement_id)?.nom || '—',
+        proprietaire: d.ownerName(p.user_id),
+        periode: p.mois,
+        montant: Number(p.montant),
+        statut: p.statut,
+        date: p.date_paiement,
+      }));
+
+    const recentIncidents = [...d.incidents]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 4)
+      .map((i) => {
+        const logement = logementById.get(i.logement_id);
+        const locataire = d.locataires.find((l) => l.logement_id === i.logement_id && l.statut === 'actif');
+        return {
+          id: i.id,
+          titre: i.titre,
+          logement: logement?.nom || '—',
+          locataire: locataire?.nom || '—',
+          proprietaire: d.ownerName(i.user_id),
+          statut: i.statut,
+          date: i.created_at,
+        };
+      });
+
     res.json({
       success: true,
       stats: {
@@ -160,6 +222,8 @@ router.get('/stats', async (req, res) => {
         interventionsActives: d.interventions.filter((i) => i.statut !== 'termine').length,
         revenue12,
         activiteRecent: recentSessions,
+        recentPayments,
+        recentIncidents,
       },
     });
   } catch (err) {
@@ -348,6 +412,7 @@ router.patch('/proprietaires/:id', async (req, res) => {
       return res.status(500).json({ success: false, message: 'Impossible de mettre à jour le compte.' });
     }
 
+    invalidatePlatformCache();
     const message =
       statut === 'suspendu'
         ? `Compte de ${profile.name} suspendu.`
