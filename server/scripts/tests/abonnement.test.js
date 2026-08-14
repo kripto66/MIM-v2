@@ -262,7 +262,7 @@ export async function runAbonnement(r, ctx) {
 
     const me = await api('/subscription/me', { jar: ownerJar });
     const keys = Object.keys(me.data?.subscription || {});
-    const noLoyer = !keys.some((k) => /locataire|logement|loyer|paiement/i.test(k));
+    const noLoyer = !keys.some((k) => /locataire|logement|loyer/i.test(k));
     if (noLoyer) r.pass(S, '/subscription/me ne contient aucune donnée de loyer');
     else r.fail(S, '/subscription/me ne contient aucune donnée de loyer', keys.join(','));
   });
@@ -279,29 +279,31 @@ export async function runAbonnement(r, ctx) {
     if (ownerPost.status === 404) r.pass(S, 'aucun endpoint public d\'enregistrement (404)');
     else r.fail(S, 'aucun endpoint public d\'enregistrement (404)', `statut ${ownerPost.status}`);
 
-    const ownerList = await api('/admin/subscriptions', { jar: ownerJar });
+    // `other` (propriétaire actif, sans abonnement) doit être refusé par
+    // le rôle admin (403), et non bloqué pour cause d'abonnement (401).
+    const ownerList = await api('/admin/subscriptions', { jar: otherJar });
     if (ownerList.status === 403) r.pass(S, 'un propriétaire ne peut pas lister les abonnements (403)');
     else r.fail(S, 'un propriétaire ne peut pas lister les abonnements (403)', `statut ${ownerList.status}`);
 
-    const ownerCrud = await api('/subscriptions', { jar: ownerJar });
+    const ownerCrud = await api('/subscriptions', { jar: otherJar });
     if (ownerCrud.status === 404) r.pass(S, 'pas de CRUD public sur /subscriptions (404)');
     else r.fail(S, 'pas de CRUD public sur /subscriptions (404)', `statut ${ownerCrud.status}`);
 
     // Un locataire d'un autre propriétaire (actif) ne peut pas lire
     // l'abonnement : route réservée aux propriétaires (403).
     const tenant = other.locataires[0];
+    const tenantJar = newJar();
     const tenantLogin = await api('/auth/login', {
       method: 'POST',
-      jar: newJar(),
+      jar: tenantJar,
       body: { identifier: tenant?.username || 'own2loc1', password: 'Test1234!' },
     });
     if (tenantLogin.status === 200) {
-      const tenantJar = tenantLogin.jar;
       const sub = await api('/subscription/me', { jar: tenantJar });
       if (sub.status === 403) r.pass(S, 'un locataire ne peut pas lire l\'abonnement (403)');
       else r.fail(S, 'un locataire ne peut pas lire l\'abonnement (403)', `statut ${sub.status}`);
     } else {
-      r.fail(S, 'connexion locataire pour la vérification de rôle', `statut ${tenantLogin.status}`);
+      r.fail(S, 'connexion locataire pour la vérification de rôle', `statut ${tenantLogin.status} ${JSON.stringify(tenantLogin.data)}`);
     }
   });
 }

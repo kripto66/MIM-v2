@@ -12,7 +12,6 @@ import { isBannedValue } from '../middleware/auth.js';
 const router = Router();
 
 const OWNER_TYPES = ['proprietaire', 'agence', 'entreprise'];
-const ROW_LIMIT = 10000;
 
 // Cache mémoire court : les agrégations admin sont en lecture seule et coûteuses,
 // un TTL de 8 s suffit pour un tableau de bord, sans jamais bloquer l'écriture
@@ -47,9 +46,18 @@ async function loadPlatformDataUncached() {
   const sb = serviceClient();
 
   const fetchAll = async (table, columns) => {
-    const { data, error } = await sb.from(table).select(columns).limit(ROW_LIMIT);
-    if (error) throw new Error(`${table}: ${error.message}`);
-    return data || [];
+    // PostgREST plafonne chaque réponse à 1000 lignes : on pagine pour
+    // ne jamais tronquer silencieusement les agrégations admin.
+    const out = [];
+    const pageSize = 1000;
+    for (let from = 0; ; from += pageSize) {
+      const { data, error } = await sb.from(table).select(columns).range(from, from + pageSize - 1);
+      if (error) throw new Error(`${table}: ${error.message}`);
+      if (!data || !data.length) break;
+      out.push(...data);
+      if (data.length < pageSize) break;
+    }
+    return out;
   };
 
   const listAllUsers = async () => {
