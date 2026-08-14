@@ -68,13 +68,13 @@ h2 {
     margin-bottom: 20px;
 }
 #logo{
-    background-image: url('../images/logoMim-opt.png');
+    background-image: url('../images/logo.png.png');
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
 }
 #dashboard-image{
-    background-image: url('../images/dash-opt.jpg');
+    background-image: url('../images/dash.png');
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;

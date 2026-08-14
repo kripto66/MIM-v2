@@ -102,25 +102,6 @@ body {
         0 8px 20px rgba(0, 0, 0, 0.2);
 }
 
-.logo img {
-    width: 60px;
-    height: 60px;
-    border-radius: 17px;
-    object-fit: contain;
-}
-
-@media (max-width: 800px) {
-
-    .logo {
-        cursor: pointer;
-    }
-
-    .logo:focus-visible {
-        outline: 3px solid #fff;
-        outline-offset: 2px;
-    }
-}
-
 
 /* =========================================================
    MENU SIDEBAR

@@ -95,16 +95,6 @@ body {
     text-decoration: none;
 }
 
-.logo img {
-
-    width: 50px;
-    height: 50px;
-
-    border-radius: 14px;
-
-    object-fit: contain;
-}
-
 
 .close-menu {
 
@@ -838,20 +828,6 @@ body {
     .close-menu {
 
         display: block;
-    }
-
-
-    .logo {
-
-        cursor: pointer;
-    }
-
-
-    .logo:focus-visible {
-
-        outline: 3px solid #5717a5;
-
-        outline-offset: 2px;
     }
 
 
