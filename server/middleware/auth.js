@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import { supabase, serviceClient } from '../app.js';
+import { subscriptionExpiredFor } from '../utils/subscription.js';
 
 const SLIDING_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 const PAGE_LOGIN_REDIRECT = '/PartPublic/connexion.html';
@@ -114,7 +115,10 @@ async function verifyToken(req) {
     if (ownStatus === 'deleted') return null;
 
     decoded.account_type = profile.account_type;
-    const suspended = ownStatus === 'suspended' || (await ownerSuspendedFor(decoded.id, profile.account_type));
+    const suspended =
+      ownStatus === 'suspended' ||
+      (await ownerSuspendedFor(decoded.id, profile.account_type)) ||
+      (await subscriptionExpiredFor(decoded.id, profile.account_type));
 
     return { user: decoded, suspended };
   } catch (err) {

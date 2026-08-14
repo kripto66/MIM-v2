@@ -48,6 +48,7 @@ const sections = {
   locataires: ["Locataires", "Vue globale des locataires de MIM."],
   biens: ["Biens & logements", "Suivi du parc immobilier."],
   paiements: ["Paiements", "Suivi global des paiements."],
+  abonnements: ["Abonnements", "Suivi des abonnements MIM des propriétaires."],
   incidents: ["Incidents", "Incidents et interventions."],
   activite: ["Activité", "Historique des événements de la plateforme."],
 };
@@ -476,20 +477,95 @@ async function dashboard() {
   enableTilt();
 }
 
+function subBadge(subscription) {
+  if (!subscription) return `<span class="badge info">Aucun</span>`;
+  return subscription.statut === "actif"
+    ? `<span class="badge success" title="Expire le ${fmtDate(subscription.date_expiration)}">Abonné · ${subscription.joursRestants} j</span>`
+    : `<span class="badge warning" title="Expiré le ${fmtDate(subscription.date_expiration)}">Expiré</span>`;
+}
+
 async function proprietaires() {
   app.innerHTML = skeleton();
   const { data } = await apiRequest("/admin/proprietaires");
-  const rowsData = (data || []).map((r) => ({ ...r, last_login: fmtDateTime(r.last_login) }));
+  const rowsData = (data || []).map((r) => ({
+    ...r,
+    last_login: fmtDateTime(r.last_login),
+    sub: subBadge(r.subscription),
+  }));
   app.innerHTML = tablePage(
     "propriétaires",
     rowsData,
-    ["id", "nom", "email", "biens", "statut", "last_login"],
-    ["ID", "Nom", "Email", "Biens", "Statut", "Dernière connexion"],
+    ["id", "nom", "email", "biens", "statut", "sub", "last_login"],
+    ["ID", "Nom", "Email", "Biens", "Statut", "Abonnement", "Dernière connexion"],
     true,
     (r) =>
       `<button class="btn ${r.statut === "suspendu" ? "secondary" : "danger"}" onclick="setStatut('${r.id}','${r.statut}')">${r.statut === "suspendu" ? "Réactiver" : "Suspendre"}</button>`
   );
   bindSearch();
+}
+
+function rowCells(r, columns) {
+  return columns
+    .map((k) => {
+      if (k === "statut") return `<td>${badge(r[k])}</td>`;
+      if (k === "montant") return `<td class="num">${money(r[k])}</td>`;
+      return `<td>${r[k] ?? "—"}</td>`;
+    })
+    .join("");
+}
+
+async function abonnements() {
+  app.innerHTML = skeleton();
+  const { data } = await apiRequest("/admin/subscriptions");
+  const rowsData = (data || []).map((r) => ({
+    ...r,
+    date_paiement: r.date_paiement ? fmtDate(r.date_paiement) : "—",
+    date_debut: r.date_debut ? fmtDate(r.date_debut) : "—",
+    date_expiration: r.date_expiration ? fmtDate(r.date_expiration) : "—",
+    joursRestants: r.joursRestants,
+  }));
+  app.innerHTML = `<div class="panel">
+    <div class="toolbar">
+      <input class="search" id="tableSearch" placeholder="Rechercher un abonnement..." aria-label="Rechercher un abonnement">
+      <button class="btn secondary" onclick="exportCSV()">Exporter CSV</button>
+      <button class="btn primary" onclick="openSubModal()">+ Enregistrer un paiement</button>
+    </div>
+    <div class="table-wrap"><table class="table"><thead><tr>
+      <th>Propriétaire</th><th>Plan</th><th>Montant</th><th>Paiement</th><th>Début</th><th>Expiration</th><th>Jours restants</th><th>Statut</th><th>Actions</th>
+    </tr></thead>
+    <tbody id="tableBody">${
+      rowsData.length
+        ? rowsData.map((r) => `<tr>${rowCells(r, ["proprietaire", "plan", "montant", "date_paiement", "date_debut", "date_expiration", "joursRestants", "statut"])}<td><button class="btn primary" onclick="openSubModal('${r.user_id}')">Encaisser</button></td></tr>`).join("")
+        : `<tr><td colspan="99" class="empty">Aucun abonnement enregistré.</td></tr>`
+    }</tbody></table></div>
+  </div>`;
+  bindSearch();
+}
+
+function openSubModal(userId) {
+  const modal = document.getElementById("subModal");
+  const select = document.getElementById("subOwner");
+  select.innerHTML = "";
+  select.appendChild(new Option("Chargement…", ""));
+  apiRequest("/admin/proprietaires")
+    .then(({ data }) => {
+      select.innerHTML = "";
+      (data || []).forEach((p) => {
+        select.appendChild(new Option(`${p.nom} (${p.email})`, p.id));
+      });
+      if (userId) select.value = userId;
+    })
+    .catch((err) => {
+      select.innerHTML = "";
+      select.appendChild(new Option("Erreur de chargement", ""));
+      MIM.showError(MIM.userMessage(err));
+    });
+  modal.hidden = false;
+  document.getElementById("subMontant").focus();
+}
+
+function closeSubModal() {
+  document.getElementById("subModal").hidden = true;
 }
 
 async function locataires() {
@@ -536,7 +612,7 @@ async function activite() {
     <div class="activity">${(data || []).map((a) => activity(a.action, `${a.user} — ${a.detail}`, a.date)).join("") || `<div class="empty">Aucune activité.</div>`}</div></div>`;
 }
 
-const RENDERERS = { dashboard, proprietaires, locataires, biens, paiements, incidents, activite };
+const RENDERERS = { dashboard, proprietaires, locataires, biens, paiements, abonnements, incidents, activite };
 
 // ============================================================
 // Navigation & actions
@@ -618,6 +694,38 @@ async function init() {
     } catch {}
     window.location.href = "../PartPublic/connexion.html";
   });
+
+  const subModal = document.getElementById("subModal");
+  if (subModal) {
+    document.querySelectorAll("[data-sub-close]").forEach((el) =>
+      el.addEventListener("click", closeSubModal)
+    );
+    document.getElementById("subForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const submit = e.target.querySelector("button[type=submit]");
+      submit.disabled = true;
+      try {
+        const r = await apiRequest("/admin/subscriptions/register", {
+          method: "POST",
+          body: JSON.stringify({
+            userId: document.getElementById("subOwner").value,
+            plan: document.getElementById("subPlan").value,
+            montant: document.getElementById("subMontant").value,
+            dureeMois: document.getElementById("subDuree").value,
+            methodePaiement: document.getElementById("subMethode").value,
+            reference: document.getElementById("subReference").value,
+          }),
+        });
+        showToast(r.message);
+        closeSubModal();
+        navigate("abonnements");
+      } catch (err) {
+        MIM.showError(MIM.userMessage(err));
+      } finally {
+        submit.disabled = false;
+      }
+    });
+  }
 
   initBackground();
   initSystemStatus();

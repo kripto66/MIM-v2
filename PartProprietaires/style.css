@@ -1489,3 +1489,147 @@ input.pw-strong {
 
     font-weight: 500;
 }
+
+/* =========================================================
+   MON ABONNEMENT (parametres.html)
+   ========================================================= */
+
+.subscription-panel {
+    background: #ffffff;
+
+    border: 1px solid #e3e9f0;
+
+    border-radius: 10px;
+
+    padding: 16px;
+}
+
+.sub-card {
+    font-size: 14px;
+}
+
+.sub-head {
+    display: flex;
+
+    flex-wrap: wrap;
+
+    align-items: center;
+
+    gap: 16px;
+
+    margin-bottom: 14px;
+
+    color: #34495e;
+}
+
+.sub-head strong {
+    color: #1a2b3c;
+}
+
+.sub-badge {
+    display: inline-block;
+
+    padding: 6px 12px;
+
+    border-radius: 999px;
+
+    font-size: 12px;
+
+    font-weight: 700;
+
+    text-transform: uppercase;
+
+    letter-spacing: 0.4px;
+}
+
+.sub-badge.sub-ok {
+    background: #e7f7ee;
+
+    color: #1e8449;
+}
+
+.sub-badge.sub-exp {
+    background: #fdecea;
+
+    color: #c0392b;
+}
+
+.sub-list {
+    list-style: none;
+
+    margin: 0;
+
+    padding: 0;
+
+    display: grid;
+
+    gap: 8px;
+
+    color: #34495e;
+}
+
+.sub-list li {
+    padding-left: 14px;
+
+    position: relative;
+}
+
+.sub-list li::before {
+    content: "";
+
+    position: absolute;
+
+    left: 0;
+
+    top: 8px;
+
+    width: 6px;
+
+    height: 6px;
+
+    border-radius: 50%;
+
+    background: #2c82c9;
+}
+
+/* =========================================================
+   BANDEAU ABONNEMENT (dashboard.html)
+   ========================================================= */
+
+.sub-banner {
+    margin: 16px 0;
+
+    padding: 12px 16px;
+
+    border-radius: 10px;
+
+    font-size: 14px;
+
+    border: 1px solid;
+}
+
+.sub-banner-info {
+    background: #eaf6ff;
+
+    border-color: #b9ddf6;
+
+    color: #1b5e8a;
+}
+
+.sub-banner-warning {
+    background: #fff8e1;
+
+    border-color: #f0d48a;
+
+    color: #8a6d1f;
+}
+
+.sub-banner-danger {
+    background: #fdecea;
+
+    border-color: #f2b8b1;
+
+    color: #b03a2e;
+}
+
+

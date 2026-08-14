@@ -107,6 +107,18 @@
             <section class="dashboard-section">
 
                 <div class="section-header">
+                    <h2>Mon abonnement MIM</h2>
+                </div>
+
+                <div id="subscriptionPanel" class="subscription-panel">
+                    <p class="muted">Chargement de votre abonnement…</p>
+                </div>
+
+            </section>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
                     <h2>Sauvegarde</h2>
                 </div>
 
@@ -145,8 +157,47 @@
             }
         }
 
+        function fmtDateFR(value) {
+            if (!value) return "—";
+            const d = new Date(value);
+            return isNaN(d.getTime()) ? "—" : d.toLocaleDateString("fr-FR");
+        }
+
+        async function loadSubscription() {
+            const panel = document.getElementById("subscriptionPanel");
+            try {
+                const { subscription } = await apiRequest("/subscription/me");
+                if (!subscription) {
+                    panel.innerHTML =
+                        '<p class="muted">Aucun abonnement enregistré. Contactez l\'administration MIM pour souscrire.</p>';
+                    return;
+                }
+                const badge =
+                    subscription.statut === "actif"
+                        ? '<span class="sub-badge sub-ok">Abonnement actif</span>'
+                        : '<span class="sub-badge sub-exp">Abonnement expiré</span>';
+                panel.innerHTML =
+                    '<div class="sub-card">' +
+                    '<div class="sub-head">' + badge +
+                    "<span>Plan : <strong>" + (subscription.plan || "standard") + "</strong></span>" +
+                    "<span>Jours restants : <strong>" + subscription.joursRestants + "</strong></span>" +
+                    "</div>" +
+                    "<ul class='sub-list'>" +
+                    "<li>Début : " + fmtDateFR(subscription.date_debut) + "</li>" +
+                    "<li>Expiration : " + fmtDateFR(subscription.date_expiration) + "</li>" +
+                    "<li>Dernier paiement : " + fmtDateFR(subscription.date_paiement) + "</li>" +
+                    "<li>Montant : " + (subscription.montant != null ? subscription.montant.toLocaleString("fr-FR") + " FCFA" : "—") + "</li>" +
+                    "<li>Méthode : " + (subscription.methode_paiement || "—") + "</li>" +
+                    "<li>Référence : " + (subscription.reference || "—") + "</li>" +
+                    "</ul></div>";
+            } catch (err) {
+                panel.innerHTML = "<p class='muted'>Impossible de charger l'abonnement : " + err.message + "</p>";
+            }
+        }
+
         document.addEventListener("DOMContentLoaded", () => {
             loadProfile();
+            loadSubscription();
 
             document.getElementById("profileForm").addEventListener("submit", async (e) => {
                 e.preventDefault();
