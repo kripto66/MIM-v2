@@ -320,7 +320,6 @@ async function init() {
     navigate(active);
     showToast("Actualisé");
   });
-  document.getElementById("menuBtn").addEventListener("click", () => document.getElementById("sidebar").classList.toggle("open"));
   document.getElementById("logoutBtn").addEventListener("click", async () => {
     try {
       await apiRequest("/auth/logout", { method: "POST" });

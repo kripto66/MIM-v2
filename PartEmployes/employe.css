@@ -43,7 +43,15 @@ body {
   height: 34px;
   background: var(--blue);
   border-radius: 10px;
-  margin-right: 8px
+  margin-right: 8px;
+  overflow: hidden;
+  vertical-align: middle
+}
+.brand b img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block
 }
 .employee {
   display: flex;
@@ -356,6 +364,27 @@ header button {
   }
   header button {
     display: block
+  }
+  .brand {
+    cursor: pointer
+  }
+  .brand:focus-visible {
+    outline: 3px solid #fff;
+    outline-offset: 2px
+  }
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, .5);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity .2s, visibility .2s;
+    z-index: 4
+  }
+  .sidebar-overlay.active {
+    opacity: 1;
+    visibility: visible
   }
   .stats {
     grid-template-columns: 1fr 1fr

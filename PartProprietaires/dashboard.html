@@ -36,11 +36,18 @@
              SIDEBAR / MENU
              ===================================================== -->
 
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
 
             <!-- Logo MIM -->
-            <div class="logo">
-                MIM
+            <div
+                class="logo"
+                data-sidebar-toggle-logo
+                role="button"
+                tabindex="0"
+                aria-label="Ouvrir ou fermer le menu"
+                aria-expanded="false"
+            >
+                <img src="../images/logoMim-opt.png" alt="MIM">
             </div>
 
 
@@ -132,6 +139,15 @@
                  ================================================= -->
 
             <header class="dashboard-header">
+
+                <button
+                    class="menu-toggle"
+                    data-sidebar-toggle
+                    aria-label="Ouvrir le menu"
+                    aria-expanded="false"
+                >
+                    ☰
+                </button>
 
                 <div id="apiMessage" class="api-message" style="display:none;"></div>
 
@@ -625,6 +641,7 @@
     <script src="api.js"></script>
     <script src="crud.js"></script>
     <script src="dashboard.js"></script>
+    <script src="../PartPublic/sidebar.js"></script>
 
 
 </body>
