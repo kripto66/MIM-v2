@@ -8,6 +8,7 @@ import { serviceClient } from '../app.js';
 import { notify } from '../utils/notifications.js';
 import { invalidateSubscriptionCache } from '../utils/subscription.js';
 import { isBannedValue } from '../middleware/auth.js';
+import { methodeLabel } from '../utils/paiementMethodes.js';
 
 const router = Router();
 
@@ -91,7 +92,7 @@ async function loadPlatformDataUncached() {
     fetchAll('biens', 'id, user_id, nom, type, ville'),
     fetchAll('logements', 'id, user_id, bien_id, nom, statut, loyer_mensuel'),
     fetchAll('locataires', 'id, user_id, account_uid, logement_id, nom, email, statut'),
-    fetchAll('paiements', 'id, user_id, locataire_id, logement_id, montant, mois, statut, date_paiement, created_at'),
+    fetchAll('paiements', 'id, user_id, locataire_id, logement_id, montant, mois, statut, date_paiement, methode_paiement, reference, created_at'),
     fetchAll('incidents', 'id, user_id, logement_id, titre, statut, created_at'),
     fetchAll('interventions', 'id, user_id, logement_id, statut, created_at'),
     fetchAll('sessions', 'id, user_id, action, created_at, logout_at, user_agent'),
@@ -491,6 +492,8 @@ router.get('/paiements', async (req, res) => {
         periode: p.mois,
         montant: Number(p.montant),
         statut: p.statut,
+        methode: methodeLabel(p.methode_paiement),
+        reference: p.reference || null,
         date: p.date_paiement,
       }));
 
