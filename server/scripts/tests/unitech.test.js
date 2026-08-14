@@ -114,7 +114,7 @@ export async function runUnitech(r, ctx) {
 
   // Relecture des paiements du propriétaire via l'API (comme le frontend).
   const pays = await api('/paiements', { jar: ownerJar });
-  const list = pays.data || [];
+  const list = pays.data?.data || [];
   const paiementAttente = list.find(
     (p) => String(p.locataire_id) === String(owner.locataires[0].id) && p.statut === 'attente'
   );

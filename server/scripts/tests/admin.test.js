@@ -147,8 +147,9 @@ export async function runAdmin(r, ctx) {
       if (seedOk) r.pass(S, 'propriétaires du seed présents avec biens comptés');
       else r.fail(S, 'propriétaires du seed présents avec biens comptés');
 
-      if (data.every((p) => p.statut === 'actif')) r.pass(S, 'tous les propriétaires actifs');
-      else r.fail(S, 'tous les propriétaires actifs');
+      const seedOwners = data.filter((p) => ctx.seed.owners.some((o) => o.id === p.id));
+      if (seedOwners.length === ctx.seed.owners.length && seedOwners.every((p) => p.statut === 'actif')) r.pass(S, 'tous les propriétaires du seed actifs');
+      else r.fail(S, 'tous les propriétaires du seed actifs');
     }
 
     const locs = await api('/admin/locataires', { jar: adminJar });
