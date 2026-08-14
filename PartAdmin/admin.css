@@ -482,6 +482,14 @@ select {
   opacity: 1;
   transform: none
 }
+.toast.error {
+  background: #b91c1c;
+  color: #fff
+}
+.toast.success {
+  background: #15803d;
+  color: #fff
+}
 @media(max-width:1050px) {
   .cards {
     grid-template-columns: repeat(2, 1fr)

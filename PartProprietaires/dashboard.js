@@ -74,12 +74,12 @@ async function loadStats() {
       credentials: "include",
     });
 
-    if (res.status === 401) {
-      window.location.href = "../PartPublic/connexion.html";
+    const { ok, error, data } = await MIM.parse(res);
+
+    if (!ok) {
+      if (!MIM.handleAuthError(error)) displayMessage(MIM.userMessage(error));
       return;
     }
-
-    const data = await res.json();
 
     if (!data.success) {
       displayMessage(data.message || "Erreur de chargement.");
@@ -265,15 +265,10 @@ async function loadOverview() {
       fetch(`${API}/notifications`, { credentials: "include" }),
     ]);
 
-    if (responses[0].status === 401) {
-      window.location.href = "../PartPublic/connexion.html";
-      return;
-    }
-
     const notOk = responses.find((res) => !res.ok);
     if (notOk) {
-      const errData = await notOk.json().catch(() => ({}));
-      throw new Error(errData.message || "Erreur de chargement des données.");
+      const { ok: parsedOk, error } = await MIM.parse(notOk);
+      if (parsedOk || !MIM.handleAuthError(error)) throw new Error(MIM.userMessage(error) || "Erreur de chargement des données.");
     }
 
     const parse = async (res) => (await res.json()).data || [];
@@ -323,8 +318,9 @@ async function manualBackup() {
       method: "POST",
       credentials: "include",
     });
-    const data = await res.json();
-    displayMessage(data.message, data.success ? "success" : "error");
+    const { ok, error, data } = await MIM.parse(res);
+    if (!ok && MIM.handleAuthError(error)) return;
+    displayMessage(MIM.userMessage(error) || data.message, ok && data.success ? "success" : "error");
   } catch (error) {
     displayMessage("Impossible de contacter le serveur.");
   }

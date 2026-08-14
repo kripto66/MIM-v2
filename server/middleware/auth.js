@@ -13,13 +13,47 @@ function setAuthCookie(res, token) {
   });
 }
 
+// Interprète banned_until de GoTrue (timestamp ISO ou secondes epoch).
+export function isBannedValue(value) {
+  if (!value) return false;
+  let ts = typeof value === 'number' ? value * 1000 : Date.parse(String(value));
+  if (Number.isNaN(ts)) return false;
+  return ts > Date.now();
+}
+
+// Statut du compte auth GoTrue : 'active' | 'suspended' | 'deleted'.
+async function banStatusOf(userId) {
+  const { data } = await serviceClient().auth.admin.getUserById(userId).catch(() => ({ data: null }));
+  if (!data?.user) return 'deleted';
+  return isBannedValue(data.user.banned_until) ? 'suspended' : 'active';
+}
+
+// Un locataire ou employé dépend de son propriétaire (fiche locataires /
+// employes, lien account_uid -> user_id). Aucune confiance en un owner_id
+// envoyé par le frontend : la relation est lue en base.
+export async function ownerSuspendedFor(userId, accountType) {
+  if (accountType !== 'locataire' && accountType !== 'employe') return false;
+
+  const table = accountType === 'locataire' ? 'locataires' : 'employes';
+  const { data } = await serviceClient()
+    .from(table)
+    .select('user_id')
+    .eq('account_uid', userId)
+    .maybeSingle()
+    .catch(() => ({ data: null }));
+
+  if (!data?.user_id) return false;
+
+  return (await banStatusOf(data.user_id)) === 'suspended';
+}
+
 // Vérifie le jeton mim_token, rafraîchit la session Supabase si nécessaire,
 // puis REVALIDE côté serveur à chaque requête :
-//   * le rôle (profiles.account_type) : un changement de rôle prend effet
-//     immédiatement, sans attendre l'expiration du cookie ;
-//   * le statut du compte (GoTrue banned_until) : un compte suspendu,
-//     banni ou supprimé perd aussitôt son accès.
-// Retourne le payload décodé avec le rôle à jour, ou null.
+//   * le rôle (profiles.account_type) ;
+//   * le statut du compte (banned_until) ;
+//   * la suspension du propriétaire pour un locataire/employé.
+// Retourne { user, suspended } (payload avec rôle à jour) ou null si la
+// session est invalide (jeton invalide, profil ou compte supprimé).
 async function verifyToken(req) {
   const token = req.cookies?.mim_token || req.headers?.authorization?.replace('Bearer ', '');
 
@@ -59,12 +93,10 @@ async function verifyToken(req) {
     console.warn('[auth] refresh session échec :', err.message);
   }
 
-  // Revalidation serveur (rôle + ban). En cas d'échec (compte supprimé,
-  // profil absent, erreur) on refuse l'accès : comportement fail-closed.
+  // Revalidation serveur (rôle + ban + propriétaire). Fail-closed :
+  // profil absent ou erreur de lecture => session refusée.
   try {
-    const sb = serviceClient();
-
-    const { data: profile, error: profileError } = await sb
+    const { data: profile, error: profileError } = await serviceClient()
       .from('profiles')
       .select('account_type')
       .eq('id', decoded.id)
@@ -72,32 +104,47 @@ async function verifyToken(req) {
 
     if (profileError || !profile) return null;
 
-    const { data: authUser } = await sb.auth.admin.getUserById(decoded.id).catch(() => ({ data: null }));
-    if (!authUser?.user) return null;
-
-    if (authUser.user.banned_until) {
-      const bannedTs = new Date(authUser.user.banned_until).getTime();
-      if (!Number.isNaN(bannedTs) && bannedTs > Date.now()) return null;
-    }
+    const ownStatus = await banStatusOf(decoded.id);
+    if (ownStatus === 'deleted') return null;
 
     decoded.account_type = profile.account_type;
+    const suspended = ownStatus === 'suspended' || (await ownerSuspendedFor(decoded.id, profile.account_type));
+
+    return { user: decoded, suspended };
   } catch (err) {
     console.warn('[auth] revalidation échec :', err.message);
     return null;
   }
-
-  return decoded;
 }
 
-export async function authenticate(req, res, next) {
-  const decoded = await verifyToken(req);
+// Restreint une route aux comptes ACTIFS. La suspension (compte suspendu,
+// ou propriétaire suspendu pour un locataire/employé) rend la session
+// invalide pour toute fonctionnalité métier : réponse 401 avec un code
+// identifiable par le frontend, qui affiche un message clair.
+export function requireActive(req, res, next) {
+  if (req.user?.suspended) {
+    return res.status(401).json({
+      success: false,
+      code: 'ACCOUNT_SUSPENDED',
+      message: 'Votre compte a été suspendu.',
+    });
+  }
+  next();
+}
 
-  if (!decoded) {
-    return res.status(401).json({ success: false, message: 'Non authentifié.' });
+// Authentification API. Ne rejette PAS les comptes suspendus : les routes
+// d'auto-service (profil, mot de passe) restent accessibles. La suspension
+// est appliquée métier par requireActive.
+export async function authenticate(req, res, next) {
+  const result = await verifyToken(req);
+
+  if (!result) {
+    return res.status(401).json({ success: false, code: 'UNAUTHENTICATED', message: 'Non authentifié.' });
   }
 
-  req.user = decoded;
-  setAuthCookie(res, signToken(decoded));
+  req.user = result.user;
+  req.user.suspended = result.suspended;
+  setAuthCookie(res, signToken(result.user));
   next();
 }
 
@@ -105,14 +152,15 @@ export async function authenticate(req, res, next) {
 // visiteur n'est pas authentifié (un 401 JSON serait inadapté au HTML).
 export function authenticatePage(redirectTo = PAGE_LOGIN_REDIRECT) {
   return async (req, res, next) => {
-    const decoded = await verifyToken(req);
+    const result = await verifyToken(req);
 
-    if (!decoded) {
+    if (!result) {
       return res.redirect(redirectTo);
     }
 
-    req.user = decoded;
-    setAuthCookie(res, signToken(decoded));
+    req.user = result.user;
+    req.user.suspended = result.suspended;
+    setAuthCookie(res, signToken(result.user));
     next();
   };
 }
@@ -123,12 +171,13 @@ export function signToken(payload, expiresIn = '7d') {
   delete clean.exp;
   delete clean.nbf;
   delete clean.jti;
+  delete clean.suspended;
   return jwt.sign(clean, process.env.JWT_SECRET, { expiresIn });
 }
 
 export function requireAdmin(req, res, next) {
   if (req.user?.account_type !== 'admin') {
-    return res.status(403).json({ success: false, message: "Accès réservé à l'administration." });
+    return res.status(403).json({ success: false, code: 'FORBIDDEN', message: "Accès réservé à l'administration." });
   }
   next();
 }
@@ -137,7 +186,7 @@ export function requireAdmin(req, res, next) {
 export function requireRole(...roles) {
   return (req, res, next) => {
     if (req.user && roles.includes(req.user.account_type)) return next();
-    return res.status(403).json({ success: false, message: 'Accès non autorisé.' });
+    return res.status(403).json({ success: false, code: 'FORBIDDEN', message: 'Accès non autorisé.' });
   };
 }
 

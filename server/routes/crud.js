@@ -422,7 +422,7 @@ export function createCrudRouter(tableName) {
       .maybeSingle();
 
     if (existingUsername) {
-      return res.status(409).json({ success: false, message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+      return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
     }
 
     // Création d'un logement embarqué (page fusionnée locataires / logements).
@@ -473,7 +473,7 @@ export function createCrudRouter(tableName) {
       }
       const msg = String(createError?.message || '').toLowerCase();
       if (msg.includes('already') || msg.includes('existe')) {
-        return res.status(409).json({ success: false, message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+        return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
       }
       console.error('[createTenant]', createError?.message);
       return res.status(400).json({ success: false, message: 'Impossible de créer le compte locataire.' });

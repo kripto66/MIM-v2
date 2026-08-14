@@ -125,7 +125,7 @@ router.post('/', async (req, res) => {
     .maybeSingle();
 
   if (existingUsername) {
-    return res.status(409).json({ success: false, message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+    return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
   }
 
   const { data: createdUser, error: createError } = await sb.auth.admin.createUser({
@@ -145,7 +145,7 @@ router.post('/', async (req, res) => {
   if (createError || !createdUser?.user?.id) {
     const msg = String(createError?.message || '').toLowerCase();
     if (msg.includes('already') || msg.includes('existe')) {
-      return res.status(409).json({ success: false, message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+      return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
     }
     console.error('[employes/create]', createError?.message);
     return res.status(400).json({ success: false, message: 'Impossible de créer le compte employé.' });

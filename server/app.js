@@ -16,7 +16,7 @@ import employesRoutes from './routes/employes.js';
 import tasksRoutes from './routes/tasks.js';
 import employeRoutes from './routes/employe.js';
 import { createCrudRouter } from './routes/crud.js';
-import { authenticate, requireAdmin, requireRole, authenticatePage, requireZone } from './middleware/auth.js';
+import { authenticate, requireActive, requireAdmin, requireRole, authenticatePage, requireZone } from './middleware/auth.js';
 import { authRateLimit, apiRateLimit } from './middleware/rateLimit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -93,24 +93,27 @@ app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'MIM API OK' });
 });
 
+// Les fonctionnalités métier exigent un compte ACTIF (ni suspendu, ni
+// dépendant d'un propriétaire suspendu). Les routes /api/auth restent
+// ouvertes aux comptes suspendus : profil, mot de passe, déconnexion, 2FA.
 app.use('/api/auth', authRateLimit, authRoutes);
 app.use('/api', apiRateLimit);
-app.use('/api/stats', authenticate, requireRole('proprietaire', 'agence', 'entreprise'), statsRoutes);
-app.use('/api/git', authenticate, requireRole('proprietaire', 'agence', 'entreprise', 'admin'), gitRoutes);
-app.use('/api/locataire', authenticate, requireRole('locataire'), locataireRoutes);
-app.use('/api/admin', authenticate, requireAdmin, adminRoutes);
-app.use('/api/employes', authenticate, requireRole('proprietaire', 'agence', 'entreprise'), employesRoutes);
-app.use('/api/tasks', authenticate, requireRole('proprietaire', 'agence', 'entreprise'), tasksRoutes);
-app.use('/api/employe', authenticate, requireRole('employe'), employeRoutes);
+app.use('/api/stats', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), statsRoutes);
+app.use('/api/git', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise', 'admin'), gitRoutes);
+app.use('/api/locataire', authenticate, requireActive, requireRole('locataire'), locataireRoutes);
+app.use('/api/admin', authenticate, requireActive, requireAdmin, adminRoutes);
+app.use('/api/employes', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), employesRoutes);
+app.use('/api/tasks', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), tasksRoutes);
+app.use('/api/employe', authenticate, requireActive, requireRole('employe'), employeRoutes);
 
 const ownerOnly = requireRole('proprietaire', 'agence', 'entreprise');
-app.use('/api/biens', authenticate, ownerOnly, createCrudRouter('biens'));
-app.use('/api/logements', authenticate, ownerOnly, createCrudRouter('logements'));
-app.use('/api/locataires', authenticate, ownerOnly, createCrudRouter('locataires'));
-app.use('/api/paiements', authenticate, ownerOnly, createCrudRouter('paiements'));
-app.use('/api/incidents', authenticate, ownerOnly, createCrudRouter('incidents'));
-app.use('/api/prestataires', authenticate, ownerOnly, createCrudRouter('prestataires'));
-app.use('/api/interventions', authenticate, ownerOnly, createCrudRouter('interventions'));
-app.use('/api/notifications', authenticate, notificationsRoutes);
+app.use('/api/biens', authenticate, requireActive, ownerOnly, createCrudRouter('biens'));
+app.use('/api/logements', authenticate, requireActive, ownerOnly, createCrudRouter('logements'));
+app.use('/api/locataires', authenticate, requireActive, ownerOnly, createCrudRouter('locataires'));
+app.use('/api/paiements', authenticate, requireActive, ownerOnly, createCrudRouter('paiements'));
+app.use('/api/incidents', authenticate, requireActive, ownerOnly, createCrudRouter('incidents'));
+app.use('/api/prestataires', authenticate, requireActive, ownerOnly, createCrudRouter('prestataires'));
+app.use('/api/interventions', authenticate, requireActive, ownerOnly, createCrudRouter('interventions'));
+app.use('/api/notifications', authenticate, requireActive, notificationsRoutes);
 
 export default app;

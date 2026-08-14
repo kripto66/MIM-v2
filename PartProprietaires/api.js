@@ -11,18 +11,11 @@ async function apiRequest(path, options = {}) {
     ...options,
   });
 
-  if (res.status === 401) {
-    window.location.href = "../PartPublic/connexion.html";
-    throw new Error("Non authentifié.");
-  }
+  const { ok, error, data } = await MIM.parse(res);
 
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok || data.success === false) {
-    const err = new Error(data.message || "Une erreur est survenue.");
-    err.errors = data.errors;
-    err.status = res.status;
-    throw err;
+  if (!ok) {
+    MIM.handleAuthError(error);
+    throw error;
   }
 
   return data;

@@ -448,13 +448,13 @@ router.put('/profile', async (req, res) => {
           .maybeSingle();
 
         if (taken) {
-          return res.status(409).json({ success: false, message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+          return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
         }
 
         const { error: emailError } = await sb.auth.admin.updateUserById(uid, { email: tenantEmailFor(username) });
         if (emailError) {
           console.error('[employe/profile] username email :', emailError.message);
-          return res.status(409).json({ success: false, message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+          return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
         }
 
         await sb.from('profiles').update({ username }).eq('id', uid);

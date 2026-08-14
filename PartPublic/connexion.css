@@ -271,7 +271,8 @@ input:focus {
    MESSAGES (succès / erreur)
 ======================================== */
 
-#formMessage {
+#formMessage,
+#loginMessage {
     display: none;
 
     margin-bottom: 20px;
@@ -287,7 +288,8 @@ input:focus {
     text-align: center;
 }
 
-#formMessage.success {
+#formMessage.success,
+#loginMessage.success {
     display: block;
 
     color: #1e7e34;
@@ -297,7 +299,8 @@ input:focus {
     border: 1px solid #c3e6cb;
 }
 
-#formMessage.error {
+#formMessage.error,
+#loginMessage.error {
     display: block;
 
     color: #c0392b;
