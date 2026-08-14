@@ -7,6 +7,7 @@ import { logSession, closeSession } from '../utils/sessions.js';
 import { newOAuthClient, storeFlow, getFlow, deleteFlow } from '../utils/oauth.js';
 import { resolveLoginEmail, tenantEmailFor, usernameIsValid, TENANT_EMAIL_DOMAIN } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
+import { subscriptionExpiredFor } from '../utils/subscription.js';
 
 const router = Router();
 
@@ -343,10 +344,27 @@ router.post('/login', async (req, res) => {
 
   const accountType = accountTypeOf(data.user);
 
-  // Un locataire/employé dont le PROPRIÉTAIRE est suspendu ne peut pas se
-  // connecter non plus (relation lue en base, jamais un owner_id du client).
+  // Un propriétaire dont l'abonnement MIM est expiré ne peut pas se
+  // connecter (état calculé en base à partir de date_expiration, jamais
+  // d'une valeur envoyée par le client).
+  if (['proprietaire', 'agence', 'entreprise'].includes(accountType)) {
+    const expired = await subscriptionExpiredFor(data.user.id, accountType);
+    if (expired) {
+      return res.status(403).json({
+        success: false,
+        code: 'ACCOUNT_SUSPENDED',
+        message: 'Votre compte a été suspendu.',
+      });
+    }
+  }
+
+  // Un locataire/employé dont le PROPRIÉTAIRE est suspendu (ou a un
+  // abonnement expiré) ne peut pas se connecter non plus (relation lue
+  // en base, jamais un owner_id du client).
   if (accountType === 'locataire' || accountType === 'employe') {
-    const ownerSuspended = await ownerSuspendedFor(data.user.id, accountType);
+    const ownerSuspended =
+      (await ownerSuspendedFor(data.user.id, accountType)) ||
+      (await subscriptionExpiredFor(data.user.id, accountType));
     if (ownerSuspended) {
       return res.status(403).json({
         success: false,

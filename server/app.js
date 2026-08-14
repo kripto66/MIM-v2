@@ -12,6 +12,7 @@ import gitRoutes from './routes/git.js';
 import locataireRoutes from './routes/locataire.js';
 import notificationsRoutes from './routes/notifications.js';
 import adminRoutes from './routes/admin.js';
+import subscriptionRoutes from './routes/subscription.js';
 import employesRoutes from './routes/employes.js';
 import tasksRoutes from './routes/tasks.js';
 import employeRoutes from './routes/employe.js';
@@ -102,6 +103,7 @@ app.use('/api/stats', authenticate, requireActive, requireRole('proprietaire', '
 app.use('/api/git', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise', 'admin'), gitRoutes);
 app.use('/api/locataire', authenticate, requireActive, requireRole('locataire'), locataireRoutes);
 app.use('/api/admin', authenticate, requireActive, requireAdmin, adminRoutes);
+app.use('/api/subscription', authenticate, requireRole('proprietaire', 'agence', 'entreprise'), subscriptionRoutes);
 app.use('/api/employes', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), employesRoutes);
 app.use('/api/tasks', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), tasksRoutes);
 app.use('/api/employe', authenticate, requireActive, requireRole('employe'), employeRoutes);

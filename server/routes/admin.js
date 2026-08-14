@@ -5,6 +5,9 @@
 
 import { Router } from 'express';
 import { serviceClient } from '../app.js';
+import { notify } from '../utils/notifications.js';
+import { invalidateSubscriptionCache } from '../utils/subscription.js';
+import { isBannedValue } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -73,6 +76,7 @@ async function loadPlatformDataUncached() {
     incidents,
     interventions,
     sessions,
+    subscriptions,
   ] = await Promise.all([
     fetchAll('profiles', 'id, account_type, name, email, phone, username, created_at'),
     listAllUsers(),
@@ -83,10 +87,12 @@ async function loadPlatformDataUncached() {
     fetchAll('incidents', 'id, user_id, logement_id, titre, statut, created_at'),
     fetchAll('interventions', 'id, user_id, logement_id, statut, created_at'),
     fetchAll('sessions', 'id, user_id, action, created_at, logout_at, user_agent'),
+    fetchAll('subscriptions', 'id, user_id, plan, statut, date_debut, date_expiration, date_paiement, montant, methode_paiement, reference'),
   ]);
 
   const userById = new Map(users.map((u) => [u.id, u]));
   const profileById = new Map(profiles.map((p) => [p.id, p]));
+  const subByUserId = new Map(subscriptions.map((s) => [s.user_id, s]));
 
   const ownerName = (userId) => profileById.get(userId)?.name || '—';
 
@@ -103,6 +109,8 @@ async function loadPlatformDataUncached() {
     incidents,
     interventions,
     sessions,
+    subscriptions,
+    subByUserId,
   };
 }
 
@@ -130,6 +138,44 @@ const ACTION_LABELS = {
   logout: 'Déconnexion',
   register: 'Inscription',
 };
+
+// Statut d'abonnement calculé côté serveur (jamais confiance au frontend).
+function subscriptionView(sub) {
+  if (!sub) return null;
+  const now = Date.now();
+  const exp = new Date(sub.date_expiration).getTime();
+  const expired = !Number.isNaN(exp) && exp <= now;
+  return {
+    plan: sub.plan || 'standard',
+    statut: expired ? 'expire' : 'actif',
+    date_debut: sub.date_debut || null,
+    date_expiration: sub.date_expiration || null,
+    date_paiement: sub.date_paiement || null,
+    montant: sub.montant == null ? null : Number(sub.montant),
+    methode_paiement: sub.methode_paiement || null,
+    reference: sub.reference || null,
+    joursRestants: expired ? 0 : Math.max(0, Math.ceil((exp - now) / 86400000)),
+  };
+}
+
+// Nouvelle échéance : on prolonge à partir de l'échéance courante si elle
+// est encore dans le futur (renouvellement), sinon à partir de maintenant.
+function addMonths(d, months) {
+  const r = new Date(d);
+  const day = r.getDate();
+  r.setDate(1);
+  r.setMonth(r.getMonth() + months);
+  const lastDay = new Date(r.getFullYear(), r.getMonth() + 1, 0).getDate();
+  r.setDate(Math.min(day, lastDay));
+  return r;
+}
+
+function formatDateFR(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('fr-FR');
+}
 
 router.get('/stats', async (req, res) => {
   try {
@@ -232,6 +278,114 @@ router.get('/stats', async (req, res) => {
   }
 });
 
+router.get('/subscriptions', async (req, res) => {
+  try {
+    const d = await loadPlatformData();
+
+    const data = d.subscriptions
+      .map((s) => ({
+        id: s.id,
+        user_id: s.user_id,
+        proprietaire: d.ownerName(s.user_id),
+        ...subscriptionView(s),
+      }))
+      .sort((a, b) => String(b.date_expiration || '').localeCompare(String(a.date_expiration || '')));
+
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('[admin/subscriptions]', err.message);
+    res.status(500).json({ success: false, message: 'Erreur lors du chargement des abonnements.' });
+  }
+});
+
+// Enregistrement / validation d'un paiement d'abonnement par l'admin.
+// La nouvelle échéance est TOUJOURS calculée côté serveur.
+router.post('/subscriptions/register', async (req, res) => {
+  const { userId, plan, montant, dureeMois, methodePaiement, reference } = req.body || {};
+
+  if (!userId || typeof userId !== 'string') {
+    return res.status(400).json({ success: false, message: 'Propriétaire requis.' });
+  }
+  if (!(Number(montant) > 0)) {
+    return res.status(400).json({ success: false, message: 'Le montant doit être supérieur à 0.' });
+  }
+  const duree = Number(dureeMois);
+  if (!Number.isInteger(duree) || duree < 1 || duree > 36) {
+    return res.status(400).json({ success: false, message: 'La durée doit être un nombre de mois entre 1 et 36.' });
+  }
+
+  const sb = serviceClient();
+
+  try {
+    const { data: profile } = await sb
+      .from('profiles')
+      .select('id, name, account_type')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (!profile || !OWNER_TYPES.includes(profile.account_type)) {
+      return res.status(404).json({ success: false, message: 'Propriétaire introuvable.' });
+    }
+
+    const now = new Date();
+    const existing = await sb.from('subscriptions').select('*').eq('user_id', userId).maybeSingle();
+
+    // Renouvellement : prolonge à partir de l'échéance en cours si elle est
+    // encore future, sinon à partir de maintenant (réactivation).
+    const base = existing?.data && new Date(existing.data.date_expiration) > now
+      ? new Date(existing.data.date_expiration)
+      : now;
+    const newExpiration = addMonths(base, duree);
+
+    const payload = {
+      user_id: userId,
+      plan: String(plan || 'standard').trim() || 'standard',
+      statut: 'actif',
+      date_debut: existing?.data?.date_debut || now.toISOString(),
+      date_expiration: newExpiration.toISOString(),
+      date_paiement: now.toISOString(),
+      montant: Number(montant),
+      methode_paiement: methodePaiement ? String(methodePaiement).trim() : null,
+      reference: reference ? String(reference).trim() : null,
+      updated_at: now.toISOString(),
+    };
+
+    if (existing?.data) {
+      const { error } = await sb.from('subscriptions').update(payload).eq('user_id', userId);
+      if (error) throw error;
+    } else {
+      const { error } = await sb.from('subscriptions').insert(payload);
+      if (error) throw error;
+    }
+
+    const { error: histError } = await sb.from('abonnement_paiements').insert({
+      user_id: userId,
+      plan: payload.plan,
+      montant: payload.montant,
+      date_paiement: now.toISOString(),
+      methode_paiement: payload.methode_paiement,
+      reference: payload.reference,
+      date_debut: payload.date_debut,
+      date_expiration: newExpiration.toISOString(),
+    });
+    if (histError) throw histError;
+
+    invalidateSubscriptionCache();
+    invalidatePlatformCache();
+
+    await notify(userId, 'abonnement', `Votre abonnement MIM a été enregistré/renouvelé jusqu'au ${formatDateFR(newExpiration)}.`);
+
+    res.json({
+      success: true,
+      message: `Abonnement enregistré. Nouvelle échéance : ${formatDateFR(newExpiration)}.`,
+      subscription: subscriptionView({ ...payload, date_debut: payload.date_debut }),
+    });
+  } catch (err) {
+    console.error('[admin/subscriptions/register]', err.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de l\'enregistrement de l\'abonnement.' });
+  }
+});
+
 router.get('/proprietaires', async (req, res) => {
   try {
     const d = await loadPlatformData();
@@ -248,7 +402,8 @@ router.get('/proprietaires', async (req, res) => {
           logements: d.logements.filter((l) => l.user_id === p.id).length,
           locataires: d.locataires.filter((l) => l.user_id === p.id).length,
           paiements: d.paiements.filter((x) => x.user_id === p.id).length,
-          statut: authUser?.banned_until ? 'suspendu' : 'actif',
+          statut: isBannedValue(authUser?.banned_until) ? 'suspendu' : 'actif',
+          subscription: subscriptionView(d.subByUserId.get(p.id)),
           created_at: p.created_at,
           last_login: authUser?.last_sign_in_at || null,
         };

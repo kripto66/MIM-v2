@@ -300,6 +300,45 @@ async function loadOverview() {
   }
 }
 
+async function loadSubscriptionBanner() {
+  const el = document.getElementById("subBanner");
+  if (!el) return;
+  let subscription = null;
+  try {
+    const res = await fetch(`${API}/subscription/me`, { credentials: "include" });
+    const parsed = await MIM.parse(res);
+    if (parsed.ok && parsed.data) subscription = parsed.data.subscription;
+  } catch (error) {
+    el.hidden = true;
+    return;
+  }
+
+  if (!subscription) {
+    el.className = "sub-banner sub-banner-info";
+    el.innerHTML = "Aucun abonnement MIM enregistré. Contactez l'administration pour souscrire.";
+    el.hidden = false;
+    return;
+  }
+
+  const days = subscription.joursRestants;
+
+  if (subscription.statut === "expire" || days <= 0) {
+    el.className = "sub-banner sub-banner-danger";
+    el.innerHTML = `Votre abonnement MIM est <strong>expiré</strong> (le ${formatDate(subscription.date_expiration)}). Veuillez contacter l'administration pour le renouveler.`;
+    el.hidden = false;
+    return;
+  }
+
+  if (days <= 7) {
+    el.className = "sub-banner sub-banner-warning";
+    el.innerHTML = `Votre abonnement MIM expire dans <strong>${days} jour${days > 1 ? "s" : ""}</strong> (le ${formatDate(subscription.date_expiration)}). Pensez à le renouveler.`;
+    el.hidden = false;
+    return;
+  }
+
+  el.hidden = true;
+}
+
 async function logout() {
   try {
     await fetch(`${API}/auth/logout`, {
@@ -330,6 +369,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadUserName();
   loadStats();
   loadOverview();
+  loadSubscriptionBanner();
 
   const logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);

@@ -49,6 +49,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M2 10h20"/></svg>
         <span>Paiements</span>
       </button>
+      <button class="nav-item" data-section="abonnements">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="14" y2="13"/></svg>
+        <span>Abonnements</span>
+      </button>
       <button class="nav-item" data-section="incidents">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
         <span>Incidents</span>
@@ -107,6 +111,56 @@
   </main>
 
   <div id="toast" class="toast"></div>
+
+  <div id="subModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="subModalTitle">
+    <div class="modal-backdrop" data-sub-close></div>
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h3 id="subModalTitle">Enregistrer un paiement d'abonnement</h3>
+        <button type="button" class="icon-btn" data-sub-close aria-label="Fermer">✕</button>
+      </div>
+      <form id="subForm">
+        <label class="field"><span>Propriétaire</span>
+          <select id="subOwner" required></select>
+        </label>
+        <label class="field"><span>Plan</span>
+          <select id="subPlan">
+            <option value="standard">Standard</option>
+            <option value="premium">Premium</option>
+          </select>
+        </label>
+        <div class="form-row-2">
+          <label class="field"><span>Montant (FCFA)</span>
+            <input id="subMontant" type="number" min="0" step="0.01" required placeholder="Ex. 25000">
+          </label>
+          <label class="field"><span>Durée</span>
+            <select id="subDuree">
+              <option value="1">1 mois</option>
+              <option value="3">3 mois</option>
+              <option value="6">6 mois</option>
+              <option value="12" selected>12 mois</option>
+            </select>
+          </label>
+        </div>
+        <label class="field"><span>Méthode de paiement</span>
+          <select id="subMethode">
+            <option value="">—</option>
+            <option value="especes">Espèces</option>
+            <option value="carte">Carte</option>
+            <option value="virement">Virement</option>
+            <option value="mobile_money">Mobile Money</option>
+          </select>
+        </label>
+        <label class="field"><span>Référence (facultatif)</span>
+          <input id="subReference" type="text" placeholder="N° de transaction">
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" data-sub-close>Annuler</button>
+          <button type="submit" class="btn primary">Valider le paiement</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <script src="admin.js"></script>
   <script src="../PartPublic/sidebar.js"></script>

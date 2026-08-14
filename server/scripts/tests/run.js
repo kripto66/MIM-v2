@@ -19,6 +19,7 @@ import { runSecurity } from './security.test.js';
 import { runConcurrency } from './concurrency.test.js';
 import { runFinal } from './final.test.js';
 import { runAdmin } from './admin.test.js';
+import { runAbonnement } from './abonnement.test.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.join(__dirname, '..', '..');
@@ -39,6 +40,7 @@ const SUITES = [
   ['concurrency', runConcurrency],
   ['final', runFinal],
   ['admin', runAdmin],
+  ['abonnement', runAbonnement],
 ];
 
 const runner = new Runner();
