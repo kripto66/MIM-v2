@@ -16,7 +16,7 @@ import employesRoutes from './routes/employes.js';
 import tasksRoutes from './routes/tasks.js';
 import employeRoutes from './routes/employe.js';
 import { createCrudRouter } from './routes/crud.js';
-import { authenticate, requireAdmin } from './middleware/auth.js';
+import { authenticate, requireAdmin, requireRole, authenticatePage, requireZone } from './middleware/auth.js';
 import { authRateLimit, apiRateLimit } from './middleware/rateLimit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -80,10 +80,13 @@ const ROOT = path.join(__dirname, '..');
 
 app.use(express.static(path.join(ROOT, 'PartPublic')));
 app.use('/PartPublic', express.static(path.join(ROOT, 'PartPublic')));
-app.use('/PartProprietaires', express.static(path.join(ROOT, 'PartProprietaires')));
-app.use('/PartLocataires', express.static(path.join(ROOT, 'PartLocataires')));
-app.use('/PartAdmin', express.static(path.join(ROOT, 'PartAdmin')));
-app.use('/PartEmployes', express.static(path.join(ROOT, 'PartEmployes')));
+// Zones protégées : les pages (et leurs assets) ne sont servies qu'aux
+// utilisateurs connectés avec le bon rôle. La protection ne repose plus
+// uniquement sur le JavaScript du navigateur.
+app.use('/PartProprietaires', authenticatePage(), requireZone('proprietaire', 'agence', 'entreprise'), express.static(path.join(ROOT, 'PartProprietaires')));
+app.use('/PartLocataires', authenticatePage(), requireZone('locataire'), express.static(path.join(ROOT, 'PartLocataires')));
+app.use('/PartAdmin', authenticatePage(), requireZone('admin'), express.static(path.join(ROOT, 'PartAdmin')));
+app.use('/PartEmployes', authenticatePage(), requireZone('employe'), express.static(path.join(ROOT, 'PartEmployes')));
 app.use('/images', express.static(path.join(ROOT, 'images')));
 
 app.get('/api/health', (req, res) => {
@@ -92,21 +95,22 @@ app.get('/api/health', (req, res) => {
 
 app.use('/api/auth', authRateLimit, authRoutes);
 app.use('/api', apiRateLimit);
-app.use('/api/stats', authenticate, statsRoutes);
-app.use('/api/git', authenticate, gitRoutes);
-app.use('/api/locataire', authenticate, locataireRoutes);
+app.use('/api/stats', authenticate, requireRole('proprietaire', 'agence', 'entreprise'), statsRoutes);
+app.use('/api/git', authenticate, requireRole('proprietaire', 'agence', 'entreprise', 'admin'), gitRoutes);
+app.use('/api/locataire', authenticate, requireRole('locataire'), locataireRoutes);
 app.use('/api/admin', authenticate, requireAdmin, adminRoutes);
-app.use('/api/employes', authenticate, employesRoutes);
-app.use('/api/tasks', authenticate, tasksRoutes);
-app.use('/api/employe', authenticate, employeRoutes);
+app.use('/api/employes', authenticate, requireRole('proprietaire', 'agence', 'entreprise'), employesRoutes);
+app.use('/api/tasks', authenticate, requireRole('proprietaire', 'agence', 'entreprise'), tasksRoutes);
+app.use('/api/employe', authenticate, requireRole('employe'), employeRoutes);
 
-app.use('/api/biens', authenticate, createCrudRouter('biens'));
-app.use('/api/logements', authenticate, createCrudRouter('logements'));
-app.use('/api/locataires', authenticate, createCrudRouter('locataires'));
-app.use('/api/paiements', authenticate, createCrudRouter('paiements'));
-app.use('/api/incidents', authenticate, createCrudRouter('incidents'));
-app.use('/api/prestataires', authenticate, createCrudRouter('prestataires'));
-app.use('/api/interventions', authenticate, createCrudRouter('interventions'));
+const ownerOnly = requireRole('proprietaire', 'agence', 'entreprise');
+app.use('/api/biens', authenticate, ownerOnly, createCrudRouter('biens'));
+app.use('/api/logements', authenticate, ownerOnly, createCrudRouter('logements'));
+app.use('/api/locataires', authenticate, ownerOnly, createCrudRouter('locataires'));
+app.use('/api/paiements', authenticate, ownerOnly, createCrudRouter('paiements'));
+app.use('/api/incidents', authenticate, ownerOnly, createCrudRouter('incidents'));
+app.use('/api/prestataires', authenticate, ownerOnly, createCrudRouter('prestataires'));
+app.use('/api/interventions', authenticate, ownerOnly, createCrudRouter('interventions'));
 app.use('/api/notifications', authenticate, notificationsRoutes);
 
 export default app;
