@@ -135,6 +135,23 @@
                     <input type="date" id="date_paiement" name="date_paiement">
                 </div>
 
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="methode_paiement">Méthode de paiement</label>
+                        <select id="methode_paiement" name="methode_paiement">
+                            <option value="">— Choisir —</option>
+                            <option value="especes">Espèces</option>
+                            <option value="mobile_money">Mobile Money</option>
+                            <option value="virement">Virement bancaire</option>
+                            <option value="carte">Carte bancaire</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="reference">Référence (n° transaction, chèque…)</label>
+                        <input type="text" id="reference" name="reference" maxlength="80" placeholder="Facultatif">
+                    </div>
+                </div>
+
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="cancelModal">Annuler</button>
                     <button type="submit" class="btn btn-primary">Enregistrer</button>

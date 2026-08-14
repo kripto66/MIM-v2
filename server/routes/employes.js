@@ -11,6 +11,7 @@ import { gitAutoBackup } from '../utils/gitBackup.js';
 import { tenantEmailFor, usernameIsValid } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { notify } from '../utils/notifications.js';
+import { methodePaiementError } from '../utils/paiementMethodes.js';
 
 const router = Router();
 
@@ -334,6 +335,8 @@ router.post('/:id/paiements', async (req, res) => {
   const mois = String(req.body.mois || '').trim();
   const statut = req.body.statut || 'paye';
   const datePaiement = req.body.date_paiement || null;
+  const methodePaiement = req.body.methode_paiement || null;
+  const reference = req.body.reference || null;
 
   if (Number.isNaN(montant) || montant <= 0) {
     return res.status(400).json({ success: false, message: 'Le montant doit être supérieur à 0.', errors: { montant: 'Le montant doit être supérieur à 0.' } });
@@ -347,6 +350,13 @@ router.post('/:id/paiements', async (req, res) => {
   if (datePaiement && !isValidDate(datePaiement)) {
     return res.status(400).json({ success: false, message: 'Date de paiement invalide.', errors: { date_paiement: 'Date de paiement invalide.' } });
   }
+  const methodeError = methodePaiementError(methodePaiement);
+  if (methodeError) {
+    return res.status(400).json({ success: false, message: methodeError, errors: { methode_paiement: methodeError } });
+  }
+  if (reference && String(reference).length > 80) {
+    return res.status(400).json({ success: false, message: 'La référence ne doit pas dépasser 80 caractères.', errors: { reference: 'La référence ne doit pas dépasser 80 caractères.' } });
+  }
 
   const { data, error } = await sb
     .from('paiements_employes')
@@ -358,6 +368,8 @@ router.post('/:id/paiements', async (req, res) => {
       mois,
       statut,
       date_paiement: datePaiement || null,
+      methode_paiement: methodePaiement,
+      reference: reference,
     })
     .select()
     .single();

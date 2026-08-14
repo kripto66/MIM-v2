@@ -592,8 +592,10 @@ async function paiements() {
     periode: r.periode,
     montant: money(r.montant),
     statut: r.statut,
+    methode: r.methode,
+    reference: r.reference || "—",
   }));
-  app.innerHTML = tablePage("paiements", rowsData, ["id", "locataire", "logement", "periode", "montant", "statut"], ["ID", "Locataire", "Logement", "Période", "Montant", "Statut"]);
+  app.innerHTML = tablePage("paiements", rowsData, ["id", "locataire", "logement", "periode", "montant", "statut", "methode", "reference"], ["ID", "Locataire", "Logement", "Période", "Montant", "Statut", "Méthode", "Référence"]);
   bindSearch();
 }
 

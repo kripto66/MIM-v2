@@ -4,6 +4,7 @@ import { gitAutoBackup } from '../utils/gitBackup.js';
 import { tenantEmailFor, usernameIsValid } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { notify, tenantUidOfLogement, tenantUidOfLocataire, logementNomOf } from '../utils/notifications.js';
+import { methodePaiementError } from '../utils/paiementMethodes.js';
 
 const SCHEMAS = {
   biens: {
@@ -19,8 +20,8 @@ const SCHEMAS = {
     emptyToNull: ['logement_id', 'email', 'phone', 'date_entree', 'jour_echeance'],
   },
   paiements: {
-    fields: ['locataire_id', 'logement_id', 'montant', 'mois', 'statut', 'date_paiement'],
-    emptyToNull: ['logement_id', 'date_paiement'],
+    fields: ['locataire_id', 'logement_id', 'montant', 'mois', 'statut', 'date_paiement', 'methode_paiement', 'reference'],
+    emptyToNull: ['logement_id', 'date_paiement', 'methode_paiement', 'reference'],
   },
   incidents: {
     fields: ['logement_id', 'titre', 'description', 'photo', 'statut'],
@@ -93,6 +94,8 @@ function validateResource(tableName, body, partial = false) {
     case 'paiements':
       check('montant', () => !present('montant') || Number(body.montant) <= 0, 'Le montant doit être supérieur à 0.');
       check('mois', () => !present('mois'), 'Le mois est obligatoire.');
+      check('methode_paiement', () => methodePaiementError(body.methode_paiement), methodePaiementError(body.methode_paiement));
+      check('reference', () => present('reference') && String(body.reference).length > 80, 'La référence ne doit pas dépasser 80 caractères.');
       break;
 
     case 'incidents':
