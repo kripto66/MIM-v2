@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { supabase, authedClient, serviceClient } from '../app.js';
-import { signToken, authenticate } from '../middleware/auth.js';
+import { signToken, authenticate, ownerSuspendedFor, isBannedValue } from '../middleware/auth.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
 import { logSession, closeSession } from '../utils/sessions.js';
 import { newOAuthClient, storeFlow, getFlow, deleteFlow } from '../utils/oauth.js';
@@ -36,6 +36,30 @@ const COOKIE_OPTIONS = {
 
 function emailIsValid(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+// Recherche d'un compte auth par email (endpoint admin GoTrue). Permet de
+// distinguer : compte inexistant, compte suspendu, mauvais identifiants.
+async function lookupAuthUserByEmail(email) {
+  try {
+    const res = await fetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users?filter=${encodeURIComponent(email)}`, {
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+    });
+
+    if (!res.ok) {
+      console.warn('[login] lookup auth users :', res.status);
+      return null;
+    }
+
+    const body = await res.json();
+    return (body?.users || []).find((u) => u.email === email) || null;
+  } catch (err) {
+    console.warn('[login] lookup auth users :', err.message);
+    return null;
+  }
 }
 
 function verifiedFactorsOf(user) {
@@ -219,7 +243,7 @@ router.post('/register', async (req, res) => {
     const msg = String(error.message || '').toLowerCase();
 
     if (msg.includes('already registered') || msg.includes('existe')) {
-      return res.status(409).json({ success: false, message: 'Cette adresse email est déjà utilisée.' });
+      return res.status(409).json({ success: false, code: 'EMAIL_ALREADY_EXISTS', message: 'Cette adresse email est déjà utilisée.' });
     }
 
     if (msg.includes('rate limit') || error.status === 429) {
@@ -266,7 +290,26 @@ router.post('/login', async (req, res) => {
   const { password } = req.body;
 
   if (!email || !password) {
-    return res.status(400).json({ success: false, message: 'Veuillez remplir tous les champs.' });
+    return res.status(400).json({ success: false, code: 'VALIDATION', message: 'Veuillez remplir tous les champs.' });
+  }
+
+  // Distinction compte inexistant / compte suspendu / mauvais identifiants.
+  const account = await lookupAuthUserByEmail(email);
+
+  if (account && isBannedValue(account.banned_until)) {
+    return res.status(403).json({
+      success: false,
+      code: 'ACCOUNT_SUSPENDED',
+      message: 'Votre compte a été suspendu.',
+    });
+  }
+
+  if (!account) {
+    return res.status(401).json({
+      success: false,
+      code: 'ACCOUNT_NOT_FOUND',
+      message: 'Aucun compte associé à cet identifiant.',
+    });
   }
 
   const isTransient = (e) => {
@@ -279,16 +322,38 @@ router.post('/login', async (req, res) => {
   if (error || !data.user || !data.session) {
     const status = Number(error?.status);
     const msg = String(error?.message || '').toLowerCase();
+
+    // GoTrue refuse la connexion d'un utilisateur banni (user_banned) :
+    // on le traduit en suspension, pas en mauvais identifiants.
+    if (error?.code === 'user_banned' || msg.includes('banned')) {
+      return res.status(403).json({ success: false, code: 'ACCOUNT_SUSPENDED', message: 'Votre compte a été suspendu.' });
+    }
+
     if (isTransient(error)) {
       // Panne transitoire du backend auth (500/504 GoTrue) : on renvoie 503
       // (rétentable) plutôt qu'un faux 401 « mauvais identifiants ».
       console.warn('[login] erreur transitoire auth :', error?.status, error?.message);
-      return res.status(503).json({ success: false, message: 'Service temporairement indisponible. Réessayez dans un instant.' });
+      return res.status(503).json({ success: false, code: 'SERVICE_UNAVAILABLE', message: 'Service temporairement indisponible. Réessayez dans un instant.' });
     }
     if (status === 429 || msg.includes('rate limit') || msg.includes('too many') || msg.includes('trop de')) {
-      return res.status(429).json({ success: false, message: 'Trop de tentatives. Réessayez dans un instant.' });
+      return res.status(429).json({ success: false, code: 'RATE_LIMIT', message: 'Trop de tentatives. Réessayez dans un instant.' });
     }
-    return res.status(401).json({ success: false, message: 'Email ou mot de passe incorrect.' });
+    return res.status(401).json({ success: false, code: 'INVALID_CREDENTIALS', message: 'Email ou mot de passe incorrect.' });
+  }
+
+  const accountType = accountTypeOf(data.user);
+
+  // Un locataire/employé dont le PROPRIÉTAIRE est suspendu ne peut pas se
+  // connecter non plus (relation lue en base, jamais un owner_id du client).
+  if (accountType === 'locataire' || accountType === 'employe') {
+    const ownerSuspended = await ownerSuspendedFor(data.user.id, accountType);
+    if (ownerSuspended) {
+      return res.status(403).json({
+        success: false,
+        code: 'ACCOUNT_SUSPENDED',
+        message: 'Votre compte a été suspendu.',
+      });
+    }
   }
 
   const factors = await requireMfaFor(data.user, data.session.access_token);
@@ -745,7 +810,7 @@ router.put('/update-username', authenticate, async (req, res) => {
       .maybeSingle();
 
     if (taken) {
-      return res.status(409).json({ success: false, message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+      return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
     }
 
     // L'email interne dérive du username : on le met à jour pour que la
@@ -758,7 +823,7 @@ router.put('/update-username', authenticate, async (req, res) => {
 
     if (emailError) {
       console.error('[update-username]', emailError.message);
-      return res.status(409).json({ success: false, message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+      return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
     }
 
     const { error: profileError } = await sb

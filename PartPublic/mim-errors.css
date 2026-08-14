@@ -1,0 +1,37 @@
+/* MIM — styles par défaut du système unifié de messages.
+ * Chargé avant les feuilles de zone : /mim-errors.css.
+ * Chaque zone peut surcharger #toast / .tenant-message avec ses propres
+ * styles ; ce fichier garantit un affichage rouge correct partout. */
+
+#toast {
+  position: fixed;
+  right: 25px;
+  bottom: 25px;
+  max-width: min(420px, calc(100vw - 50px));
+  background: #111827;
+  color: #fff;
+  padding: 13px 16px;
+  border-radius: 9px;
+  opacity: 0;
+  transform: translateY(15px);
+  pointer-events: none;
+  transition: opacity .25s, transform .25s;
+  z-index: 99;
+  font-size: 13px;
+  text-align: center;
+}
+
+#toast.show {
+  opacity: 1;
+  transform: none;
+}
+
+#toast.error {
+  background: #b91c1c;
+  color: #fff;
+}
+
+#toast.success {
+  background: #15803d;
+  color: #fff;
+}

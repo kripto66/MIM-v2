@@ -11,6 +11,8 @@
 
     <link rel="stylesheet" href="connexion.css">
 
+    <link rel="stylesheet" href="mim-errors.css">
+
 </head>
 
 <body>
@@ -103,6 +105,7 @@
 
     <script src="form-utils.js"></script>
     <script src="password-strength.js"></script>
+    <script src="mim-errors.js"></script>
     <script>
         const API = mimApiBase();
 
@@ -117,6 +120,12 @@
                 server: 'Une erreur est survenue lors de la connexion Google.',
             };
             loginMessage.textContent = messages[oauthError] || 'La connexion Google a échoué.';
+            loginMessage.className = 'error';
+        }
+
+        const loginError = new URLSearchParams(window.location.search).get('error');
+        if (loginError && MIM.MESSAGES[loginError]) {
+            loginMessage.textContent = MIM.MESSAGES[loginError];
             loginMessage.className = 'error';
         }
 
@@ -156,9 +165,9 @@
                     })
                 });
 
-                const data = await response.json();
+                const { ok, error, data } = await MIM.parse(response);
 
-                if (data.success) {
+                if (ok) {
                     message.textContent = data.message;
                     message.className = 'success';
                     if (data.mustChangePassword) {
@@ -168,9 +177,9 @@
                         window.location.href = '../' + data.redirect;
                     }
                 } else {
-                    message.textContent = data.message;
+                    message.textContent = MIM.userMessage(error);
                     message.className = 'error';
-                    applyServerErrors(form, data.errors);
+                    applyServerErrors(form, error.errors);
                 }
             } catch (error) {
                 console.error('Erreur:', error);
