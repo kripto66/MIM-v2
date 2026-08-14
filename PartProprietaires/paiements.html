@@ -153,18 +153,13 @@
                 </div>
 
                 <div id="unitechBlock" style="display:none;" class="unitech-block">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="unitechOperator">Opérateur</label>
-                            <select id="unitechOperator">
-                                <option value="wave">Wave</option>
-                                <option value="orange">Orange Money</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label for="unitechPhone">N° téléphone du payeur</label>
-                            <input type="tel" id="unitechPhone" placeholder="Ex : 771234567">
-                        </div>
+                    <p class="unitech-ok">Le lien de paiement mobile money sera généré pour ce paiement (montant et locataire lus côté serveur).</p>
+                    <div class="form-group">
+                        <label for="unitechOperator">Opérateur</label>
+                        <select id="unitechOperator">
+                            <option value="wave">Wave</option>
+                            <option value="orange">Orange Money</option>
+                        </select>
                     </div>
                     <div class="modal-actions">
                         <button type="button" class="btn btn-primary" id="unitechBtn">Générer le lien de paiement</button>
@@ -234,32 +229,21 @@
         };
 
         function toggleUnitechBlock() {
-            const show = document.getElementById("methode_paiement").value === "mobile_money";
-            document.getElementById("unitechBlock").style.display = show ? "block" : "none";
-            if (show) prefillPhone();
-        }
-
-        function prefillPhone() {
-            const locId = document.getElementById("locataire_id").value;
-            const locataire = locatairesCache.find((t) => String(t.id) === String(locId));
-            if (locataire && locataire.phone) {
-                document.getElementById("unitechPhone").value = locataire.phone;
-            }
+            const isMobileMoney = document.getElementById("methode_paiement").value === "mobile_money";
+            const hasId = Boolean(document.getElementById("paiementId").value);
+            // Le lien ne peut être généré qu'une fois le paiement ENREGISTRÉ
+            // (le serveur relit montant/locataire/propriétaire en base).
+            document.getElementById("unitechBlock").style.display = isMobileMoney && hasId ? "block" : "none";
         }
 
         async function initiateUnitech() {
             const result = document.getElementById("unitechResult");
-            const amount = Number(document.getElementById("montant").value);
-            const phone = document.getElementById("unitechPhone").value.trim();
+            const paiementId = document.getElementById("paiementId").value;
             const operator = document.getElementById("unitechOperator").value;
             result.innerHTML = "";
 
-            if (!amount || amount <= 0) {
-                result.innerHTML = '<p class="form-error">Renseignez d\'abord le montant.</p>';
-                return;
-            }
-            if (!phone) {
-                result.innerHTML = '<p class="form-error">Indiquez le numéro du payeur.</p>';
+            if (!paiementId) {
+                result.innerHTML = '<p class="form-error">Enregistrez d\'abord le paiement, puis générez le lien.</p>';
                 return;
             }
 
@@ -270,12 +254,7 @@
             try {
                 const res = await apiRequest("/unitech/initiate", {
                     method: "POST",
-                    body: JSON.stringify({
-                        amount,
-                        customer_number: phone,
-                        operator,
-                        description: "Loyer MIM",
-                    }),
+                    body: JSON.stringify({ paiement_id: paiementId, operator }),
                 });
                 const d = res.data || {};
                 let html = "";
@@ -288,10 +267,8 @@
                 }
                 if (d.reference) {
                     html += `<p class="unitech-ref">Réf. UnitechPay : ${escapeHtml(d.reference)}</p>`;
-                    const refInput = document.getElementById("reference");
-                    if (!refInput.value) refInput.value = d.reference;
                 }
-                result.innerHTML = html || '<p class="unitech-ok">Session initiée (statut en attente).</p>';
+                result.innerHTML = html || '<p class="unitech-ok">Session de paiement créée (statut en attente).</p>';
             } catch (err) {
                 result.innerHTML = `<p class="form-error">${escapeHtml(err.message || "Erreur UnitechPay.")}</p>`;
             } finally {
@@ -301,7 +278,6 @@
         }
 
         document.getElementById("methode_paiement").addEventListener("change", toggleUnitechBlock);
-        document.getElementById("locataire_id").addEventListener("change", prefillPhone);
         document.getElementById("unitechBtn").addEventListener("click", initiateUnitech);
 
         CrudPage.init({
@@ -351,12 +327,28 @@
                         <div class="card-amount">
                             <strong>${Number(p.montant).toLocaleString("fr-FR")} FCFA</strong>
                             <div class="card-actions">
+                                ${p.statut !== "paye" ? `<button class="btn btn-pay" data-unitech="${p.id}">Lien mobile money</button>` : ""}
                                 <button class="btn btn-edit" data-edit="${p.id}">Modifier</button>
                                 <button class="btn btn-delete" data-delete="${p.id}">Supprimer</button>
                             </div>
                         </div>
                     </div>`;
             }
+        });
+
+        // Bouton « Lien mobile money » : ouvre le paiement en édition,
+        // sélectionne la méthode mobile money et génère le lien (montant,
+        // locataire et propriétaire relus côté serveur).
+        document.getElementById("paiementsList").addEventListener("click", (e) => {
+            const btn = e.target.closest("[data-unitech]");
+            if (!btn) return;
+            const item = CrudPage._currentItems?.find((i) => String(i.id) === String(btn.dataset.unitech));
+            if (!item) return;
+            CrudPage.openEdit(item);
+            const mm = document.getElementById("methode_paiement");
+            if (mm) mm.value = "mobile_money";
+            toggleUnitechBlock();
+            initiateUnitech();
         });
 
         loadData();
