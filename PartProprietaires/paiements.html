@@ -152,6 +152,26 @@
                     </div>
                 </div>
 
+                <div id="unitechBlock" style="display:none;" class="unitech-block">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="unitechOperator">Opérateur</label>
+                            <select id="unitechOperator">
+                                <option value="wave">Wave</option>
+                                <option value="orange">Orange Money</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="unitechPhone">N° téléphone du payeur</label>
+                            <input type="tel" id="unitechPhone" placeholder="Ex : 771234567">
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-primary" id="unitechBtn">Générer le lien de paiement</button>
+                    </div>
+                    <div id="unitechResult"></div>
+                </div>
+
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="cancelModal">Annuler</button>
                     <button type="submit" class="btn btn-primary">Enregistrer</button>
@@ -206,6 +226,84 @@
             return `${MOIS_FR[Number(m) - 1]} ${y}`;
         }
 
+        const METHODE_LABELS = {
+            especes: "Espèces",
+            mobile_money: "Mobile Money",
+            virement: "Virement bancaire",
+            carte: "Carte bancaire",
+        };
+
+        function toggleUnitechBlock() {
+            const show = document.getElementById("methode_paiement").value === "mobile_money";
+            document.getElementById("unitechBlock").style.display = show ? "block" : "none";
+            if (show) prefillPhone();
+        }
+
+        function prefillPhone() {
+            const locId = document.getElementById("locataire_id").value;
+            const locataire = locatairesCache.find((t) => String(t.id) === String(locId));
+            if (locataire && locataire.phone) {
+                document.getElementById("unitechPhone").value = locataire.phone;
+            }
+        }
+
+        async function initiateUnitech() {
+            const result = document.getElementById("unitechResult");
+            const amount = Number(document.getElementById("montant").value);
+            const phone = document.getElementById("unitechPhone").value.trim();
+            const operator = document.getElementById("unitechOperator").value;
+            result.innerHTML = "";
+
+            if (!amount || amount <= 0) {
+                result.innerHTML = '<p class="form-error">Renseignez d\'abord le montant.</p>';
+                return;
+            }
+            if (!phone) {
+                result.innerHTML = '<p class="form-error">Indiquez le numéro du payeur.</p>';
+                return;
+            }
+
+            const btn = document.getElementById("unitechBtn");
+            btn.disabled = true;
+            const original = btn.textContent;
+            btn.textContent = "Génération...";
+            try {
+                const res = await apiRequest("/unitech/initiate", {
+                    method: "POST",
+                    body: JSON.stringify({
+                        amount,
+                        customer_number: phone,
+                        operator,
+                        description: "Loyer MIM",
+                    }),
+                });
+                const d = res.data || {};
+                let html = "";
+                if (d.payment_url) {
+                    html += `<p class="unitech-ok">Lien de paiement généré :</p>
+                        <a href="${d.payment_url}" target="_blank" rel="noopener">${escapeHtml(d.payment_url)}</a>`;
+                }
+                if (d.qr_code) {
+                    html += `<img class="unitech-qr" src="${d.qr_code}" alt="QR Code" style="max-width:160px;display:block;margin-top:8px;">`;
+                }
+                if (d.reference) {
+                    html += `<p class="unitech-ref">Réf. UnitechPay : ${escapeHtml(d.reference)}</p>`;
+                    const refInput = document.getElementById("reference");
+                    if (!refInput.value) refInput.value = d.reference;
+                }
+                result.innerHTML = html || '<p class="unitech-ok">Session initiée (statut en attente).</p>';
+            } catch (err) {
+                result.innerHTML = `<p class="form-error">${escapeHtml(err.message || "Erreur UnitechPay.")}</p>`;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = original;
+            }
+        }
+
+        document.getElementById("methode_paiement").addEventListener("change", toggleUnitechBlock);
+        document.getElementById("locataire_id").addEventListener("change", prefillPhone);
+        document.getElementById("unitechBtn").addEventListener("click", initiateUnitech);
+
         CrudPage.init({
             resource: "paiements",
             listEl: "paiementsList",
@@ -241,12 +339,14 @@
                 const [label, cls] = PAIEMENT_STATUS[p.statut] || [p.statut, "status-info"];
                 const locataire = locatairesCache.find((t) => String(t.id) === String(p.locataire_id));
                 const logement = logementsCache.find((l) => String(l.id) === String(p.logement_id));
+                const methode = METHODE_LABELS[p.methode_paiement];
                 return `
                     <div class="crud-card">
                         <div>
                             <h3>${locataire ? escapeHtml(locataire.nom) : "Locataire inconnu"}</h3>
                             <p>${formatMois(p.mois)} — ${logement ? escapeHtml(logement.nom) : ""}</p>
                             <p><span class="status ${cls}">${label}</span></p>
+                            ${methode ? `<p class="pay-methode">${methode}${p.reference ? ` — ${escapeHtml(p.reference)}` : ""}</p>` : ""}
                         </div>
                         <div class="card-amount">
                             <strong>${Number(p.montant).toLocaleString("fr-FR")} FCFA</strong>
