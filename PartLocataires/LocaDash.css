@@ -107,6 +107,20 @@ body {
     font-size: 28px;
 
     cursor: pointer;
+
+    width: 40px;
+
+    height: 40px;
+
+    padding: 0;
+
+    align-items: center;
+
+    justify-content: center;
+
+    border-radius: 10px;
+
+    line-height: 1;
 }
 
 
