@@ -46,8 +46,11 @@ router.get('/', async (req, res) => {
 
     // Nom de l'employé assigné pour l'affichage.
     const uids = [...new Set((tasks || []).map((t) => t.employe_uid).filter(Boolean))];
-    const { data: employes = [] } = await sb.from('employes').select('id, nom, account_uid').in('account_uid', uids.length ? uids : [null]);
-    const nameByUid = new Map(employes.map((e) => [e.account_uid, e.nom]));
+    let nameByUid = new Map();
+    if (uids.length) {
+      const { data: employes = [] } = await sb.from('employes').select('id, nom, account_uid').in('account_uid', uids);
+      nameByUid = new Map(employes.map((e) => [e.account_uid, e.nom]));
+    }
 
     const data = (tasks || []).map((t) => ({
       ...t,
