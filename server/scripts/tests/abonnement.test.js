@@ -102,7 +102,7 @@ export async function runAbonnement(r, ctx) {
     });
     if (!expectSuccess(r, res, S, 'création de la session de paiement (register)')) return;
 
-    const d = res.data;
+    const d = res.data.data;
     if (d.payment_url && d.reference && d.abonnementPaiementId) {
       r.pass(S, 'session UnitechPay créée : lien + référence + paiement d\'abonnement');
     } else {
