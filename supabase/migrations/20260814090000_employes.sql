@@ -1,54 +1,12 @@
-ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_account_type_check;
-ALTER TABLE public.profiles ADD CONSTRAINT profiles_account_type_check
-    CHECK (account_type IN ('proprietaire', 'agence', 'entreprise', 'locataire', 'admin', 'employe'));
-
-ALTER TABLE public.locataires ADD COLUMN IF NOT EXISTS account_uid UUID REFERENCES auth.users(id) ON DELETE SET NULL;
-
-CREATE POLICY "tenant_select_locataire" ON public.locataires
-    FOR SELECT USING (account_uid = auth.uid());
-
-CREATE POLICY "tenant_link_locataire" ON public.locataires
-    FOR UPDATE
-    USING (lower(email) = lower(auth.jwt() ->> 'email') AND account_uid IS NULL)
-    WITH CHECK (account_uid = auth.uid());
-
-CREATE POLICY "tenant_select_logement" ON public.logements
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM public.locataires l
-            WHERE l.account_uid = auth.uid() AND l.logement_id = logements.id
-        )
-    );
-
-CREATE POLICY "tenant_select_bien" ON public.biens
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM public.logements lg
-            JOIN public.locataires l ON l.logement_id = lg.id
-            WHERE lg.bien_id = biens.id AND l.account_uid = auth.uid()
-        )
-    );
-
-CREATE POLICY "tenant_select_paiement" ON public.paiements
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM public.locataires l
-            WHERE l.account_uid = auth.uid() AND l.id = paiements.locataire_id
-        )
-    );
-
-CREATE POLICY "tenant_select_incident" ON public.incidents
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM public.logements lg
-            JOIN public.locataires l ON l.logement_id = lg.id
-            WHERE lg.id = incidents.logement_id AND l.account_uid = auth.uid()
-        )
-    );
-
 -- ============================================================
--- Espace employé : comptes créés par le propriétaire
--- (type 'employe', table employes, table tasks, paiements de salaire)
+-- MIM - Espace employé : comptes créés par le propriétaire
+--
+-- Règle métier :
+--  * L'employé ne crée jamais son propre compte : seul le
+--    propriétaire crée le compte depuis sa page « Mes employés »
+--    (username + mot de passe temporaire), fixe le salaire et paie.
+--  * L'employé se connecte pour consulter ses tâches, incidents,
+--    interventions et ses paiements de salaire.
 -- ============================================================
 
 -- Type de compte 'employe' autorisé
@@ -56,6 +14,7 @@ ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_account_type_chec
 ALTER TABLE public.profiles ADD CONSTRAINT profiles_account_type_check
     CHECK (account_type IN ('proprietaire', 'agence', 'entreprise', 'locataire', 'admin', 'employe'));
 
+-- Fiches employés (créées par le propriétaire)
 CREATE TABLE IF NOT EXISTS public.employes (
     id BIGSERIAL PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -71,6 +30,7 @@ CREATE TABLE IF NOT EXISTS public.employes (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Tâches assignées aux employés (créées par le propriétaire)
 CREATE TABLE IF NOT EXISTS public.tasks (
     id BIGSERIAL PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -82,6 +42,7 @@ CREATE TABLE IF NOT EXISTS public.tasks (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Paiements de salaire des employés
 CREATE TABLE IF NOT EXISTS public.paiements_employes (
     id BIGSERIAL PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -98,6 +59,7 @@ ALTER TABLE public.employes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.paiements_employes ENABLE ROW LEVEL SECURITY;
 
+-- Propriétaire : gestion complète de ses employés, tâches et paiements
 CREATE POLICY "owner_all_employes" ON public.employes
     FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "owner_all_tasks" ON public.tasks
@@ -105,6 +67,7 @@ CREATE POLICY "owner_all_tasks" ON public.tasks
 CREATE POLICY "owner_all_paiements_employes" ON public.paiements_employes
     FOR ALL USING (auth.uid() = user_id);
 
+-- Employé : lecture de sa propre fiche, ses tâches et ses paiements
 CREATE POLICY "employe_select_own_employe" ON public.employes
     FOR SELECT USING (account_uid = auth.uid());
 CREATE POLICY "employe_select_own_tasks" ON public.tasks
@@ -112,6 +75,7 @@ CREATE POLICY "employe_select_own_tasks" ON public.tasks
 CREATE POLICY "employe_select_own_paiements" ON public.paiements_employes
     FOR SELECT USING (employe_uid = auth.uid());
 
+-- Privilèges (ces tables sont créées après le script de grants minimaux)
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.employes, public.tasks, public.paiements_employes TO authenticated;
 GRANT USAGE, SELECT ON SEQUENCE employes_id_seq, tasks_id_seq, paiements_employes_id_seq TO authenticated;
 GRANT ALL ON public.employes, public.tasks, public.paiements_employes TO service_role;

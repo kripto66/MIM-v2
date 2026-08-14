@@ -20,6 +20,7 @@ const PAGE_BY_TYPE = {
   entreprise: 'PartProprietaires/dashboard.html',
   locataire: 'PartLocataires/LocaDash.html',
   admin: 'PartAdmin/admin.html',
+  employe: 'PartEmployes/employe.html',
 };
 
 const APP_URL = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
