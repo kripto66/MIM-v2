@@ -80,6 +80,7 @@ app.use('/PartPublic', express.static(path.join(ROOT, 'PartPublic')));
 app.use('/PartProprietaires', express.static(path.join(ROOT, 'PartProprietaires')));
 app.use('/PartLocataires', express.static(path.join(ROOT, 'PartLocataires')));
 app.use('/PartAdmin', express.static(path.join(ROOT, 'PartAdmin')));
+app.use('/PartEmployes', express.static(path.join(ROOT, 'PartEmployes')));
 app.use('/images', express.static(path.join(ROOT, 'images')));
 
 app.get('/api/health', (req, res) => {

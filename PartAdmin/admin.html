@@ -7,9 +7,11 @@
   <link rel="stylesheet" href="admin.css">
 </head>
 <body>
-  <aside class="sidebar" id="sidebar">
+  <aside class="sidebar" id="sidebar" data-breakpoint="750">
     <div class="brand">
-      <div class="brand-logo">M</div>
+      <div class="brand-logo" data-sidebar-toggle-logo role="button" tabindex="0" aria-label="Ouvrir ou fermer le menu" aria-expanded="false">
+        <img src="../images/logoMim-opt.png" alt="MIM">
+      </div>
       <div><strong>MIM</strong><span>Administration</span></div>
     </div>
 
@@ -34,7 +36,7 @@
 
   <main class="main">
     <header class="topbar">
-      <button id="menuBtn" class="icon-btn mobile-only">☰</button>
+      <button id="menuBtn" class="icon-btn mobile-only" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">☰</button>
       <div>
         <h1 id="pageTitle">Dashboard</h1>
         <p id="pageSubtitle">Vue globale de votre plateforme.</p>
@@ -50,5 +52,6 @@
   <div id="toast" class="toast"></div>
 
   <script src="admin.js"></script>
+  <script src="../PartPublic/sidebar.js"></script>
 </body>
 </html>

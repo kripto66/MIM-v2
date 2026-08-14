@@ -21,17 +21,23 @@
 
 <body>
 
-    <aside class="sidebar" id="sidebar">
+    <aside class="sidebar" id="sidebar" data-breakpoint="768">
 
         <div class="sidebar-header">
 
-            <a href="LocaDash.html" class="logo">
-                MIM
+            <a
+                href="LocaDash.html"
+                class="logo"
+                data-sidebar-toggle-logo
+                aria-expanded="false"
+            >
+                <img src="../images/logoMim-opt.png" alt="MIM">
             </a>
 
             <button
                 class="close-menu"
                 id="closeMenu"
+                aria-label="Fermer le menu"
             >
                 ×
             </button>
@@ -97,6 +103,9 @@
             <button
                 class="menu-button"
                 id="menuButton"
+                data-sidebar-toggle
+                aria-label="Ouvrir le menu"
+                aria-expanded="false"
             >
                 ☰
             </button>
@@ -203,6 +212,8 @@
             }
         });
     </script>
+
+    <script src="../PartPublic/sidebar.js"></script>
 
 </body>
 

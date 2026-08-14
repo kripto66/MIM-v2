@@ -3,7 +3,7 @@
 <title>MIM — Espace employé</title><link rel="stylesheet" href="employe.css"></head>
 <body>
 <div id="toast" class="toast"></div><div class="app">
-<aside class="sidebar" id="sidebar"><div class="brand"><b>M</b> MyImmoManagement</div>
+<aside class="sidebar" id="sidebar" data-breakpoint="900"><div class="brand" data-sidebar-toggle-logo role="button" tabindex="0" aria-label="Ouvrir ou fermer le menu" aria-expanded="false"><b><img src="../images/logoMim-opt.png" alt="MIM"></b> MyImmoManagement</div>
 <div class="employee"><span id="avatar">E</span><div><strong id="sideName">Employé</strong><small id="sideRole">Chargement…</small></div></div>
 <nav>
 <button class="nav active" data-view="overview">⌂ Tableau de bord</button>
@@ -15,7 +15,7 @@
 <button class="nav" data-view="notifications">🔔 Notifications <i id="notifBadge"></i></button>
 <button class="nav" data-view="profile">⚙ Mon profil</button></nav>
 <button id="logout" class="logout">↪ Déconnexion</button></aside>
-<main><header><button id="menu">☰</button><div><small>ESPACE EMPLOYÉ</small><h1 id="title">Tableau de bord</h1></div><span id="topName">Employé</span></header>
+<main><header><button id="menu" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">☰</button><div><small>ESPACE EMPLOYÉ</small><h1 id="title">Tableau de bord</h1></div><span id="topName">Employé</span></header>
 <section id="overview" class="view active"><div class="welcome"><div><span>Aujourd’hui</span><h2>Bonjour <b id="welcome">Employé</b> 👋</h2><p>Suivez vos tâches, incidents et interventions.</p></div><button class="primary" data-view="tasks">Voir mes tâches</button></div>
 <div class="stats"><article><small>Mes tâches</small><strong id="sTasks">—</strong><em id="sTasksSub">Chargement…</em></article><article><small>Incidents ouverts</small><strong id="sIncidents">—</strong><em>Réels</em></article><article><small>Interventions</small><strong id="sInterventions">—</strong><em>Réelles</em></article><article><small>Notifications</small><strong id="sNotifications">—</strong><em>Non lues</em></article></div>
 <div class="columns"><article class="panel"><h3>Priorités</h3><div id="priorities"></div></article><article class="panel"><h3>Activité récente</h3><div id="activity"></div></article></div></section>
@@ -27,4 +27,4 @@
 <section id="notifications" class="view"><div class="head"><div><h2>Notifications</h2><p>Événements réels liés à votre activité.</p></div><button id="readAll" class="secondary">Tout marquer comme lu</button></div><div id="notificationsList"></div></section>
 <section id="profile" class="view"><div class="head"><div><h2>Mon profil</h2><p>Informations du compte employé.</p></div></div>
 <form id="profileForm" class="panel form"><label>Nom<input id="pName" required></label><label>Username<input id="pUsername" required></label><label>Rôle<input id="pRole" disabled></label><label>Email<input id="pEmail" type="email"></label><hr><label>Mot de passe actuel<input id="pCurrent" type="password"></label><label>Nouveau mot de passe<input id="pNew" type="password"><small id="pwdHint"></small></label><label>Confirmation<input id="pConfirm" type="password"></label><button class="primary">Enregistrer</button></form></section>
-</main></div><script src="employe.js"></script></body></html>
+</main></div><script src="employe.js"></script><script src="../PartPublic/sidebar.js"></script></body></html>

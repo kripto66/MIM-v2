@@ -15,10 +15,17 @@
 
     <div class="dashboard">
 
-        <aside class="sidebar">
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
 
-            <div class="logo">
-                MIM
+            <div
+                class="logo"
+                data-sidebar-toggle-logo
+                role="button"
+                tabindex="0"
+                aria-label="Ouvrir ou fermer le menu"
+                aria-expanded="false"
+            >
+                <img src="../images/logoMim-opt.png" alt="MIM">
             </div>
 
             <nav class="sidebar-menu">
@@ -47,6 +54,15 @@
         <main class="main-content">
 
             <header class="dashboard-header">
+
+                <button
+                    class="menu-toggle"
+                    data-sidebar-toggle
+                    aria-label="Ouvrir le menu"
+                    aria-expanded="false"
+                >
+                    ☰
+                </button>
 
                 <div class="welcome">
                     <h1>Notifications</h1>
@@ -167,6 +183,8 @@
             });
         });
     </script>
+
+    <script src="../PartPublic/sidebar.js"></script>
 
 </body>
 

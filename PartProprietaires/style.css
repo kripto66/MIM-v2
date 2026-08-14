@@ -102,6 +102,25 @@ body {
         0 8px 20px rgba(0, 0, 0, 0.2);
 }
 
+.logo img {
+    width: 60px;
+    height: 60px;
+    border-radius: 17px;
+    object-fit: contain;
+}
+
+@media (max-width: 800px) {
+
+    .logo {
+        cursor: pointer;
+    }
+
+    .logo:focus-visible {
+        outline: 3px solid #fff;
+        outline-offset: 2px;
+    }
+}
+
 
 /* =========================================================
    MENU SIDEBAR
@@ -614,18 +633,26 @@ tr:last-child td {
 @media (max-width: 800px) {
 
     .sidebar {
-        position: static;
+        position: fixed;
 
-        width: 100%;
+        width: 260px;
 
-        min-height: auto;
+        transform: translateX(-100%);
+
+        transition: transform 0.3s ease;
+
+        z-index: 1000;
+
+        min-height: 0;
     }
 
+    .sidebar.open {
+        transform: translateX(0);
+    }
 
     .dashboard {
         display: block;
     }
-
 
     .main-content {
         width: 100%;
@@ -635,23 +662,21 @@ tr:last-child td {
         padding: 20px;
     }
 
-
     .sidebar-menu {
-        flex-direction: row;
-
-        flex-wrap: wrap;
+        flex-direction: column;
     }
-
 
     .sidebar-menu a {
-        flex: 1 1 140px;
-    }
+        flex: 1 1 auto;
 
+        width: 100%;
+
+        text-align: left;
+    }
 
     .sidebar-footer {
         margin-top: 15px;
     }
-
 
     .dashboard-header {
         align-items: flex-start;
@@ -659,9 +684,70 @@ tr:last-child td {
         flex-direction: column;
     }
 
-
     .header-actions {
         width: 100%;
+    }
+
+    header .menu-toggle {
+        display: inline-flex;
+    }
+
+}
+
+
+/* =========================================================
+   OVERLAY MOBILE + BOUTON MENU
+   ========================================================= */
+
+.menu-toggle {
+    display: none;
+
+    align-items: center;
+    justify-content: center;
+
+    width: 44px;
+    height: 44px;
+
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 10px;
+
+    background: #fff;
+
+    font-size: 20px;
+
+    cursor: pointer;
+
+    flex-shrink: 0;
+}
+
+.sidebar-overlay {
+    display: none;
+}
+
+@media (max-width: 800px) {
+
+    .sidebar-overlay {
+        display: block;
+
+        position: fixed;
+
+        inset: 0;
+
+        background: rgba(0, 0, 0, 0.5);
+
+        opacity: 0;
+
+        visibility: hidden;
+
+        transition: opacity 0.3s ease, visibility 0.3s ease;
+
+        z-index: 999;
+    }
+
+    .sidebar-overlay.active {
+        opacity: 1;
+
+        visibility: visible;
     }
 
 }
