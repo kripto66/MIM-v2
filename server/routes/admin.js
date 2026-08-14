@@ -9,6 +9,7 @@ import { notify } from '../utils/notifications.js';
 import { invalidateSubscriptionCache } from '../utils/subscription.js';
 import { isBannedValue } from '../middleware/auth.js';
 import { methodeLabel } from '../utils/paiementMethodes.js';
+import { initiateUnitechCheckout } from '../utils/unitechCheckouts.js';
 
 const router = Router();
 
@@ -307,10 +308,13 @@ router.get('/subscriptions', async (req, res) => {
   }
 });
 
-// Enregistrement / validation d'un paiement d'abonnement par l'admin.
+// Enregistrement d'un paiement d'abonnement MIM par l'admin.
+// Depuis UnitechPay, la SEULE méthode est le mobile money : l'admin
+// choisit l'opérateur (Wave/Orange), MIM initie une session, et
+// l'abonnement n'est activé QUE par le webhook vérifié (payé).
 // La nouvelle échéance est TOUJOURS calculée côté serveur.
 router.post('/subscriptions/register', async (req, res) => {
-  const { userId, plan, montant, dureeMois, methodePaiement, reference } = req.body || {};
+  const { userId, plan, montant, dureeMois, operator = 'wave', orangeMode = 'om' } = req.body || {};
 
   if (!userId || typeof userId !== 'string') {
     return res.status(400).json({ success: false, message: 'Propriétaire requis.' });
@@ -322,18 +326,30 @@ router.post('/subscriptions/register', async (req, res) => {
   if (!Number.isInteger(duree) || duree < 1 || duree > 36) {
     return res.status(400).json({ success: false, message: 'La durée doit être un nombre de mois entre 1 et 36.' });
   }
+  if (!['wave', 'orange'].includes(operator)) {
+    return res.status(400).json({ success: false, message: 'Opérateur invalide (wave ou orange).' });
+  }
+  if (!['qr', 'maxit', 'om'].includes(orangeMode)) {
+    return res.status(400).json({ success: false, message: 'Mode Orange Money invalide.' });
+  }
 
   const sb = serviceClient();
 
   try {
     const { data: profile } = await sb
       .from('profiles')
-      .select('id, name, account_type')
+      .select('id, name, phone, account_type')
       .eq('id', userId)
       .maybeSingle();
 
     if (!profile || !OWNER_TYPES.includes(profile.account_type)) {
       return res.status(404).json({ success: false, message: 'Propriétaire introuvable.' });
+    }
+    if (!profile.phone) {
+      return res.status(400).json({
+        success: false,
+        message: 'Ce propriétaire n\'a pas de numéro de téléphone : requis pour le paiement mobile money.',
+      });
     }
 
     const now = new Date();
@@ -345,53 +361,67 @@ router.post('/subscriptions/register', async (req, res) => {
       ? new Date(existing.data.date_expiration)
       : now;
     const newExpiration = addMonths(base, duree);
+    const dateDebut = existing?.data?.date_debut || now.toISOString();
 
-    const payload = {
-      user_id: userId,
-      plan: String(plan || 'standard').trim() || 'standard',
-      statut: 'actif',
-      date_debut: existing?.data?.date_debut || now.toISOString(),
-      date_expiration: newExpiration.toISOString(),
-      date_paiement: now.toISOString(),
-      montant: Number(montant),
-      methode_paiement: methodePaiement ? String(methodePaiement).trim() : null,
-      reference: reference ? String(reference).trim() : null,
-      updated_at: now.toISOString(),
-    };
+    // Paiement d'abonnement en ATTENTE (il ne devient payé que via le
+    // webhook vérifié). L'échéance est déjà calculée : elle prend effet
+    // uniquement à la confirmation.
+    const { data: hist, error: histErr } = await sb
+      .from('abonnement_paiements')
+      .insert({
+        user_id: userId,
+        plan: String(plan || 'standard').trim() || 'standard',
+        montant: Number(montant),
+        date_paiement: null,
+        methode_paiement: 'mobile_money',
+        reference: null,
+        date_debut: dateDebut,
+        date_expiration: newExpiration.toISOString(),
+      })
+      .select('*')
+      .single();
+    if (histErr) throw histErr;
 
-    if (existing?.data) {
-      const { error } = await sb.from('subscriptions').update(payload).eq('user_id', userId);
-      if (error) throw error;
-    } else {
-      const { error } = await sb.from('subscriptions').insert(payload);
-      if (error) throw error;
-    }
-
-    const { error: histError } = await sb.from('abonnement_paiements').insert({
-      user_id: userId,
-      plan: payload.plan,
-      montant: payload.montant,
-      date_paiement: now.toISOString(),
-      methode_paiement: payload.methode_paiement,
-      reference: payload.reference,
-      date_debut: payload.date_debut,
-      date_expiration: newExpiration.toISOString(),
+    // Initiation de la session UnitechPay (le propriétaire est le payeur).
+    const checkout = await initiateUnitechCheckout({
+      source: 'abonnement',
+      userId,
+      amount: Number(montant),
+      description: `MIM-ABONNEMENT-${hist.id}`,
+      operator,
+      orangeMode,
+      customerNumber: String(profile.phone),
+      payout: false,
+      abonnementPaiementId: hist.id,
     });
-    if (histError) throw histError;
 
-    invalidateSubscriptionCache();
-    invalidatePlatformCache();
+    // Référence UnitechPay enregistrée dès l'initiation (audit).
+    await sb.from('abonnement_paiements').update({ reference: checkout.unitech_reference }).eq('id', hist.id);
 
-    await notify(userId, 'abonnement', `Votre abonnement MIM a été enregistré/renouvelé jusqu'au ${formatDateFR(newExpiration)}.`);
-
-    res.json({
+    res.status(201).json({
       success: true,
-      message: `Abonnement enregistré. Nouvelle échéance : ${formatDateFR(newExpiration)}.`,
-      subscription: subscriptionView({ ...payload, date_debut: payload.date_debut }),
+      message: 'Session de paiement créée. L\'abonnement sera activé dès le paiement confirmé.',
+      data: {
+        abonnementPaiementId: hist.id,
+        checkout,
+        payment_url: checkout.payment_url,
+        reference: checkout.unitech_reference,
+        subscription: {
+          plan: hist.plan,
+          statut: 'attente',
+          date_debut: dateDebut,
+          date_expiration: newExpiration.toISOString(),
+          date_paiement: null,
+          montant: Number(montant),
+          methode_paiement: 'mobile_money',
+          reference: null,
+          joursRestants: Math.max(0, Math.ceil((newExpiration.getTime() - Date.now()) / 86400000)),
+        },
+      },
     });
   } catch (err) {
     console.error('[admin/subscriptions/register]', err.message);
-    res.status(500).json({ success: false, message: 'Erreur lors de l\'enregistrement de l\'abonnement.' });
+    res.status(502).json({ success: false, message: err.message || 'Erreur lors de la création du paiement.' });
   }
 });
 

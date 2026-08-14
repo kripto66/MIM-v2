@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Test UnitechPay</title>
+    <link rel="stylesheet" href="/mim-errors.css">
+    <script src="/mim-errors.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+<body>
+
+    <div class="dashboard">
+
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
+
+            <div class="logo">
+                MIM
+            </div>
+
+            <nav class="sidebar-menu">
+
+                <a href="dashboard.html">Tableau de bord</a>
+                <a href="biens.html">Mes biens</a>
+                <a href="locataires.html">Locataires & Logements</a>
+                <a href="paiements.html">Paiements</a>
+                <a href="employes.html">Mes employés</a>
+                <a href="incidents.html">Incidents</a>
+                <a href="prestataires.html">Prestataires</a>
+                <a href="interventions.html">Interventions</a>
+                <a href="notifications.html">Notifications</a>
+                <a href="parametres.html">Paramètres</a>
+
+            </nav>
+
+            <div class="sidebar-footer">
+
+                <button id="backupBtn" type="button">Sauvegarder</button>
+                <button id="logoutBtn" type="button">Déconnexion</button>
+
+            </div>
+
+        </aside>
+
+        <main class="main-content">
+
+            <header class="dashboard-header">
+
+                <button
+                    class="menu-toggle"
+                    data-sidebar-toggle
+                    aria-label="Ouvrir le menu"
+                    aria-expanded="false"
+                >
+                    ☰
+                </button>
+
+                <div class="welcome">
+                    <h1>Test UnitechPay</h1>
+                    <p>Initier, suivre et simuler les paiements mobile money.</p>
+                </div>
+
+                <button class="btn btn-primary" id="refreshBtn">Actualiser</button>
+
+            </header>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+                    <h2>Solde du compte marchand</h2>
+                </div>
+                <div class="crud-card">
+                    <div id="balanceBox" class="empty-state">Chargement du solde...</div>
+                </div>
+
+                <div class="section-header">
+                    <h2>Simulation de webhook</h2>
+                </div>
+                <div id="testModeBox" class="empty-state">Vérification du mode test...</div>
+
+                <div class="section-header">
+                    <h2>Paiements</h2>
+                </div>
+                <div id="paiementsList" class="crud-list">
+
+                    <div class="empty-state">Chargement des paiements...</div>
+
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <script src="../PartPublic/form-utils.js"></script>
+    <script src="api.js"></script>
+    <script>
+        const MOIS_FR = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+        const STATUS_LABELS = { attente: "En attente", paye: "Payé", retard: "En retard" };
+        const CHECKOUT_LABELS = { pending: "En attente", completed: "Payé", failed: "Échec", cancelled: "Annulé", expired: "Expiré" };
+
+        const state = { paiements: [], locataires: [], testMode: false, checkoutsByPayment: {}, refreshTimer: null };
+
+        function formatMois(mois) {
+            if (!mois) return "";
+            const [y, m] = mois.split("-");
+            return `${MOIS_FR[Number(m) - 1]} ${y}`;
+        }
+
+        function formatFCFA(v) {
+            return Number(v || 0).toLocaleString("fr-FR") + " FCFA";
+        }
+
+        function statusBadge(statut) {
+            const cls = statut === "paye" ? "status-success" : statut === "retard" ? "status-danger" : "status-warning";
+            return `<span class="status ${cls}">${STATUS_LABELS[statut] || statut}</span>`;
+        }
+
+        function checkoutBadge(status) {
+            const cls = status === "completed" ? "status-success" : status === "pending" ? "status-warning" : "status-danger";
+            return `<span class="status ${cls}">${CHECKOUT_LABELS[status] || status}</span>`;
+        }
+
+        function locataireNom(id) {
+            const t = state.locataires.find((l) => String(l.id) === String(id));
+            return t ? t.nom : "Locataire inconnu";
+        }
+
+        // ------------------------------------------------------------
+        // Solde + mode test
+        // ------------------------------------------------------------
+        async function loadBalance() {
+            const box = document.getElementById("balanceBox");
+            try {
+                const res = await apiRequest("/unitech/balance");
+                const d = res.data || {};
+                box.innerHTML = `
+                    <p><strong>Solde total :</strong> ${formatFCFA(d.total)} <span class="unitech-ref">(${d.currency || "XOF"})</span></p>
+                    <p class="pay-methode">Wave : ${formatFCFA(d.sold_wave)} — Orange Money : ${formatFCFA(d.sold_om)} — International : ${formatFCFA(d.sold_intl)}</p>`;
+            } catch (err) {
+                box.innerHTML = `<p class="form-error">${escapeHtml(err.message)}</p>`;
+            }
+        }
+
+        async function loadTestMode() {
+            const box = document.getElementById("testModeBox");
+            try {
+                const res = await apiRequest("/unitech/test-mode");
+                state.testMode = Boolean(res.testMode);
+                box.innerHTML = state.testMode
+                    ? '<p class="unitech-ok">Mode test ACTIF : vous pouvez simuler les webhooks (payment_completed, failed, expired, pending) sans payer réellement.</p>'
+                    : '<p class="form-error">Mode test désactivé. Ajoutez <code>UNITECH_TEST_MODE=true</code> dans server/.env puis redémarrez le serveur pour activer la simulation.</p>';
+            } catch (err) {
+                box.innerHTML = `<p class="form-error">${escapeHtml(err.message)}</p>`;
+            }
+        }
+
+        // ------------------------------------------------------------
+        // Paiements + sessions
+        // ------------------------------------------------------------
+        async function loadPayments() {
+            const listEl = document.getElementById("paiementsList");
+            listEl.innerHTML = '<div class="empty-state">Chargement des paiements...</div>';
+            try {
+                const [pay, loc] = await Promise.all([
+                    apiRequest("/paiements"),
+                    apiRequest("/locataires"),
+                ]);
+                state.paiements = pay.data || [];
+                state.locataires = loc.data || [];
+                if (!state.paiements.length) {
+                    listEl.innerHTML = '<div class="empty-state">Aucun paiement. Enregistrez d\'abord un loyer depuis la page Paiements.</div>';
+                    return;
+                }
+                for (const p of state.paiements) {
+                    state.checkoutsByPayment[p.id] = await loadCheckouts(p.id);
+                }
+                renderPayments();
+            } catch (err) {
+                listEl.innerHTML = `<div class="empty-state">${escapeHtml(err.message)}</div>`;
+            }
+        }
+
+        async function loadCheckouts(paiementId) {
+            const res = await apiRequest(`/unitech/checkouts?paiement_id=${paiementId}`);
+            return res.data || [];
+        }
+
+        function renderPayments() {
+            const listEl = document.getElementById("paiementsList");
+            listEl.innerHTML = state.paiements.map((p) => {
+                const checkouts = state.checkoutsByPayment[p.id] || [];
+                const canInitiate = p.statut !== "paye";
+                const sessions = checkouts.length ? checkouts.map((c) => `
+                    <div class="unitech-block" style="display:block;padding:8px 12px;">
+                        <div class="form-row" style="align-items:center;gap:12px;">
+                            <span>${checkoutBadge(c.status)}</span>
+                            <span class="unitech-ref">Réf. : ${escapeHtml(c.unitech_reference)}</span>
+                            <span class="pay-methode">${formatFCFA(c.amount)}</span>
+                        </div>
+                        ${c.payment_url ? `<p><a href="${c.payment_url}" target="_blank" rel="noopener">Ouvrir le lien de paiement</a></p>` : ""}
+                        ${state.testMode ? `
+                            <div class="form-row">
+                                <button class="btn btn-pay" data-sim="payment_completed" data-ref="${c.unitech_reference}" data-amount="${c.amount}" data-pid="${p.id}">Simuler : payé</button>
+                                <button class="btn btn-edit" data-sim="payment_failed" data-ref="${c.unitech_reference}" data-amount="${c.amount}" data-pid="${p.id}">Simuler : échec</button>
+                                <button class="btn btn-edit" data-sim="payment_expired" data-ref="${c.unitech_reference}" data-amount="${c.amount}" data-pid="${p.id}">Simuler : expiré</button>
+                                <button class="btn btn-edit" data-sim="payment_pending" data-ref="${c.unitech_reference}" data-amount="${c.amount}" data-pid="${p.id}">Simuler : en attente</button>
+                            </div>` : ""}
+                        <div id="simResult_${c.unitech_reference}"></div>
+                    </div>`).join("") : "";
+
+                return `
+                    <div class="crud-card">
+                        <div>
+                            <h3>${escapeHtml(locataireNom(p.locataire_id))}</h3>
+                            <p>${formatMois(p.mois)} ${statusBadge(p.statut)}</p>
+                            ${p.reference ? `<p class="pay-methode">Réf. : ${escapeHtml(p.reference)}</p>` : ""}
+                        </div>
+                        <div class="card-amount">
+                            <strong>${formatFCFA(p.montant)}</strong>
+                            ${canInitiate ? `
+                                <div class="card-actions">
+                                    <select id="op_${p.id}" class="form-group" style="padding:6px;margin-right:8px;">
+                                        <option value="wave">Wave</option>
+                                        <option value="orange&qr">Orange QR</option>
+                                        <option value="orange&maxit">Orange Maxit</option>
+                                        <option value="orange&om">Orange OM</option>
+                                    </select>
+                                    <button class="btn btn-pay" data-init="${p.id}">Initier</button>
+                                </div>` : ""}
+                        </div>
+                        <div class="initResult" id="initResult_${p.id}" style="width:100%;"></div>
+                        ${sessions}
+                    </div>`;
+            }).join("");
+        }
+
+        // ------------------------------------------------------------
+        // Actions
+        // ------------------------------------------------------------
+        async function initiate(paiementId) {
+            const box = document.getElementById(`initResult_${paiementId}`);
+            box.innerHTML = '<p class="unitech-ok">Initiation...</p>';
+            const value = document.getElementById(`op_${paiementId}`).value;
+            const [operator, orange_mode] = value.split("&");
+            try {
+                const res = await apiRequest("/unitech/initiate", {
+                    method: "POST",
+                    body: JSON.stringify({ paiement_id: paiementId, operator, orange_mode: orange_mode || undefined }),
+                });
+                const d = res.data || {};
+                let html = '<p class="unitech-ok">Session créée :</p>';
+                if (d.checkout?.payment_url) {
+                    html += `<p><a href="${d.checkout.payment_url}" target="_blank" rel="noopener">${escapeHtml(d.checkout.payment_url)}</a></p>`;
+                }
+                if (d.checkout?.unitech_reference) {
+                    html += `<p class="unitech-ref">Réf. UnitechPay : ${escapeHtml(d.checkout.unitech_reference)}</p>`;
+                }
+                box.innerHTML = html;
+                state.checkoutsByPayment[paiementId] = await loadCheckouts(paiementId);
+                renderPayments();
+            } catch (err) {
+                box.innerHTML = `<p class="form-error">${escapeHtml(err.message)}</p>`;
+            }
+        }
+
+        async function simulate(event, reference, amount, paiementId) {
+            const box = document.getElementById(`simResult_${reference}`);
+            box.innerHTML = '<p class="unitech-ok">Envoi de la simulation...</p>';
+            try {
+                const res = await apiRequest("/unitech/test-webhook", {
+                    method: "POST",
+                    body: JSON.stringify({ reference, event, amount: Number(amount) }),
+                });
+                const w = res.webhook || {};
+                let html = `<p class="unitech-ok">Réponse : ${escapeHtml(w.result || JSON.stringify(w))}</p>`;
+                if (res.payload) {
+                    html += `<p class="unitech-ref">Payload signé envoyé : ${escapeHtml(JSON.stringify(res.payload))}</p>`;
+                }
+                box.innerHTML = html;
+                state.checkoutsByPayment[paiementId] = await loadCheckouts(paiementId);
+                renderPayments();
+            } catch (err) {
+                box.innerHTML = `<p class="form-error">${escapeHtml(err.message)}</p>`;
+            }
+        }
+
+        // ------------------------------------------------------------
+        // Événements
+        // ------------------------------------------------------------
+        document.getElementById("refreshBtn").addEventListener("click", async () => {
+            await Promise.all([loadBalance(), loadTestMode(), loadPayments()]);
+            showToast("Données actualisées");
+        });
+
+        document.getElementById("paiementsList").addEventListener("click", async (e) => {
+            const initBtn = e.target.closest("[data-init]");
+            if (initBtn) return initiate(initBtn.dataset.init);
+            const simBtn = e.target.closest("[data-sim]");
+            if (simBtn) return simulate(simBtn.dataset.sim, simBtn.dataset.ref, simBtn.dataset.amount, simBtn.dataset.pid);
+        });
+
+        // ------------------------------------------------------------
+        // Démarrage
+        // ------------------------------------------------------------
+        (async function start() {
+            await Promise.all([loadBalance(), loadTestMode()]);
+            await loadPayments();
+            state.refreshTimer = setInterval(async () => {
+                try {
+                    for (const p of state.paiements) {
+                        const current = await loadCheckouts(p.id);
+                        const changed = JSON.stringify(current) !== JSON.stringify(state.checkoutsByPayment[p.id]);
+                        if (changed) {
+                            state.checkoutsByPayment[p.id] = current;
+                            renderPayments();
+                        }
+                    }
+                } catch { /* silencieux */ }
+            }, 5000);
+        })();
+    </script>
+
+    <script src="../PartPublic/sidebar.js"></script>
+
+</body>
+
+</html>

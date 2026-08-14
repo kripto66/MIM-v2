@@ -8,7 +8,8 @@
 // puis ses locataires/employés.
 // ============================================================
 
-import { api, newJar, expectSuccess } from './lib.js';
+import crypto from 'node:crypto';
+import { api, newJar, expectSuccess, BASE } from './lib.js';
 
 const S = 'abonnement';
 const ADMIN_PASSWORD = 'Admin1234!';
@@ -19,6 +20,20 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // DIRECTE en base (service role), on attend un peu pour que le serveur
 // de test recalcule l'état.
 const CACHE_SLEEP_MS = 2600;
+
+// Webhook UnitechPay signé HMAC-SHA256 (comme le ferait UnitechPay).
+async function sendWebhook(payloadObj) {
+  const raw = JSON.stringify(payloadObj);
+  const sig = crypto.createHmac('sha256', process.env.UNITECH_API_KEY || '').update(raw).digest('hex');
+  const res = await fetch(BASE + '/unitech/webhook', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-UNITECHPAY-SIGNATURE': sig },
+    body: raw,
+  });
+  let data = null;
+  try { data = await res.json(); } catch { /* corps non JSON */ }
+  return { status: res.status, data };
+}
 
 export async function runAbonnement(r, ctx) {
   const service = ctx.service;
@@ -70,9 +85,10 @@ export async function runAbonnement(r, ctx) {
   });
 
   // ----------------------------------------------------------
-  // 2. L'admin enregistre un paiement d'abonnement.
+  // 2. L'admin crée une session UnitechPay : abonnement en attente,
+  //    activé UNIQUEMENT par le webhook vérifié (HMAC).
   // ----------------------------------------------------------
-  await r.section('abonnement : enregistrement par l\'admin', async () => {
+  await r.section('abonnement : paiement UnitechPay + activation', async () => {
     const res = await api('/admin/subscriptions/register', {
       method: 'POST',
       jar: adminJar,
@@ -81,21 +97,42 @@ export async function runAbonnement(r, ctx) {
         plan: 'standard',
         montant: 100000,
         dureeMois: 12,
-        methodePaiement: 'especes',
-        reference: 'TEST-ABO-001',
+        operator: 'wave',
       },
     });
-    if (!expectSuccess(r, res, S, 'enregistrement paiement abonnement')) return;
+    if (!expectSuccess(r, res, S, 'création de la session de paiement (register)')) return;
 
-    const sub = res.data.subscription;
-    if (sub.statut === 'actif' && sub.joursRestants > 300) r.pass(S, 'échéance future calculée côté serveur');
-    else r.fail(S, 'échéance future calculée côté serveur', JSON.stringify(sub));
+    const d = res.data;
+    if (d.payment_url && d.reference && d.abonnementPaiementId) {
+      r.pass(S, 'session UnitechPay créée : lien + référence + paiement d\'abonnement');
+    } else {
+      r.fail(S, 'session UnitechPay créée : lien + référence + paiement d\'abonnement', JSON.stringify(d));
+    }
+    if (d.subscription?.statut === 'attente') r.pass(S, 'abonnement affiché « en attente »');
+    else r.fail(S, 'abonnement affiché « en attente »', JSON.stringify(d.subscription));
 
     const me = await api('/subscription/me', { jar: ownerJar });
-    if (me.data?.subscription?.statut === 'actif' && Number(me.data.subscription.montant) === 100000) {
+    if (me.data?.subscription === null) r.pass(S, 'pas encore actif avant le webhook');
+    else r.fail(S, 'pas encore actif avant le webhook', JSON.stringify(me.data));
+
+    // Webhook vérifié (HMAC) -> activation.
+    const w = await sendWebhook({ event: 'payment_completed', reference: d.reference, amount: 100000, status: 'completed' });
+    if (w.status === 200 && w.data?.result === 'completed') r.pass(S, 'webhook validé par MIM');
+    else r.fail(S, 'webhook validé par MIM', `statut ${w.status} ${JSON.stringify(w.data)}`);
+
+    const me2 = await api('/subscription/me', { jar: ownerJar });
+    if (me2.data?.subscription?.statut === 'actif' && Number(me2.data.subscription.montant) === 100000) {
       r.pass(S, 'le propriétaire voit son abonnement actif');
     } else {
-      r.fail(S, 'le propriétaire voit son abonnement actif', JSON.stringify(me.data));
+      r.fail(S, 'le propriétaire voit son abonnement actif', JSON.stringify(me2.data));
+    }
+
+    const hist = await service.from('abonnement_paiements').select('*').eq('user_id', owner.id);
+    const row = (hist.data || []).find((h) => h.reference === d.reference);
+    if (row?.date_paiement && row?.methode_paiement === 'mobile_money') {
+      r.pass(S, 'paiement d\'abonnement horodaté + méthode mobile money + référence');
+    } else {
+      r.fail(S, 'paiement d\'abonnement horodaté + méthode mobile money + référence', JSON.stringify(row));
     }
   });
 
@@ -131,9 +168,17 @@ export async function runAbonnement(r, ctx) {
     const res = await api('/admin/subscriptions/register', {
       method: 'POST',
       jar: adminJar,
-      body: { userId: owner.id, montant: 10000, dureeMois: 1 },
+      body: { userId: owner.id, montant: 10000, dureeMois: 1, operator: 'wave' },
     });
     if (!expectSuccess(r, res, S, 'renouvellement d\'un mois')) return;
+
+    // Nouvelle échéance calculée dès la session (base = échéance en cours).
+    const pendingExp = new Date(res.data.subscription?.date_expiration).getTime();
+    const pendingDelta = (pendingExp - exp1) / 86400000;
+    if (pendingDelta >= 27 && pendingDelta <= 32) r.pass(S, 'échéance calculée côté serveur dès la session (~1 mois)');
+    else r.fail(S, 'échéance calculée côté serveur dès la session (~1 mois)', `delta ${pendingDelta.toFixed(1)} j`);
+
+    await sendWebhook({ event: 'payment_completed', reference: res.data.reference, amount: 10000, status: 'completed' });
 
     const after = await api('/subscription/me', { jar: ownerJar });
     const exp2 = new Date(after.data?.subscription?.date_expiration).getTime();
@@ -208,9 +253,10 @@ export async function runAbonnement(r, ctx) {
     const res = await api('/admin/subscriptions/register', {
       method: 'POST',
       jar: adminJar,
-      body: { userId: owner.id, montant: 150000, dureeMois: 12 },
+      body: { userId: owner.id, montant: 150000, dureeMois: 12, operator: 'wave' },
     });
     if (!expectSuccess(r, res, S, 'réenregistrement (réactivation)')) return;
+    await sendWebhook({ event: 'payment_completed', reference: res.data.reference, amount: 150000, status: 'completed' });
 
     const login = await api('/auth/login', {
       method: 'POST',

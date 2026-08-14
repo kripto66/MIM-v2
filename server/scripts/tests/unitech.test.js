@@ -45,6 +45,17 @@ export async function startUnitechMock() {
           },
         };
         if (action === 'create_orange_qr') out.data.qr_code = 'data:image/png;base64,MOCKQR';
+      } else if (action === 'withdraw_funds') {
+        out = {
+          success: true,
+          data: {
+            transaction_id: mockSeq,
+            reference: `mock_withdraw_${mockSeq}_${Date.now()}`,
+            amount: parsed.amount,
+            status: 'pending',
+            type: 'withdraw',
+          },
+        };
       } else if (action === 'balance') {
         out = { success: true, data: { sold_wave: 0, sold_om: 0, sold_intl: 0, total: 0, currency: 'XOF' } };
       } else {
@@ -316,7 +327,7 @@ export async function runUnitech(r, ctx) {
       check(r, 'webhook pending traité sans erreur', wp.status === 200, `statut ${wp.status}`);
     }
 
-    const wu = await sendWebhook({ event: 'payment_completed', reference: 'REFERENCE_INCONNUE', amount: 30000, status: 'completed' });
+    const wu = await sendWebhook({ event: 'payment_completed', reference: 'REFERENCE_INCONNUE_' + Date.now(), amount: 30000, status: 'completed' });
     check(r, 'référence inconnue -> 200 sans modification', wu.status === 200 && wu.data?.reference === 'unknown', JSON.stringify(wu.data));
   });
 
@@ -353,5 +364,87 @@ export async function runUnitech(r, ctx) {
     const front = await fetch('http://127.0.0.1:3100/PartProprietaires/paiements.html');
     const html = await front.text();
     check(r, 'aucune clé API dans la page frontend', !html.includes(process.env.UNITECH_API_KEY || '!!!NEVER!!!'));
+  });
+
+  // ----------------------------------------------------------
+  // 12. Salaire : versement (payout) via UnitechPay.
+  // ----------------------------------------------------------
+  await r.section('unitech : versement de salaire (payout)', async () => {
+    const uname = `emp_unitech_${Date.now().toString().slice(-8)}`;
+    const created = await api('/employes', {
+      method: 'POST',
+      jar: ownerJar,
+      body: { username: uname, password: 'Test1234!', nom: 'Employé Unitech', poste: 'Gardien', salaire: 45000, phone: '+221771234567', statut: 'actif' },
+    });
+    if (created.status !== 201) return r.fail(S, 'création employé pour le test salaire', `statut ${created.status} ${JSON.stringify(created.data)}`);
+    const empId = created.data?.data?.id || created.data?.id;
+    if (!empId) return r.fail(S, 'création employé : id manquant', JSON.stringify(created.data));
+
+    const pay = await api(`/employes/${empId}/paiements`, {
+      method: 'POST',
+      jar: ownerJar,
+      body: { montant: 45000, mois: ctx.seed.month, statut: 'attente', methode_paiement: 'mobile_money' },
+    });
+    const payId = pay.data?.data?.id || pay.data?.id;
+    if (!payId) return r.fail(S, 'création paiement de salaire', JSON.stringify(pay.data));
+
+    mockRequests = [];
+    const init = await api('/unitech/initiate', {
+      method: 'POST',
+      jar: ownerJar,
+      body: { source: 'salaire', paiement_employe_id: payId, operator: 'wave' },
+    });
+    check(r, 'initiate salaire -> 201', init.status === 201, `statut ${init.status} ${JSON.stringify(init.data)}`);
+    const co = init.data?.data?.checkout;
+    if (co) {
+      check(r, 'checkout salaire en status pending', co.status === 'pending', `status ${co.status}`);
+      check(r, 'source = salaire', co.source === 'salaire', String(co.source));
+      check(r, 'paiement_employe_id lié au checkout', String(co.paiement_employe_id) === String(payId), String(co.paiement_employe_id));
+      check(r, 'description = MIM-SALAIRE-<id>', co.description === `MIM-SALAIRE-${payId}`, co.description);
+    }
+
+    const sent = mockRequests.find((m) => m.action === 'withdraw_funds');
+    if (sent) {
+      check(r, 'payout envoyé à UnitechPay (withdraw_funds)', true);
+      check(r, 'montant du versement = salaire en base', Number(sent.body.amount) === 45000, String(sent.body.amount));
+      check(r, 'téléphone du versement = téléphone employé (base)', String(sent.body.customer_number) === '+221771234567', String(sent.body.customer_number));
+    } else {
+      r.fail(S, 'payout envoyé à UnitechPay (withdraw_funds)', 'action withdraw_funds non reçue par le mock');
+    }
+
+    if (co?.unitech_reference) {
+      const w = await sendWebhook({ event: 'payment_completed', reference: co.unitech_reference, amount: 45000, status: 'completed' });
+      check(r, 'webhook salaire -> completed', w.status === 200 && w.data?.result === 'completed', `statut ${w.status} ${JSON.stringify(w.data)}`);
+      const { data: payAfter } = await service.from('paiements_employes').select('*').eq('id', payId).single();
+      check(r, 'paiement de salaire -> payé', payAfter.statut === 'paye', payAfter.statut);
+      check(r, 'salaire methode_paiement = mobile_money', payAfter.methode_paiement === 'mobile_money', String(payAfter.methode_paiement));
+      check(r, 'salaire date_paiement renseignée', Boolean(payAfter.date_paiement), String(payAfter.date_paiement));
+      check(r, 'salaire référence UnitechPay enregistrée', payAfter.reference === co.unitech_reference, String(payAfter.reference));
+    }
+
+    // Sécurité : versement sur un salaire d'un AUTRE propriétaire -> 404.
+    const otherUname = `emp_unitech_o_${Date.now().toString().slice(-8)}`;
+    const createdOther = await api('/employes', {
+      method: 'POST',
+      jar: otherJar,
+      body: { username: otherUname, password: 'Test1234!', nom: 'Employé Autre', poste: 'Gardien', salaire: 30000, phone: '+221701111111', statut: 'actif' },
+    });
+    const otherEmpId = createdOther.data?.data?.id || createdOther.data?.id;
+    if (otherEmpId) {
+      const otherPay = await api(`/employes/${otherEmpId}/paiements`, {
+        method: 'POST',
+        jar: otherJar,
+        body: { montant: 30000, mois: ctx.seed.month, statut: 'attente', methode_paiement: 'mobile_money' },
+      });
+      const otherPayId = otherPay.data?.data?.id || otherPay.data?.id;
+      if (otherPayId) {
+        const notMine = await api('/unitech/initiate', {
+          method: 'POST',
+          jar: ownerJar,
+          body: { source: 'salaire', paiement_employe_id: otherPayId, operator: 'wave' },
+        });
+        check(r, 'versement sur salaire d\'un autre propriétaire -> 404', notMine.status === 404, `statut ${notMine.status} ${JSON.stringify(notMine.data)}`);
+      }
+    }
   });
 }
