@@ -23,9 +23,14 @@ export function isBannedValue(value) {
 
 // Statut du compte auth GoTrue : 'active' | 'suspended' | 'deleted'.
 async function banStatusOf(userId) {
-  const { data } = await serviceClient().auth.admin.getUserById(userId).catch(() => ({ data: null }));
-  if (!data?.user) return 'deleted';
-  return isBannedValue(data.user.banned_until) ? 'suspended' : 'active';
+  try {
+    const { data } = await serviceClient().auth.admin.getUserById(userId);
+    if (!data?.user) return 'deleted';
+    return isBannedValue(data.user.banned_until) ? 'suspended' : 'active';
+  } catch (err) {
+    console.warn('[auth] banStatusOf :', err.message);
+    return 'active';
+  }
 }
 
 // Un locataire ou employé dépend de son propriétaire (fiche locataires /
@@ -35,16 +40,17 @@ export async function ownerSuspendedFor(userId, accountType) {
   if (accountType !== 'locataire' && accountType !== 'employe') return false;
 
   const table = accountType === 'locataire' ? 'locataires' : 'employes';
-  const { data } = await serviceClient()
-    .from(table)
-    .select('user_id')
-    .eq('account_uid', userId)
-    .maybeSingle()
-    .catch(() => ({ data: null }));
-
-  if (!data?.user_id) return false;
-
-  return (await banStatusOf(data.user_id)) === 'suspended';
+  try {
+    const { data } = await serviceClient()
+      .from(table)
+      .select('user_id')
+      .eq('account_uid', userId)
+      .maybeSingle();
+    return data?.user_id ? (await banStatusOf(data.user_id)) === 'suspended' : false;
+  } catch (err) {
+    console.warn('[auth] ownerSuspendedFor :', err.message);
+    return false;
+  }
 }
 
 // Vérifie le jeton mim_token, rafraîchit la session Supabase si nécessaire,
