@@ -156,8 +156,8 @@ select {
   gap: 8px
 }
 .icon-btn {
-  width: 39px;
-  height: 39px;
+  width: 42px;
+  height: 42px;
   border: 1px solid var(--line);
   background: #fff;
   border-radius: 9px;
