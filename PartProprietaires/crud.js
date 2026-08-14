@@ -125,6 +125,7 @@ const CrudPage = {
     }
 
     try {
+      let savedId = id;
       if (id) {
         await apiRequest(`/${this.config.resource}/${id}`, {
           method: "PUT",
@@ -132,15 +133,17 @@ const CrudPage = {
         });
         showToast(this.config.editSuccess || "Modifié avec succès.");
       } else {
-        await apiRequest(`/${this.config.resource}`, {
+        const res = await apiRequest(`/${this.config.resource}`, {
           method: "POST",
           body: JSON.stringify(payload),
         });
+        savedId = res?.data?.id || id;
         showToast(this.config.createSuccess || "Ajouté avec succès.");
       }
 
       this.closeModal();
-      this.load();
+      await this.load();
+      if (this.config.onSaved) await this.config.onSaved(savedId, payload);
     } catch (err) {
       applyServerErrors(this.form, err.errors);
       showToast(err.message, "error");

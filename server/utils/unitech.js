@@ -88,3 +88,12 @@ export function verifyWebhookSignature(rawPayload, signature) {
     return false;
   }
 }
+
+// Versement (payout) mobile money : le marchand MIM verse à un bénéficiaire
+// (ex. salaire d'un employé). action 'withdraw_funds'.
+export async function withdrawFunds({ amount, customerNumber = '', operator = 'wave', reference = '', description = '' }) {
+  const body = { amount, description };
+  if (customerNumber) body.customer_number = customerNumber;
+  if (reference) body.reference = reference;
+  return unitechRequest('withdraw_funds', { body });
+}

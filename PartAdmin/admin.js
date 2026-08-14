@@ -705,7 +705,11 @@ async function init() {
     document.getElementById("subForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const submit = e.target.querySelector("button[type=submit]");
+      const resultEl = document.getElementById("subUnitechResult");
+      if (resultEl) resultEl.innerHTML = "";
       submit.disabled = true;
+      const original = submit.textContent;
+      submit.textContent = "Génération du lien...";
       try {
         const r = await apiRequest("/admin/subscriptions/register", {
           method: "POST",
@@ -714,17 +718,30 @@ async function init() {
             plan: document.getElementById("subPlan").value,
             montant: document.getElementById("subMontant").value,
             dureeMois: document.getElementById("subDuree").value,
-            methodePaiement: document.getElementById("subMethode").value,
-            reference: document.getElementById("subReference").value,
+            operator: document.getElementById("subOperator").value,
+            orangeMode: document.getElementById("subOrangeMode").value,
           }),
         });
         showToast(r.message);
-        closeSubModal();
-        navigate("abonnements");
+        const d = r.data || {};
+        let html = "";
+        if (d.payment_url) {
+          html += `<p class="ok">Lien de paiement généré (l'abonnement sera activé après confirmation) :</p>
+            <a href="${d.payment_url}" target="_blank" rel="noopener">${escapeHtml(d.payment_url)}</a>`;
+        }
+        if (d.qr_code) {
+          html += `<img class="unitech-qr" src="${d.qr_code}" alt="QR Code" style="max-width:160px;display:block;margin-top:8px;">`;
+        }
+        if (d.reference) {
+          html += `<p class="ref">Réf. UnitechPay : ${escapeHtml(d.reference)}</p>`;
+        }
+        if (resultEl) resultEl.innerHTML = html;
       } catch (err) {
+        if (resultEl) resultEl.innerHTML = `<p class="err">${escapeHtml(MIM.userMessage(err))}</p>`;
         MIM.showError(MIM.userMessage(err));
       } finally {
         submit.disabled = false;
+        submit.textContent = original;
       }
     });
   }

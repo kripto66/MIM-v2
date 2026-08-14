@@ -142,21 +142,26 @@
             </select>
           </label>
         </div>
-        <label class="field"><span>Méthode de paiement</span>
-          <select id="subMethode">
-            <option value="">—</option>
-            <option value="especes">Espèces</option>
-            <option value="carte">Carte</option>
-            <option value="virement">Virement</option>
-            <option value="mobile_money">Mobile Money</option>
-          </select>
-        </label>
-        <label class="field"><span>Référence (facultatif)</span>
-          <input id="subReference" type="text" placeholder="N° de transaction">
-        </label>
+        <div class="form-row-2">
+          <label class="field"><span>Opérateur du paiement</span>
+            <select id="subOperator">
+              <option value="wave">Wave</option>
+              <option value="orange">Orange Money</option>
+            </select>
+          </label>
+          <label class="field"><span>Mode Orange Money</span>
+            <select id="subOrangeMode">
+              <option value="qr">QR code</option>
+              <option value="maxit">Maxit</option>
+              <option value="om">Orange Money</option>
+            </select>
+          </label>
+        </div>
+        <p class="field-note">L'abonnement sera activé après la confirmation du paiement mobile money (le numéro du propriétaire est utilisé, celui de sa fiche).</p>
+        <div id="subUnitechResult"></div>
         <div class="modal-actions">
-          <button type="button" class="btn secondary" data-sub-close>Annuler</button>
-          <button type="submit" class="btn primary">Valider le paiement</button>
+          <button type="button" class="btn secondary" data-sub-close>Fermer</button>
+          <button type="submit" class="btn primary">Générer le lien de paiement</button>
         </div>
       </form>
     </div>

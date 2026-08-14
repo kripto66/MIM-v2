@@ -2,15 +2,15 @@
 // MIM - Méthodes de paiement (référentiel unifié)
 // Utilisé par : loyers (paiements), salaires (paiements_employes),
 // abonnement MIM (abonnement_paiements).
+//
+// Depuis l'intégration UnitechPay, la SEULE méthode de paiement est
+// le Mobile Money (Wave / Orange Money via UnitechPay).
 // ============================================================
 
-export const METHODES_PAIEMENT = ['especes', 'mobile_money', 'virement', 'carte'];
+export const METHODES_PAIEMENT = ['mobile_money'];
 
 export const METHODE_LABELS = {
-  especes: 'Espèces',
-  mobile_money: 'Mobile Money',
-  virement: 'Virement bancaire',
-  carte: 'Carte bancaire',
+  mobile_money: 'Mobile Money (UnitechPay)',
 };
 
 // Renvoie null si valide (ou vide), sinon un message d'erreur.

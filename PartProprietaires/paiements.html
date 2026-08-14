@@ -115,45 +115,27 @@
                     </div>
                 </div>
 
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="mois">Mois</label>
-                        <input type="month" id="mois" name="mois" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="statut">Statut</label>
-                        <select id="statut" name="statut">
-                            <option value="paye">Payé</option>
-                            <option value="attente">En attente</option>
-                            <option value="retard">En retard</option>
-                        </select>
-                    </div>
+                <div class="form-group">
+                    <label for="mois">Mois</label>
+                    <input type="month" id="mois" name="mois" required>
                 </div>
 
-                <div class="form-group">
-                    <label for="date_paiement">Date de paiement</label>
-                    <input type="date" id="date_paiement" name="date_paiement">
-                </div>
+                <p class="unitech-ok" id="flowNote">Le paiement est créé « En attente » : le locataire paie via le lien mobile money et il passe automatiquement à « Payé ».</p>
 
                 <div class="form-row">
                     <div class="form-group">
                         <label for="methode_paiement">Méthode de paiement</label>
-                        <select id="methode_paiement" name="methode_paiement">
-                            <option value="">— Choisir —</option>
-                            <option value="especes">Espèces</option>
-                            <option value="mobile_money">Mobile Money</option>
-                            <option value="virement">Virement bancaire</option>
-                            <option value="carte">Carte bancaire</option>
-                        </select>
+                        <input type="text" value="Mobile Money (UnitechPay)" readonly style="background:#f3f6fb;">
+                        <input type="hidden" name="methode_paiement" value="mobile_money">
                     </div>
                     <div class="form-group">
-                        <label for="reference">Référence (n° transaction, chèque…)</label>
-                        <input type="text" id="reference" name="reference" maxlength="80" placeholder="Facultatif">
+                        <label for="reference">Référence (n° transaction)</label>
+                        <input type="text" id="reference" name="reference" maxlength="80" placeholder="Remplie automatiquement">
                     </div>
                 </div>
 
                 <div id="unitechBlock" style="display:none;" class="unitech-block">
-                    <p class="unitech-ok">Le lien de paiement mobile money sera généré pour ce paiement (montant et locataire lus côté serveur).</p>
+                    <p class="unitech-ok" id="unitechHint">Le lien mobile money sera généré automatiquement après l'enregistrement du paiement (montant et locataire lus côté serveur).</p>
                     <div class="form-group">
                         <label for="unitechOperator">Opérateur</label>
                         <select id="unitechOperator">
@@ -230,10 +212,27 @@
 
         function toggleUnitechBlock() {
             const isMobileMoney = document.getElementById("methode_paiement").value === "mobile_money";
+            const block = document.getElementById("unitechBlock");
+            if (!isMobileMoney) {
+                block.style.display = "none";
+                return;
+            }
             const hasId = Boolean(document.getElementById("paiementId").value);
-            // Le lien ne peut être généré qu'une fois le paiement ENREGISTRÉ
-            // (le serveur relit montant/locataire/propriétaire en base).
-            document.getElementById("unitechBlock").style.display = isMobileMoney && hasId ? "block" : "none";
+            block.style.display = "block";
+            const btn = document.getElementById("unitechBtn");
+            const hint = document.getElementById("unitechHint");
+            if (hasId) {
+                // Le paiement existe en base : le serveur relit montant,
+                // locataire et propriétaire -> lien générable.
+                if (hint) hint.style.display = "none";
+                btn.style.display = "inline-block";
+            } else {
+                // Création : pas encore d'id -> le lien sera généré juste
+                // après l'enregistrement (le serveur ne fait confiance ni au
+                // montant ni au propriétaire envoyés par le client).
+                if (hint) hint.style.display = "block";
+                btn.style.display = "none";
+            }
         }
 
         async function initiateUnitech() {
@@ -277,8 +276,11 @@
             }
         }
 
-        document.getElementById("methode_paiement").addEventListener("change", toggleUnitechBlock);
         document.getElementById("unitechBtn").addEventListener("click", initiateUnitech);
+
+        // Auto-génération du lien mobile money juste après l'enregistrement
+        // d'un paiement en « Mobile Money ».
+        let pendingUnitechId = null;
 
         CrudPage.init({
             resource: "paiements",
@@ -311,6 +313,37 @@
                     message: "Saisissez un montant valide.",
                 },
             ]),
+            onOpenAdd: () => {
+                document.getElementById("unitechResult").innerHTML = "";
+                document.getElementById("methode_paiement").value = "mobile_money";
+                toggleUnitechBlock();
+            },
+            onOpenEdit: () => {
+                document.getElementById("unitechResult").innerHTML = "";
+                document.getElementById("methode_paiement").value = "mobile_money";
+                toggleUnitechBlock();
+            },
+            afterLoad: (items) => {
+                // Après une création en Mobile Money : rouvre le paiement et
+                // génère automatiquement le lien (id désormais disponible).
+                if (pendingUnitechId) {
+                    const id = pendingUnitechId;
+                    pendingUnitechId = null;
+                    const item = items.find((i) => String(i.id) === String(id));
+                    if (item) {
+                        CrudPage.openEdit(item);
+                        const mm = document.getElementById("methode_paiement");
+                        if (mm) mm.value = "mobile_money";
+                        toggleUnitechBlock();
+                        initiateUnitech();
+                    }
+                }
+            },
+            onSaved: (savedId, payload) => {
+                if (payload.methode_paiement === "mobile_money") {
+                    pendingUnitechId = savedId;
+                }
+            },
             renderItem: (p) => {
                 const [label, cls] = PAIEMENT_STATUS[p.statut] || [p.statut, "status-info"];
                 const locataire = locatairesCache.find((t) => String(t.id) === String(p.locataire_id));
