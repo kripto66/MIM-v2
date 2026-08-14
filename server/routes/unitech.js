@@ -220,7 +220,7 @@ webhookRouter.post('/', express.raw({ type: 'application/json' }), async (req, r
     if (!dup) {
       // Journal (audit) enregistré AVANT le traitement : si le traitement
       // échoue, UnitechPay renverra le même payload -> on retentera.
-      await sb().from('unitech_webhooks').insert({ fingerprint, event, unitech_reference, payload, handled: false });
+      await sb().from('unitech_webhooks').insert({ fingerprint, event, unitech_reference: unitechReference, payload, handled: false });
     }
 
     // 4) Raccordement à la session puis au paiement MIM (jamais au client).
