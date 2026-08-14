@@ -173,12 +173,12 @@ export async function runAbonnement(r, ctx) {
     if (!expectSuccess(r, res, S, 'renouvellement d\'un mois')) return;
 
     // Nouvelle échéance calculée dès la session (base = échéance en cours).
-    const pendingExp = new Date(res.data.subscription?.date_expiration).getTime();
+    const pendingExp = new Date(res.data.data?.subscription?.date_expiration).getTime();
     const pendingDelta = (pendingExp - exp1) / 86400000;
     if (pendingDelta >= 27 && pendingDelta <= 32) r.pass(S, 'échéance calculée côté serveur dès la session (~1 mois)');
     else r.fail(S, 'échéance calculée côté serveur dès la session (~1 mois)', `delta ${pendingDelta.toFixed(1)} j`);
 
-    await sendWebhook({ event: 'payment_completed', reference: res.data.reference, amount: 10000, status: 'completed' });
+    await sendWebhook({ event: 'payment_completed', reference: res.data.data?.reference, amount: 10000, status: 'completed' });
 
     const after = await api('/subscription/me', { jar: ownerJar });
     const exp2 = new Date(after.data?.subscription?.date_expiration).getTime();
@@ -256,7 +256,7 @@ export async function runAbonnement(r, ctx) {
       body: { userId: owner.id, montant: 150000, dureeMois: 12, operator: 'wave' },
     });
     if (!expectSuccess(r, res, S, 'réenregistrement (réactivation)')) return;
-    await sendWebhook({ event: 'payment_completed', reference: res.data.reference, amount: 150000, status: 'completed' });
+    await sendWebhook({ event: 'payment_completed', reference: res.data.data?.reference, amount: 150000, status: 'completed' });
 
     const login = await api('/auth/login', {
       method: 'POST',
