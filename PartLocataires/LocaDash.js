@@ -21,16 +21,6 @@ async function tenantRequest(path, options = {}) {
   return data;
 }
 
-function escapeHtml(str) {
-  return String(str ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  }[c]));
-}
-
 function fmtFCFA(n) {
   return `${Number(n || 0).toLocaleString("fr-FR")} FCFA`;
 }
@@ -90,19 +80,18 @@ function initTenantShell() {
 
   const sidebar = document.getElementById("sidebar");
   const overlay = document.getElementById("sidebarOverlay");
-  const menuButton = document.getElementById("menuButton");
   const closeMenu = document.getElementById("closeMenu");
 
-  const open = () => {
-    if (sidebar) sidebar.classList.add("open");
-    if (overlay) overlay.classList.add("active");
-  };
+  // Le bouton hamburger (#menuButton, data-sidebar-toggle) est déjà câblé
+  // par PartPublic/sidebar.js (toggle + aria). L'ajouter ici DOUBLERAIT le
+  // listener : un clic fermerait puis rouvrirait le menu (impossible de le
+  // fermer). On ne gère ici que la fermeture (bouton × et overlay).
+
   const close = () => {
     if (sidebar) sidebar.classList.remove("open");
     if (overlay) overlay.classList.remove("active");
   };
 
-  if (menuButton) menuButton.addEventListener("click", open);
   if (closeMenu) closeMenu.addEventListener("click", close);
   if (overlay) overlay.addEventListener("click", close);
 }

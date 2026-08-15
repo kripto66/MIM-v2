@@ -320,6 +320,15 @@
             return n.toLocaleString("fr-FR") + " FCFA";
         }
 
+        // Mois suivant (format YYYY-MM) pour pré-remplir un salaire mensuel.
+        function nextMonthOf(mois) {
+            if (!mois) return "";
+            const [y, m] = String(mois).split("-").map(Number);
+            const d = new Date(Date.UTC(y, m - 1, 1));
+            d.setUTCMonth(d.getUTCMonth() + 1);
+            return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+        }
+
         // ============================================================
         // Chargement + rendu
         // ============================================================
@@ -609,7 +618,8 @@
                 const res = await apiRequest(`/employes/${payEmployeeId}/paiements`, { method: "POST", body: JSON.stringify(payload) });
                 showToast(res.message);
                 const paiementId = res.data?.id;
-                form.pay_mois.value = form.pay_mois.value === payload.mois ? "" : form.pay_mois.value;
+                // Prépare le paiement suivant : mois suivant (évite la double saisie du même mois).
+                form.pay_mois.value = nextMonthOf(payload.mois);
                 await loadAll();
                 await loadPayHistory(payEmployeeId);
 

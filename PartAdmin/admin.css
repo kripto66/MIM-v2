@@ -1289,6 +1289,38 @@ svg {
   min-width: 110px;
 }
 
+/* Résultat de la génération du lien UnitechPay dans la modale. */
+.modal .ok {
+  color: #34d399;
+  font-weight: 600;
+  margin: 10px 0 4px;
+}
+
+.modal .ref {
+  color: #9fb0cc;
+  font-size: 13px;
+  margin-top: 6px;
+}
+
+.modal .err {
+  color: #f87171;
+  font-weight: 600;
+  margin: 10px 0 0;
+}
+
+.modal a {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: #22d3ee;
+  font-weight: 600;
+}
+
+.modal .unitech-qr {
+  border: 1px solid var(--border, #26324d);
+  border-radius: 8px;
+}
+
 @media (max-width: 480px) {
   .form-row-2 {
     grid-template-columns: 1fr;
