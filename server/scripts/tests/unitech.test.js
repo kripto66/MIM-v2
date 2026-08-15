@@ -197,6 +197,9 @@ export async function runUnitech(r, ctx) {
       const phoneBase = String(owner.locataires[0].phone || '');
       check(r, 'téléphone envoyé = téléphone du locataire (base)', String(sent.body.customer_number) === phoneBase, `reçu ${sent.body.customer_number} vs ${phoneBase}`);
       check(r, 'statut client ignoré (jamais payé par le frontend)', sent.body.statut === undefined, String(sent.body.statut));
+      // Regression : l'API Wave rejette (HTTP 400) les callbacks vides ou
+      // non-HTTPS (APP_URL en http://localhost ici). Ils doivent être omis.
+      check(r, 'callbacks vides jamais envoyés à Wave', sent.body.callback_success === undefined && sent.body.callback_cancel === undefined, `reçus ${JSON.stringify(sent.body.callback_success)} / ${JSON.stringify(sent.body.callback_cancel)}`);
     }
 
     // Aucune clé API ne doit transiter dans les réponses.

@@ -16,11 +16,24 @@ const sb = () => serviceClient();
 
 // Redirections navigateur APRÈS paiement. La décision réelle (statut
 // payé) vient uniquement du webhook vérifié.
+//
+// L'API Wave exige des URL de callback publiques en HTTPS : une URL
+// http:// (développement local) est rejetée avec une erreur HTTP 400
+// (« Erreur Wave API: HTTP 400 ») à la création du paiement. Lorsque
+// APP_URL n'est pas un URL HTTPS, les callbacks sont omis : le paiement
+// est tout de même créé et le statut final est confirmé par le webhook
+// UnitechPay (configuré côté tableau de bord marchand).
 function callbackUrls() {
   const base = process.env.APP_URL || '';
+  try {
+    if (new URL(base).protocol !== 'https:') return { success: '', cancel: '' };
+  } catch {
+    return { success: '', cancel: '' };
+  }
+  const root = base.replace(/\/+$/, '');
   return {
-    success: base ? `${base}/paiement-succes` : '',
-    cancel: base ? `${base}/paiement-annule` : '',
+    success: `${root}/paiement-succes`,
+    cancel: `${root}/paiement-annule`,
   };
 }
 

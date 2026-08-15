@@ -53,16 +53,14 @@ export async function getBalance() {
 }
 
 // Paiement Wave (Sénégal) : renvoie { transaction_id, reference, payment_url, status, ... }
+// Les callbacks ne sont envoyés que s'ils sont non vides : l'API Wave
+// rejette avec un HTTP 400 une URL callback vide ("") ou non publique
+// en HTTPS (ex. http://localhost en développement).
 export async function createWavePayment({ amount, customerNumber, description = '', callbackSuccess = '', callbackCancel = '' }) {
-  return unitechRequest('create_wave_payment', {
-    body: {
-      amount,
-      customer_number: customerNumber,
-      description,
-      callback_success: callbackSuccess,
-      callback_cancel: callbackCancel,
-    },
-  });
+  const body = { amount, customer_number: customerNumber, description };
+  if (callbackSuccess) body.callback_success = callbackSuccess;
+  if (callbackCancel) body.callback_cancel = callbackCancel;
+  return unitechRequest('create_wave_payment', { body });
 }
 
 // Paiement Orange Money (Sénégal) : type = 'qr' | 'maxit' | 'om'
@@ -71,9 +69,11 @@ export async function createOrangePayment({ type = 'om', amount, customerNumber 
     type === 'qr' ? 'create_orange_qr'
     : type === 'maxit' ? 'create_orange_maxit'
     : 'create_orange_om';
-  const body = { amount, description, callback_success: callbackSuccess, callback_cancel: callbackCancel };
+  const body = { amount, description };
   if (customerNumber) body.customer_number = customerNumber;
   if (reference) body.reference = reference;
+  if (callbackSuccess) body.callback_success = callbackSuccess;
+  if (callbackCancel) body.callback_cancel = callbackCancel;
   return unitechRequest(action, { body });
 }
 
