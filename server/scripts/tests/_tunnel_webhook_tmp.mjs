@@ -57,14 +57,14 @@ check('connexion owner1', login.status === 200, String(login.status));
 if (!cookie) process.exit(1);
 
 // --- 2) Paiement attente + checkout Wave RÉEL ---
+const ownerId = (await sb.from('profiles').select('id').eq('email', 'owner1@mimtest.com').single()).data.id;
 const { data: loc } = await sb
   .from('locataires')
   .select('id, phone')
-  .eq('account_uid', (await sb.from('profiles').select('id').eq('email', 'owner1@mimtest.com').single()).data.id)
+  .eq('user_id', ownerId)
   .not('phone', 'is', null)
   .limit(1)
   .maybeSingle();
-const ownerId = (await sb.from('profiles').select('id').eq('email', 'owner1@mimtest.com').single()).data.id;
 const { data: logement } = await sb.from('logements').select('id').eq('user_id', ownerId).limit(1).maybeSingle();
 
 const pay = await fetch(BASE + '/paiements', {
