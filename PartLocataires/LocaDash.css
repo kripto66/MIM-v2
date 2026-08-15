@@ -1436,3 +1436,169 @@ input.pw-strong {
 
     border: 1px solid #c3e6cb;
 }
+
+/* ============================================================
+   Flux « Payer mon loyer » — déclaration + validation propriétaire
+   ============================================================ */
+
+.payer-card {
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border, #e3e8f0);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.04);
+}
+
+.payer-card.paid { border-left: 4px solid #2e7d32; }
+.payer-card.pending { border-left: 4px solid #f9a825; }
+.payer-card.rejected { border-left: 4px solid #c62828; }
+
+.payer-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.payer-amount {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--primary, #1b3a5c);
+    margin: 6px 0;
+}
+
+.payer-meta {
+    color: var(--muted, #6b7280);
+    font-size: 14px;
+    margin: 4px 0;
+}
+
+.payer-note {
+    color: var(--muted, #6b7280);
+    font-size: 13px;
+    font-style: italic;
+}
+
+.payer-methods {
+    margin-top: 18px;
+}
+
+.payer-methods h4 {
+    margin-bottom: 4px;
+}
+
+.method-card {
+    border: 1px solid var(--border, #e3e8f0);
+    border-radius: 10px;
+    padding: 14px;
+    margin: 12px 0;
+    background: #fafbfe;
+}
+
+.method-head {
+    font-weight: 700;
+    font-size: 16px;
+    margin-bottom: 8px;
+}
+
+.method-line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 6px 0;
+    font-size: 14px;
+}
+
+.method-line span {
+    color: var(--muted, #6b7280);
+    min-width: 70px;
+}
+
+.method-instructions {
+    font-size: 13px;
+    color: var(--muted, #6b7280);
+    margin-top: 8px;
+}
+
+.copy-btn {
+    background: #eef2f9;
+    border: 1px solid #d5deec;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #1b3a5c;
+}
+
+.copy-btn:hover { background: #e2e9f5; }
+
+.copy-feedback {
+    color: #2e7d32;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.declare-btn {
+    display: block;
+    width: 100%;
+    margin-top: 12px;
+    padding: 10px;
+    background: var(--primary, #1b3a5c);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.declare-btn:hover { opacity: 0.9; }
+
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+}
+
+.modal {
+    background: #fff;
+    border-radius: 14px;
+    padding: 24px;
+    max-width: 460px;
+    width: 100%;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+    margin-top: 16px;
+}
+
+.btn-primary {
+    background: var(--primary, #1b3a5c);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-secondary {
+    background: #eef2f9;
+    color: #1b3a5c;
+    border: 1px solid #d5deec;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-weight: 600;
+    cursor: pointer;
+}

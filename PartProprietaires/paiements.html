@@ -73,6 +73,19 @@
             <section class="dashboard-section">
 
                 <div class="section-header">
+                    <h2>Paiements à valider</h2>
+                    <span id="pendingCount" class="status status-warning">0</span>
+                </div>
+
+                <div id="pendingList">
+                    <div class="empty-state">Chargement...</div>
+                </div>
+
+            </section>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
                     <h2>Historique des paiements</h2>
                 </div>
 
@@ -84,6 +97,30 @@
 
         </main>
 
+    </div>
+
+    <div class="modal-overlay" id="refusModal" style="display:none;">
+        <div class="modal">
+            <h2>Refuser cette déclaration ?</h2>
+            <p class="pay-hint">Le locataire en sera informé. L'échéance ne sera pas avancée.</p>
+            <div class="form-group">
+                <label for="refusMotif">Motif du refus</label>
+                <select id="refusMotif">
+                    <option value="Paiement non reçu">Paiement non reçu</option>
+                    <option value="Montant incorrect">Montant incorrect</option>
+                    <option value="Mauvais compte">Mauvais compte</option>
+                    <option value="Autre">Autre</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="refusMotifAutre">Précision (si « Autre »)</label>
+                <input type="text" id="refusMotifAutre" maxlength="200">
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="refusCancel">Annuler</button>
+                <button type="button" class="btn btn-delete" id="refusConfirm">Refuser le paiement</button>
+            </div>
+        </div>
     </div>
 
     <div class="modal-overlay" id="paiementModal" style="display:none;">
@@ -120,33 +157,22 @@
                     <input type="month" id="mois" name="mois" required>
                 </div>
 
-                <p class="unitech-ok" id="flowNote">Le paiement est créé « En attente » : le locataire paie via le lien mobile money, confirme son paiement et le propriétaire le valide.</p>
+                <p class="unitech-ok" id="flowNote">Le paiement est créé « En attente » : le locataire paie directement (hors MIM) avec le moyen indiqué, déclare son paiement et vous le validez après vérification de votre compte.</p>
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="methode_paiement">Méthode de paiement</label>
-                        <input type="text" id="methode_paiement" value="Mobile Money (UnitechPay)" readonly style="background:#f3f6fb;">
-                        <input type="hidden" name="methode_paiement" value="mobile_money">
-                    </div>
-                    <div class="form-group">
-                        <label for="reference">Référence (n° transaction)</label>
-                        <input type="text" id="reference" name="reference" maxlength="80" placeholder="Remplie automatiquement">
-                    </div>
-                </div>
-
-                <div id="unitechBlock" style="display:none;" class="unitech-block">
-                    <p class="unitech-ok" id="unitechHint">Le lien mobile money sera généré automatiquement après l'enregistrement du paiement (montant et locataire lus côté serveur).</p>
-                    <div class="form-group">
-                        <label for="unitechOperator">Opérateur</label>
-                        <select id="unitechOperator">
+                        <label for="methode_paiement">Moyen de paiement attendu</label>
+                        <select id="methode_paiement" name="methode_paiement">
                             <option value="wave">Wave</option>
-                            <option value="orange">Orange Money</option>
+                            <option value="orange_money">Orange Money</option>
+                            <option value="virement">Virement bancaire</option>
+                            <option value="especes">Espèces</option>
                         </select>
                     </div>
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-primary" id="unitechBtn">Générer le lien de paiement</button>
+                    <div class="form-group">
+                        <label for="reference">Référence (n° transaction, optionnel)</label>
+                        <input type="text" id="reference" name="reference" maxlength="80" placeholder="Renseignée par le locataire ou vous-même">
                     </div>
-                    <div id="unitechResult"></div>
                 </div>
 
                 <div class="modal-actions">
@@ -168,14 +194,24 @@
             attente: ["En attente", "status-warning"],
             retard: ["En retard", "status-danger"],
             a_confirmer: ["À confirmer", "status-info"],
-            en_validation: ["En validation", "status-warning"],
+            en_validation: ["En attente de validation", "status-warning"],
             refuse: ["Refusé", "status-danger"],
         };
 
         const MOIS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 
+        const METHODE_LABELS = {
+            especes: "Espèces",
+            mobile_money: "Mobile Money",
+            virement: "Virement bancaire",
+            carte: "Carte bancaire",
+            wave: "Wave",
+            orange_money: "Orange Money",
+        };
+
         let locatairesCache = [];
         let logementsCache = [];
+        let refusTargetId = null;
 
         async function loadData() {
             try {
@@ -206,84 +242,121 @@
             return `${MOIS_FR[Number(m) - 1]} ${y}`;
         }
 
-        const METHODE_LABELS = {
-            especes: "Espèces",
-            mobile_money: "Mobile Money",
-            virement: "Virement bancaire",
-            carte: "Carte bancaire",
-        };
+        function formatDateTime(iso) {
+            if (!iso) return "";
+            return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+        }
 
-        function toggleUnitechBlock() {
-            const isMobileMoney = document.getElementById("methode_paiement").value === "mobile_money";
-            const block = document.getElementById("unitechBlock");
-            if (!isMobileMoney) {
-                block.style.display = "none";
-                return;
-            }
-            const hasId = Boolean(document.getElementById("paiementId").value);
-            block.style.display = "block";
-            const btn = document.getElementById("unitechBtn");
-            const hint = document.getElementById("unitechHint");
-            if (hasId) {
-                // Le paiement existe en base : le serveur relit montant,
-                // locataire et propriétaire -> lien générable.
-                if (hint) hint.style.display = "none";
-                btn.style.display = "inline-block";
-            } else {
-                // Création : pas encore d'id -> le lien sera généré juste
-                // après l'enregistrement (le serveur ne fait confiance ni au
-                // montant ni au propriétaire envoyés par le client).
-                if (hint) hint.style.display = "block";
-                btn.style.display = "none";
+        // ============================================================
+        // Paiements à valider : déclarations des locataires
+        // ============================================================
+
+        async function loadPending() {
+            const listEl = document.getElementById("pendingList");
+            const countEl = document.getElementById("pendingCount");
+            try {
+                const res = await apiRequest("/paiements-validation/en-attente");
+                const items = res.data || [];
+                countEl.textContent = String(items.length);
+
+                if (!items.length) {
+                    listEl.innerHTML = '<div class="empty-state">Aucune déclaration en attente de validation.</div>';
+                    return;
+                }
+
+                listEl.innerHTML = items.map((p) => `
+                    <div class="crud-card pending-card">
+                        <div>
+                            <h3>${escapeHtml(p.locataire_nom || "Locataire")}</h3>
+                            <p>${formatMois(p.mois)} — ${escapeHtml(p.logement_nom || "")}</p>
+                            <p><span class="status status-warning">En attente de validation</span></p>
+                            <p class="pay-methode">${METHODE_LABELS[p.methode_paiement] || p.methode_paiement || "—"}${p.reference ? ` — réf. déclarée : ${escapeHtml(p.reference)}` : ""}</p>
+                            <p class="pay-hint">Demande de validation reçue : ${formatDateTime(p.validation_requested_at)}</p>
+                            <p class="pay-hint">⚠️ Vérifiez la réception du paiement sur votre compte avant de valider.</p>
+                        </div>
+                        <div class="card-amount">
+                            <strong>${Number(p.montant).toLocaleString("fr-FR")} FCFA</strong>
+                            <div class="card-actions">
+                                <button class="btn btn-pay" data-pvalidate="${p.id}">Valider le paiement</button>
+                                <button class="btn btn-delete" data-prefuse="${p.id}">Refuser</button>
+                            </div>
+                        </div>
+                    </div>`).join("");
+            } catch (err) {
+                listEl.innerHTML = `<div class="empty-state">${escapeHtml(err.message)}</div>`;
             }
         }
 
-        async function initiateUnitech() {
-            const result = document.getElementById("unitechResult");
-            const paiementId = document.getElementById("paiementId").value;
-            const operator = document.getElementById("unitechOperator").value;
-            result.innerHTML = "";
+        async function handlePendingAction(e) {
+            const validateBtn = e.target.closest("[data-pvalidate]");
+            const refuseBtn = e.target.closest("[data-prefuse]");
+            if (!validateBtn && !refuseBtn) return;
 
-            if (!paiementId) {
-                result.innerHTML = '<p class="form-error">Enregistrez d\'abord le paiement, puis générez le lien.</p>';
+            if (validateBtn) {
+                const id = validateBtn.dataset.pvalidate;
+                validateBtn.disabled = true;
+                try {
+                    const res = await apiRequest(`/paiements-validation/${id}/valider`, { method: "POST" });
+                    alert(res.message || "Paiement validé.");
+                    await Promise.all([loadPending(), CrudPage.load()]);
+                } catch (err) {
+                    validateBtn.disabled = false;
+                    alert(err.message);
+                }
                 return;
             }
 
-            const btn = document.getElementById("unitechBtn");
+            if (refuseBtn) {
+                refusTargetId = refuseBtn.dataset.prefuse;
+                document.getElementById("refusMotifAutre").value = "";
+                document.getElementById("refusMotif").value = "Paiement non reçu";
+                document.getElementById("refusModal").style.display = "flex";
+            }
+        }
+
+        async function confirmRefus() {
+            if (!refusTargetId) return;
+            const select = document.getElementById("refusMotif");
+            const motif = select.value === "Autre"
+                ? document.getElementById("refusMotifAutre").value.trim()
+                : select.value;
+            if (!motif) {
+                alert("Indiquez le motif du refus.");
+                return;
+            }
+            const btn = document.getElementById("refusConfirm");
             btn.disabled = true;
-            const original = btn.textContent;
-            btn.textContent = "Génération...";
             try {
-                const res = await apiRequest("/unitech/initiate", {
+                const res = await apiRequest(`/paiements-validation/${refusTargetId}/refuser`, {
                     method: "POST",
-                    body: JSON.stringify({ paiement_id: paiementId, operator }),
+                    body: JSON.stringify({ motif }),
                 });
-                const d = res.data || {};
-                let html = "";
-                if (d.payment_url) {
-                    html += `<p class="unitech-ok">Lien de paiement généré :</p>
-                        <a href="${d.payment_url}" target="_blank" rel="noopener">${escapeHtml(d.payment_url)}</a>`;
-                }
-                if (d.qr_code) {
-                    html += `<img class="unitech-qr" src="${d.qr_code}" alt="QR Code" style="max-width:160px;display:block;margin-top:8px;">`;
-                }
-                if (d.reference) {
-                    html += `<p class="unitech-ref">Réf. UnitechPay : ${escapeHtml(d.reference)}</p>`;
-                }
-                result.innerHTML = html || '<p class="unitech-ok">Session de paiement créée (statut en attente).</p>';
+                document.getElementById("refusModal").style.display = "none";
+                alert(res.message || "Déclaration refusée.");
+                refusTargetId = null;
+                await Promise.all([loadPending(), CrudPage.load()]);
             } catch (err) {
-                result.innerHTML = `<p class="form-error">${escapeHtml(err.message || "Erreur UnitechPay.")}</p>`;
+                alert(err.message);
             } finally {
                 btn.disabled = false;
-                btn.textContent = original;
             }
         }
 
-        document.getElementById("unitechBtn").addEventListener("click", initiateUnitech);
-
-        // Auto-génération du lien mobile money juste après l'enregistrement
-        // d'un paiement en « Mobile Money ».
-        let pendingUnitechId = null;
+        document.getElementById("pendingList").addEventListener("click", handlePendingAction);
+        document.getElementById("refusConfirm").addEventListener("click", confirmRefus);
+        document.getElementById("refusCancel").addEventListener("click", () => {
+            document.getElementById("refusModal").style.display = "none";
+            refusTargetId = null;
+        });
+        document.getElementById("refusModal").addEventListener("click", (e) => {
+            if (e.target.id === "refusModal") {
+                document.getElementById("refusModal").style.display = "none";
+                refusTargetId = null;
+            }
+        });
+        document.getElementById("refusMotif").addEventListener("change", (e) => {
+            document.getElementById("refusMotifAutre").style.display = e.target.value === "Autre" ? "block" : "none";
+        });
 
         CrudPage.init({
             resource: "paiements",
@@ -317,42 +390,18 @@
                 },
             ]),
             onOpenAdd: () => {
-                document.getElementById("unitechResult").innerHTML = "";
-                document.getElementById("methode_paiement").value = "mobile_money";
-                toggleUnitechBlock();
+                document.getElementById("methode_paiement").value = "wave";
+                document.getElementById("reference").value = "";
             },
             onOpenEdit: () => {
-                document.getElementById("unitechResult").innerHTML = "";
-                document.getElementById("methode_paiement").value = "mobile_money";
-                toggleUnitechBlock();
-            },
-            afterLoad: (items) => {
-                // Après une création en Mobile Money : rouvre le paiement et
-                // génère automatiquement le lien (id désormais disponible).
-                if (pendingUnitechId) {
-                    const id = pendingUnitechId;
-                    pendingUnitechId = null;
-                    const item = items.find((i) => String(i.id) === String(id));
-                    if (item) {
-                        CrudPage.openEdit(item);
-                        const mm = document.getElementById("methode_paiement");
-                        if (mm) mm.value = "mobile_money";
-                        toggleUnitechBlock();
-                        initiateUnitech();
-                    }
-                }
-            },
-            onSaved: (savedId, payload) => {
-                if (payload.methode_paiement === "mobile_money") {
-                    pendingUnitechId = savedId;
-                }
+                document.getElementById("methode_paiement").value = "wave";
             },
             renderItem: (p) => {
                 const [label, cls] = PAIEMENT_STATUS[p.statut] || [p.statut, "status-info"];
                 const locataire = locatairesCache.find((t) => String(t.id) === String(p.locataire_id));
                 const logement = logementsCache.find((l) => String(l.id) === String(p.logement_id));
                 const methode = METHODE_LABELS[p.methode_paiement];
-                const awaiting = p.statut === "a_confirmer" || p.statut === "en_validation";
+                const awaiting = p.statut === "en_validation";
                 return `
                     <div class="crud-card">
                         <div>
@@ -360,17 +409,15 @@
                             <p>${formatMois(p.mois)} — ${logement ? escapeHtml(logement.nom) : ""}</p>
                             <p><span class="status ${cls}">${label}</span></p>
                             ${methode ? `<p class="pay-methode">${methode}${p.reference ? ` — ${escapeHtml(p.reference)}` : ""}</p>` : ""}
-                            ${p.statut === "a_confirmer" ? '<p class="pay-hint">Paiement reçu — invitez le locataire à confirmer ou validez directement.</p>' : ""}
-                            ${p.statut === "en_validation" ? '<p class="pay-hint">Le locataire a confirmé son paiement.</p>' : ""}
+                            ${p.statut === "en_validation" ? '<p class="pay-hint">Le locataire déclare avoir payé — vérifiez votre compte puis validez.</p>' : ""}
                         </div>
                         <div class="card-amount">
                             <strong>${Number(p.montant).toLocaleString("fr-FR")} FCFA</strong>
                             <div class="card-actions">
                                 ${awaiting ? `
-                                    <button class="btn btn-pay" data-validate="${p.id}">Valider</button>
-                                    <button class="btn btn-delete" data-refuse="${p.id}">Refuser</button>
+                                    <button class="btn btn-pay" data-pvalidate="${p.id}">Valider le paiement</button>
+                                    <button class="btn btn-delete" data-prefuse="${p.id}">Refuser</button>
                                 ` : ""}
-                                ${p.statut !== "paye" && !awaiting ? `<button class="btn btn-pay" data-unitech="${p.id}">Lien mobile money</button>` : ""}
                                 <button class="btn btn-edit" data-edit="${p.id}">Modifier</button>
                                 <button class="btn btn-delete" data-delete="${p.id}">Supprimer</button>
                             </div>
@@ -379,47 +426,9 @@
             }
         });
 
-        // Bouton « Lien mobile money » : ouvre le paiement en édition,
-        // sélectionne la méthode mobile money et génère le lien (montant,
-        // locataire et propriétaire relus côté serveur).
-        document.getElementById("paiementsList").addEventListener("click", (e) => {
-            const btn = e.target.closest("[data-unitech]");
-            if (!btn) return;
-            const item = CrudPage._currentItems?.find((i) => String(i.id) === String(btn.dataset.unitech));
-            if (!item) return;
-            CrudPage.openEdit(item);
-            const mm = document.getElementById("methode_paiement");
-            if (mm) mm.value = "mobile_money";
-            toggleUnitechBlock();
-            initiateUnitech();
-        });
-
-        // Validation métier d'un paiement mobile money (Valider / Refuser).
-        // Le paiement, le montant et la référence sont relus côté serveur.
-        document.getElementById("paiementsList").addEventListener("click", async (e) => {
-            const validateBtn = e.target.closest("[data-validate]");
-            const refuseBtn = e.target.closest("[data-refuse]");
-            if (!validateBtn && !refuseBtn) return;
-
-            const id = validateBtn ? validateBtn.dataset.validate : refuseBtn.dataset.refuse;
-            const action = validateBtn ? "valider" : "refuser";
-
-            if (action === "refuser" && !confirm("Refuser ce paiement ? Le locataire en sera informé.")) return;
-
-            const btn = validateBtn || refuseBtn;
-            btn.disabled = true;
-            try {
-                const res = await apiRequest("/unitech/valider", {
-                    method: "POST",
-                    body: { paiement_id: id, action },
-                });
-                alert(res.message || "Paiement traité.");
-                loadData();
-            } catch (err) {
-                btn.disabled = false;
-                alert(err.message);
-            }
-        });
+        // Validation / refus d'une déclaration (historique aussi).
+        // Le paiement, le montant et la méthode sont relus côté serveur.
+        document.getElementById("paiementsList").addEventListener("click", handlePendingAction);
 
         loadData();
     </script>
