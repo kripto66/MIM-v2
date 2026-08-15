@@ -252,7 +252,7 @@ router.post('/paiements/:id/declarer', async (req, res) => {
     if (!paiement) {
       return res.status(404).json({ success: false, message: 'Paiement introuvable.' });
     }
-    if (!['attente', 'retard'].includes(paiement.statut)) {
+    if (!['attente', 'retard', 'refuse'].includes(paiement.statut)) {
       const message =
         paiement.statut === 'en_validation'
           ? 'Votre paiement est déjà déclaré : il attend la validation du propriétaire.'
@@ -287,7 +287,7 @@ router.post('/paiements/:id/declarer', async (req, res) => {
         reference: reference ? String(reference).trim() : null,
       })
       .eq('id', paiement.id)
-      .in('statut', ['attente', 'retard'])
+      .in('statut', ['attente', 'retard', 'refuse'])
       .select()
       .maybeSingle();
 
