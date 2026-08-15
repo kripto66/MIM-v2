@@ -44,6 +44,9 @@ const { data: paiement } = await sb
 if (!paiement) { console.error('Aucun paiement a_confirmer trouvé'); process.exit(1); }
 console.log(`Paiement cible : id=${paiement.id} statut=${paiement.statut} référence=${String(paiement.reference).slice(0, 12)}…`);
 
+// Remise à zéro propre du paiement (test itérable, données de test uniquement).
+await sb.from('paiements').update({ statut: 'a_confirmer' }).eq('id', paiement.id);
+
 const { data: loc } = await sb.from('locataires').select('id, username').eq('id', paiement.locataire_id).single();
 const loginT = await api('/auth/login', { method: 'POST', body: { identifier: loc.username, password: 'Test1234!' } });
 check('connexion locataire', loginT.status === 200, String(loginT.status));
@@ -57,7 +60,7 @@ const jarO = loginO.cookie;
 const { data: otherLoc } = await sb
   .from('locataires')
   .select('username')
-  .neq('user_id', owner.id)
+  .eq('user_id', (await sb.from('profiles').select('id').eq('email', 'owner2@mimtest.com').single()).data.id)
   .limit(1)
   .maybeSingle();
 if (otherLoc) {
@@ -77,8 +80,8 @@ const tenantValidate = await api('/unitech/valider', { method: 'POST', jar: jarT
 check('locataire ne peut pas valider lui-même (403)', tenantValidate.status === 403, `statut ${tenantValidate.status}`);
 
 // --- Propriétaire d'un AUTRE compte -> 404 ---
-const { data: otherOwner } = await sb.from('profiles').select('email').neq('email', 'owner1@mimtest.com').eq('role', 'proprietaire').limit(1).maybeSingle();
-if (otherOwner) {
+const otherOwner = { email: 'owner2@mimtest.com' };
+{
   const loginB = await api('/auth/login', { method: 'POST', body: { identifier: otherOwner.email, password: 'Test1234!' } });
   const foreignV = await api('/unitech/valider', { method: 'POST', jar: loginB.cookie, body: { paiement_id: paiement.id, action: 'valider' } });
   check('propriétaire B ne peut pas valider le paiement de A -> 404', foreignV.status === 404, `statut ${foreignV.status}`);
