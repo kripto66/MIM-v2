@@ -96,7 +96,7 @@ const badJson = await sendWebhook(null, { raw: '{ pas du json', signature: sign(
 check('payload JSON invalide -> 400', badJson.status === 400, `${badJson.status} ${JSON.stringify(badJson.data)}`);
 
 // --- 5) Référence inconnue (signature valide) -> rejet ---
-const unknown = await sendWebhook({ event: 'payment_completed', reference: 'REF_INCONNUE_TUNNEL_TEST', amount: 25000, status: 'completed' });
+const unknown = await sendWebhook({ event: 'payment_completed', reference: `REF_INCONNUE_${Date.now()}`, amount: 25000, status: 'completed' });
 check('référence inconnue -> rejet', unknown.status === 200 && unknown.data?.reference === 'unknown', `${unknown.status} ${JSON.stringify(unknown.data)}`);
 
 // --- 6) Montant incohérent -> amount_mismatch ---
