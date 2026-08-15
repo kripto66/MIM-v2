@@ -2,9 +2,23 @@
 // MIM - Suite concurrence / performance
 // ============================================================
 
+import crypto from 'node:crypto';
 import { api, newJar, expectSuccess } from './lib.js';
 
 const S = 'concurrence';
+
+// Webhook signé HMAC comme le ferait UnitechPay (mock local : 64330).
+async function sendWebhook(payloadObj) {
+  const raw = JSON.stringify(payloadObj);
+  const sig = crypto.createHmac('sha256', process.env.UNITECH_API_KEY || '').update(raw).digest('hex');
+  const res = await fetch('http://127.0.0.1:3100/api/unitech/webhook', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-UNITECHPAY-SIGNATURE': sig },
+    body: raw,
+  });
+  const data = await res.json().catch(() => null);
+  return { status: res.status, data };
+}
 
 export async function runConcurrency(r, ctx) {
   const o1 = ctx.seed.owners[0];
@@ -128,6 +142,131 @@ export async function runConcurrency(r, ctx) {
       }
     }
     await api(`/logements/${lgId}`, { method: 'DELETE', jar: o1.jar });
+  });
+
+  // ----------------------------------------------------------
+  // Webhooks identiques en parallèle : un seul traitement (dédup atomique).
+  // ----------------------------------------------------------
+  await r.section('webhooks jumeaux en parallèle (dédup atomique)', async () => {
+    const loc = o1.locataires[6];
+    const p = await api('/paiements', {
+      method: 'POST',
+      jar: o1.jar,
+      body: { locataire_id: loc.id, logement_id: o1.logements[6].id, montant: 55000, mois: ctx.seed.month, statut: 'attente' },
+    });
+    if (!expectSuccess(r, p, S, r, [201])) return;
+    const pid = p.data.data.id;
+
+    const init = await api('/unitech/initiate', { method: 'POST', jar: o1.jar, body: { paiement_id: pid, operator: 'wave' } });
+    const ref = init.data?.data?.checkout?.unitech_reference;
+    if (!ref) return r.fail(S, 'initiate pour webhooks jumeaux', JSON.stringify(init.data));
+
+    const payload = { event: 'payment_completed', transaction_id: 777, reference: ref, amount: 55000, status: 'completed' };
+    const before = (await ctx.service.from('unitech_webhooks').select('id').eq('fingerprint', crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex'))).data.length;
+
+    const t0 = performance.now();
+    const [w1, w2] = await Promise.all([sendWebhook(payload), sendWebhook(payload)]);
+    const ms = Math.round(performance.now() - t0);
+
+    const all200 = w1.status === 200 && w2.status === 200;
+    const oneCompleted = [w1, w2].filter((w) => w.data?.result === 'completed').length === 1;
+    const oneDuplicated = [w1, w2].filter((w) => w.data?.duplicated === true).length === 1;
+    if (all200 && oneCompleted && oneDuplicated) r.pass(S, `2 webhooks parallèles -> 1 complet + 1 doublon (${ms} ms)`);
+    else r.fail(S, '2 webhooks parallèles -> 1 complet + 1 doublon', JSON.stringify({ w1: w1.data, w2: w2.data }));
+
+    const after = (await ctx.service.from('unitech_webhooks').select('id').eq('fingerprint', crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex'))).data.length;
+    if (after === before + 1) r.pass(S, `une seule ligne de webhook (${before} -> ${after})`);
+    else r.fail(S, 'une seule ligne de webhook', `${before} -> ${after}`);
+
+    const { data: pays } = await ctx.service.from('paiements').select('statut').eq('id', pid).single();
+    if (pays.statut === 'a_confirmer') r.pass(S, 'paiement -> a_confirmer (pas de double traitement)');
+    else r.fail(S, 'paiement -> a_confirmer', pays.statut);
+
+    const notifs = await ctx.service.from('notifications').select('id').eq('user_id', o1.id).like('message', 'Paiement mobile money reçu%');
+    if (notifs.data?.length === 1) r.pass(S, 'une seule notification propriétaire');
+    else r.fail(S, 'une seule notification propriétaire', `${notifs.data?.length}`);
+  });
+
+  // ----------------------------------------------------------
+  // Webhook + confirmation locataire simultanés : aucun état incohérent.
+  // ----------------------------------------------------------
+  await r.section('webhook + confirmation locataire simultanés', async () => {
+    const loc = o1.locataires[7];
+    const p = await api('/paiements', {
+      method: 'POST',
+      jar: o1.jar,
+      body: { locataire_id: loc.id, logement_id: o1.logements[7].id, montant: 60000, mois: ctx.seed.month, statut: 'attente' },
+    });
+    if (!expectSuccess(r, p, S, r, [201])) return;
+    const pid = p.data.data.id;
+
+    const init = await api('/unitech/initiate', { method: 'POST', jar: o1.jar, body: { paiement_id: pid, operator: 'wave' } });
+    const ref = init.data?.data?.checkout?.unitech_reference;
+    if (!ref) return r.fail(S, 'initiate pour webhook+confirmation', JSON.stringify(init.data));
+
+    const { data: account } = await ctx.service.from('locataires').select('account_uid').eq('id', loc.id).single();
+    const jarT = newJar();
+    const loginT = await api('/auth/login', { method: 'POST', jar: jarT, body: { identifier: loc.username, password: 'Test1234!' } });
+    if (loginT.status !== 200) return r.fail(S, 'connexion locataire (webhook+confirmation)', `statut ${loginT.status}`);
+
+    const payload = { event: 'payment_completed', reference: ref, amount: 60000, status: 'completed' };
+    const [w, c] = await Promise.all([
+      sendWebhook(payload),
+      api(`/locataire/paiements/${pid}/confirmer`, { method: 'POST', jar: jarT }),
+    ]);
+    if (w.status === 200) r.pass(S, 'webhook traité (200)');
+    else r.fail(S, 'webhook traité (200)', `statut ${w.status} ${JSON.stringify(w.data)}`);
+
+    const { data: pays } = await ctx.service.from('paiements').select('statut').eq('id', pid).single();
+    const coherent = pays.statut === 'a_confirmer' || pays.statut === 'en_validation';
+    if (coherent) r.pass(S, `état final cohérent (${pays.statut})`);
+    else r.fail(S, 'état final cohérent', `statut ${pays.statut} — webhook=${w.status} ${JSON.stringify(w.data)} confirmation=${c.status} ${JSON.stringify(c.data)}`);
+    if (account?.account_uid) {
+      const notifs = await ctx.service.from('notifications').select('id').eq('user_id', account.account_uid).like('message', 'Votre loyer de%');
+      if (notifs.data?.length <= 1) r.pass(S, `notification locataire cohérente (${notifs.data?.length})`);
+      else r.fail(S, 'notification locataire cohérente', `${notifs.data?.length}`);
+    }
+  });
+
+  // ----------------------------------------------------------
+  // Double validation propriétaire simultanée : une seule écriture gagne.
+  // ----------------------------------------------------------
+  await r.section('double validation propriétaire simultanée', async () => {
+    const loc = o1.locataires[8];
+    const p = await api('/paiements', {
+      method: 'POST',
+      jar: o1.jar,
+      body: { locataire_id: loc.id, logement_id: o1.logements[8].id, montant: 65000, mois: ctx.seed.month, statut: 'attente' },
+    });
+    if (!expectSuccess(r, p, S, r, [201])) return;
+    const pid = p.data.data.id;
+
+    const init = await api('/unitech/initiate', { method: 'POST', jar: o1.jar, body: { paiement_id: pid, operator: 'wave' } });
+    const ref = init.data?.data?.checkout?.unitech_reference;
+    if (!ref) return r.fail(S, 'initiate pour double validation', JSON.stringify(init.data));
+
+    const w = await sendWebhook({ event: 'payment_completed', reference: ref, amount: 65000, status: 'completed' });
+    if (w.status !== 200) return r.fail(S, 'webhook pour double validation', JSON.stringify(w.data));
+
+    const jarT = newJar();
+    const loginT = await api('/auth/login', { method: 'POST', jar: jarT, body: { identifier: loc.username, password: 'Test1234!' } });
+    if (loginT.status === 200) {
+      await api(`/locataire/paiements/${pid}/confirmer`, { method: 'POST', jar: jarT });
+    }
+
+    const [v1, v2] = await Promise.all([
+      api('/unitech/valider', { method: 'POST', jar: o1.jar, body: { paiement_id: pid, action: 'valider' } }),
+      api('/unitech/valider', { method: 'POST', jar: o1.jar, body: { paiement_id: pid, action: 'valider' } }),
+    ]);
+
+    const oneOk = [v1, v2].filter((v) => v.status === 200).length === 1;
+    const oneRejected = [v1, v2].filter((v) => v.status === 400 || v.status === 409).length === 1;
+    if (oneOk && oneRejected) r.pass(S, 'une seule validation gagne (200 + 400/409)');
+    else r.fail(S, 'une seule validation gagne (200 + 400/409)', `v1=${v1.status} ${JSON.stringify(v1.data)} v2=${v2.status} ${JSON.stringify(v2.data)}`);
+
+    const { data: pays } = await ctx.service.from('paiements').select('statut').eq('id', pid).single();
+    if (pays.statut === 'paye') r.pass(S, 'paiement -> paye (une seule écriture)');
+    else r.fail(S, 'paiement -> paye', pays.statut);
   });
 
   // ----------------------------------------------------------

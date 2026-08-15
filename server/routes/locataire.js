@@ -107,6 +107,91 @@ router.post('/incidents', async (req, res) => {
   }
 });
 
+// ============================================================
+// Confirmation d'un paiement par le locataire.
+//
+// Le webhook UnitechPay a confirmé techniquement le paiement
+// (statut « a_confirmer »). Le locataire confirme ici qu'il est bien
+// l'auteur de ce paiement : statut « en_validation » + notification
+// au propriétaire, qui réalise la validation métier (/unitech/valider).
+// La fiche locataire est DÉDUITE de account_uid : on ne fait jamais
+// confiance à un id envoyé par le frontend, et un locataire ne peut
+// confirmer qu'un paiement rattaché à SA fiche. La mise à jour est
+// conditionnelle (statut attendu) : anti-double-clic.
+// ============================================================
+router.post('/paiements/:id/confirmer', async (req, res) => {
+  const uid = req.user.id;
+  const admin = serviceClient();
+
+  try {
+    const { data: locataire, error: locError } = await admin
+      .from('locataires')
+      .select('id, nom')
+      .eq('account_uid', uid)
+      .maybeSingle();
+
+    if (locError) {
+      console.error('[locataire/confirmer]', locError.message);
+      return res.status(500).json({ success: false, message: 'Erreur lors de la confirmation.' });
+    }
+
+    if (!locataire) {
+      return res.status(403).json({ success: false, message: 'Votre compte n\'est pas lié à une fiche locataire.' });
+    }
+
+    const { data: paiement } = await admin
+      .from('paiements')
+      .select('id, user_id, locataire_id, montant, mois, statut, reference')
+      .eq('id', req.params.id)
+      .eq('locataire_id', locataire.id)
+      .maybeSingle();
+
+    if (!paiement) {
+      return res.status(404).json({ success: false, message: 'Paiement introuvable.' });
+    }
+
+    if (paiement.statut !== 'a_confirmer') {
+      const message =
+        paiement.statut === 'en_validation'
+          ? 'Paiement déjà confirmé : il attend la validation du propriétaire.'
+          : paiement.statut === 'paye'
+            ? 'Ce paiement est déjà validé.'
+            : 'Ce paiement n\'attend pas de confirmation.';
+      return res.status(400).json({ success: false, message });
+    }
+
+    // Mise à jour conditionnelle : une seule confirmation gagne en cas de course.
+    const { data: updated, error } = await admin
+      .from('paiements')
+      .update({ statut: 'en_validation' })
+      .eq('id', paiement.id)
+      .eq('statut', 'a_confirmer')
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error('[locataire/confirmer] update :', error.message);
+      return res.status(500).json({ success: false, message: 'Impossible de confirmer le paiement.' });
+    }
+
+    if (!updated) {
+      return res.status(409).json({ success: false, message: 'Ce paiement a déjà été traité.' });
+    }
+
+    await notify(
+      paiement.user_id,
+      'paiement',
+      `Le locataire ${locataire.nom || '—'} confirme son paiement de ${Number(paiement.montant).toLocaleString('fr-FR')} FCFA pour ${paiement.mois}. À valider.`
+    );
+    gitAutoBackup(`Sauvegarde auto : confirmation de paiement par le locataire ${uid}`);
+
+    res.json({ success: true, data: updated, message: 'Paiement confirmé : il attend la validation du propriétaire.' });
+  } catch (err) {
+    console.error('[locataire/confirmer]', err.message);
+    res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
+  }
+});
+
 router.get('/dashboard', async (req, res) => {
   const uid = req.user.id;
   const sb = authedClient(req.user.supabase_token);
@@ -212,6 +297,26 @@ router.get('/dashboard', async (req, res) => {
       computedNotifications.push({
         type: 'paiement',
         message: `Votre loyer de ${formatMois(dernier.mois)} est en attente de règlement.`,
+        niveau: 'warning',
+        date: dernier.date_paiement || null,
+        created_at: dernier.date_paiement || null,
+      });
+    }
+
+    if (paiementStatut === 'a_confirmer') {
+      computedNotifications.push({
+        type: 'paiement',
+        message: `Votre paiement de ${formatMois(dernier.mois)} a été reçu : confirmez-le depuis votre espace.`,
+        niveau: 'warning',
+        date: dernier.date_paiement || null,
+        created_at: dernier.date_paiement || null,
+      });
+    }
+
+    if (paiementStatut === 'en_validation') {
+      computedNotifications.push({
+        type: 'paiement',
+        message: `Votre paiement de ${formatMois(dernier.mois)} est confirmé : il attend la validation du propriétaire.`,
         niveau: 'warning',
         date: dernier.date_paiement || null,
         created_at: dernier.date_paiement || null,

@@ -46,6 +46,9 @@ const PAIEMENT_LABEL = {
   paye: ["Payé", "success"],
   attente: ["En attente", "warning"],
   retard: ["En retard", "danger"],
+  a_confirmer: ["À confirmer", "info"],
+  en_validation: ["En validation", "warning"],
+  refuse: ["Refusé", "danger"],
 };
 
 const INCIDENT_LABEL = {
@@ -202,7 +205,7 @@ function renderDashboard(data) {
 
   const statutEl = document.getElementById("paiementStatut");
   if (statutEl) {
-    const map = { paye: ["À jour", "success"], attente: ["En attente", "warning"], retard: ["En retard", "danger"] };
+    const map = { paye: ["À jour", "success"], attente: ["En attente", "warning"], retard: ["En retard", "danger"], a_confirmer: ["À confirmer", "info"], en_validation: ["En validation", "warning"], refuse: ["Refusé", "danger"] };
     const [label, cls] = map[s.paiementStatut] || ["Aucun paiement", "warning"];
     statutEl.textContent = label;
     statutEl.className = `status ${cls}`;
@@ -228,14 +231,60 @@ function renderDashboard(data) {
   if (paiementCardMontant) paiementCardMontant.textContent = prochain.montant;
   if (paiementCardEcheance) paiementCardEcheance.innerHTML = prochain.echeance;
   if (paiementCardStatut && prochain.statut) {
-    const map = { paye: ["À jour", "success"], attente: ["En attente", "warning"], retard: ["En retard", "danger"] };
+    const map = { paye: ["À jour", "success"], attente: ["En attente", "warning"], retard: ["En retard", "danger"], a_confirmer: ["À confirmer", "info"], en_validation: ["En validation", "warning"], refuse: ["Refusé", "danger"] };
     const [label, cls] = map[prochain.statut];
     paiementCardStatut.textContent = label;
     paiementCardStatut.className = `status ${cls}`;
   }
 
+  renderConfirmPayment(data);
+
   renderIncidentPreview(data.incidents);
   renderNotifications(data.notifications);
+}
+
+function renderConfirmPayment(data) {
+  const zone = document.getElementById("confirmPaymentZone");
+  if (!zone) return;
+
+  const paiements = (data.paiements || [])
+    .filter((p) => p.statut === "a_confirmer" || p.statut === "en_validation")
+    .sort((a, b) => String(a.mois || "").localeCompare(String(b.mois || "")));
+
+  const pending = paiements[0];
+
+  if (!pending) {
+    zone.innerHTML = "";
+    return;
+  }
+
+  if (pending.statut === "en_validation") {
+    zone.innerHTML = `
+      <div class="confirm-payment-info">
+        <strong>Paiement confirmé</strong>
+        <p>Votre paiement de ${formatMois(pending.mois)} attend la validation du propriétaire.</p>
+      </div>`;
+    return;
+  }
+
+  zone.innerHTML = `
+    <button class="primary-button" type="button" id="confirmPaymentBtn" data-id="${pending.id}">
+      Confirmer mon paiement (${formatMois(pending.mois)})
+    </button>`;
+
+  document.getElementById("confirmPaymentBtn").addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    const id = btn.dataset.id;
+    btn.disabled = true;
+    try {
+      const res = await tenantRequest(`/locataire/paiements/${id}/confirmer`, { method: "POST" });
+      showTenantError(res.message || "Paiement confirmé.", true);
+      renderConfirmPayment(data);
+    } catch (err) {
+      btn.disabled = false;
+      showTenantError(err.message);
+    }
+  });
 }
 
 function renderIncidentPreview(incidents) {

@@ -120,7 +120,7 @@
                     <input type="month" id="mois" name="mois" required>
                 </div>
 
-                <p class="unitech-ok" id="flowNote">Le paiement est créé « En attente » : le locataire paie via le lien mobile money et il passe automatiquement à « Payé ».</p>
+                <p class="unitech-ok" id="flowNote">Le paiement est créé « En attente » : le locataire paie via le lien mobile money, confirme son paiement et le propriétaire le valide.</p>
 
                 <div class="form-row">
                     <div class="form-group">
@@ -167,6 +167,9 @@
             paye: ["Payé", "status-success"],
             attente: ["En attente", "status-warning"],
             retard: ["En retard", "status-danger"],
+            a_confirmer: ["À confirmer", "status-info"],
+            en_validation: ["En validation", "status-warning"],
+            refuse: ["Refusé", "status-danger"],
         };
 
         const MOIS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
@@ -349,6 +352,7 @@
                 const locataire = locatairesCache.find((t) => String(t.id) === String(p.locataire_id));
                 const logement = logementsCache.find((l) => String(l.id) === String(p.logement_id));
                 const methode = METHODE_LABELS[p.methode_paiement];
+                const awaiting = p.statut === "a_confirmer" || p.statut === "en_validation";
                 return `
                     <div class="crud-card">
                         <div>
@@ -356,11 +360,17 @@
                             <p>${formatMois(p.mois)} — ${logement ? escapeHtml(logement.nom) : ""}</p>
                             <p><span class="status ${cls}">${label}</span></p>
                             ${methode ? `<p class="pay-methode">${methode}${p.reference ? ` — ${escapeHtml(p.reference)}` : ""}</p>` : ""}
+                            ${p.statut === "a_confirmer" ? '<p class="pay-hint">Paiement reçu — invitez le locataire à confirmer ou validez directement.</p>' : ""}
+                            ${p.statut === "en_validation" ? '<p class="pay-hint">Le locataire a confirmé son paiement.</p>' : ""}
                         </div>
                         <div class="card-amount">
                             <strong>${Number(p.montant).toLocaleString("fr-FR")} FCFA</strong>
                             <div class="card-actions">
-                                ${p.statut !== "paye" ? `<button class="btn btn-pay" data-unitech="${p.id}">Lien mobile money</button>` : ""}
+                                ${awaiting ? `
+                                    <button class="btn btn-pay" data-validate="${p.id}">Valider</button>
+                                    <button class="btn btn-delete" data-refuse="${p.id}">Refuser</button>
+                                ` : ""}
+                                ${p.statut !== "paye" && !awaiting ? `<button class="btn btn-pay" data-unitech="${p.id}">Lien mobile money</button>` : ""}
                                 <button class="btn btn-edit" data-edit="${p.id}">Modifier</button>
                                 <button class="btn btn-delete" data-delete="${p.id}">Supprimer</button>
                             </div>
@@ -382,6 +392,33 @@
             if (mm) mm.value = "mobile_money";
             toggleUnitechBlock();
             initiateUnitech();
+        });
+
+        // Validation métier d'un paiement mobile money (Valider / Refuser).
+        // Le paiement, le montant et la référence sont relus côté serveur.
+        document.getElementById("paiementsList").addEventListener("click", async (e) => {
+            const validateBtn = e.target.closest("[data-validate]");
+            const refuseBtn = e.target.closest("[data-refuse]");
+            if (!validateBtn && !refuseBtn) return;
+
+            const id = validateBtn ? validateBtn.dataset.validate : refuseBtn.dataset.refuse;
+            const action = validateBtn ? "valider" : "refuser";
+
+            if (action === "refuser" && !confirm("Refuser ce paiement ? Le locataire en sera informé.")) return;
+
+            const btn = validateBtn || refuseBtn;
+            btn.disabled = true;
+            try {
+                const res = await apiRequest("/unitech/valider", {
+                    method: "POST",
+                    body: { paiement_id: id, action },
+                });
+                alert(res.message || "Paiement traité.");
+                loadData();
+            } catch (err) {
+                btn.disabled = false;
+                alert(err.message);
+            }
         });
 
         loadData();
