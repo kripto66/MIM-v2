@@ -21,6 +21,7 @@ import { runFinal } from './final.test.js';
 import { runAdmin } from './admin.test.js';
 import { runAbonnement } from './abonnement.test.js';
 import { runUnitech, startUnitechMock, stopUnitechMock } from './unitech.test.js';
+import { runDeclarations } from './declarations.test.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.join(__dirname, '..', '..');
@@ -43,6 +44,7 @@ const SUITES = [
   ['admin', runAdmin],
   ['abonnement', runAbonnement],
   ['unitech', runUnitech],
+  ['declarations', runDeclarations],
 ];
 
 const runner = new Runner();
