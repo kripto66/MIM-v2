@@ -112,12 +112,14 @@ check('methode = mobile_money', after.data?.methode_paiement === 'mobile_money',
 check('référence enregistrée', after.data?.reference === ref, String(after.data?.reference));
 
 // --- 8) Doublon -> pas de double traitement ---
-const { data: webhookRows } = await sb.from('unitech_webhooks').select('id').eq('unitech_reference', ref);
-const dup = await sendWebhook({ event: 'payment_completed', reference: ref, amount: 25000, status: 'completed' });
+const validPayloadRaw = JSON.stringify({ event: 'payment_completed', reference: ref, amount: 25000, status: 'completed' });
+const fp = crypto.createHash('sha256').update(validPayloadRaw).digest('hex');
+const { data: webhookRows } = await sb.from('unitech_webhooks').select('id').eq('fingerprint', fp);
+const dup = await sendWebhook(JSON.parse(validPayloadRaw));
 check('doublon -> duplicated', dup.status === 200 && dup.data?.duplicated === true, `${dup.status} ${JSON.stringify(dup.data)}`);
 const { data: dupCheck } = await sb.from('paiements').select('statut').eq('id', paiementId).single();
 check('paiement inchangé après doublon', dupCheck?.statut === 'a_confirmer', String(dupCheck?.statut));
-check('aucune écriture webhook supplémentaire', webhookRows.length === 1, `found ${webhookRows.length}`);
+check('une seule écriture webhook (fingerprint exact)', webhookRows.length === 1, `found ${webhookRows.length}`);
 
 console.log(`\nRÉSULTAT : ${pass} PASS, ${fail} FAIL`);
 process.exit(fail > 0 ? 1 : 0);
