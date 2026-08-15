@@ -19,6 +19,7 @@ import employeRoutes from './routes/employe.js';
 import unitechRoutes, { webhookRouter } from './routes/unitech.js';
 import validationsRoutes from './routes/validations.js';
 import moyensPaiementRoutes from './routes/moyensPaiement.js';
+import importRoutes from './routes/import.js';
 import { createCrudRouter } from './routes/crud.js';
 import { authenticate, requireActive, requireAdmin, requireRole, authenticatePage, requireZone } from './middleware/auth.js';
 import { authRateLimit, apiRateLimit } from './middleware/rateLimit.js';
@@ -117,6 +118,8 @@ app.use('/api/employe', authenticate, requireActive, requireRole('employe'), emp
 app.use('/api/unitech', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), unitechRoutes);
 app.use('/api/paiements-validation', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), validationsRoutes);
 app.use('/api/moyens-paiement', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), moyensPaiementRoutes);
+app.use('/api/import', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), importRoutes);
+app.use('/api/onboarding', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), importRoutes);
 
 const ownerOnly = requireRole('proprietaire', 'agence', 'entreprise');
 app.use('/api/biens', authenticate, requireActive, ownerOnly, createCrudRouter('biens'));
