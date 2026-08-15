@@ -203,26 +203,28 @@
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="pay_operator">Opérateur du versement</label>
-                        <select id="pay_operator" name="pay_operator">
+                        <label for="pay_methode">Moyen de versement</label>
+                        <select id="pay_methode" name="pay_methode">
                             <option value="wave">Wave</option>
-                            <option value="orange">Orange Money</option>
+                            <option value="orange_money">Orange Money</option>
+                            <option value="virement">Virement bancaire</option>
+                            <option value="especes">Espèces</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="pay_orange_mode">Mode Orange Money</label>
-                        <select id="pay_orange_mode" name="pay_orange_mode">
-                            <option value="qr">QR code</option>
-                            <option value="maxit">Maxit</option>
-                            <option value="om">Orange Money</option>
-                        </select>
+                        <label for="pay_date">Date du versement (déclarée)</label>
+                        <input type="date" id="pay_date" name="pay_date">
                     </div>
                 </div>
 
-                <input type="hidden" id="pay_statut" name="pay_statut" value="attente">
-                <input type="hidden" id="pay_methode" name="pay_methode" value="mobile_money">
+                <div class="form-group">
+                    <label for="pay_reference">Référence (n° transaction, optionnel)</label>
+                    <input type="text" id="pay_reference" name="pay_reference" maxlength="80" placeholder="Référence déclarée par vous">
+                </div>
 
-                <p class="unitech-ok" id="payFlowNote">Le salaire est enregistré « En attente », puis un lien mobile money est généré pour verser la somme sur le numéro de l'employé (celui de sa fiche). Il passe automatiquement à « Payé » après confirmation.</p>
+                <input type="hidden" id="pay_statut" name="pay_statut" value="paye">
+
+                <p class="unitech-ok" id="payFlowNote">Vous versez le salaire directement à l'employé (hors MIM), puis vous enregistrez le versement : MIM ne transfère pas l'argent.</p>
 
                 <div id="payUnitechResult" class="unitech-block" style="display:none;"></div>
 
@@ -544,6 +546,8 @@
             mobile_money: "Mobile Money",
             virement: "Virement bancaire",
             carte: "Carte bancaire",
+            wave: "Wave",
+            orange_money: "Orange Money",
         };
 
         async function loadPayHistory(id) {
@@ -574,7 +578,8 @@
             const now = new Date();
             form.pay_mois.value = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0");
             form.pay_montant.value = Number(emp.salaire || 0) || "";
-            form.pay_statut.value = "attente";
+            form.pay_statut.value = "paye";
+            form.pay_date.value = now.toISOString().slice(0, 10);
             el("payUnitechResult").style.display = "none";
             el("payUnitechResult").innerHTML = "";
             el("payHistory").innerHTML = '<div class="empty-state">Chargement...</div>';
@@ -601,13 +606,11 @@
             const payload = {
                 montant: form.pay_montant.value,
                 mois: form.pay_mois.value,
-                statut: form.pay_statut.value || "attente",
-                date_paiement: null,
-                methode_paiement: form.pay_methode.value || "mobile_money",
-                reference: null,
+                statut: form.pay_statut.value || "paye",
+                date_paiement: form.pay_date.value || null,
+                methode_paiement: form.pay_methode.value || "especes",
+                reference: form.pay_reference.value || null,
             };
-            const operator = form.pay_operator.value;
-            const orangeMode = form.pay_orange_mode.value;
             const resultEl = el("payUnitechResult");
 
             const originalLabel = btn.textContent;
@@ -617,44 +620,11 @@
             try {
                 const res = await apiRequest(`/employes/${payEmployeeId}/paiements`, { method: "POST", body: JSON.stringify(payload) });
                 showToast(res.message);
-                const paiementId = res.data?.id;
-                // Prépare le paiement suivant : mois suivant (évite la double saisie du même mois).
                 form.pay_mois.value = nextMonthOf(payload.mois);
+                form.pay_reference.value = "";
+                resultEl.style.display = "none";
                 await loadAll();
                 await loadPayHistory(payEmployeeId);
-
-                // Génération du lien de versement mobile money (le serveur relit
-                // montant et téléphone de l'employé en base).
-                if (paiementId) {
-                    resultEl.style.display = "block";
-                    resultEl.innerHTML = '<p class="unitech-ok">Génération du lien de versement...</p>';
-                    try {
-                        const init = await apiRequest("/unitech/initiate", {
-                            method: "POST",
-                            body: JSON.stringify({
-                                source: "salaire",
-                                paiement_employe_id: paiementId,
-                                operator,
-                                orange_mode: orangeMode,
-                            }),
-                        });
-                        const d = init.data || {};
-                        let html = "";
-                        if (d.payment_url) {
-                            html += `<p class="unitech-ok">Lien de versement généré :</p>
-                                <a href="${d.payment_url}" target="_blank" rel="noopener">${escapeHtml(d.payment_url)}</a>`;
-                        }
-                        if (d.qr_code) {
-                            html += `<img class="unitech-qr" src="${d.qr_code}" alt="QR Code" style="max-width:160px;display:block;margin-top:8px;">`;
-                        }
-                        if (d.reference) {
-                            html += `<p class="unitech-ref">Réf. UnitechPay : ${escapeHtml(d.reference)}</p>`;
-                        }
-                        resultEl.innerHTML = html || '<p class="unitech-ok">Session de versement créée (en attente de confirmation).</p>';
-                    } catch (initErr) {
-                        resultEl.innerHTML = `<p class="form-error">${escapeHtml(initErr.message || "Erreur lors de la génération du lien.")}</p>`;
-                    }
-                }
             } catch (err) {
                 applyServerErrors(form, err.errors);
                 showToast(err.message, "error");

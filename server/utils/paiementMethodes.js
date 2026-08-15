@@ -3,14 +3,26 @@
 // Utilisé par : loyers (paiements), salaires (paiements_employes),
 // abonnement MIM (abonnement_paiements).
 //
-// Depuis l'intégration UnitechPay, la SEULE méthode de paiement est
-// le Mobile Money (Wave / Orange Money via UnitechPay).
+// Depuis le système « Déclaration + validation propriétaire », le
+// propriétaire configure ses propres moyens de paiement (table
+// moyens_paiement) et le locataire paie DIRECTEMENT le propriétaire.
+// MIM n'encaisse rien : il enregistre la déclaration et la
+// validation métier du propriétaire.
+//
+// Référentiel :
+//   especes | mobile_money | virement | carte   (historique, conservé)
+//   wave    | orange_money                     (moyens configurés)
 // ============================================================
 
-export const METHODES_PAIEMENT = ['mobile_money'];
+export const METHODES_PAIEMENT = ['especes', 'mobile_money', 'virement', 'carte', 'wave', 'orange_money'];
 
 export const METHODE_LABELS = {
-  mobile_money: 'Mobile Money (UnitechPay)',
+  especes: 'Espèces',
+  mobile_money: 'Mobile Money',
+  virement: 'Virement bancaire',
+  carte: 'Carte bancaire',
+  wave: 'Wave',
+  orange_money: 'Orange Money',
 };
 
 // Renvoie null si valide (ou vide), sinon un message d'erreur.
@@ -22,3 +34,20 @@ export function methodePaiementError(value) {
 export function methodeLabel(value) {
   return METHODE_LABELS[value] || value || '—';
 }
+
+// Types de moyens de paiement configurables par le propriétaire.
+export const TYPES_MOYENS_PAIEMENT = ['wave', 'orange_money', 'virement', 'especes'];
+
+export const TYPE_MOYEN_LABELS = {
+  wave: 'Wave',
+  orange_money: 'Orange Money',
+  virement: 'Virement bancaire',
+  especes: 'Espèces',
+};
+
+export const TYPE_MOYEN_ICONS = {
+  wave: '🟣',
+  orange_money: '🟠',
+  virement: '🏦',
+  especes: '💵',
+};
