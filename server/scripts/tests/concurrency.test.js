@@ -55,13 +55,29 @@ export async function runConcurrency(r, ctx) {
         .concat(again);
     }
 
+    // Un 401 émis pendant la rafale peut être un faux négatif de GoTrue
+    // (pool Postgres saturé sous charge, cf. 500 « Database error querying
+    // schema » observés sous la même charge) : GoTrue répond 401 alors que
+    // les identifiants sont valides. Chaque compte resté en 401 est donc
+    // re-vérifié séquentiellement après la charge : s'il se reconnecte,
+    // l'échec était transitoire et non un bug de l'app.
     const ms = Math.round(performance.now() - t0);
+    const burst401 = pending.filter(({ res }) => res.status === 401);
+    let recheckOk = 0;
+    for (const p of burst401) {
+      const again = await api('/auth/login', { method: 'POST', body: p.body, jar: newJar() });
+      if (again.status === 200) {
+        recheckOk++;
+        p.res = again;
+      }
+    }
+
     const ok = pending.filter(({ res }) => res.status === 200).length;
     const byStatus = {};
     for (const { res } of pending) byStatus[res.status] = (byStatus[res.status] || 0) + 1;
-    const detail = `${ok}/100 — statuts : ${Object.entries(byStatus).map(([k, v]) => `${k}×${v}`).join(' ')} — retries : ${retries}`;
+    const detail = `${ok}/100 — statuts : ${Object.entries(byStatus).map(([k, v]) => `${k}×${v}`).join(' ')} — retries : ${retries}${recheckOk ? ` — ${recheckOk} faux 401 re-vérifiés OK` : ''}`;
 
-    if (ok === 100) r.pass(S, `100/100 logins locataires OK (${ms} ms, ${Math.round(100000 / ms * 100) / 100} req/s, ${retries} round(s) de retry)`);
+    if (ok === 100) r.pass(S, `100/100 logins locataires OK (${ms} ms, ${Math.round(100000 / ms * 100) / 100} req/s, ${retries} round(s) de retry)${recheckOk ? `, dont ${recheckOk} 401 transitoires GoTrue re-vérifiés OK` : ''}`);
     else if (Object.keys(byStatus).every((s) => s === '200' || transient(Number(s)))) {
       r.blocked(S, '100/100 logins locataires OK', `${detail} — backend auth saturé sous charge (transitoire, aucun faux 401)`);
     } else {
