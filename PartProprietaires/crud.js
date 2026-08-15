@@ -1,13 +1,3 @@
-function escapeHtml(str) {
-  return String(str ?? "").replace(/[&<>"']/g, (c) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  }[c]));
-}
-
 // Collecte les erreurs de champs à partir d'une liste de règles.
 // rule : { name, test(input) -> bool (en erreur), message }
 function validateFields(form, rules) {

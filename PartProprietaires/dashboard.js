@@ -112,11 +112,13 @@ async function loadStats() {
 async function loadUserName() {
   try {
     const res = await fetch(`${API}/auth/me`, { credentials: "include" });
-    const data = await res.json();
-    if (data.success) {
-      const el = document.getElementById("ownerName");
-      if (el) el.textContent = data.user.name;
+    const { ok, error, data } = await MIM.parse(res);
+    if (!ok) {
+      if (!MIM.handleAuthError(error)) console.error(error);
+      return;
     }
+    const el = document.getElementById("ownerName");
+    if (el) el.textContent = data.user.name;
   } catch (error) {
     console.error(error);
   }
@@ -359,7 +361,8 @@ async function manualBackup() {
     });
     const { ok, error, data } = await MIM.parse(res);
     if (!ok && MIM.handleAuthError(error)) return;
-    displayMessage(MIM.userMessage(error) || data.message, ok && data.success ? "success" : "error");
+    const message = ok ? data.message || "Sauvegarde effectuée." : MIM.userMessage(error);
+    displayMessage(message, ok && data.success ? "success" : "error");
   } catch (error) {
     displayMessage("Impossible de contacter le serveur.");
   }

@@ -1,8 +1,20 @@
 /* MIM — système unifié de messages d'erreur (toutes zones).
  * Chargé avant les helpers de requêtes : /mim-errors.js
  * API : MIM.parse(res), MIM.userMessage(err), MIM.handleAuthError(err),
- *       MIM.showError(msg), MIM.showSuccess(msg). */
+ *       MIM.showError(msg), MIM.showSuccess(msg), escapeHtml(str). */
 window.MIM = window.MIM || {};
+
+/* Échappement HTML (défini une seule fois, disponible dans toutes les
+ * zones). Préserve null/undefined en chaîne vide. */
+function escapeHtml(str) {
+  return String(str ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[c]));
+}
 
 MIM.MESSAGES = {
   ACCOUNT_SUSPENDED: "Votre compte a été suspendu.",

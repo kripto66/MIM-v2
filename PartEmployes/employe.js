@@ -1,7 +1,280 @@
-const API=window.MIM_API_BASE||"";const E={me:"/api/employe/me",dashboard:"/api/employe/dashboard",tasks:"/api/employe/tasks",incidents:"/api/employe/incidents",interventions:"/api/employe/interventions",logements:"/api/employe/logements",locataires:"/api/employe/locataires",notifications:"/api/employe/notifications",profile:"/api/employe/profile",password:"/api/employe/password",logout:"/api/auth/logout"};const S={};const $=s=>document.querySelector(s);const $$=s=>[...document.querySelectorAll(s)];const esc=x=>String(x??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));const arr=(x,k)=>Array.isArray(x)?x:Array.isArray(x?.data)?x.data:Array.isArray(x?.[k])?x[k]:[];function toast(m,t="success"){let x=$("#toast");x.textContent=m;x.className="toast show "+t;setTimeout(()=>x.className="toast",2800)}async function api(p,o={}){let r=await fetch(API+p,{credentials:"include",headers:{"Content-Type":"application/json",...(o.headers||{})},...o}),b=null;try{b=await r.json()}catch{}if(!r.ok){let e=Error(b?.message||b?.error||MIM.httpFallback[r.status]||"Erreur serveur");e.status=r.status;e.code=b?.code||null;e.errors=b?.errors||null;MIM.handleAuthError(e);throw e}return b}function date(x){if(!x)return"—";let d=new Date(x);return isNaN(d)?"—":d.toLocaleDateString("fr-FR")}function empty(id,m="Aucune donnée."){$("#"+id).innerHTML=`<div class="empty">${esc(m)}</div>`}function badge(id,n){let x=$("#"+id);x.textContent=n;x.style.display=n?"inline-block":"none"}function status(x){return `<span class="status">${esc(x||"—")}</span>`}
-async function me(){let d=await api(E.me),u=d?.data||d?.user||d;S.me=u;let n=u.name||u.full_name||u.username||"Employé";$("#sideName").textContent=n;$("#topName").textContent=n;$("#welcome").textContent=n;$("#avatar").textContent=n[0]?.toUpperCase()||"E";$("#sideRole").textContent=u.role||u.employee_role||"Employé";$("#pName").value=u.name||u.full_name||"";$("#pUsername").value=u.username||"";$("#pRole").value=u.role||u.employee_role||"";$("#pEmail").value=u.email||""}
-async function dashboard(){try{let d=await api(E.dashboard),x=d?.data||d;$("#sTasks").textContent=x.tasks_count??x.tasks??0;$("#sIncidents").textContent=x.open_incidents_count??x.incidents_open??0;$("#sInterventions").textContent=x.interventions_count??x.interventions??0;$("#sNotifications").textContent=x.unread_notifications_count??0;badge("taskBadge",x.tasks_count||0);badge("incidentBadge",x.open_incidents_count||0);badge("notifBadge",x.unread_notifications_count||0);render("priorities",arr(x,"priorities"),i=>`<div class="card"><b>${esc(i.title||i.name||"Priorité")}</b>${status(i.status)}<div class="muted">${esc(i.description||"")}</div></div>`);render("activity",arr(x,"recent_activity"),i=>`<div class="card"><b>${esc(i.action||i.title||"Activité")}</b><div class="muted">${date(i.created_at)}</div></div>`)}catch(e){toast(e.message,"error")}}
-function render(id,a,fn){if(!a.length)return empty(id);$("#"+id).innerHTML=a.map(fn).join("")}
-async function load(kind){let id=kind+"List";try{$("#"+id).innerHTML='<div class="empty">Chargement…</div>';let d=await api(E[kind]),a=arr(d,kind);S[kind]=a;if(kind==="tasks")badge("taskBadge",a.filter(x=>x.status!=="termine").length);if(kind==="incidents")badge("incidentBadge",a.filter(x=>x.status!=="resolu").length);if(kind==="notifications")badge("notifBadge",a.filter(x=>!x.read&&!x.is_read).length);if(["logements","locataires"].includes(kind)){if(!a.length)return empty(id);let rows=a.map(x=>kind==="logements"?`<tr><td>${esc(x.name||x.numero||x.reference)}</td><td>${esc(x.type||"—")}</td><td>${esc(x.tenant_name||x.locataire_name||"Libre")}</td><td>${esc(x.rent??x.loyer??"—")}</td></tr>`:`<tr><td>${esc(x.name||x.full_name)}</td><td>${esc(x.username)}</td><td>${esc(x.logement_name||x.logement||"—")}</td><td>${esc(x.status||"—")}</td></tr>`).join("");$("#"+id).innerHTML=`<table class="table"><thead><tr>${kind==="logements"?'<th>Logement</th><th>Type</th><th>Locataire</th><th>Loyer</th>':'<th>Nom</th><th>Username</th><th>Logement</th><th>Statut</th>'}</tr></thead><tbody>${rows}</tbody></table>`}else if(kind==="notifications"){render(id,a,x=>`<div class="notice ${x.read||x.is_read?"":"unread"}"><b>${esc(x.title||"Notification")}</b><div class="muted">${esc(x.message||x.description||"")}</div><small>${date(x.created_at)}</small></div>`)}else{render(id,a,x=>`<article class="card"><h3>${esc(x.title||x.name||kind)} ${status(x.status)}</h3><div class="muted">${esc(x.description||"")}</div><small>${date(x.due_date||x.scheduled_at||x.created_at)}</small></article>`)}}catch(e){empty(id,e.message);toast(e.message,"error")}}
-function view(v){$$(".view").forEach(x=>x.classList.toggle("active",x.id===v));$$(".nav").forEach(x=>x.classList.toggle("active",x.dataset.view===v));$("#title").textContent=({overview:"Tableau de bord",tasks:"Mes tâches",incidents:"Incidents",interventions:"Interventions",logements:"Logements",locataires:"Locataires",notifications:"Notifications",profile:"Mon profil"})[v];$("#sidebar").classList.remove("open");if(v==="overview")dashboard();else if(v!=="profile")load(v)}
-$$("[data-view]").forEach(x=>x.onclick=()=>view(x.dataset.view));$$("[data-refresh]").forEach(x=>x.onclick=()=>load(x.dataset.refresh));$("#logout").onclick=async()=>{try{await api(E.logout,{method:"POST",body:"{}"})}finally{location.href="/PartPublic/connexion.html"}};$("#readAll").onclick=async()=>{try{await api(E.notifications+"/read-all",{method:"POST",body:"{}"});toast("Notifications marquées comme lues");load("notifications")}catch(e){toast(e.message,"error")}};$("#profileForm").onsubmit=async e=>{e.preventDefault();try{await api(E.profile,{method:"PUT",body:JSON.stringify({name:$("#pName").value,username:$("#pUsername").value,email:$("#pEmail").value})});let n=$("#pNew").value;if(n){if(n!==$("#pConfirm").value)throw Error("Les mots de passe ne correspondent pas.");await api(E.password,{method:"PUT",body:JSON.stringify({current_password:$("#pCurrent").value,new_password:n})})}toast("Profil mis à jour");await me()}catch(x){toast(x.message,"error")}};$("#pNew").oninput=e=>{$("#pwdHint").textContent=!e.target.value?"":e.target.value.length<8?"Faible":e.target.value.length<12?"Moyen":"Fort"};(async()=>{try{await me();await dashboard()}catch(e){toast(e.message,"error")}})();
+const API = (() => {
+  if (window.MIM_API_BASE) return window.MIM_API_BASE;
+  const origin = window.location.origin || "http://localhost:3000";
+  const isLocal = origin.includes("localhost") || origin.includes("127.0.0.1");
+  return (isLocal ? "http://localhost:3000" : origin) + "/api";
+})();
+
+const E = {
+  me: "/api/employe/me",
+  dashboard: "/api/employe/dashboard",
+  tasks: "/api/employe/tasks",
+  incidents: "/api/employe/incidents",
+  interventions: "/api/employe/interventions",
+  logements: "/api/employe/logements",
+  locataires: "/api/employe/locataires",
+  notifications: "/api/employe/notifications",
+  profile: "/api/employe/profile",
+  password: "/api/employe/password",
+  logout: "/api/auth/logout",
+};
+
+const S = {};
+const $ = (s) => document.querySelector(s);
+const $$ = (s) => [...document.querySelectorAll(s)];
+
+const esc = (x) =>
+  String(x ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;",
+  }[c]));
+
+const arr = (x, k) =>
+  Array.isArray(x) ? x : Array.isArray(x?.data) ? x.data : Array.isArray(x?.[k]) ? x[k] : [];
+
+function toast(m, t = "success") {
+  let x = $("#toast");
+  x.textContent = m;
+  x.className = "toast show " + t;
+  setTimeout(() => (x.className = "toast"), 2800);
+}
+
+async function api(p, o = {}) {
+  let r = await fetch(API + p, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(o.headers || {}) },
+    ...o,
+  });
+  let b = null;
+  try { b = await r.json(); } catch {}
+  if (!r.ok) {
+    let e = Error(b?.message || b?.error || MIM.httpFallback[r.status] || "Erreur serveur");
+    e.status = r.status;
+    e.code = b?.code || null;
+    e.errors = b?.errors || null;
+    MIM.handleAuthError(e);
+    throw e;
+  }
+  return b;
+}
+
+function date(x) {
+  if (!x) return "—";
+  let d = new Date(x);
+  return isNaN(d) ? "—" : d.toLocaleDateString("fr-FR");
+}
+
+function empty(id, m = "Aucune donnée.") {
+  $("#" + id).innerHTML = `<div class="empty">${esc(m)}</div>`;
+}
+
+function badge(id, n) {
+  let x = $("#" + id);
+  x.textContent = n;
+  x.style.display = n ? "inline-block" : "none";
+}
+
+function status(x) {
+  return `<span class="status">${esc(x || "—")}</span>`;
+}
+
+async function me() {
+  let d = await api(E.me),
+    u = d?.data || d?.user || d;
+  S.me = u;
+  let n = u.name || u.full_name || u.username || "Employé";
+  $("#sideName").textContent = n;
+  $("#topName").textContent = n;
+  $("#welcome").textContent = n;
+  $("#avatar").textContent = n[0]?.toUpperCase() || "E";
+  $("#sideRole").textContent = u.role || u.employee_role || "Employé";
+  $("#pName").value = u.name || u.full_name || "";
+  $("#pUsername").value = u.username || "";
+  $("#pRole").value = u.role || u.employee_role || "";
+  $("#pEmail").value = u.email || "";
+}
+
+async function dashboard() {
+  try {
+    let d = await api(E.dashboard),
+      x = d?.data || d;
+    $("#sTasks").textContent = x.tasks_count ?? x.tasks ?? 0;
+    $("#sTasksSub").textContent = (x.tasks_count ?? 0) === 0 ? "En attente" : `${x.tasks_count} en attente`;
+    $("#sIncidents").textContent = x.open_incidents_count ?? x.incidents_open ?? 0;
+    $("#sInterventions").textContent = x.interventions_count ?? x.interventions ?? 0;
+    $("#sNotifications").textContent = x.unread_notifications_count ?? 0;
+    badge("taskBadge", x.tasks_count || 0);
+    badge("incidentBadge", x.open_incidents_count || 0);
+    badge("notifBadge", x.unread_notifications_count || 0);
+    render(
+      "priorities",
+      arr(x, "priorities"),
+      (i) =>
+        `<div class="card"><b>${esc(i.title || i.name || "Priorité")}</b>${status(i.status)}<div class="muted">${esc(i.description || "")}</div></div>`
+    );
+    render(
+      "activity",
+      arr(x, "recent_activity"),
+      (i) => `<div class="card"><b>${esc(i.action || i.title || "Activité")}</b><div class="muted">${date(i.created_at)}</div></div>`
+    );
+  } catch (e) {
+    toast(e.message, "error");
+  }
+}
+
+function render(id, a, fn) {
+  if (!a.length) return empty(id);
+  $("#" + id).innerHTML = a.map(fn).join("");
+}
+
+// Applique les filtres (recherche + statut) sur la liste en cache et rend.
+function paint(kind) {
+  let id = kind + "List";
+  let a = S[kind] || [];
+  if (kind === "tasks" || kind === "incidents") {
+    let q = ($("#" + kind + "Q")?.value || "").trim().toLowerCase();
+    let s = $("#" + kind + "S")?.value || "";
+    a = a.filter((x) => {
+      if (s && x.status !== s) return false;
+      if (!q) return true;
+      const hay = `${x.titre || ""} ${x.description || ""} ${x.logement || ""} ${x.name || ""}`.toLowerCase();
+      return hay.includes(q);
+    });
+    if (!a.length) return empty(id, "Aucun résultat pour ces filtres.");
+  }
+  render(id, a, cardFor(kind));
+}
+
+function cardFor(kind) {
+  if (kind === "notifications") {
+    return (x) =>
+      `<div class="notice ${x.read || x.is_read ? "" : "unread"}"><b>${esc(x.title || "Notification")}</b><div class="muted">${esc(x.message || x.description || "")}</div><small>${date(x.created_at)}</small></div>`;
+  }
+  return (x) =>
+    `<article class="card"><h3>${esc(x.title || x.name || kind)} ${status(x.status)}</h3><div class="muted">${esc(x.description || "")}</div><small>${date(x.due_date || x.scheduled_at || x.created_at)}</small></article>`;
+}
+
+async function load(kind) {
+  let id = kind + "List";
+  try {
+    $("#" + id).innerHTML = '<div class="empty">Chargement…</div>';
+    let d = await api(E[kind]),
+      a = arr(d, kind);
+    S[kind] = a;
+    if (kind === "tasks") badge("taskBadge", a.filter((x) => x.status !== "termine").length);
+    if (kind === "incidents") badge("incidentBadge", a.filter((x) => x.status !== "resolu").length);
+    if (kind === "notifications") badge("notifBadge", a.filter((x) => !x.read && !x.is_read).length);
+    if (kind === "logements" || kind === "locataires") {
+      if (!a.length) return empty(id);
+      let rows = a
+        .map(
+          (x) =>
+            kind === "logements"
+              ? `<tr><td>${esc(x.name || x.numero || x.reference)}</td><td>${esc(x.type || "—")}</td><td>${esc(x.tenant_name || x.locataire_name || "Libre")}</td><td>${esc(x.rent ?? x.loyer ?? "—")}</td></tr>`
+              : `<tr><td>${esc(x.name || x.full_name)}</td><td>${esc(x.username)}</td><td>${esc(x.logement_name || x.logement || "—")}</td><td>${esc(x.status || "—")}</td></tr>`
+        )
+        .join("");
+      $("#" + id).innerHTML = `<table class="table"><thead><tr>${
+        kind === "logements"
+          ? "<th>Logement</th><th>Type</th><th>Locataire</th><th>Loyer</th>"
+          : "<th>Nom</th><th>Username</th><th>Logement</th><th>Statut</th>"
+      }</tr></thead><tbody>${rows}</tbody></table>`;
+    } else {
+      paint(kind);
+    }
+  } catch (e) {
+    empty(id, e.message);
+    toast(e.message, "error");
+  }
+}
+
+function view(v) {
+  $$(".view").forEach((x) => x.classList.toggle("active", x.id === v));
+  $$(".nav").forEach((x) => x.classList.toggle("active", x.dataset.view === v));
+  $("#title").textContent = {
+    overview: "Tableau de bord",
+    tasks: "Mes tâches",
+    incidents: "Incidents",
+    interventions: "Interventions",
+    logements: "Logements",
+    locataires: "Locataires",
+    notifications: "Notifications",
+    profile: "Mon profil",
+  }[v];
+  $("#sidebar").classList.remove("open");
+  if (v === "overview") dashboard();
+  else if (v !== "profile") load(v);
+}
+
+$$("[data-view]").forEach((x) => (x.onclick = () => view(x.dataset.view)));
+$$("[data-refresh]").forEach((x) => (x.onclick = () => load(x.dataset.refresh)));
+$("#logout").onclick = async () => {
+  try {
+    await api(E.logout, { method: "POST", body: "{}" });
+  } finally {
+    location.href = "/PartPublic/connexion.html";
+  }
+};
+$("#readAll").onclick = async () => {
+  try {
+    await api(E.notifications + "/read-all", { method: "POST", body: "{}" });
+    toast("Notifications marquées comme lues");
+    load("notifications");
+  } catch (e) {
+    toast(e.message, "error");
+  }
+};
+$("#profileForm").onsubmit = async (e) => {
+  e.preventDefault();
+  try {
+    await api(E.profile, {
+      method: "PUT",
+      body: JSON.stringify({
+        name: $("#pName").value,
+        username: $("#pUsername").value,
+        email: $("#pEmail").value,
+      }),
+    });
+    let n = $("#pNew").value;
+    if (n) {
+      if (n !== $("#pConfirm").value) throw Error("Les mots de passe ne correspondent pas.");
+      await api(E.password, {
+        method: "PUT",
+        body: JSON.stringify({ current_password: $("#pCurrent").value, new_password: n }),
+      });
+    }
+    toast("Profil mis à jour");
+    await me();
+  } catch (x) {
+    toast(x.message, "error");
+  }
+};
+$("#pNew").oninput = (e) => {
+  $("#pwdHint").textContent = !e.target.value
+    ? ""
+    : e.target.value.length < 8
+      ? "Faible"
+      : e.target.value.length < 12
+        ? "Moyen"
+        : "Fort";
+};
+
+// Filtres de liste (recherche et statut) : re-rendu local, sans rechargement.
+for (const kind of ["tasks", "incidents"]) {
+  const q = $("#" + kind + "Q");
+  const s = $("#" + kind + "S");
+  if (q) q.addEventListener("input", () => paint(kind));
+  if (s) s.addEventListener("change", () => paint(kind));
+}
+
+(async () => {
+  try {
+    await me();
+    await dashboard();
+  } catch (e) {
+    toast(e.message, "error");
+  }
+})();
