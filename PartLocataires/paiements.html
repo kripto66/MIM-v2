@@ -197,6 +197,7 @@
                             <div class="list-item-info">
                                 <h4>${formatMois(p.mois)}</h4>
                                 <p>${p.date_paiement ? "Payé le " + formatDate(p.date_paiement) : "Non réglé"}</p>
+                                ${p.statut === "a_confirmer" ? `<button class="btn-confirm-payment" data-confirm="${p.id}">Confirmer mon paiement</button>` : ""}
                             </div>
                             <div style="text-align:right;">
                                 <div class="list-item-amount">${fmtFCFA(p.montant)}</div>
@@ -204,6 +205,21 @@
                             </div>
                         </div>`)
                     .join("");
+
+                list.querySelectorAll("[data-confirm]").forEach((btn) => {
+                    btn.addEventListener("click", async () => {
+                        const id = btn.dataset.confirm;
+                        btn.disabled = true;
+                        try {
+                            const res = await tenantRequest(`/locataire/paiements/${id}/confirmer`, { method: "POST" });
+                            showTenantError(res.message || "Paiement confirmé.", true);
+                            location.reload();
+                        } catch (err) {
+                            btn.disabled = false;
+                            showTenantError(err.message);
+                        }
+                    });
+                });
             } catch (err) {
                 showTenantError(err.message);
             }

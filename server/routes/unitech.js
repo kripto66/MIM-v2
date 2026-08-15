@@ -225,6 +225,84 @@ router.get('/checkouts', async (req, res) => {
 });
 
 // ------------------------------------------------------------
+// Validation métier d'un paiement mobile money (propriétaire)
+// body : { paiement_id, action: 'valider' | 'refuser' }
+//
+// Le webhook a confirmé techniquement le paiement (« a_confirmer ») ;
+// le locataire peut confirmer de son côté (« en_validation »). C'est le
+// propriétaire qui réalise la validation métier : « valider » -> paye,
+// « refuser » -> refuse. La mise à jour est CONDITIONNELLE (statut
+// attendu) : deux clics simultanés ne produisent qu'une seule écriture.
+// Le montant / la référence / le propriétaire sont relus en base : le
+// frontend ne peut rien imposer.
+// ------------------------------------------------------------
+router.post('/valider', async (req, res) => {
+  try {
+    const { paiement_id, action } = req.body || {};
+    if (!['valider', 'refuser'].includes(action)) {
+      return res.status(400).json({ success: false, message: 'Action invalide (valider ou refuser).' });
+    }
+    if (!paiement_id) {
+      return res.status(400).json({ success: false, message: 'paiement_id requis.' });
+    }
+
+    // Relu en base, filtré par le propriétaire connecté (jamais le client).
+    const { data: paiement } = await sb()
+      .from('paiements')
+      .select('id, user_id, locataire_id, montant, mois, statut, date_paiement, reference')
+      .eq('id', paiement_id)
+      .eq('user_id', req.user.id)
+      .maybeSingle();
+    if (!paiement) {
+      return res.status(404).json({ success: false, message: 'Paiement introuvable.' });
+    }
+    if (!['a_confirmer', 'en_validation'].includes(paiement.statut)) {
+      const message = paiement.statut === 'paye' ? 'Ce paiement est déjà payé.' : 'Ce paiement ne peut pas être validé.';
+      return res.status(400).json({ success: false, message });
+    }
+
+    const next = action === 'valider' ? 'paye' : 'refuse';
+    const update = { statut: next };
+    if (action === 'valider' && !paiement.date_paiement) {
+      update.date_paiement = new Date().toISOString().slice(0, 10);
+    }
+
+    // Mise à jour conditionnelle : une seule écriture gagne en cas de course.
+    const { data: updated, error } = await sb()
+      .from('paiements')
+      .update(update)
+      .eq('id', paiement.id)
+      .in('statut', ['a_confirmer', 'en_validation'])
+      .select()
+      .maybeSingle();
+    if (error) throw error;
+    if (!updated) {
+      return res.status(409).json({ success: false, message: 'Ce paiement a déjà été traité.' });
+    }
+
+    // Notification au locataire concerné.
+    try {
+      const { notify, tenantUidOfLocataire } = await import('../utils/notifications.js');
+      const tenantUid = await tenantUidOfLocataire(paiement.locataire_id);
+      if (tenantUid) {
+        if (action === 'valider') {
+          await notify(tenantUid, 'paiement', `Votre loyer de ${paiement.mois} a été confirmé par le propriétaire.`);
+        } else {
+          await notify(tenantUid, 'paiement', `Votre paiement de ${paiement.mois} a été refusé par le propriétaire. Contactez-le pour régulariser.`);
+        }
+      }
+    } catch (e) {
+      console.warn('[unitech/valider] notification:', e.message);
+    }
+
+    res.json({ success: true, data: updated, message: action === 'valider' ? 'Paiement validé.' : 'Paiement refusé.' });
+  } catch (err) {
+    console.error('[unitech/valider]', err.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de la validation.' });
+  }
+});
+
+// ------------------------------------------------------------
 // Solde du compte marchand (lecture seule)
 // ------------------------------------------------------------
 router.get('/balance', async (req, res) => {
@@ -334,10 +412,23 @@ webhookRouter.post('/', express.raw({ type: 'application/json' }), async (req, r
     if (dup?.handled) {
       return res.json({ success: true, duplicated: true });
     }
+
+    // Journal (audit) enregistré AVANT le traitement : si le traitement
+    // échoue, UnitechPay renverra le même payload -> on retentera.
+    // Insert ATOMIQUE (contrainte unique fingerprint) : en cas de course
+    // entre deux webhooks identiques envoyés en parallèle, un seul gagne
+    // l'écriture ; les autres répondent 200 sans double traitement.
     if (!dup) {
-      // Journal (audit) enregistré AVANT le traitement : si le traitement
-      // échoue, UnitechPay renverra le même payload -> on retentera.
-      await sb().from('unitech_webhooks').insert({ fingerprint, event, unitech_reference: unitechReference, payload, handled: false });
+      const { data: inserted } = await sb()
+        .from('unitech_webhooks')
+        .upsert(
+          { fingerprint, event, unitech_reference: unitechReference, payload, handled: false },
+          { onConflict: 'fingerprint', ignoreDuplicates: true }
+        )
+        .select();
+      if (!inserted?.length) {
+        return res.json({ success: true, duplicated: true });
+      }
     }
 
     // 3) Raccordement à la session puis au paiement MIM (jamais au client).
@@ -403,9 +494,12 @@ webhookRouter.post('/', express.raw({ type: 'application/json' }), async (req, r
 // ---- Traitements par source (succès) ----
 
 // Loyer : le locataire a payé le propriétaire.
+// Le webhook est la preuve technique : le paiement passe en
+// « a_confirmer », le locataire est invité à le confirmer et le
+// propriétaire le valide (statut « paye ») — voir POST /unitech/valider.
 async function applyLoyerCompleted(checkout, unitechReference) {
   const updatePaiement = {
-    statut: 'paye',
+    statut: 'a_confirmer',
     date_paiement: new Date().toISOString().slice(0, 10),
     methode_paiement: 'mobile_money',
   };

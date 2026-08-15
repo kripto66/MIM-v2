@@ -231,7 +231,9 @@ export async function runUnitech(r, ctx) {
     });
 
     // ----------------------------------------------------------
-    // 5. Webhook valide -> paiement payé + références.
+    // 5. Webhook valide -> paiement « a_confirmer » (confirmation
+    //    technique UnitechPay) + références. La validation métier
+    //    (« paye ») est réalisée par le propriétaire ensuite.
     // ----------------------------------------------------------
     await r.section('unitech : webhook valide (payment_completed)', async () => {
       const w = await sendWebhook({ event: 'payment_completed', transaction_id: 42, reference: checkoutWave.unitech_reference, amount: checkoutWave.amount, status: 'completed' });
@@ -239,7 +241,7 @@ export async function runUnitech(r, ctx) {
       check(r, 'résultat = completed', w.data?.result === 'completed', JSON.stringify(w.data));
 
       const { data: paysAfter } = await service.from('paiements').select('*').eq('id', paiementAttente.id).single();
-      check(r, 'paiement -> payé', paysAfter.statut === 'paye', paysAfter.statut);
+      check(r, 'paiement -> a_confirmer (pas directement payé)', paysAfter.statut === 'a_confirmer', paysAfter.statut);
       check(r, 'date_paiement renseignée', Boolean(paysAfter.date_paiement), String(paysAfter.date_paiement));
       check(r, 'methode_paiement = mobile_money', paysAfter.methode_paiement === 'mobile_money', String(paysAfter.methode_paiement));
       check(r, 'référence UnitechPay enregistrée sur le paiement', paysAfter.reference === checkoutWave.unitech_reference, String(paysAfter.reference));
@@ -261,7 +263,7 @@ export async function runUnitech(r, ctx) {
       check(r, 'un seul enregistrement de webhook', before === 1 && after === 1, `${before} -> ${after}`);
 
       const { data: paysAfter } = await service.from('paiements').select('statut, date_paiement').eq('id', paiementAttente.id).single();
-      check(r, 'paiement inchangé après dédup', paysAfter.statut === 'paye', paysAfter.statut);
+      check(r, 'paiement inchangé après dédup', paysAfter.statut === 'a_confirmer', paysAfter.statut);
     });
 
     // ----------------------------------------------------------
@@ -273,7 +275,110 @@ export async function runUnitech(r, ctx) {
       const { data: co } = await service.from('unitech_checkouts').select('status').eq('id', checkoutWave.id).single();
       check(r, 'checkout reste completed', co.status === 'completed', co.status);
       const { data: paysAfter } = await service.from('paiements').select('statut').eq('id', paiementAttente.id).single();
-      check(r, 'paiement reste payé', paysAfter.statut === 'paye', paysAfter.statut);
+      check(r, 'paiement reste à confirmer', paysAfter.statut === 'a_confirmer', paysAfter.statut);
+    });
+
+    // ----------------------------------------------------------
+    // 7b. Flux « Confirmer mon paiement » (locataire puis propriétaire).
+    // ----------------------------------------------------------
+    await r.section('unitech : confirmation locataire + validation propriétaire', async () => {
+      const tenantJar = newJar();
+      const tenantLogin = await api('/auth/login', { method: 'POST', jar: tenantJar, body: { identifier: owner.locataires[0].username || 'own1loc1', password: 'Test1234!' } });
+      if (tenantLogin.status !== 200) return r.fail(S, 'connexion du locataire pour la confirmation', `statut ${tenantLogin.status} ${JSON.stringify(tenantLogin.data)}`);
+
+      // Un locataire d'un AUTRE propriétaire ne peut pas confirmer ce paiement.
+      const otherTenantJar = newJar();
+      const otherTenantLogin = await api('/auth/login', { method: 'POST', jar: otherTenantJar, body: { identifier: other.locataires[0].username || 'own2loc1', password: 'Test1234!' } });
+      if (otherTenantLogin.status === 200) {
+        const foreign = await api(`/locataire/paiements/${paiementAttente.id}/confirmer`, { method: 'POST', jar: otherTenantJar });
+        check(r, 'locataire d\'un autre propriétaire -> 404', foreign.status === 404, `statut ${foreign.status}`);
+      }
+
+      // Sans auth -> 401.
+      const noAuth = await api(`/locataire/paiements/${paiementAttente.id}/confirmer`, { method: 'POST' });
+      check(r, 'confirmation sans auth -> 401', noAuth.status === 401, `statut ${noAuth.status}`);
+
+      // Confirmation nominale : a_confirmer -> en_validation.
+      const confirm = await api(`/locataire/paiements/${paiementAttente.id}/confirmer`, { method: 'POST', jar: tenantJar });
+      check(r, 'confirmation locataire -> 200', confirm.status === 200, `statut ${confirm.status} ${JSON.stringify(confirm.data)}`);
+      const { data: afterConfirm } = await service.from('paiements').select('statut').eq('id', paiementAttente.id).single();
+      check(r, 'paiement -> en_validation', afterConfirm.statut === 'en_validation', afterConfirm.statut);
+
+      // Re-confirmation -> 400 (déjà confirmé).
+      const reconfirm = await api(`/locataire/paiements/${paiementAttente.id}/confirmer`, { method: 'POST', jar: tenantJar });
+      check(r, 're-confirmation -> 400', reconfirm.status === 400, `statut ${reconfirm.status} ${JSON.stringify(reconfirm.data)}`);
+
+      // Validation métier par le propriétaire : en_validation -> paye.
+      const validate = await api('/unitech/valider', { method: 'POST', jar: ownerJar, body: { paiement_id: paiementAttente.id, action: 'valider' } });
+      check(r, 'validation propriétaire -> 200', validate.status === 200 && validate.data?.success === true, `statut ${validate.status} ${JSON.stringify(validate.data)}`);
+      const { data: afterValidate } = await service.from('paiements').select('statut').eq('id', paiementAttente.id).single();
+      check(r, 'paiement -> paye', afterValidate.statut === 'paye', afterValidate.statut);
+
+      // Double validation -> 400 (déjà traité).
+      const validateAgain = await api('/unitech/valider', { method: 'POST', jar: ownerJar, body: { paiement_id: paiementAttente.id, action: 'valider' } });
+      check(r, 'double validation -> 400', validateAgain.status === 400, `statut ${validateAgain.status} ${JSON.stringify(validateAgain.data)}`);
+
+      // Confirmation sur paiement désormais payé (le sien) -> 400.
+      const onPaid = await api(`/locataire/paiements/${paiementAttente.id}/confirmer`, { method: 'POST', jar: tenantJar });
+      check(r, 'confirmation sur paiement payé -> 400', onPaid.status === 400, `statut ${onPaid.status} ${JSON.stringify(onPaid.data)}`);
+
+      // Un AUTRE propriétaire ne peut pas valider ce paiement.
+      const foreignValidate = await api('/unitech/valider', { method: 'POST', jar: otherJar, body: { paiement_id: paiementAttente.id, action: 'valider' } });
+      check(r, 'validation par un autre propriétaire -> 404', foreignValidate.status === 404, `statut ${foreignValidate.status} ${JSON.stringify(foreignValidate.data)}`);
+    });
+
+    // ----------------------------------------------------------
+    // 7c. Validation directe depuis a_confirmer + refus.
+    // ----------------------------------------------------------
+    await r.section('unitech : validation directe + refus', async () => {
+      // Paiement reçu (webhook) mais non encore confirmé par le locataire :
+      // le propriétaire peut valider directement (pas d'impasse).
+      const pD = await api('/paiements', { method: 'POST', jar: ownerJar, body: { locataire_id: owner.locataires[4].id, logement_id: owner.logements[4].id, montant: 35000, mois: ctx.seed.month, statut: 'attente' } });
+      const pdId = pD.data?.data?.id;
+      if (pdId) {
+        const initD = await api('/unitech/initiate', { method: 'POST', jar: ownerJar, body: { paiement_id: pdId, operator: 'wave' } });
+        const refD = initD.data?.data?.checkout?.unitech_reference;
+        if (refD) {
+          const wD = await sendWebhook({ event: 'payment_completed', reference: refD, amount: 35000, status: 'completed' });
+          check(r, 'webhook (validation directe) -> completed', wD.data?.result === 'completed', JSON.stringify(wD.data));
+          const vD = await api('/unitech/valider', { method: 'POST', jar: ownerJar, body: { paiement_id: pdId, action: 'valider' } });
+          check(r, 'validation directe depuis a_confirmer -> 200', vD.status === 200, `statut ${vD.status} ${JSON.stringify(vD.data)}`);
+          const { data: pdAfter } = await service.from('paiements').select('statut').eq('id', pdId).single();
+          check(r, 'paiement -> paye', pdAfter.statut === 'paye', pdAfter.statut);
+        }
+      }
+
+      // Refus : en_validation -> refuse (locataire confirmé puis refus).
+      const pR = await api('/paiements', { method: 'POST', jar: ownerJar, body: { locataire_id: owner.locataires[5].id, logement_id: owner.logements[5].id, montant: 40000, mois: ctx.seed.month, statut: 'attente' } });
+      const prId = pR.data?.data?.id;
+      if (prId) {
+        const initR = await api('/unitech/initiate', { method: 'POST', jar: ownerJar, body: { paiement_id: prId, operator: 'orange', orange_mode: 'maxit' } });
+        const refR = initR.data?.data?.checkout?.unitech_reference;
+        if (refR) {
+          const wR = await sendWebhook({ event: 'payment_completed', reference: refR, amount: 40000, status: 'completed' });
+          check(r, 'webhook (refus) -> completed', wR.data?.result === 'completed', JSON.stringify(wR.data));
+
+          const tenantRJar = newJar();
+          const tenantRLogin = await api('/auth/login', { method: 'POST', jar: tenantRJar, body: { identifier: owner.locataires[5].username || 'own1loc6', password: 'Test1234!' } });
+          if (tenantRLogin.status === 200) {
+            const cR = await api(`/locataire/paiements/${prId}/confirmer`, { method: 'POST', jar: tenantRJar });
+            check(r, 'confirmation du locataire (refus) -> 200', cR.status === 200, `statut ${cR.status}`);
+          }
+
+          const refuseR = await api('/unitech/valider', { method: 'POST', jar: ownerJar, body: { paiement_id: prId, action: 'refuser' } });
+          check(r, 'refus propriétaire -> 200', refuseR.status === 200, `statut ${refuseR.status} ${JSON.stringify(refuseR.data)}`);
+          const { data: prAfter } = await service.from('paiements').select('statut').eq('id', prId).single();
+          check(r, 'paiement -> refuse', prAfter.statut === 'refuse', prAfter.statut);
+
+          // Un paiement refusé ne peut pas être validé ensuite.
+          const afterRefuse = await api('/unitech/valider', { method: 'POST', jar: ownerJar, body: { paiement_id: prId, action: 'valider' } });
+          check(r, 'validation après refus -> 400', afterRefuse.status === 400, `statut ${afterRefuse.status} ${JSON.stringify(afterRefuse.data)}`);
+
+          // Action invalide -> 400.
+          const badAction = await api('/unitech/valider', { method: 'POST', jar: ownerJar, body: { paiement_id: prId, action: 'peut-etre' } });
+          check(r, 'action inconnue -> 400', badAction.status === 400, `statut ${badAction.status}`);
+        }
+      }
     });
   }
 
