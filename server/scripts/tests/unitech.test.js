@@ -123,6 +123,21 @@ export async function runUnitech(r, ctx) {
   const ownerJar = owner.jar;
   const otherJar = other.jar;
 
+  // Dépendance d'ordre : la suite « abonnement » laisse owner1 avec un
+  // abonnement EXPIRÉ (section isolation), ce qui suspend son accès.
+  // On rétablit un état neutre et valide (aucun abonnement enregistré =
+  // accès conservé, cf. utils/subscription.js) puis on attend que le
+  // cache serveur d'abonnement (~2 s) exprime le nouvel état.
+  const { error: subResetErr } = await service
+    .from('subscriptions')
+    .delete()
+    .eq('user_id', owner.id);
+  if (subResetErr) {
+    r.blocked(S, 'données de départ', `réinitialisation abonnement : ${subResetErr.message}`);
+    return;
+  }
+  await new Promise((resolve) => setTimeout(resolve, 2600));
+
   // Relecture des paiements du propriétaire via l'API (comme le frontend).
   const pays = await api('/paiements', { jar: ownerJar });
   const list = pays.data?.data || [];
