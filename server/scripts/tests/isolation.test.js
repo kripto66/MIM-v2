@@ -186,22 +186,16 @@ export async function runIsolation(r, ctx) {
     if (dash.data?.logement?.id === ownLgId) r.pass(S, 'le locataire voit SON logement');
     else r.fail(S, 'le locataire voit SON logement', JSON.stringify(dash.data?.logement));
 
-    // Le locataire de o1 ne doit pas voir le logement de o2 via la route CRUD.
+    // Les routes CRUD sont réservées aux propriétaires (403) : un locataire
+    // ne peut même pas énumérer les logements de son propriétaire via la
+    // route générale — protection plus stricte que le simple filtre par user_id.
     const lgs = await api('/logements', { jar: jar1 });
-    if (expectSuccess(r, lgs, S, r)) {
-      const o2LgId = o2.logements[0].id;
-      const leak = lgs.data.data.some((x) => x.id === o2LgId);
-      if (leak) r.fail(S, 'locataire ne voit pas le logement d’un autre', 'logement o2 visible');
-      else r.pass(S, 'locataire ne voit pas le logement d’un autre');
-    }
+    if (lgs.status === 403) r.pass(S, 'locataire bloqué sur /api/logements (route propriétaire)');
+    else r.fail(S, 'locataire bloqué sur /api/logements (route propriétaire)', `statut ${lgs.status} — attendu 403`);
 
     const pays = await api('/paiements', { jar: jar1 });
-    if (expectSuccess(r, pays, S, r)) {
-      const o2LocIds = new Set(o2.locataires.map((x) => x.id));
-      const leak = pays.data.data.some((x) => o2LocIds.has(x.locataire_id));
-      if (leak) r.fail(S, 'locataire ne voit pas les paiements d’un autre', 'paiement o2 visible');
-      else r.pass(S, 'locataire ne voit pas les paiements d’un autre');
-    }
+    if (pays.status === 403) r.pass(S, 'locataire bloqué sur /api/paiements (route propriétaire)');
+    else r.fail(S, 'locataire bloqué sur /api/paiements (route propriétaire)', `statut ${pays.status} — attendu 403`);
 
     // Le locataire ne peut pas supprimer un logement (RLS + rôle).
     const delLg = await api(`/logements/${o2.logements[0].id}`, { method: 'DELETE', jar: jar1 });
