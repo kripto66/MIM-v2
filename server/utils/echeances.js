@@ -31,13 +31,16 @@ export async function creerEcheanceSuivante(sb, paiement) {
     .maybeSingle();
   if (!logement) return { created: false, mois: moisSuivant, error: 'logement introuvable' };
 
+  // Anti-doublon robuste : limit(1) ne renvoie JAMAIS d'erreur quand
+  // plusieurs échéances existent pour ce mois (maybeSingle échouerait
+  // avec PGRST116 et laisserait passer un doublon).
   const { data: existing } = await sb
     .from('paiements')
     .select('id')
     .eq('locataire_id', paiement.locataire_id)
     .eq('mois', moisSuivant)
-    .maybeSingle();
-  if (existing) return { created: false, mois: moisSuivant, error: null, existing: true };
+    .limit(1);
+  if (existing?.length) return { created: false, mois: moisSuivant, error: null, existing: true };
 
   const { data, error } = await sb
     .from('paiements')
