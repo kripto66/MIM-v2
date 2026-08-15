@@ -68,13 +68,13 @@ h2 {
     margin-bottom: 20px;
 }
 #logo{
-    background-image: url('../images/logo.png.png');
+    background-image: url('../images/logo.webp');
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;
 }
 #dashboard-image{
-    background-image: url('../images/dash.png');
+    background-image: url('../images/dash.webp');
     background-size: contain;
     background-repeat: no-repeat;
     background-position: center;

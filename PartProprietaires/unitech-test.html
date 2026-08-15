@@ -312,18 +312,27 @@
         (async function start() {
             await Promise.all([loadBalance(), loadTestMode()]);
             await loadPayments();
+            const poll = async () => {
+                for (const p of state.paiements) {
+                    const current = await loadCheckouts(p.id);
+                    const changed = JSON.stringify(current) !== JSON.stringify(state.checkoutsByPayment[p.id]);
+                    if (changed) {
+                        state.checkoutsByPayment[p.id] = current;
+                        renderPayments();
+                    }
+                }
+            };
+            // Rafraîchit l'état des sessions ; pause quand l'onglet est
+            // caché (économie réseau) et nettoyage complet à la fermeture.
             state.refreshTimer = setInterval(async () => {
                 try {
-                    for (const p of state.paiements) {
-                        const current = await loadCheckouts(p.id);
-                        const changed = JSON.stringify(current) !== JSON.stringify(state.checkoutsByPayment[p.id]);
-                        if (changed) {
-                            state.checkoutsByPayment[p.id] = current;
-                            renderPayments();
-                        }
-                    }
+                    if (!document.hidden) await poll();
                 } catch { /* silencieux */ }
             }, 5000);
+            document.addEventListener("visibilitychange", () => {
+                if (!document.hidden) poll().catch(() => {});
+            });
+            window.addEventListener("beforeunload", () => clearInterval(state.refreshTimer));
         })();
     </script>
 
