@@ -8,7 +8,7 @@
 import { Router } from 'express';
 import { serviceClient } from '../app.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
-import { tenantEmailFor, usernameIsValid } from '../utils/tenantAccount.js';
+import { tenantEmailFor, usernameIsValid, uniqueUsername, splitFullName, INITIAL_PASSWORD } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { notify } from '../utils/notifications.js';
 import { methodePaiementError, TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
@@ -77,8 +77,13 @@ router.post('/', async (req, res) => {
   const sb = serviceClient();
   const ownerId = req.user.id;
 
+  // Mode automatique (comme pour les locataires) : quand le propriétaire ne
+  // fournit ni username ni mot de passe, MIM génère le username depuis le
+  // nom complet (ex. amadou.diop, amadou.diop2, …) et le mot de passe
+  // initial temporaire (1234, must_change_password = true).
+  const autoAccount = !req.body?.username && !req.body?.password;
   const username = String(req.body.username || '').trim().toLowerCase();
-  const password = String(req.body.password || '');
+  const password = autoAccount ? INITIAL_PASSWORD : String(req.body.password || '');
   const nom = String(req.body.nom || '').trim();
   const poste = String(req.body.poste || '').trim() || null;
   const rawSalaire = req.body.salaire;
@@ -92,7 +97,7 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Le nom est obligatoire.', errors: { nom: 'Le nom est obligatoire.' } });
   }
 
-  if (!usernameIsValid(username)) {
+  if (!autoAccount && !usernameIsValid(username)) {
     return res.status(400).json({
       success: false,
       message: 'Le username doit contenir entre 3 et 32 caractères (lettres minuscules, chiffres, . _ -).',
@@ -104,9 +109,11 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Adresse email invalide.', errors: { email: 'Adresse email invalide.' } });
   }
 
-  const pwError = passwordRuleError(password);
-  if (pwError) {
-    return res.status(400).json({ success: false, message: pwError, errors: { password: pwError } });
+  if (!autoAccount) {
+    const pwError = passwordRuleError(password);
+    if (pwError) {
+      return res.status(400).json({ success: false, message: pwError, errors: { password: pwError } });
+    }
   }
 
   if (Number.isNaN(salaire) || salaire < 0) {
@@ -122,25 +129,34 @@ router.post('/', async (req, res) => {
   }
 
   // Username unique dans toute l'application.
-  const { data: existingUsername } = await sb
-    .from('profiles')
-    .select('id')
-    .ilike('username', username)
-    .maybeSingle();
+  let finalUsername = username;
+  if (autoAccount) {
+    const { prenom, nom: nomFamille } = splitFullName(nom);
+    finalUsername = await uniqueUsername(sb, prenom, nomFamille);
+    if (!finalUsername) {
+      return res.status(400).json({ success: false, message: 'Impossible de générer un nom d\'utilisateur unique pour cet employé.' });
+    }
+  } else {
+    const { data: existingUsername } = await sb
+      .from('profiles')
+      .select('id')
+      .ilike('username', finalUsername)
+      .maybeSingle();
 
-  if (existingUsername) {
-    return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+    if (existingUsername) {
+      return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+    }
   }
 
   const { data: createdUser, error: createError } = await sb.auth.admin.createUser({
-    email: tenantEmailFor(username),
+    email: tenantEmailFor(finalUsername),
     password,
     email_confirm: true,
     user_metadata: {
       account_type: 'employe',
       role: 'employe',
       name: nom,
-      username,
+      username: finalUsername,
       phone: phone || '',
       must_change_password: true,
     },
@@ -162,7 +178,7 @@ router.post('/', async (req, res) => {
     .insert({
       user_id: ownerId,
       account_uid: accountUid,
-      username,
+      username: finalUsername,
       nom,
       poste,
       salaire,
@@ -181,9 +197,15 @@ router.post('/', async (req, res) => {
   }
 
   await notify(accountUid, 'info', 'Votre compte employé a été créé par votre employeur. À votre première connexion, vous devrez choisir un nouveau mot de passe.');
-  gitAutoBackup(`Sauvegarde auto : ajout employé (compte ${username})`);
+  gitAutoBackup(`Sauvegarde auto : ajout employé (compte ${finalUsername})`);
 
-  res.status(201).json({ success: true, data, accountCreated: true });
+  res.status(201).json({
+    success: true,
+    data,
+    accountCreated: true,
+    autoAccount,
+    account: autoAccount ? { username: finalUsername, password: INITIAL_PASSWORD } : undefined,
+  });
 });
 
 // ============================================================

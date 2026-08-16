@@ -32,32 +32,32 @@ const TEMPLATES = {
   biens: {
     headers: ['nom', 'type', 'adresse', 'ville', 'pays', 'description'],
     examples: [
-      ['Résidence Les Palmiers', 'immeuble', '12 Avenue des Cocotiers', 'Dakar', 'Sénégal', 'Bâtiment principal, 3 étages'],
-      ['Villa Cité du Lac', 'villa', 'Lot 45', 'Dakar', 'Sénégal', ''],
+      ['Bien Exemple 1', 'immeuble', 'Adresse exemple 1', 'Dakar', 'Sénégal', 'Description du bien'],
+      ['Bien Exemple 2', 'villa', 'Adresse exemple 2', 'Dakar', 'Sénégal', ''],
     ],
     hint: 'Type : immeuble, villa, maison, terrain…',
   },
   logements: {
     headers: ['bien', 'nom', 'type', 'loyer', 'nombre_chambres', 'adresse', 'statut', 'description'],
     examples: [
-      ['Résidence Les Palmiers', 'Appartement 101', 'appartement', '150000', '2', '12 Avenue des Cocotiers', 'libre', 'Étage 1, balcon'],
-      ['Résidence Les Palmiers', 'Chambre 201', 'chambre', '50000', '', '', 'libre', ''],
+      ['Bien Exemple 1', 'Logement Exemple 1', 'appartement', '150000', '2', 'Adresse exemple 1', 'libre', 'Étage 1, balcon'],
+      ['Bien Exemple 1', 'Logement Exemple 2', 'chambre', '50000', '', '', 'libre', ''],
     ],
     hint: '« Bien » doit correspondre à un bien déjà créé (ou importé dans le même fichier). Type : appartement ou chambre.',
   },
   locataires: {
     headers: ['nom', 'prenom', 'email', 'telephone', 'bien', 'logement', 'loyer', 'jour_echeance', 'date_entree', 'statut'],
     examples: [
-      ['Diop', 'Amadou', 'amadou.diop@exemple.com', '+221771234567', 'Résidence Les Palmiers', 'Appartement 101', '150000', '5', '2026-09-01', 'actif'],
-      ['Ndiaye', 'Aminata', '', '+221781234567', 'Résidence Les Palmiers', 'Chambre 201', '50000', '10', '2026-09-01', 'actif'],
+      ['Nom Exemple 1', 'Prenom Exemple 1', 'locataire1@exemple.com', '+221700000001', 'Bien Exemple 1', 'Logement Exemple 1', '150000', '5', '2026-09-01', 'actif'],
+      ['Nom Exemple 2', 'Prenom Exemple 2', '', '+221700000002', 'Bien Exemple 1', 'Logement Exemple 2', '50000', '10', '2026-09-01', 'actif'],
     ],
     hint: 'Le username du compte locataire est généré automatiquement (ex. amadou.diop). Mot de passe initial : 1234 (à changer à la première connexion).',
   },
   employes: {
     headers: ['nom', 'prenom', 'email', 'telephone', 'poste', 'bien', 'salaire', 'date_embauche', 'statut'],
     examples: [
-      ['Sarr', 'Moussa', 'moussa.sarr@exemple.com', '+221761234567', 'Gérant', '', '80000', '2026-09-01', 'actif'],
-      ['Ba', 'Fatou', '', '+221751234567', 'Femme de ménage', '', '35000', '2026-09-01', 'actif'],
+      ['Nom Exemple 1', 'Prenom Exemple 1', 'employe1@exemple.com', '+221700000003', 'Gérant', '', '80000', '2026-09-01', 'actif'],
+      ['Nom Exemple 2', 'Prenom Exemple 2', '', '+221700000004', 'Agent d\'entretien', '', '35000', '2026-09-01', 'actif'],
     ],
     hint: 'Salaire : montant mensuel. Le compte employé est créé automatiquement (username généré, mot de passe initial 1234).',
   },

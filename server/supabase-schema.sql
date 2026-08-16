@@ -11,8 +11,14 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     email TEXT NOT NULL UNIQUE,
     phone TEXT NOT NULL,
     role TEXT NOT NULL,
+    username TEXT,
+    must_change_password BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Username de connexion unique dans toute l'application (comptes locataires/employés)
+CREATE UNIQUE INDEX IF NOT EXISTS profiles_username_uniq
+    ON public.profiles (username) WHERE username IS NOT NULL;
 
 -- Biens
 CREATE TABLE IF NOT EXISTS public.biens (
@@ -46,14 +52,16 @@ CREATE TABLE IF NOT EXISTS public.locataires (
     account_uid UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     logement_id BIGINT REFERENCES public.logements(id) ON DELETE SET NULL,
     nom TEXT NOT NULL,
+    username TEXT,
     email TEXT,
     phone TEXT,
     date_entree DATE,
+    jour_echeance INT DEFAULT 1,
     statut TEXT NOT NULL DEFAULT 'actif' CHECK (statut IN ('actif', 'inactif')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Paiements
+-- Paiements (loyers)
 CREATE TABLE IF NOT EXISTS public.paiements (
     id BIGSERIAL PRIMARY KEY,
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -61,8 +69,14 @@ CREATE TABLE IF NOT EXISTS public.paiements (
     logement_id BIGINT REFERENCES public.logements(id) ON DELETE SET NULL,
     montant NUMERIC(12,2) NOT NULL,
     mois TEXT NOT NULL,
-    statut TEXT NOT NULL DEFAULT 'attente' CHECK (statut IN ('paye', 'attente', 'retard')),
+    statut TEXT NOT NULL DEFAULT 'attente' CHECK (statut IN ('paye', 'attente', 'retard', 'a_confirmer', 'en_validation', 'refuse')),
     date_paiement DATE,
+    methode_paiement TEXT CHECK (methode_paiement IS NULL OR methode_paiement IN ('especes', 'mobile_money', 'virement', 'carte', 'wave', 'orange_money')),
+    reference TEXT,
+    validation_requested_at TIMESTAMPTZ,
+    validated_at TIMESTAMPTZ,
+    validated_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    rejection_reason TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -100,6 +114,24 @@ CREATE TABLE IF NOT EXISTS public.interventions (
     statut TEXT NOT NULL DEFAULT 'planifie' CHECK (statut IN ('planifie', 'en_cours', 'termine')),
     date_prevue DATE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Moyens de paiement configurés par le propriétaire (indiqués aux locataires)
+CREATE TABLE IF NOT EXISTS public.moyens_paiement (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL CHECK (type IN ('wave', 'orange_money', 'virement', 'especes')),
+    nom_titulaire TEXT,
+    numero TEXT,
+    lien_paiement TEXT,
+    banque TEXT,
+    num_compte TEXT,
+    iban TEXT,
+    bic TEXT,
+    instructions TEXT,
+    actif BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- Notifications
@@ -152,7 +184,7 @@ CREATE TABLE IF NOT EXISTS public.paiements_employes (
         CHECK (statut IN ('paye', 'attente', 'non_recu')),
     date_paiement DATE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    methode_paiement TEXT,
+    methode_paiement TEXT CHECK (methode_paiement IS NULL OR methode_paiement IN ('especes', 'mobile_money', 'virement', 'carte', 'wave', 'orange_money')),
     reference TEXT,
     confirmed_at TIMESTAMPTZ,
     confirmed_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -189,20 +221,56 @@ CREATE TABLE IF NOT EXISTS public.sessions (
     logout_at TIMESTAMPTZ
 );
 
+-- Abonnement MIM d'un propriétaire (une ligne par propriétaire, distinct
+-- des paiements de loyer : l'écriture passe uniquement par le serveur).
+CREATE TABLE IF NOT EXISTS public.subscriptions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    plan TEXT NOT NULL DEFAULT 'standard',
+    statut TEXT NOT NULL DEFAULT 'actif' CHECK (statut IN ('actif', 'expire')),
+    date_debut TIMESTAMPTZ NOT NULL DEFAULT now(),
+    date_expiration TIMESTAMPTZ NOT NULL,
+    date_paiement TIMESTAMPTZ,
+    montant NUMERIC(12,2),
+    methode_paiement TEXT,
+    reference TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    CONSTRAINT subscriptions_user_unique UNIQUE (user_id)
+);
+
+-- Historique des paiements d'abonnement
+CREATE TABLE IF NOT EXISTS public.abonnement_paiements (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    plan TEXT NOT NULL,
+    montant NUMERIC(12,2) NOT NULL,
+    date_paiement TIMESTAMPTZ NOT NULL DEFAULT now(),
+    methode_paiement TEXT,
+    reference TEXT,
+    date_debut TIMESTAMPTZ NOT NULL DEFAULT now(),
+    date_expiration TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- ============================================================
 -- Trigger : crée automatiquement le profil à l'inscription
+-- (inclut username + must_change_password pour les comptes
+-- locataires / employés créés par le propriétaire)
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO public.profiles (id, account_type, name, email, phone, role)
+    INSERT INTO public.profiles (id, account_type, name, email, phone, role, username, must_change_password)
     VALUES (
         NEW.id,
         COALESCE(NEW.raw_user_meta_data->>'account_type', 'proprietaire'),
         COALESCE(NEW.raw_user_meta_data->>'name', ''),
         NEW.email,
         COALESCE(NEW.raw_user_meta_data->>'phone', ''),
-        COALESCE(NEW.raw_user_meta_data->>'role', 'proprietaire')
+        COALESCE(NEW.raw_user_meta_data->>'role', 'proprietaire'),
+        NULLIF(NEW.raw_user_meta_data->>'username', ''),
+        COALESCE((NEW.raw_user_meta_data->>'must_change_password')::boolean, false)
     );
     RETURN NEW;
 END;
@@ -224,6 +292,9 @@ ALTER TABLE public.incidents ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.prestataires ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.interventions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.moyens_paiement ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.abonnement_paiements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "users_can_view_own" ON public.profiles
@@ -247,6 +318,13 @@ CREATE POLICY "owner_all_interventions" ON public.interventions
     FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "owner_all_notifications" ON public.notifications
     FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "owner_all_moyens_paiement" ON public.moyens_paiement
+    FOR ALL USING (auth.uid() = user_id)
+    WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "owner_select_own_subscription" ON public.subscriptions
+    FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "owner_select_own_abonnement_paiements" ON public.abonnement_paiements
+    FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "owner_all_sessions" ON public.sessions
     FOR ALL USING (auth.uid() = user_id);
 
@@ -336,6 +414,20 @@ CREATE POLICY "tenant_select_paiement" ON public.paiements
         EXISTS (
             SELECT 1 FROM public.locataires l
             WHERE l.account_uid = auth.uid() AND l.id = paiements.locataire_id
+        )
+    );
+
+-- Le locataire voit les moyens de paiement ACTIFS du propriétaire de SON
+-- logement (déduit via sa fiche locataire, jamais fourni par le client)
+CREATE POLICY "tenant_select_moyens_paiement" ON public.moyens_paiement
+    FOR SELECT USING (
+        actif = TRUE
+        AND EXISTS (
+            SELECT 1
+            FROM public.locataires l
+            JOIN public.logements lg ON lg.id = l.logement_id
+            WHERE l.account_uid = auth.uid()
+              AND lg.user_id = moyens_paiement.user_id
         )
     );
 
