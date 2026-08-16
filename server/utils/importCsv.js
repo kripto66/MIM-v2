@@ -283,14 +283,49 @@ export async function prepareImport(sb, ownerId, payload) {
     }
   }
 
+  // ---- Analyse préalable des fichiers du lot (biens → logements → …) ----
+  // Les fichiers du même lot peuvent se référencer : un logement peut
+  // pointer vers un bien importé dans le même lot, un locataire vers un
+  // logement importé dans le même lot. Ces références sont résolues en
+  // mémoire pendant l'aperçu puis pendant l'exécution.
+  const batchBiens = new Map(); // nom (lower) -> { nom }
+  const batchLogements = new Map(); // `${bienKey}|${nomKey}` -> { nom, loyer }
+
+  const parsedFiles = {};
+  for (const cat of categories) {
+    parsedFiles[cat] = parseCsv(String(files[cat].content || ''));
+  }
+
+  if (parsedFiles.biens) {
+    for (const row of parsedFiles.biens.rows) {
+      const nom = String(row.values.nom || '').trim();
+      if (nom) batchBiens.set(nom.toLowerCase(), { nom });
+    }
+  }
+  if (parsedFiles.logements) {
+    for (const row of parsedFiles.logements.rows) {
+      const nom = String(row.values.nom || '').trim();
+      const bien = String(row.values.bien || '').trim();
+      if (!nom) continue;
+      const bienKey = bien ? bien.toLowerCase() : '';
+      const key = `${bienKey}|${nom.toLowerCase()}`;
+      batchLogements.set(key, { nom, loyer: parseNumberFr(row.values.loyer) });
+    }
+  }
+
   const categoryReports = [];
   const seenUsernames = new Set();
   const bienNoms = new Set();
+  const logementKeys = new Set();
+  const locataireKeys = new Set();
+  const employeNoms = new Set();
+
+  const batch = { batchBiens, batchLogements };
 
   for (const cat of categories) {
     const def = CATEGORY_DEFS[cat];
     const file = files[cat];
-    const parsed = parseCsv(String(file.content || ''));
+    const parsed = parsedFiles[cat];
     const mapping = mapHeaders(parsed);
 
     const report = {
@@ -335,11 +370,7 @@ export async function prepareImport(sb, ownerId, payload) {
       }
 
       let statut = v.statut || 'actif';
-      if (cat !== 'employes' && !['actif', 'inactif'].includes(statut)) {
-        report.errors.push({ line, champ: 'statut', message: `Statut « ${statut} » invalide (actif ou inactif).` });
-        statut = 'actif';
-      }
-      if (cat === 'employes' && !['actif', 'inactif'].includes(statut)) {
+      if (!['actif', 'inactif'].includes(statut)) {
         report.errors.push({ line, champ: 'statut', message: `Statut « ${statut} » invalide (actif ou inactif).` });
         statut = 'actif';
       }
@@ -348,11 +379,11 @@ export async function prepareImport(sb, ownerId, payload) {
       if (cat === 'biens') {
         await prepareBien(sb, ownerId, report, { line, v, seenUsernames, bienNoms });
       } else if (cat === 'logements') {
-        await prepareLogement(sb, ownerId, report, { line, v, seenUsernames, bienNoms });
+        await prepareLogement(sb, ownerId, report, { line, v, seenUsernames, bienNoms, logementKeys, batch });
       } else if (cat === 'locataires') {
-        generated = await prepareLocataire(sb, ownerId, report, { line, v, seenUsernames, bienNoms });
+        generated = await prepareLocataire(sb, ownerId, report, { line, v, seenUsernames, bienNoms, logementKeys, batch, locataireKeys });
       } else if (cat === 'employes') {
-        generated = await prepareEmploye(sb, ownerId, report, { line, v, seenUsernames, bienNoms });
+        generated = await prepareEmploye(sb, ownerId, report, { line, v, seenUsernames, bienNoms, employeNoms });
       }
 
       if (generated) {
@@ -448,7 +479,7 @@ async function prepareBien(sb, ownerId, report, ctx) {
 }
 
 async function prepareLogement(sb, ownerId, report, ctx) {
-  const { line, v, bienNoms } = ctx;
+  const { line, v, bienNoms, logementKeys, batch } = ctx;
 
   if (report.errors.some((e) => e.line === 0)) return;
 
@@ -492,7 +523,9 @@ async function prepareLogement(sb, ownerId, report, ctx) {
 
   if (hasLineErrors(report, line)) return;
 
-  let bienId = null;
+  // Résolution du bien : base d'abord, puis lot (bien importé ensemble).
+  const bienKey = v.bien ? v.bien.toLowerCase() : '';
+  let bienInBatch = false;
   if (v.bien) {
     const { data: bien } = await sb
       .from('biens')
@@ -500,29 +533,49 @@ async function prepareLogement(sb, ownerId, report, ctx) {
       .eq('user_id', ownerId)
       .ilike('nom', v.bien)
       .maybeSingle();
-    if (!bien) {
+    if (bien) {
+      const { data: existing } = await sb
+        .from('logements')
+        .select('id, nom, loyer_mensuel')
+        .eq('user_id', ownerId)
+        .eq('bien_id', bien.id)
+        .ilike('nom', nom)
+        .maybeSingle();
+      if (existing) {
+        report.duplicates.push({ line, champ: 'nom', message: `Un logement « ${nom} » existe déjà pour ce bien.`, existing });
+        return;
+      }
+    } else if (bienNoms.has(bienKey)) {
+      bienInBatch = true;
+    } else {
       report.errors.push({ line, champ: 'bien', message: `Le bien « ${v.bien} » n'existe pas dans votre espace.` });
       return;
     }
-    bienId = bien.id;
+  } else {
+    const { data: existing } = await sb
+      .from('logements')
+      .select('id, nom, loyer_mensuel')
+      .eq('user_id', ownerId)
+      .is('bien_id', null)
+      .ilike('nom', nom)
+      .maybeSingle();
+    if (existing) {
+      report.duplicates.push({ line, champ: 'nom', message: `Un logement « ${nom} » existe déjà (sans bien rattaché).`, existing });
+      return;
+    }
   }
 
-  const { data: existing } = await sb
-    .from('logements')
-    .select('id, nom, loyer_mensuel')
-    .eq('user_id', ownerId)
-    .eq('bien_id', bienId)
-    .ilike('nom', nom)
-    .maybeSingle();
-
-  if (existing) {
-    report.duplicates.push({ line, champ: 'nom', message: `Un logement « ${nom} » existe déjà pour ce bien.`, existing });
+  // Doublon dans le lot (logement du même fichier).
+  const key = `${bienKey}|${nom.toLowerCase()}`;
+  if (logementKeys.has(key)) {
+    report.duplicates.push({ line, champ: 'nom', message: `Doublon dans le fichier : le logement « ${nom} » apparaît déjà dans ce fichier.` });
     return;
   }
+  logementKeys.add(key);
 }
 
 async function prepareLocataire(sb, ownerId, report, ctx) {
-  const { line, v, seenUsernames } = ctx;
+  const { line, v, seenUsernames, bienNoms, logementKeys, batch, locataireKeys } = ctx;
 
   if (report.errors.some((e) => e.line === 0)) return;
 
@@ -546,33 +599,43 @@ async function prepareLocataire(sb, ownerId, report, ctx) {
   if (hasLineErrors(report, line)) return;
 
   let logementId = null;
-  let logementNom = null;
+  let loyerLogement = null;
+  let logementKey = null;
+
   if (v.bien || v.logement) {
     if (!v.bien || !v.logement) {
       report.errors.push({ line, champ: 'logement', message: 'Indiquez à la fois le Bien et le Logement (ou laissez les deux vides).' });
       return;
     }
+    const bienKey = v.bien.toLowerCase();
+    logementKey = `${bienKey}|${v.logement.toLowerCase()}`;
+
+    // 1) Recherche en base (logement existant du propriétaire).
     const { data: logement } = await sb
       .from('logements')
-      .select('id, nom, loyer_mensuel, statut')
+      .select('id, nom, loyer_mensuel, statut, bien_id')
       .eq('user_id', ownerId)
       .ilike('nom', v.logement)
       .maybeSingle();
 
-    if (!logement) {
+    if (logement) {
+      const { data: bien } = await sb
+        .from('biens')
+        .select('id, nom')
+        .eq('user_id', ownerId)
+        .eq('id', logement.bien_id)
+        .ilike('nom', v.bien)
+        .maybeSingle();
+      if (!bien) {
+        report.errors.push({ line, champ: 'bien', message: `Le logement « ${v.logement} » n'appartient pas au bien « ${v.bien} ».` });
+        return;
+      }
+      logementId = logement.id;
+      loyerLogement = Number(logement.loyer_mensuel || 0);
+    } else if (logementKeys.has(logementKey) || (bienNoms.has(bienKey) && batch.batchLogements.has(logementKey))) {
+      // 2) Logement du même lot (fichier logements importé ensemble).
+    } else {
       report.errors.push({ line, champ: 'logement', message: `Le logement « ${v.logement} » n'existe pas dans votre espace.` });
-      return;
-    }
-    const { data: bien } = await sb
-      .from('biens')
-      .select('id, nom')
-      .eq('user_id', ownerId)
-      .eq('id', logement.bien_id)
-      .ilike('nom', v.bien)
-      .maybeSingle();
-
-    if (!bien) {
-      report.errors.push({ line, champ: 'bien', message: `Le logement « ${v.logement} » n'appartient pas au bien « ${v.bien} ».` });
       return;
     }
 
@@ -582,18 +645,16 @@ async function prepareLocataire(sb, ownerId, report, ctx) {
         report.errors.push({ line, champ: 'loyer', message: 'Le loyer doit être un nombre positif.' });
         return;
       }
-      const loyerLogement = Number(logement.loyer_mensuel || 0);
-      if (loyer !== loyerLogement) {
-        report.warnings.push({ line, message: `Le loyer saisi (${loyer}) diffère du loyer du logement (${loyerLogement}) : c'est le loyer du logement qui sera utilisé.` });
+      const reference = loyerLogement ?? batch.batchLogements.get(logementKey)?.loyer ?? null;
+      if (reference != null && loyer !== reference) {
+        report.warnings.push({ line, message: `Le loyer saisi (${loyer}) diffère du loyer du logement (${reference}) : c'est le loyer du logement qui sera utilisé.` });
       }
     }
-    logementId = logement.id;
-    logementNom = logement.nom;
   }
 
   if (hasLineErrors(report, line)) return;
 
-  // Doublons : même logement + même nom ; ou même email.
+  // Doublons : même logement + même nom ; ou même email (en base et dans le lot).
   if (logementId) {
     const { data: sameNom } = await sb
       .from('locataires')
@@ -606,7 +667,11 @@ async function prepareLocataire(sb, ownerId, report, ctx) {
       report.duplicates.push({ line, champ: 'nom', message: `Un locataire « ${nom} » est déjà enregistré pour ce logement.`, existing: sameNom });
       return;
     }
+  } else if (logementKey && locataireKeys.has(`${logementKey}|${nom.toLowerCase()}`)) {
+    report.duplicates.push({ line, champ: 'nom', message: `Doublon dans le fichier : un locataire « ${nom} » apparaît déjà pour ce logement.` });
+    return;
   }
+
   if (v.email) {
     const { data: sameEmail } = await sb
       .from('locataires')
@@ -619,6 +684,8 @@ async function prepareLocataire(sb, ownerId, report, ctx) {
       return;
     }
   }
+
+  if (logementKey) locataireKeys.add(`${logementKey}|${nom.toLowerCase()}`);
 
   // Username généré (visible dans l'aperçu, créé à l'exécution).
   const username = await uniqueUsername(sb, prenom, nom);
@@ -633,7 +700,7 @@ async function prepareLocataire(sb, ownerId, report, ctx) {
 }
 
 async function prepareEmploye(sb, ownerId, report, ctx) {
-  const { line, v, seenUsernames } = ctx;
+  const { line, v, seenUsernames, employeNoms } = ctx;
 
   if (report.errors.some((e) => e.line === 0)) return;
 
@@ -687,6 +754,13 @@ async function prepareEmploye(sb, ownerId, report, ctx) {
     report.duplicates.push({ line, champ: 'nom', message: `Un employé « ${nom} » existe déjà dans votre espace.`, existing: sameNom });
     return;
   }
+
+  const key = nom.toLowerCase();
+  if (employeNoms.has(key)) {
+    report.duplicates.push({ line, champ: 'nom', message: `Doublon dans le fichier : l'employé « ${nom} » apparaît déjà dans ce fichier.` });
+    return;
+  }
+  employeNoms.add(key);
 
   const username = await uniqueUsername(sb, prenom, nom);
   let final = username;
