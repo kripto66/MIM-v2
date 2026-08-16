@@ -1768,3 +1768,194 @@ input.pw-strong {
     opacity: 0.6;
     cursor: not-allowed;
 }
+
+/* ============================================================
+   MIM - Assistant de première configuration (onboarding)
+   ============================================================ */
+
+.onboarding-overlay {
+    align-items: center;
+    justify-content: center;
+    z-index: 1200;
+}
+
+.onboarding-modal {
+    max-width: 560px;
+    width: 90%;
+    text-align: center;
+    padding: 36px 32px 28px;
+}
+
+.onboarding-logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 14px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #1d4ed8, #3b82f6);
+    color: #fff;
+    font-size: 22px;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+.onboarding-modal h2 {
+    margin: 0 0 8px;
+    font-size: 22px;
+}
+
+.onboarding-sub {
+    margin: 0 auto 22px;
+    max-width: 420px;
+    color: #6b7280;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.onboarding-choices {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+}
+
+.onboarding-choice {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    width: 100%;
+    padding: 16px;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    background: #fff;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+}
+
+.onboarding-choice:hover {
+    border-color: #1d4ed8;
+    background: #eff6ff;
+    transform: translateY(-1px);
+}
+
+.oc-ico {
+    font-size: 26px;
+    line-height: 1.2;
+}
+
+.onboarding-choice span:last-child {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.onboarding-choice strong {
+    font-size: 15px;
+    color: #111827;
+}
+
+.onboarding-choice small {
+    color: #6b7280;
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+.onboarding-later {
+    background: none;
+    border: none;
+    color: #6b7280;
+    font-size: 13px;
+    cursor: pointer;
+    text-decoration: underline;
+}
+
+.onboarding-later:hover {
+    color: #374151;
+}
+
+/* ============================================================
+   MIM - Paramètres : actions d'importation
+   ============================================================ */
+
+.param-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 4px;
+}
+
+/* =========================================================
+   FORMULAIRE LOCATAIRE UNIQUE + RÉSUMÉ CRÉATION
+   ========================================================= */
+
+.form-separator {
+    border: none;
+    border-top: 1px solid #e5e0ec;
+    margin: 20px 0;
+}
+
+.form-hint.inline-hint {
+    margin: 4px 0 0;
+    padding: 0;
+    background: none;
+    border: none;
+    color: #777;
+}
+
+.tenant-auto-hint {
+    margin: 4px 0 16px;
+    font-size: 12px;
+    color: #777;
+    line-height: 1.5;
+}
+
+.fieldset-block select,
+.fieldset-block input {
+    width: 100%;
+}
+
+.result-summary {
+    margin: 16px 0;
+    border: 1px solid #e5e0ec;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.result-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid #f0edf5;
+    font-size: 14px;
+}
+
+.result-row:last-child {
+    border-bottom: none;
+}
+
+.result-row span {
+    color: #777;
+}
+
+.result-row strong {
+    text-align: right;
+}
+
+.account-credentials {
+    margin-bottom: 16px;
+}
+
+.result-note {
+    padding: 10px 12px;
+    background: #f3edfb;
+    border: 1px solid #e0d1f5;
+    border-radius: 8px;
+    color: #5717a5;
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 0 0 14px;
+}

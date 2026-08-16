@@ -13,9 +13,20 @@
 import { Router } from 'express';
 import { serviceClient } from '../app.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
-import { prepareImport, executeImport, CATEGORIES, INITIAL_PASSWORD } from '../utils/importCsv.js';
+import { prepareImport, executeImport, decodeCsvBuffer, CATEGORIES, INITIAL_PASSWORD } from '../utils/importCsv.js';
 
 const router = Router();
+
+// Décodage du contenu d'un fichier : le frontend peut envoyer le texte brut
+// (content) ou le fichier en base64 (content_b64) — ce dernier cas permet de
+// décoder correctement les fichiers latin1/ANSI produits par Excel FR.
+function fileContent(file) {
+  if (!file) return '';
+  if (file.content_b64) {
+    return decodeCsvBuffer(Buffer.from(file.content_b64, 'base64'));
+  }
+  return String(file.content || '');
+}
 
 const TEMPLATES = {
   biens: {
@@ -116,14 +127,14 @@ router.post('/preview', async (req, res) => {
   // Taille totale raisonnable (le corps est déjà limité à 2 Mo).
   let totalBytes = 0;
   for (const cat of Object.keys(files || {})) {
-    totalBytes += String(files[cat]?.content || '').length;
+    totalBytes += String(files[cat]?.content_b64 || files[cat]?.content || '').length;
   }
   if (totalBytes > 1_500_000) {
     return res.status(413).json({ success: false, message: 'Fichiers trop volumineux (maximum 1,5 Mo au total).' });
   }
 
   try {
-    const result = await prepareImport(sb, ownerId, { categories, files, duplicatePolicy });
+    const result = await prepareImport(sb, ownerId, { categories, files, duplicatePolicy, fileContent });
     if (result.error) {
       return res.status(400).json({ success: false, message: result.error });
     }
@@ -148,7 +159,7 @@ router.post('/execute', async (req, res) => {
   }
 
   try {
-    const result = await executeImport(sb, ownerId, { categories, files, duplicatePolicy });
+    const result = await executeImport(sb, ownerId, { categories, files, duplicatePolicy, fileContent });
 
     if (result.error) {
       return res.status(409).json({ success: false, message: result.error, prepared: result.prepared });

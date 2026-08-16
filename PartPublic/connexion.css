@@ -629,3 +629,35 @@ input.pw-strong {
 }
 
 
+
+/* ========================================
+   CHANGEMENT D'IDENTIFIANTS (première connexion)
+======================================== */
+
+.username-status {
+    display: block;
+
+    margin-top: 6px;
+
+    font-size: 13px;
+
+    min-height: 18px;
+}
+
+.username-status.username-ok {
+    color: #27ae60;
+}
+
+.username-status.username-taken {
+    color: #e74c3c;
+}
+
+.form-hint {
+    margin-top: 6px;
+
+    color: #777;
+
+    font-size: 13px;
+
+    line-height: 1.5;
+}

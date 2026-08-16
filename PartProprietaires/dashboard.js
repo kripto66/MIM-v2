@@ -373,6 +373,7 @@ document.addEventListener("DOMContentLoaded", () => {
   loadStats();
   loadOverview();
   loadSubscriptionBanner();
+  loadOnboarding();
 
   const logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
@@ -380,3 +381,19 @@ document.addEventListener("DOMContentLoaded", () => {
   const backupBtn = document.getElementById("backupBtn");
   if (backupBtn) backupBtn.addEventListener("click", manualBackup);
 });
+
+// Assistant de première configuration : modal d'accueil si l'espace
+// est vide, lien permanent « Importer / Configurer » sinon masqué.
+async function loadOnboarding() {
+  const link = document.getElementById("setupLink");
+
+  const showModal = await Onboarding.maybeShow();
+  if (showModal) {
+    // L'espace est vide : le lien de configuration est utile.
+    if (link) link.style.display = "";
+    return;
+  }
+
+  const needsSetup = await Onboarding.needsSetup().catch(() => false);
+  if (link) link.style.display = needsSetup ? "" : "none";
+}

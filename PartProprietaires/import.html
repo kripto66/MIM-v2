@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Importer mes données</title>
+    <link rel="stylesheet" href="/mim-errors.css">
+    <script src="/mim-errors.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="import.css">
+
+</head>
+
+<body>
+
+    <div class="dashboard">
+
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
+
+            <div class="logo">
+                MIM
+            </div>
+
+            <nav class="sidebar-menu">
+
+                <a href="dashboard.html">Tableau de bord</a>
+                <a href="biens.html">Mes biens</a>
+                <a href="locataires.html">Locataires & Logements</a>
+                <a href="paiements.html">Paiements</a>
+                <a href="employes.html">Mes employés</a>
+                <a href="incidents.html">Incidents</a>
+                <a href="prestataires.html">Prestataires</a>
+                <a href="interventions.html">Interventions</a>
+                <a href="notifications.html">Notifications</a>
+                <a href="parametres.html">Paramètres</a>
+
+            </nav>
+
+            <div class="sidebar-footer">
+
+                <button id="backupBtn" type="button">Sauvegarder</button>
+                <button id="logoutBtn" type="button">Déconnexion</button>
+
+            </div>
+
+        </aside>
+
+        <main class="main-content">
+
+            <header class="dashboard-header">
+
+                <button
+                    class="menu-toggle"
+                    data-sidebar-toggle
+                    aria-label="Ouvrir le menu"
+                    aria-expanded="false"
+                >
+                    ☰
+                </button>
+
+                <div class="welcome">
+                    <h1>Importation de données</h1>
+                    <p>Importez vos biens, logements, locataires et employés en quelques étapes.</p>
+                </div>
+
+            </header>
+
+            <!-- =====================================================
+                 ASSISTANT D'IMPORTATION
+                 ===================================================== -->
+
+            <section class="wizard" id="wizard">
+
+                <!-- Barre de progression -->
+                <div class="wizard-steps" aria-label="Étapes de l'assistant">
+                    <div class="wizard-step active" data-wstep="1">
+                        <span class="wstep-num">1</span>
+                        <span class="wstep-label">Choix</span>
+                    </div>
+                    <div class="wizard-step" data-wstep="2">
+                        <span class="wstep-num">2</span>
+                        <span class="wstep-label">Modèle</span>
+                    </div>
+                    <div class="wizard-step" data-wstep="3">
+                        <span class="wstep-num">3</span>
+                        <span class="wstep-label">Import</span>
+                    </div>
+                    <div class="wizard-step" data-wstep="4">
+                        <span class="wstep-num">4</span>
+                        <span class="wstep-label">Vérification</span>
+                    </div>
+                    <div class="wizard-step" data-wstep="5">
+                        <span class="wstep-num">5</span>
+                        <span class="wstep-label">Terminé</span>
+                    </div>
+                </div>
+
+                <!-- ============ ÉTAPE 1 : CHOIX DES CATÉGORIES ============ -->
+                <div class="wizard-pane" id="step1">
+
+                    <h2>Que souhaitez-vous importer ?</h2>
+                    <p class="muted">Sélectionnez une ou plusieurs catégories, puis continuez.</p>
+
+                    <div class="wizard-categories">
+
+                        <label class="wizard-cat">
+                            <input type="checkbox" value="biens" data-cat="biens">
+                            <span class="wcat-ico">🏠</span>
+                            <span class="wcat-body">
+                                <strong>Biens</strong>
+                                <small>Immeubles, villas, résidences…</small>
+                            </span>
+                        </label>
+
+                        <label class="wizard-cat">
+                            <input type="checkbox" value="logements" data-cat="logements">
+                            <span class="wcat-ico">🚪</span>
+                            <span class="wcat-body">
+                                <strong>Logements</strong>
+                                <small>Appartements, chambres (rattachés à un bien)</small>
+                            </span>
+                        </label>
+
+                        <label class="wizard-cat">
+                            <input type="checkbox" value="locataires" data-cat="locataires">
+                            <span class="wcat-ico">👥</span>
+                            <span class="wcat-body">
+                                <strong>Locataires</strong>
+                                <small>Avec création automatique des comptes de connexion</small>
+                            </span>
+                        </label>
+
+                        <label class="wizard-cat">
+                            <input type="checkbox" value="employes" data-cat="employes">
+                            <span class="wcat-ico">🛠️</span>
+                            <span class="wcat-body">
+                                <strong>Employés</strong>
+                                <small>Avec création automatique des comptes de connexion</small>
+                            </span>
+                        </label>
+
+                    </div>
+
+                    <div class="wizard-actions">
+                        <button type="button" class="btn btn-secondary" id="wCancel1">Annuler</button>
+                        <button type="button" class="btn btn-primary" id="wNext1">Continuer →</button>
+                    </div>
+
+                </div>
+
+                <!-- ============ ÉTAPE 2 : MODÈLES ET EXEMPLES ============ -->
+                <div class="wizard-pane" id="step2" hidden>
+
+                    <h2>Modèles à télécharger</h2>
+                    <p class="muted">
+                        Pour chaque catégorie choisie, téléchargez le modèle, remplacez les lignes d'exemple
+                        par vos données, puis enregistrez au format CSV.
+                    </p>
+
+                    <div class="wizard-models" id="modelsList"></div>
+
+                    <div class="wizard-help">
+                        <h3>Comment préparer mon fichier ?</h3>
+                        <ol>
+                            <li>Téléchargez le modèle.</li>
+                            <li>Remplacez les exemples par vos données.</li>
+                            <li>Ne supprimez pas les noms des colonnes.</li>
+                            <li>Enregistrez le fichier au format CSV (UTF-8 de préférence).</li>
+                            <li>Importez-le dans MIM.</li>
+                            <li>Vérifiez l'aperçu.</li>
+                            <li>Confirmez l'importation.</li>
+                        </ol>
+                    </div>
+
+                    <div class="wizard-actions">
+                        <button type="button" class="btn btn-secondary" id="wBack2">← Retour</button>
+                        <button type="button" class="btn btn-primary" id="wNext2">Continuer →</button>
+                    </div>
+
+                </div>
+
+                <!-- ============ ÉTAPE 3 : SÉLECTION DES FICHIERS ============ -->
+                <div class="wizard-pane" id="step3" hidden>
+
+                    <h2>Sélectionnez vos fichiers CSV</h2>
+                    <p class="muted">
+                        Un fichier par catégorie (maximum 1,5 Mo au total). Les fichiers peuvent être séparés
+                        par des virgules ou des points-virgules.
+                    </p>
+
+                    <div class="wizard-files" id="filesList"></div>
+
+                    <div class="wizard-actions">
+                        <button type="button" class="btn btn-secondary" id="wBack3">← Retour</button>
+                        <button type="button" class="btn btn-primary" id="wNext3">Vérifier →</button>
+                    </div>
+
+                </div>
+
+                <!-- ============ ÉTAPE 4 : VÉRIFICATION ET CONFIRMATION ============ -->
+                <div class="wizard-pane" id="step4" hidden>
+
+                    <h2>Aperçu de l'importation</h2>
+                    <p class="muted">Vérifiez les données avant de confirmer. Rien n'est créé à cette étape.</p>
+
+                    <div id="previewLoading" class="wizard-loading" hidden>Analyse des fichiers…</div>
+
+                    <div id="previewResult" hidden>
+
+                        <div class="wizard-preview-summary" id="previewSummary"></div>
+
+                        <div class="wizard-preview-cats" id="previewCats"></div>
+
+                        <div class="wizard-dups" id="dupsBox" hidden>
+                            <h3>Doublons détectés</h3>
+                            <p class="muted">
+                                Certaines lignes correspondent à des données déjà présentes dans votre espace.
+                                Choisissez comment les traiter.
+                            </p>
+                            <label class="wizard-radio">
+                                <input type="radio" name="dupPolicy" value="ignore" checked>
+                                <span><strong>Ignorer</strong> — ne rien modifier pour ces lignes.</span>
+                            </label>
+                            <label class="wizard-radio">
+                                <input type="radio" name="dupPolicy" value="update">
+                                <span><strong>Mettre à jour</strong> — met à jour les données existantes (loyer, téléphone, salaire, etc.).</span>
+                            </label>
+                            <label class="wizard-radio">
+                                <input type="radio" name="dupPolicy" value="abort">
+                                <span><strong>Abandonner</strong> — annuler tout l'import si un doublon est trouvé.</span>
+                            </label>
+                        </div>
+
+                        <div class="wizard-actions">
+                            <button type="button" class="btn btn-secondary" id="wBack4">← Retour</button>
+                            <button type="button" class="btn btn-primary" id="wImport">Importer</button>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <!-- ============ ÉTAPE 5 : RAPPORT FINAL ============ -->
+                <div class="wizard-pane" id="step5" hidden>
+
+                    <div id="finalReport"></div>
+
+                    <div class="wizard-actions">
+                        <button type="button" class="btn btn-secondary" id="wDone5">Terminer</button>
+                        <a href="dashboard.html" class="btn btn-primary">Aller au tableau de bord</a>
+                    </div>
+
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <div id="toast"></div>
+
+    <script src="api.js"></script>
+    <script src="crud.js"></script>
+    <script src="import.js"></script>
+    <script src="../PartPublic/sidebar.js"></script>
+
+</body>
+
+</html>

@@ -153,7 +153,7 @@ async function finalizeLogin(res, user, session, userAgent) {
   return {
     user: publicUser(user, profile),
     redirect: PAGE_BY_TYPE[accountType],
-    mustChangePassword: accountType === 'locataire' && Boolean(profile?.must_change_password),
+    mustChangePassword: (accountType === 'locataire' || accountType === 'employe') && Boolean(profile?.must_change_password),
   };
 }
 
