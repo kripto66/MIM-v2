@@ -103,13 +103,15 @@ export function parseCsv(text) {
   row.push(cell);
   if (row.some((c) => c.trim() !== '')) rows.push(row);
 
-  if (!rows.length) return { headers: [], rows: [] };
+  if (!rows.length) return { headers: [], rawHeaders: [], rows: [] };
 
   const headerRow = rows.shift().map((h) => String(h || '').trim());
   const byKey = new Map();
+  const rawHeaders = [];
   headerRow.forEach((h, idx) => {
-    const key = normalizeHeader(h);
-    if (key && !byKey.has(key)) byKey.set(key, idx);
+    rawHeaders.push(h);
+    const canonical = resolveHeader(h) || normalizeHeader(h);
+    if (canonical && !byKey.has(canonical)) byKey.set(canonical, idx);
   });
 
   const parsedRows = rows
@@ -122,7 +124,7 @@ export function parseCsv(text) {
       return { values, raw: r };
     });
 
-  return { headers: [...byKey.keys()], rows: parsedRows };
+  return { headers: [...byKey.keys()], rawHeaders, rows: parsedRows };
 }
 
 // ------------------------------------------------------------
@@ -340,7 +342,8 @@ export async function prepareImport(sb, ownerId, payload) {
       sample: [],
       accounts: [],
       headers: parsed.headers,
-      unknownHeaders: parsed.headers.filter((h) => !resolveHeader(h)),
+      rawHeaders: parsed.rawHeaders || [],
+      unknownHeaders: (parsed.rawHeaders || []).filter((h) => !resolveHeader(h)),
     };
 
     for (const required of def.required) {
