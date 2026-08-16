@@ -25,6 +25,7 @@ import { runDeclarations } from './declarations.test.js';
 import { runImport } from './import.test.js';
 import { runLocataires } from './locataires.test.js';
 import { runSalaires } from './salaires.test.js';
+import { runVierge } from './vierge.test.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.join(__dirname, '..', '..');
@@ -51,6 +52,7 @@ const SUITES = [
   ['import', runImport],
   ['locataires', runLocataires],
   ['salaires', runSalaires],
+  ['vierge', runVierge],
 ];
 
 const runner = new Runner();

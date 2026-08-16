@@ -79,7 +79,7 @@ l'application est accessible sur `http://localhost:3000` (l'usage via XAMPP rest
 | POST | `/api/import/execute` | Exécuter l'import (création des biens, logements, comptes locataires/employés) |
 | GET | `/api/import/meta` | Métadonnées de l'import (dictionnaire catégories/labels/colonnes) |
 | GET | `/api/employes` | Liste des employés du propriétaire (avec `en_attente_confirmation`, `dernier_paiement`) |
-| POST | `/api/employes` | Créer un employé + son compte de connexion |
+| POST | `/api/employes` | Créer un employé + son compte de connexion (si `username`/`password` absents : générés automatiquement, mot de passe initial `1234` à changer à la première connexion) |
 | GET | `/api/employes/:id/paiements` | Historique des salaires d'un employé (avec moyen de réception) |
 | POST | `/api/employes/:id/paiements` | Déclarer un versement de salaire (`attente` → l'employé confirme) ; `paye` direct conservé (UnitechPay) |
 | GET | `/api/employes/:id/moyens-paiement` | Moyens de réception **actifs** d'un employé (vue propriétaire) |
@@ -140,6 +140,25 @@ La première connexion force le changement du username et du mot de passe
 (`PartPublic/change-password.html`). En cas d'échec intermédiaire, tout est
 annulé (compensation). L'édition d'un locataire ne recrée jamais le compte.
 
+## Création d'un employé (mode automatique)
+
+Depuis `PartProprietaires/employes.html`, le formulaire « Ajouter un employé »
+laisse les champs username / mot de passe **vides** pour activer le mode
+automatique (`POST /api/employes`) :
+
+- **Username** : généré côté serveur depuis le nom complet
+  (`amadou.diop`, `amadou.diop2`, …), unique dans toute l'application
+  (vérifié + index unique `profiles_username_uniq` en base) ;
+- **Mot de passe initial** : `1234` (temporaire, `must_change_password = true`) ;
+- **Compte** : créé via `auth.admin` (email interne `@mim.local`), fiche
+  `employes` liée, notification envoyée à l'employé ;
+- **Retour** : `201` + `account: { username, password }` → l'interface affiche
+  les identifiants (bouton « Copier ») sans rechargement manuel.
+
+Le propriétaire peut toujours fournir lui-même username + mot de passe (mode
+manuel, mêmes validations qu'avant). La première connexion force le changement
+du mot de passe (`PartPublic/change-password.html`).
+
 ## Sauvegarde automatique
 
 À chaque **connexion**, **déconnexion** et **écriture**, une sauvegarde git
@@ -192,12 +211,18 @@ propriétaire (actifs uniquement), déclaration de versement (`attente`),
 confirmation par l'employé (`paye` + notifications des deux côtés), refus
 (`non_recu` + motif), paiement direct `paye` (compat UnitechPay), historique
 enrichi et isolation propriétaire / employé.
+La suite `vierge` couvre un **propriétaire totalement nouveau** : dashboard et
+listes 100 % vides (aucune donnée fictive, tous les compteurs à 0), création
+d'un locataire et d'un employé en mode automatique (username généré, mot de
+passe initial `1234`, `must_change_password`, changement obligatoire puis
+compte normal), unicité des usernames (3 × même nom) et isolation de ses
+données.
 
 ## Base de données
 
 Le schéma complet se trouve dans `server/supabase-schema.sql` :
 
-- `profiles` — profils utilisateurs (créés automatiquement par trigger à l'inscription)
+- `profiles` — profils utilisateurs (créés automatiquement par trigger à l'inscription ; `username` unique pour les comptes locataires/employés, `must_change_password`)
 - `biens`, `logements`, `locataires`, `paiements`
 - `employes`, `paiements_employes` (salaires : `attente` → `paye` / `non_recu`)
 - `moyens_paiement` (réception des loyers), `moyens_paiement_employes` (réception des salaires)

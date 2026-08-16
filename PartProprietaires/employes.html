@@ -121,7 +121,7 @@
                     <input type="text" id="emp_nom" name="emp_nom" required>
                 </div>
 
-                <div class="form-row">
+<div class="form-row">
                     <div class="form-group">
                         <label for="emp_username">Username (connexion employé)</label>
                         <input type="text" id="emp_username" name="emp_username" placeholder="ex : amadou.diallo" autocomplete="off">
@@ -131,6 +131,11 @@
                         <label for="emp_password">Mot de passe temporaire</label>
                         <input type="password" id="emp_password" name="emp_password" placeholder="Minimum 8 caractères" autocomplete="new-password" minlength="8" data-strength>
                     </div>
+                </div>
+                <div class="form-hint" id="empAutoHint">
+                    Laissez ces deux champs vides : MIM générera automatiquement le username
+                    (ex : prenom.nom) et un mot de passe initial temporaire (1234) à changer
+                    à la première connexion.
                 </div>
 
                 <div class="form-row">
@@ -175,6 +180,29 @@
                 </div>
 
             </form>
+
+        </div>
+    </div>
+
+    <!-- ====================== MODAL IDENTIFIANTS (CRÉATION AUTO) ====================== -->
+
+    <div class="modal-overlay" id="empResultModal" style="display:none;">
+        <div class="modal">
+
+            <h2>✅ Compte employé créé avec succès</h2>
+
+            <div class="result-summary" id="empResultSummary"></div>
+
+            <div class="account-credentials" id="empAccountCredentials" style="display:none;">
+                <p class="result-note">
+                    L'employé devra modifier son mot de passe lors de sa première connexion.
+                </p>
+                <button type="button" class="btn btn-primary" id="empCopyCredentialsBtn">Copier les identifiants</button>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="closeEmpResultModal">Fermer</button>
+            </div>
 
         </div>
     </div>
@@ -460,16 +488,19 @@
             if (btn.disabled) return;
             clearFormErrors(form);
 
-            const editing = employeeEditId != null;
+const editing = employeeEditId != null;
+
+            const hasUsername = form.emp_username.value.trim() !== "";
+            const hasPassword = form.emp_password.value !== "";
 
             const errors = validateFields(form, [
                 { name: "emp_nom", test: (i) => !i.value.trim(), message: "Le nom complet est obligatoire." },
-                ...(!editing
+                ...(!editing && (hasUsername || hasPassword)
                     ? [
                         {
                             name: "emp_username",
                             test: (i) => !usernameValid(i.value.trim()),
-                            message: "Username invalide : lettres minuscules, chiffres, . _ - (3 à 30 caractères).",
+                            message: "Username invalide : lettres minuscules, chiffres, . _ - (3 à 32 caractères).",
                         },
                         {
                             name: "emp_password",
@@ -499,7 +530,7 @@
                 date_embauche: form.emp_date_embauche.value,
                 statut: form.emp_statut.value,
             };
-            if (!editing) {
+            if (!editing && (hasUsername || hasPassword)) {
                 payload.username = form.emp_username.value.trim();
                 payload.password = form.emp_password.value;
             }
@@ -509,13 +540,18 @@
             btn.textContent = "Enregistrement...";
 
             try {
+                let created = null;
                 if (editing) {
                     await apiRequest(`/employes/${employeeEditId}`, { method: "PUT", body: JSON.stringify(payload) });
                 } else {
-                    await apiRequest("/employes", { method: "POST", body: JSON.stringify(payload) });
+                    created = await apiRequest("/employes", { method: "POST", body: JSON.stringify(payload) });
                 }
                 showToast(editing ? "Employé modifié avec succès." : "Compte employé créé avec succès.");
                 el("employeeModal").style.display = "none";
+                if (created && created.autoAccount && created.account) {
+                    form.dataset.created = JSON.stringify(payload);
+                    showEmployeeCredentials(created.account.username, created.account.password);
+                }
                 await loadAll();
             } catch (err) {
                 applyServerErrors(form, err.errors);
@@ -524,6 +560,23 @@
                 btn.disabled = false;
                 btn.textContent = originalLabel;
             }
+        }
+
+        function showEmployeeCredentials(username, password) {
+            const data = JSON.parse(el("employeeForm").dataset.created || "{}");
+            const rows = [
+                ["Nom", escapeHtml(data.nom || "")],
+                ["Poste", escapeHtml(data.poste || "—")],
+                ["Compte", escapeHtml(username)],
+                ["Mot de passe initial", escapeHtml(password)],
+            ];
+            el("empResultSummary").innerHTML = rows
+                .map(([k, v]) => `<div class="result-row"><span>${k}</span><strong>${v}</strong></div>`)
+                .join("");
+            const creds = el("empAccountCredentials");
+            creds.style.display = "block";
+            creds.dataset.credentials = `Username : ${username}\nMot de passe : ${password}\nNom : ${data.nom || ""}`;
+            el("empResultModal").style.display = "flex";
         }
 
         async function deleteEmployee(id) {
@@ -810,6 +863,21 @@ if (delBtn) deleteTask(delBtn.dataset.deleteTask);
                     /* on déconnecte quand même */
                 }
                 window.location.href = "../PartPublic/connexion.html";
+            });
+
+            el("closeEmpResultModal").addEventListener("click", () => (el("empResultModal").style.display = "none"));
+            el("empResultModal").addEventListener("click", (e) => {
+                if (e.target === el("empResultModal")) el("empResultModal").style.display = "none";
+            });
+            el("empCopyCredentialsBtn").addEventListener("click", async () => {
+                const creds = el("empAccountCredentials").dataset.credentials || "";
+                try {
+                    await navigator.clipboard.writeText(creds);
+                    el("empCopyCredentialsBtn").textContent = "Copié ✓";
+                    setTimeout(() => (el("empCopyCredentialsBtn").textContent = "Copier les identifiants"), 2000);
+                } catch {
+                    window.prompt("Copiez ces identifiants :", creds);
+                }
             });
 
             loadAll();
