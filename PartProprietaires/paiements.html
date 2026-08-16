@@ -26,22 +26,33 @@
 
             <nav class="sidebar-menu">
 
+                <div class="nav-category">GESTION</div>
+
                 <a href="dashboard.html">Tableau de bord</a>
                 <a href="biens.html">Mes biens</a>
                 <a href="locataires.html">Locataires & Logements</a>
-                <a href="paiements.html" class="active">Paiements</a>
                 <a href="employes.html">Mes employés</a>
+
+                <div class="nav-category">FINANCES</div>
+
+                <a href="paiements.html" class="active">Paiements</a>
+
+                <div class="nav-category">SUIVI</div>
+
                 <a href="incidents.html">Incidents</a>
                 <a href="prestataires.html">Prestataires</a>
                 <a href="interventions.html">Interventions</a>
                 <a href="notifications.html">Notifications</a>
+
+                <div class="nav-category">CONFIGURATION</div>
+
                 <a href="parametres.html">Paramètres</a>
+                <a href="import.html" id="setupLink" class="setup-link">Importer / Configurer</a>
 
             </nav>
 
             <div class="sidebar-footer">
 
-                <button id="backupBtn" type="button">Sauvegarder</button>
                 <button id="logoutBtn" type="button">Déconnexion</button>
 
             </div>
@@ -63,42 +74,112 @@
 
                 <div class="welcome">
                     <h1>Paiements</h1>
-                    <p>Suivez les loyers et les échéances.</p>
+                    <p>Les loyers de vos locataires et les salaires de vos employés.</p>
                 </div>
-
-                <button class="btn btn-primary" id="addPaiementBtn">+ Enregistrer un paiement</button>
 
             </header>
 
-            <section class="dashboard-section">
+            <nav class="pay-tabs" id="payTabs">
+                <button type="button" class="tab-btn active" data-paytab="locataires">
+                    👤 Paiements des locataires
+                    <span class="tab-sub">Loyers reçus et moyens de réception</span>
+                </button>
+                <button type="button" class="tab-btn" data-paytab="employes">
+                    👷 Payer mes employés
+                    <span class="tab-sub">Salaires versés</span>
+                </button>
+            </nav>
 
-                <div class="section-header">
-                    <h2>Paiements à valider</h2>
-                    <span id="pendingCount" class="status status-warning">0</span>
-                </div>
+            <!-- ============================================================
+                 ESPACE 1 : PAIEMENTS DES LOCATAIRES
+                 ============================================================ -->
 
-                <div id="pendingList">
-                    <div class="empty-state">Chargement...</div>
-                </div>
+            <div id="paytab-locataires">
 
-            </section>
+                <section class="dashboard-section">
 
-            <section class="dashboard-section">
+                    <div class="section-header">
+                        <h2>Paiements à valider</h2>
+                        <span id="pendingCount" class="status status-warning">0</span>
+                    </div>
 
-                <div class="section-header">
-                    <h2>Historique des paiements</h2>
-                </div>
+                    <div id="pendingList">
+                        <div class="empty-state">Chargement...</div>
+                    </div>
 
-                <div id="paiementsList">
-                    <div class="empty-state">Chargement...</div>
-                </div>
+                </section>
 
-            </section>
+                <section class="dashboard-section">
+
+                    <div class="section-header">
+                        <h2>Historique des paiements</h2>
+                    </div>
+
+                    <div id="paiementsList">
+                        <div class="empty-state">Chargement...</div>
+                    </div>
+
+                </section>
+
+                <section class="dashboard-section">
+
+                    <div class="section-header">
+                        <h2>Mes moyens de réception</h2>
+                        <button type="button" class="btn btn-primary" id="addMoyenBtn">+ Ajouter un moyen de paiement</button>
+                    </div>
+
+                    <p class="pay-hint">Ces moyens sont affichés à vos locataires pour payer directement votre loyer. Ajoutez autant de moyens que nécessaire.</p>
+
+                    <div id="moyensList">
+                        <div class="empty-state">Chargement...</div>
+                    </div>
+
+                </section>
+
+            </div>
+
+            <!-- ============================================================
+                 ESPACE 2 : PAYER MES EMPLOYÉS
+                 ============================================================ -->
+
+            <div id="paytab-employes" style="display:none;">
+
+                <section class="dashboard-section">
+
+                    <div class="section-header">
+                        <h2>Salaires</h2>
+                        <span id="empPayCount" class="status status-info">0 employé(s)</span>
+                    </div>
+
+                    <div class="search-bar">
+                        <input type="search" id="employeSearch" placeholder="🔎 Rechercher un employé (nom, prénom, poste)…">
+                    </div>
+
+                    <div id="employesPayList">
+                        <div class="empty-state">Chargement...</div>
+                    </div>
+
+                </section>
+
+                <section class="dashboard-section">
+
+                    <div class="section-header">
+                        <h2>Historique des salaires</h2>
+                    </div>
+
+                    <div id="salairesHistory">
+                        <div class="empty-state">Chargement...</div>
+                    </div>
+
+                </section>
+
+            </div>
 
         </main>
 
     </div>
 
+    <!-- Modal : refus d'une déclaration de loyer -->
     <div class="modal-overlay" id="refusModal" style="display:none;">
         <div class="modal">
             <h2>Refuser cette déclaration ?</h2>
@@ -123,6 +204,7 @@
         </div>
     </div>
 
+    <!-- Modal : enregistrement d'un paiement de loyer -->
     <div class="modal-overlay" id="paiementModal" style="display:none;">
         <div class="modal">
 
@@ -185,6 +267,92 @@
         </div>
     </div>
 
+    <!-- Modal : moyen de réception du propriétaire -->
+    <div class="modal-overlay" id="moyenModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="moyenModalTitle">Ajouter un moyen de paiement</h2>
+
+            <form id="moyenForm">
+
+                <input type="hidden" id="moyenId">
+
+                <div class="form-group">
+                    <label for="moyen_type">Type</label>
+                    <select id="moyen_type" name="moyen_type">
+                        <option value="wave">Wave</option>
+                        <option value="orange_money">Orange Money</option>
+                        <option value="virement">Virement bancaire</option>
+                        <option value="especes">Espèces</option>
+                    </select>
+                </div>
+
+                <div class="form-group" data-mfield="nom_titulaire">
+                    <label for="moyen_nom">Nom complet du titulaire</label>
+                    <input type="text" id="moyen_nom" name="nom_titulaire" maxlength="200">
+                </div>
+
+                <div class="form-group" data-mfield="numero">
+                    <label for="moyen_numero">Numéro</label>
+                    <input type="text" id="moyen_numero" name="numero" maxlength="200" placeholder="ex : 77 123 45 67">
+                </div>
+
+                <div class="form-group" data-mfield="banque">
+                    <label for="moyen_banque">Banque</label>
+                    <input type="text" id="moyen_banque" name="banque" maxlength="200">
+                </div>
+
+                <div class="form-group" data-mfield="num_compte">
+                    <label for="moyen_compte">Numéro de compte</label>
+                    <input type="text" id="moyen_compte" name="num_compte" maxlength="200">
+                </div>
+
+                <div class="form-group" data-mfield="lien_paiement">
+                    <label for="moyen_lien">Lien de paiement (optionnel)</label>
+                    <input type="url" id="moyen_lien" name="lien_paiement" maxlength="200">
+                </div>
+
+                <div class="form-group" data-mfield="instructions">
+                    <label for="moyen_instructions">Instructions (optionnel)</label>
+                    <textarea id="moyen_instructions" name="instructions" maxlength="200" rows="2" placeholder="Précisions utiles pour le paiement…"></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="moyenCancel">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <!-- Modal : payer un salarié -->
+    <div class="modal-overlay" id="payEmpModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="payEmpTitle">Payer le salaire</h2>
+
+            <div id="payEmpBody"></div>
+
+        </div>
+    </div>
+
+    <!-- Modal : historique d'un employé -->
+    <div class="modal-overlay" id="histModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="histTitle">Historique des salaires</h2>
+
+            <div id="histBody"></div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="histClose">Fermer</button>
+            </div>
+
+        </div>
+    </div>
+
     <script src="../PartPublic/form-utils.js"></script>
     <script src="api.js"></script>
     <script src="crud.js"></script>
@@ -198,6 +366,12 @@
             refuse: ["Refusé", "status-danger"],
         };
 
+        const SALAIRE_STATUS = {
+            paye: ["🟢 Confirmé", "status-success"],
+            attente: ["🟡 En attente de confirmation", "status-warning"],
+            non_recu: ["🔴 Non reçu", "status-danger"],
+        };
+
         const MOIS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 
         const METHODE_LABELS = {
@@ -209,9 +383,67 @@
             orange_money: "Orange Money",
         };
 
+        const TYPE_ICONS = { wave: "🟣", orange_money: "🟠", virement: "🏦", especes: "💵" };
+        const TYPE_LABELS = { wave: "Wave", orange_money: "Orange Money", virement: "Virement bancaire", especes: "Espèces" };
+
+        const TYPE_FIELDS = {
+            wave: ["nom_titulaire", "numero", "lien_paiement", "instructions"],
+            orange_money: ["nom_titulaire", "numero", "lien_paiement", "instructions"],
+            virement: ["banque", "nom_titulaire", "num_compte", "lien_paiement", "instructions"],
+            especes: ["instructions"],
+        };
+
         let locatairesCache = [];
         let logementsCache = [];
         let refusTargetId = null;
+        let employesCache = [];
+        let payEmpTarget = null;
+
+        function currentMonth() {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        }
+
+        function formatMois(mois) {
+            if (!mois) return "";
+            const [y, m] = mois.split("-");
+            return `${MOIS_FR[Number(m) - 1]} ${y}`;
+        }
+
+        function formatDate(iso) {
+            if (!iso) return "";
+            return new Date(iso).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" });
+        }
+
+        function formatDateTime(iso) {
+            if (!iso) return "";
+            return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+        }
+
+        function fmtFCFA(n) {
+            return `${Number(n || 0).toLocaleString("fr-FR")} FCFA`;
+        }
+
+        // ============================================================
+        // Onglets
+        // ============================================================
+
+        function switchTab(name) {
+            document.querySelectorAll("#payTabs .tab-btn").forEach((b) => {
+                b.classList.toggle("active", b.dataset.paytab === name);
+            });
+            document.getElementById("paytab-locataires").style.display = name === "locataires" ? "" : "none";
+            document.getElementById("paytab-employes").style.display = name === "employes" ? "" : "none";
+        }
+
+        document.getElementById("payTabs").addEventListener("click", (e) => {
+            const btn = e.target.closest("[data-paytab]");
+            if (btn) switchTab(btn.dataset.paytab);
+        });
+
+        // ============================================================
+        // Paiements locataires : déclarations à valider
+        // ============================================================
 
         async function loadData() {
             try {
@@ -235,21 +467,6 @@
                 console.error(err);
             }
         }
-
-        function formatMois(mois) {
-            if (!mois) return "";
-            const [y, m] = mois.split("-");
-            return `${MOIS_FR[Number(m) - 1]} ${y}`;
-        }
-
-        function formatDateTime(iso) {
-            if (!iso) return "";
-            return new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
-        }
-
-        // ============================================================
-        // Paiements à valider : déclarations des locataires
-        // ============================================================
 
         async function loadPending() {
             const listEl = document.getElementById("pendingList");
@@ -275,7 +492,7 @@
                             <p class="pay-hint">⚠️ Vérifiez la réception du paiement sur votre compte avant de valider.</p>
                         </div>
                         <div class="card-amount">
-                            <strong>${Number(p.montant).toLocaleString("fr-FR")} FCFA</strong>
+                            <strong>${fmtFCFA(p.montant)}</strong>
                             <div class="card-actions">
                                 <button class="btn btn-pay" data-pvalidate="${p.id}">Valider le paiement</button>
                                 <button class="btn btn-delete" data-prefuse="${p.id}">Refuser</button>
@@ -412,7 +629,7 @@
                             ${p.statut === "en_validation" ? '<p class="pay-hint">Le locataire déclare avoir payé — vérifiez votre compte puis validez.</p>' : ""}
                         </div>
                         <div class="card-amount">
-                            <strong>${Number(p.montant).toLocaleString("fr-FR")} FCFA</strong>
+                            <strong>${fmtFCFA(p.montant)}</strong>
                             <div class="card-actions">
                                 ${awaiting ? `
                                     <button class="btn btn-pay" data-pvalidate="${p.id}">Valider le paiement</button>
@@ -427,10 +644,406 @@
         });
 
         // Validation / refus d'une déclaration (historique aussi).
-        // Le paiement, le montant et la méthode sont relus côté serveur.
         document.getElementById("paiementsList").addEventListener("click", handlePendingAction);
 
+        // ============================================================
+        // Moyens de réception du propriétaire
+        // ============================================================
+
+        function moyenFields(type) {
+            const fields = TYPE_FIELDS[type] || [];
+            document.querySelectorAll("#moyenForm [data-mfield]").forEach((el) => {
+                const name = el.dataset.mfield;
+                el.style.display = fields.includes(name) ? "" : "none";
+            });
+        }
+
+        function moyenPayload(form) {
+            const type = form.moyen_type.value;
+            const payload = { type };
+            for (const field of TYPE_FIELDS[type] || []) {
+                const v = form[field] ? String(form[field].value || "").trim() : "";
+                if (v) payload[field] = v;
+            }
+            return payload;
+        }
+
+        async function loadMoyens() {
+            const listEl = document.getElementById("moyensList");
+            try {
+                const res = await apiRequest("/moyens-paiement");
+                const items = res.data || [];
+                if (!items.length) {
+                    listEl.innerHTML = '<div class="empty-state">Aucun moyen de réception. Ajoutez-en pour que vos locataires sachent où payer.</div>';
+                    return;
+                }
+                listEl.innerHTML = items.map((m) => {
+                    const lines = [];
+                    if (m.nom_titulaire) lines.push(`<p><span>Nom complet :</span> <strong>${escapeHtml(m.nom_titulaire)}</strong></p>`);
+                    if (m.numero) lines.push(`<p><span>Numéro :</span> <strong>${escapeHtml(m.numero)}</strong></p>`);
+                    if (m.banque) lines.push(`<p><span>Banque :</span> <strong>${escapeHtml(m.banque)}</strong></p>`);
+                    if (m.num_compte) lines.push(`<p><span>Compte :</span> <strong>${escapeHtml(m.num_compte)}</strong></p>`);
+                    if (m.lien_paiement) lines.push(`<p><span>Lien :</span> <a href="${escapeAttr(m.lien_paiement)}" target="_blank" rel="noopener">ouvrir</a></p>`);
+                    if (m.instructions) lines.push(`<p class="moyen-instructions">${escapeHtml(m.instructions)}</p>`);
+                    return `
+                        <div class="moyen-card ${m.actif ? "" : "moyen-inactif"}">
+                            <div class="moyen-head">
+                                <span>${TYPE_ICONS[m.type] || "💰"} ${TYPE_LABELS[m.type] || m.type}</span>
+                                ${m.actif ? '<span class="status status-success">Actif</span>' : '<span class="status status-info">Inactif</span>'}
+                            </div>
+                            <div class="moyen-body">${lines.join("") || '<p class="pay-hint">Aucun détail renseigné.</p>'}</div>
+                            <div class="moyen-actions">
+                                <button type="button" class="btn btn-edit" data-medit="${m.id}">Modifier</button>
+                                <button type="button" class="btn btn-secondary" data-mtoggle="${m.id}">${m.actif ? "Désactiver" : "Activer"}</button>
+                                <button type="button" class="btn btn-delete" data-mdelete="${m.id}">Supprimer</button>
+                            </div>
+                        </div>`;
+                }).join("");
+            } catch (err) {
+                listEl.innerHTML = `<div class="empty-state">${escapeHtml(err.message)}</div>`;
+            }
+        }
+
+        function openMoyenModal(id) {
+            const form = document.getElementById("moyenForm");
+            form.reset();
+            document.getElementById("moyenId").value = id || "";
+            document.getElementById("moyenModalTitle").textContent = id ? "Modifier le moyen de paiement" : "Ajouter un moyen de paiement";
+            moyenFields(form.moyen_type.value);
+            document.getElementById("moyenModal").style.display = "flex";
+        }
+
+        async function submitMoyen(e) {
+            e.preventDefault();
+            const form = document.getElementById("moyenForm");
+            const id = document.getElementById("moyenId").value;
+            const payload = moyenPayload(form);
+            const btn = form.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            try {
+                if (id) {
+                    await apiRequest(`/moyens-paiement/${id}`, { method: "PUT", body: JSON.stringify(payload) });
+                } else {
+                    await apiRequest("/moyens-paiement", { method: "POST", body: JSON.stringify(payload) });
+                }
+                document.getElementById("moyenModal").style.display = "none";
+                await loadMoyens();
+            } catch (err) {
+                alert(err.message);
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
+        async function handleMoyensAction(e) {
+            const edit = e.target.closest("[data-medit]");
+            const toggle = e.target.closest("[data-mtoggle]");
+            const del = e.target.closest("[data-mdelete]");
+            if (!edit && !toggle && !del) return;
+
+            if (edit) {
+                try {
+                    const res = await apiRequest("/moyens-paiement");
+                    const m = (res.data || []).find((x) => String(x.id) === String(edit.dataset.medit));
+                    if (!m) return;
+                    const form = document.getElementById("moyenForm");
+                    form.reset();
+                    document.getElementById("moyenId").value = m.id;
+                    document.getElementById("moyenModalTitle").textContent = "Modifier le moyen de paiement";
+                    form.moyen_type.value = m.type;
+                    moyenFields(m.type);
+                    for (const field of Object.keys(TYPE_FIELDS[m.type] || {})) {
+                        if (form[field] && m[field]) form[field].value = m[field];
+                    }
+                    document.getElementById("moyenModal").style.display = "flex";
+                } catch (err) {
+                    alert(err.message);
+                }
+                return;
+            }
+
+            if (toggle) {
+                try {
+                    const res = await apiRequest("/moyens-paiement");
+                    const m = (res.data || []).find((x) => String(x.id) === String(toggle.dataset.mtoggle));
+                    if (!m) return;
+                    await apiRequest(`/moyens-paiement/${m.id}`, {
+                        method: "PUT",
+                        body: JSON.stringify({ actif: !m.actif }),
+                    });
+                    await loadMoyens();
+                } catch (err) {
+                    alert(err.message);
+                }
+                return;
+            }
+
+            if (del) {
+                if (!confirm("Supprimer ce moyen de paiement ?")) return;
+                try {
+                    await apiRequest(`/moyens-paiement/${del.dataset.mdelete}`, { method: "DELETE" });
+                    await loadMoyens();
+                } catch (err) {
+                    alert(err.message);
+                }
+            }
+        }
+
+        document.getElementById("addMoyenBtn").addEventListener("click", () => openMoyenModal(null));
+        document.getElementById("moyensList").addEventListener("click", handleMoyensAction);
+        document.getElementById("moyenForm").addEventListener("submit", submitMoyen);
+        document.getElementById("moyenCancel").addEventListener("click", () => {
+            document.getElementById("moyenModal").style.display = "none";
+        });
+        document.getElementById("moyenModal").addEventListener("click", (e) => {
+            if (e.target.id === "moyenModal") document.getElementById("moyenModal").style.display = "none";
+        });
+        document.getElementById("moyen_type").addEventListener("change", (e) => moyenFields(e.target.value));
+
+        // ============================================================
+        // Payer mes employés
+        // ============================================================
+
+        async function loadEmployes() {
+            const listEl = document.getElementById("employesPayList");
+            const countEl = document.getElementById("empPayCount");
+            try {
+                const res = await apiRequest("/employes");
+                employesCache = res.data || [];
+                countEl.textContent = `${employesCache.length} employé(s)`;
+                renderEmployes("");
+                await loadSalairesHistory();
+            } catch (err) {
+                listEl.innerHTML = `<div class="empty-state">${escapeHtml(err.message)}</div>`;
+            }
+        }
+
+        function renderEmployes(q) {
+            const listEl = document.getElementById("employesPayList");
+            const needle = (q || "").trim().toLowerCase();
+            const filtered = employesCache.filter((e) => {
+                if (!needle) return true;
+                const hay = `${e.nom || ""} ${e.poste || ""}`.toLowerCase();
+                return hay.includes(needle);
+            });
+
+            if (!filtered.length) {
+                listEl.innerHTML = employesCache.length
+                    ? '<div class="empty-state">Aucun employé ne correspond à cette recherche.</div>'
+                    : '<div class="empty-state">Vous n\'avez encore aucun employé. Ajoutez-en depuis la page « Mes employés ».</div>';
+                return;
+            }
+
+            listEl.innerHTML = filtered.map((e) => {
+                const dernier = e.dernier_paiement;
+                const [sLabel, sCls] = dernier
+                    ? (SALAIRE_STATUS[dernier.statut] || [dernier.statut, "status-info"])
+                    : ["Aucun versement", "status-info"];
+                return `
+                    <div class="crud-card pay-emp-card">
+                        <div>
+                            <h3>${escapeHtml(e.nom)}</h3>
+                            <p>${escapeHtml(e.poste || "Employé")} — <strong>${fmtFCFA(e.salaire)}</strong> / mois</p>
+                            <p><span class="status ${sCls}">${sLabel}</span>${dernier ? ` <span class="pay-hint">(${formatMois(dernier.mois)})</span>` : ""}</p>
+                            ${e.en_attente_confirmation ? `<p class="pay-hint">🟡 ${e.en_attente_confirmation} versement(s) en attente de confirmation de l'employé.</p>` : ""}
+                        </div>
+                        <div class="card-amount">
+                            <div class="card-actions">
+                                <button class="btn btn-edit" data-emp-hist="${e.id}" data-emp-nom="${escapeAttr(e.nom)}">Historique</button>
+                                <button class="btn btn-pay" data-emp-pay="${e.id}">Payer</button>
+                            </div>
+                        </div>
+                    </div>`;
+            }).join("");
+        }
+
+        async function openPayEmpModal(id) {
+            const emp = employesCache.find((e) => String(e.id) === String(id));
+            if (!emp) return;
+            payEmpTarget = emp;
+
+            let moyens = [];
+            try {
+                const res = await apiRequest(`/employes/${emp.id}/moyens-paiement`);
+                moyens = res.data || [];
+            } catch (err) {
+                moyens = [];
+            }
+
+            const moyensOptions = moyens.length
+                ? moyens.map((m) => {
+                    const detail = [m.nom_titulaire, m.numero, m.banque, m.num_compte].filter(Boolean).join(" — ");
+                    return `<option value="${m.id}">${TYPE_LABELS[m.type] || m.type}${detail ? ` — ${escapeHtml(detail)}` : ""}</option>`;
+                }).join("")
+                : '<option value="">— Aucun moyen configuré —</option>';
+
+            document.getElementById("payEmpTitle").textContent = `Payer ${emp.nom}`;
+            document.getElementById("payEmpBody").innerHTML = `
+                <div class="pay-emp-summary">
+                    <p>${escapeHtml(emp.poste || "Employé")} · Salaire : <strong>${fmtFCFA(emp.salaire)}</strong> / mois</p>
+                </div>
+                ${moyens.length
+                    ? `
+                    <form id="payEmpForm">
+                        <div class="form-group">
+                            <label for="payemp_moyen">Moyen de paiement de l'employé</label>
+                            <select id="payemp_moyen" required>${moyensOptions}</select>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="payemp_montant">Montant (FCFA)</label>
+                                <input type="number" id="payemp_montant" min="0" step="0.01" value="${emp.salaire || ""}" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="payemp_mois">Mois</label>
+                                <input type="month" id="payemp_mois" value="${currentMonth()}" required>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="payemp_ref">Référence (optionnel)</label>
+                            <input type="text" id="payemp_ref" maxlength="80" placeholder="N° de transaction…">
+                        </div>
+                        <p class="unitech-ok">Vous indiquez avoir effectué ce paiement directement à l'employé (hors MIM). L'employé recevra une notification et devra <strong>confirmer la réception</strong>.</p>
+                        <div class="modal-actions">
+                            <button type="button" class="btn btn-secondary" id="payEmpCancel">Annuler</button>
+                            <button type="submit" class="btn btn-primary">Paiement versé</button>
+                        </div>
+                    </form>`
+                    : `
+                    <div class="empty-state">
+                        <p>Cet employé n'a pas encore configuré de moyen de paiement.</p>
+                        <p class="pay-hint">Demandez-lui d'ajouter son moyen depuis son espace employé (Wave, Orange Money, virement…).</p>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" id="payEmpCancel">Fermer</button>
+                    </div>`}
+            `;
+
+            document.getElementById("payEmpModal").style.display = "flex";
+
+            const form = document.getElementById("payEmpForm");
+            if (form) {
+                form.addEventListener("submit", submitPayEmp);
+            }
+            const cancel = document.getElementById("payEmpCancel");
+            if (cancel) cancel.addEventListener("click", () => (document.getElementById("payEmpModal").style.display = "none"));
+        }
+
+        async function submitPayEmp(e) {
+            e.preventDefault();
+            if (!payEmpTarget) return;
+            const form = document.getElementById("payEmpForm");
+            const btn = form.querySelector('button[type="submit"]');
+            btn.disabled = true;
+            try {
+                const res = await apiRequest(`/employes/${payEmpTarget.id}/paiements`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        montant: Number(form.payemp_montant.value),
+                        mois: form.payemp_mois.value,
+                        moyen_employe_id: Number(form.payemp_moyen.value),
+                        reference: form.payemp_ref.value.trim() || null,
+                        statut: "attente",
+                    }),
+                });
+                document.getElementById("payEmpModal").style.display = "none";
+                alert(res.message || "Versement déclaré.");
+                await Promise.all([loadEmployes()]);
+            } catch (err) {
+                alert(err.message);
+                btn.disabled = false;
+            }
+        }
+
+        async function loadSalairesHistory() {
+            const listEl = document.getElementById("salairesHistory");
+            try {
+                const rows = [];
+                for (const emp of employesCache) {
+                    const res = await apiRequest(`/employes/${emp.id}/paiements`);
+                    for (const p of res.data || []) rows.push({ ...p, emp_nom: emp.nom, emp_poste: emp.poste || "" });
+                }
+                if (!rows.length) {
+                    listEl.innerHTML = '<div class="empty-state">Aucun versement de salaire pour le moment.</div>';
+                    return;
+                }
+                rows.sort((a, b) => String(b.created_at || "").localeCompare(String(a.created_at || "")));
+                listEl.innerHTML = rows.slice(0, 20).map((p) => {
+                    const [sLabel, sCls] = SALAIRE_STATUS[p.statut] || [p.statut, "status-info"];
+                    const confirmInfo = p.confirmed_at
+                        ? ` · Confirmé le ${formatDate(p.confirmed_at)}`
+                        : p.rejected_at
+                            ? ` · Refusé le ${formatDate(p.rejected_at)}`
+                            : "";
+                    return `
+                        <div class="crud-card">
+                            <div>
+                                <h3>${escapeHtml(p.emp_nom)} <span class="pay-hint">${escapeHtml(p.emp_poste)}</span></h3>
+                                <p>${formatMois(p.mois)} · ${p.moyen ? escapeHtml(p.moyen.label) : p.methode_paiement ? METHODE_LABELS[p.methode_paiement] : "—"}${p.reference ? ` — réf. ${escapeHtml(p.reference)}` : ""}</p>
+                                <p><span class="status ${sCls}">${sLabel}</span>${confirmInfo}</p>
+                                ${p.rejection_reason ? `<p class="pay-hint">Motif : ${escapeHtml(p.rejection_reason)}</p>` : ""}
+                            </div>
+                            <div class="card-amount">
+                                <strong>${fmtFCFA(p.montant)}</strong>
+                            </div>
+                        </div>`;
+                }).join("");
+            } catch (err) {
+                listEl.innerHTML = `<div class="empty-state">${escapeHtml(err.message)}</div>`;
+            }
+        }
+
+        async function openHistModal(id, nom) {
+            try {
+                const res = await apiRequest(`/employes/${id}/paiements`);
+                const rows = res.data || [];
+                document.getElementById("histTitle").textContent = `Historique — ${nom}`;
+                document.getElementById("histBody").innerHTML = rows.length
+                    ? rows.map((p) => {
+                        const [sLabel, sCls] = SALAIRE_STATUS[p.statut] || [p.statut, "status-info"];
+                        return `
+                            <div class="crud-card">
+                                <div>
+                                    <p><strong>${formatMois(p.mois)}</strong> · ${p.moyen ? escapeHtml(p.moyen.label) : p.methode_paiement ? METHODE_LABELS[p.methode_paiement] : "—"}</p>
+                                    <p><span class="status ${sCls}">${sLabel}</span>${p.confirmed_at ? ` <span class="pay-hint">Confirmé le ${formatDate(p.confirmed_at)}</span>` : ""}${p.rejected_at ? ` <span class="pay-hint">Refusé le ${formatDate(p.rejected_at)}</span>` : ""}</p>
+                                    ${p.rejection_reason ? `<p class="pay-hint">Motif : ${escapeHtml(p.rejection_reason)}</p>` : ""}
+                                </div>
+                                <div class="card-amount"><strong>${fmtFCFA(p.montant)}</strong></div>
+                            </div>`;
+                    }).join("")
+                    : '<div class="empty-state">Aucun versement pour cet employé.</div>';
+                document.getElementById("histModal").style.display = "flex";
+            } catch (err) {
+                alert(err.message);
+            }
+        }
+
+        document.getElementById("employesPayList").addEventListener("click", (e) => {
+            const pay = e.target.closest("[data-emp-pay]");
+            const hist = e.target.closest("[data-emp-hist]");
+            if (pay) openPayEmpModal(pay.dataset.empPay);
+            if (hist) openHistModal(hist.dataset.empHist, hist.dataset.empNom);
+        });
+
+        document.getElementById("histClose").addEventListener("click", () => {
+            document.getElementById("histModal").style.display = "none";
+        });
+        document.getElementById("histModal").addEventListener("click", (e) => {
+            if (e.target.id === "histModal") document.getElementById("histModal").style.display = "none";
+        });
+        document.getElementById("payEmpModal").addEventListener("click", (e) => {
+            if (e.target.id === "payEmpModal") document.getElementById("payEmpModal").style.display = "none";
+        });
+
+        let searchTimer = null;
+        document.getElementById("employeSearch").addEventListener("input", (e) => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => renderEmployes(e.target.value), 150);
+        });
+
         loadData();
+        loadMoyens();
+        loadEmployes();
     </script>
 
     <script src="../PartPublic/sidebar.js"></script>

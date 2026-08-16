@@ -265,7 +265,7 @@ body {
     display: grid;
 
     grid-template-columns:
-        repeat(4, minmax(0, 1fr));
+        repeat(3, minmax(0, 1fr));
 
     gap: 18px;
 
@@ -1747,7 +1747,7 @@ input.pw-strong {
 
 
 
-/* Paiements à valider — flux déclaration propriétaire */
+/* Paiements ï¿½ valider ï¿½ flux dï¿½claration propriï¿½taire */
 .pending-card {
     border-left: 4px solid #f9a825;
 }
@@ -1770,7 +1770,7 @@ input.pw-strong {
 }
 
 /* ============================================================
-   MIM - Assistant de première configuration (onboarding)
+   MIM - Assistant de premiï¿½re configuration (onboarding)
    ============================================================ */
 
 .onboarding-overlay {
@@ -1877,7 +1877,7 @@ input.pw-strong {
 }
 
 /* ============================================================
-   MIM - Paramètres : actions d'importation
+   MIM - Paramï¿½tres : actions d'importation
    ============================================================ */
 
 .param-actions {
@@ -1888,7 +1888,7 @@ input.pw-strong {
 }
 
 /* =========================================================
-   FORMULAIRE LOCATAIRE UNIQUE + RÉSUMÉ CRÉATION
+   FORMULAIRE LOCATAIRE UNIQUE + Rï¿½SUMï¿½ CRï¿½ATION
    ========================================================= */
 
 .form-separator {
@@ -1958,4 +1958,252 @@ input.pw-strong {
     font-size: 13px;
     line-height: 1.5;
     margin: 0 0 14px;
+}
+
+/* =========================================================
+   PAIEMENTS : ONGLETS (locataires / employÃ©s)
+   ========================================================= */
+
+.pay-tabs {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+}
+
+.tab-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 14px 20px;
+    border: 1px solid #e3e0ea;
+    border-radius: 12px;
+    background: #fff;
+    color: #555;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    text-align: left;
+    transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tab-btn .tab-sub {
+    font-size: 12px;
+    font-weight: 500;
+    color: #999;
+}
+
+.tab-btn:hover {
+    border-color: #d0c4e8;
+}
+
+.tab-btn.active {
+    border-color: #5717a5;
+    background: #f3edfb;
+    color: #5717a5;
+    box-shadow: 0 4px 14px rgba(87, 23, 165, 0.12);
+}
+
+.tab-btn.active .tab-sub {
+    color: #7a63a6;
+}
+
+/* =========================================================
+   PAIEMENTS : MOYENS DE RÃ‰CEPTION
+   ========================================================= */
+
+.moyens-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+.moyen-card {
+    border: 1px solid #e5e0ec;
+    border-radius: 12px;
+    background: #fafafa;
+    overflow: hidden;
+}
+
+.moyen-card.moyen-inactif {
+    opacity: 0.65;
+}
+
+.moyen-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: #fff;
+    border-bottom: 1px solid #f0edf5;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+.moyen-body {
+    padding: 12px 14px;
+    font-size: 13px;
+    color: #555;
+}
+
+.moyen-body p {
+    margin-bottom: 4px;
+}
+
+.moyen-body p span {
+    color: #999;
+}
+
+.moyen-instructions {
+    margin-top: 8px;
+    padding: 8px 10px;
+    background: #f3edfb;
+    border-radius: 8px;
+    color: #6b4fa0;
+    font-style: italic;
+}
+
+.moyen-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px 14px;
+    border-top: 1px solid #f0edf5;
+}
+
+/* =========================================================
+   PAIEMENTS : RECHERCHE + SALAIRES
+   ========================================================= */
+
+.search-bar {
+    margin-bottom: 18px;
+}
+
+.search-bar input {
+    width: 100%;
+    max-width: 420px;
+    padding: 12px 14px;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    font-size: 14px;
+    background: #fff;
+}
+
+.search-bar input:focus {
+    outline: none;
+    border-color: #5717a5;
+}
+
+.pay-emp-card {
+    border-left: 4px solid #5717a5;
+}
+
+.pay-emp-summary {
+    margin-bottom: 16px;
+    padding: 12px 14px;
+    background: #f3edfb;
+    border-radius: 10px;
+    color: #5717a5;
+    font-size: 14px;
+}
+
+/* =========================================================
+   NAVIGATION PAR CATÃ‰GORIES (sidebar)
+   ========================================================= */
+
+.nav-category {
+    margin: 14px 6px 6px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.nav-category:first-child {
+    margin-top: 0;
+}
+
+/* =========================================================
+   ACTIONS NÃ‰CESSAIRES (dashboard)
+   ========================================================= */
+
+.actions-grid {
+    display: grid;
+
+    grid-template-columns:
+        repeat(4, minmax(0, 1fr));
+
+    gap: 12px;
+}
+
+.action-card {
+    display: flex;
+
+    flex-direction: column;
+
+    gap: 6px;
+
+    padding: 16px 18px;
+
+    border: 1px solid #eeeeee;
+
+    border-radius: 12px;
+
+    background: #fafafa;
+
+    color: #444;
+
+    text-decoration: none;
+
+    transition:
+        box-shadow 0.2s ease,
+        transform 0.2s ease;
+}
+
+.action-card:hover {
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+
+    transform: translateY(-2px);
+}
+
+.action-card strong {
+    color: #5717a5;
+
+    font-size: 22px;
+}
+
+.action-card.warn {
+    border-color: #f0d48a;
+
+    background: #fffaf0;
+}
+
+.action-card.warn strong {
+    color: #c50974;
+}
+
+.action-card span {
+    color: #777;
+
+    font-size: 12px;
+}
+
+@media (max-width: 1100px) {
+
+    .actions-grid {
+        grid-template-columns:
+            repeat(2, minmax(0, 1fr));
+    }
+
+}
+
+@media (max-width: 550px) {
+
+    .actions-grid {
+        grid-template-columns: 1fr;
+    }
+
 }

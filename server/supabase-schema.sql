@@ -112,6 +112,73 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Employés (fiches créées par le propriétaire)
+CREATE TABLE IF NOT EXISTS public.employes (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    account_uid UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    username TEXT,
+    nom TEXT NOT NULL,
+    poste TEXT,
+    salaire NUMERIC(12,2) NOT NULL DEFAULT 0,
+    email TEXT,
+    phone TEXT,
+    date_embauche DATE,
+    statut TEXT NOT NULL DEFAULT 'actif' CHECK (statut IN ('actif', 'inactif')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Tâches assignées aux employés
+CREATE TABLE IF NOT EXISTS public.tasks (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    employe_uid UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+    titre TEXT NOT NULL,
+    description TEXT,
+    statut TEXT NOT NULL DEFAULT 'a_faire' CHECK (statut IN ('a_faire', 'en_cours', 'termine')),
+    echeance DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Paiements de salaire (déclaration propriétaire -> confirmation employé)
+CREATE TABLE IF NOT EXISTS public.paiements_employes (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    employe_id BIGINT REFERENCES public.employes(id) ON DELETE CASCADE,
+    employe_uid UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    montant NUMERIC(12,2) NOT NULL,
+    mois TEXT NOT NULL,
+    statut TEXT NOT NULL DEFAULT 'attente'
+        CHECK (statut IN ('paye', 'attente', 'non_recu')),
+    date_paiement DATE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    methode_paiement TEXT,
+    reference TEXT,
+    confirmed_at TIMESTAMPTZ,
+    confirmed_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    rejected_at TIMESTAMPTZ,
+    rejection_reason TEXT,
+    moyen_employe_id BIGINT REFERENCES public.moyens_paiement_employes(id) ON DELETE SET NULL
+);
+
+-- Moyens de paiement de l'employé (configurés par lui-même)
+CREATE TABLE IF NOT EXISTS public.moyens_paiement_employes (
+    id BIGSERIAL PRIMARY KEY,
+    employe_uid UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL CHECK (type IN ('wave', 'orange_money', 'virement', 'especes')),
+    nom_titulaire TEXT,
+    numero TEXT,
+    lien_paiement TEXT,
+    banque TEXT,
+    num_compte TEXT,
+    iban TEXT,
+    bic TEXT,
+    instructions TEXT,
+    actif BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Sessions (sauvegarde automatique connexion / déconnexion)
 CREATE TABLE IF NOT EXISTS public.sessions (
     id BIGSERIAL PRIMARY KEY,
@@ -182,6 +249,41 @@ CREATE POLICY "owner_all_notifications" ON public.notifications
     FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "owner_all_sessions" ON public.sessions
     FOR ALL USING (auth.uid() = user_id);
+
+-- Espace employé : propriétaire gère ses employés/tâches/salaires ;
+-- l'employé lit sa fiche, ses tâches, ses paiements et met à jour
+-- ses propres paiements (confirmation / non-réception).
+ALTER TABLE public.employes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.paiements_employes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.moyens_paiement_employes ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "owner_all_employes" ON public.employes
+    FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "owner_all_tasks" ON public.tasks
+    FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "owner_all_paiements_employes" ON public.paiements_employes
+    FOR ALL USING (auth.uid() = user_id);
+CREATE POLICY "owner_select_employe_moyens" ON public.moyens_paiement_employes
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.employes e
+            WHERE e.account_uid = moyens_paiement_employes.employe_uid
+              AND e.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "employe_select_own_employe" ON public.employes
+    FOR SELECT USING (account_uid = auth.uid());
+CREATE POLICY "employe_select_own_tasks" ON public.tasks
+    FOR SELECT USING (employe_uid = auth.uid());
+CREATE POLICY "employe_select_own_paiements" ON public.paiements_employes
+    FOR SELECT USING (employe_uid = auth.uid());
+CREATE POLICY "employe_update_own_paiements" ON public.paiements_employes
+    FOR UPDATE USING (employe_uid = auth.uid());
+CREATE POLICY "employe_all_own_moyens" ON public.moyens_paiement_employes
+    FOR ALL USING (employe_uid = auth.uid())
+    WITH CHECK (employe_uid = auth.uid());
 
 -- ============================================================
 -- Espace locataire : compte en ligne (type de compte 'locataire')

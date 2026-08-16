@@ -1,40 +1,22 @@
-// ============================================================
-// MIM - Moyens de paiement du propriétaire (configuration)
+﻿// ============================================================
+// MIM - Moyens de paiement du propriÃ©taire (configuration)
 //
-// Le propriétaire enregistre les moyens par lesquels il accepte
-// d'être payé (Wave, Orange Money, Virement bancaire, Espèces).
+// Le propriÃ©taire enregistre les moyens par lesquels il accepte
+// d'Ãªtre payÃ© (Wave, Orange Money, Virement bancaire, EspÃ¨ces).
 // Le locataire les consulte en lecture seule (RLS) et paie
-// DIRECTEMENT le propriétaire, hors MIM.
+// DIRECTEMENT le propriÃ©taire, hors MIM.
 //
-// Sécurité : toutes les écritures sont filtrées par req.user.id.
+// SÃ©curitÃ© : toutes les Ã©critures sont filtrÃ©es par req.user.id.
 // ============================================================
 
 import { Router } from 'express';
 import { serviceClient } from '../app.js';
-import { TYPES_MOYENS_PAIEMENT } from '../utils/paiementMethodes.js';
+import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody } from '../utils/paiementMethodes.js';
 
 const router = Router();
 const sb = () => serviceClient();
 
-const CHAMPS = {
-  wave: ['nom_titulaire', 'numero', 'lien_paiement', 'instructions'],
-  orange_money: ['nom_titulaire', 'numero', 'lien_paiement', 'instructions'],
-  virement: ['banque', 'nom_titulaire', 'num_compte', 'iban', 'bic', 'instructions'],
-  especes: ['instructions'],
-};
-
-function sanitizeBody(type, body) {
-  const clean = {};
-  for (const field of CHAMPS[type] || []) {
-    const v = body?.[field];
-    if (v != null && String(v).trim() !== '') clean[field] = String(v).trim().slice(0, 200);
-  }
-  if (body?.actif === false || body?.actif === true) clean.actif = Boolean(body.actif);
-  clean.updated_at = new Date().toISOString();
-  return clean;
-}
-
-// Liste des moyens de paiement du propriétaire.
+// Liste des moyens de paiement du propriÃ©taire.
 router.get('/', async (req, res) => {
   try {
     const { data, error } = await sb()
@@ -52,7 +34,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Création d'un moyen de paiement.
+// CrÃ©ation d'un moyen de paiement.
 router.post('/', async (req, res) => {
   try {
     const type = String((req.body || {}).type || '');
@@ -60,7 +42,7 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Type de moyen de paiement invalide.' });
     }
 
-    const clean = sanitizeBody(type, req.body);
+    const clean = sanitizeMoyenBody(type, req.body);
     const { data, error } = await sb()
       .from('moyens_paiement')
       .insert({ user_id: req.user.id, type, ...clean })
@@ -71,14 +53,14 @@ router.post('/', async (req, res) => {
       console.error('[moyens-paiement] insert :', error.message);
       return res.status(400).json({ success: false, message: 'Erreur lors de l\'enregistrement.' });
     }
-    res.status(201).json({ success: true, data, message: 'Moyen de paiement enregistré.' });
+    res.status(201).json({ success: true, data, message: 'Moyen de paiement enregistrÃ©.' });
   } catch (err) {
     console.error('[moyens-paiement]', err.message);
     res.status(500).json({ success: false, message: 'Erreur lors de l\'enregistrement.' });
   }
 });
 
-// Mise à jour d'un moyen de paiement (filtré par le propriétaire).
+// Mise Ã  jour d'un moyen de paiement (filtrÃ© par le propriÃ©taire).
 router.put('/:id', async (req, res) => {
   try {
     const { data: existing } = await sb()
@@ -92,7 +74,7 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Moyen de paiement introuvable.' });
     }
 
-    const clean = sanitizeBody(existing.type, req.body);
+    const clean = sanitizeMoyenBody(existing.type, req.body);
     const { data, error } = await sb()
       .from('moyens_paiement')
       .update(clean)
@@ -103,16 +85,16 @@ router.put('/:id', async (req, res) => {
 
     if (error) {
       console.error('[moyens-paiement] update :', error.message);
-      return res.status(400).json({ success: false, message: 'Erreur lors de la mise à jour.' });
+      return res.status(400).json({ success: false, message: 'Erreur lors de la mise Ã  jour.' });
     }
-    res.json({ success: true, data, message: 'Moyen de paiement mis à jour.' });
+    res.json({ success: true, data, message: 'Moyen de paiement mis Ã  jour.' });
   } catch (err) {
     console.error('[moyens-paiement]', err.message);
-    res.status(500).json({ success: false, message: 'Erreur lors de la mise à jour.' });
+    res.status(500).json({ success: false, message: 'Erreur lors de la mise Ã  jour.' });
   }
 });
 
-// Suppression (filtrée par le propriétaire).
+// Suppression (filtrÃ©e par le propriÃ©taire).
 router.delete('/:id', async (req, res) => {
   try {
     const { data, error } = await sb()
@@ -127,7 +109,7 @@ router.delete('/:id', async (req, res) => {
     if (!data) {
       return res.status(404).json({ success: false, message: 'Moyen de paiement introuvable.' });
     }
-    res.json({ success: true, data, message: 'Moyen de paiement supprimé.' });
+    res.json({ success: true, data, message: 'Moyen de paiement supprimÃ©.' });
   } catch (err) {
     console.error('[moyens-paiement]', err.message);
     res.status(500).json({ success: false, message: 'Erreur lors de la suppression.' });

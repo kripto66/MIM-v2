@@ -11,7 +11,7 @@ import { gitAutoBackup } from '../utils/gitBackup.js';
 import { tenantEmailFor, usernameIsValid } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { notify } from '../utils/notifications.js';
-import { methodePaiementError } from '../utils/paiementMethodes.js';
+import { methodePaiementError, TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
 
 const router = Router();
 
@@ -48,7 +48,8 @@ router.get('/', async (req, res) => {
     const { data: paiements = [] } = await sb
       .from('paiements_employes')
       .select('*')
-      .eq('user_id', ownerId);
+      .eq('user_id', ownerId)
+      .order('created_at', { ascending: false });
 
     const data = (employes || []).map((e) => {
       const own = (paiements || []).filter((p) => p.employe_id === e.id);
@@ -57,6 +58,8 @@ router.get('/', async (req, res) => {
         salaire: Number(e.salaire || 0),
         paiements_count: own.length,
         total_paye: own.filter((p) => p.statut === 'paye').reduce((s, p) => s + Number(p.montant || 0), 0),
+        en_attente_confirmation: own.filter((p) => p.statut === 'attente').length,
+        dernier_paiement: own[0] || null,
       };
     });
 
@@ -295,27 +298,61 @@ router.delete('/:id', async (req, res) => {
 });
 
 // ============================================================
-// Paiements de salaire d'un employé.
+// Paiements de salaire d'un employé (avec détail de confirmation).
 // ============================================================
 router.get('/:id/paiements', async (req, res) => {
   const sb = serviceClient();
   const ownerId = req.user.id;
 
-  const { data: paiements = [], error } = await sb
-    .from('paiements_employes')
-    .select('*')
-    .eq('employe_id', req.params.id)
+  const { data: employe } = await sb
+    .from('employes')
+    .select('id')
+    .eq('id', req.params.id)
     .eq('user_id', ownerId)
-    .order('created_at', { ascending: false });
+    .maybeSingle();
+
+  if (!employe) {
+    return res.status(404).json({ success: false, message: 'Employé introuvable.' });
+  }
+
+  const [{ data: paiements = [], error }, { data: moyens = [] }] = await Promise.all([
+    sb.from('paiements_employes')
+      .select('*')
+      .eq('employe_id', req.params.id)
+      .eq('user_id', ownerId)
+      .order('created_at', { ascending: false }),
+    sb.from('moyens_paiement_employes').select('id, type, nom_titulaire, numero'),
+  ]);
 
   if (error) {
     console.error('[employes/paiements]', error.message);
     return res.status(500).json({ success: false, message: 'Erreur lors du chargement des paiements.' });
   }
 
-  res.json({ success: true, data: paiements });
+  const moyenById = new Map((moyens || []).map((m) => [String(m.id), m]));
+
+  res.json({
+    success: true,
+    data: (paiements || []).map((p) => {
+      const moyen = p.moyen_employe_id ? moyenById.get(String(p.moyen_employe_id)) : null;
+      return {
+        ...p,
+        montant: Number(p.montant),
+        moyen: moyen ? { id: moyen.id, type: moyen.type, label: TYPE_MOYEN_LABELS[moyen.type] || moyen.type, nom_titulaire: moyen.nom_titulaire, numero: moyen.numero } : null,
+      };
+    }),
+  });
 });
 
+// ============================================================
+// Paiement de salaire d'un employé.
+//
+// Flux actuel : le propriétaire DÉCLARE avoir versé (statut
+// « attente ») ; l'employé confirme la réception (statut « paye »).
+// Le propriétaire ne peut PAS passer seul un paiement à « paye » :
+// seul l'employé confirme. Compatibilité conservée : statut « paye »
+// reste accepté pour les versements vérifiés hors flux (ex. UnitechPay).
+// ============================================================
 router.post('/:id/paiements', async (req, res) => {
   const sb = serviceClient();
   const ownerId = req.user.id;
@@ -333,10 +370,11 @@ router.post('/:id/paiements', async (req, res) => {
 
   const montant = Number(req.body.montant);
   const mois = String(req.body.mois || '').trim();
-  const statut = req.body.statut || 'paye';
+  const statut = req.body.statut || 'attente';
   const datePaiement = req.body.date_paiement || null;
-  const methodePaiement = req.body.methode_paiement || null;
   const reference = req.body.reference || null;
+  const moyenEmployeId = req.body.moyen_employe_id || null;
+  const methodePaiement = req.body.methode_paiement || null;
 
   if (Number.isNaN(montant) || montant <= 0) {
     return res.status(400).json({ success: false, message: 'Le montant doit être supérieur à 0.', errors: { montant: 'Le montant doit être supérieur à 0.' } });
@@ -350,12 +388,29 @@ router.post('/:id/paiements', async (req, res) => {
   if (datePaiement && !isValidDate(datePaiement)) {
     return res.status(400).json({ success: false, message: 'Date de paiement invalide.', errors: { date_paiement: 'Date de paiement invalide.' } });
   }
-  const methodeError = methodePaiementError(methodePaiement);
-  if (methodeError) {
-    return res.status(400).json({ success: false, message: methodeError, errors: { methode_paiement: methodeError } });
-  }
   if (reference && String(reference).length > 80) {
     return res.status(400).json({ success: false, message: 'La référence ne doit pas dépasser 80 caractères.', errors: { reference: 'La référence ne doit pas dépasser 80 caractères.' } });
+  }
+
+  // Le moyen de paiement (si fourni) doit appartenir À CET employé.
+  let effectiveMethode = methodePaiement;
+  if (moyenEmployeId) {
+    const { data: moyen } = await sb
+      .from('moyens_paiement_employes')
+      .select('id, type')
+      .eq('id', moyenEmployeId)
+      .eq('employe_uid', employe.account_uid)
+      .maybeSingle();
+
+    if (!moyen) {
+      return res.status(404).json({ success: false, message: 'Moyen de paiement introuvable pour cet employé.', errors: { moyen_employe_id: 'Moyen de paiement introuvable pour cet employé.' } });
+    }
+    effectiveMethode = moyen.type;
+  }
+
+  const methodeError = methodePaiementError(effectiveMethode);
+  if (methodeError) {
+    return res.status(400).json({ success: false, message: methodeError, errors: { methode_paiement: methodeError } });
   }
 
   const { data, error } = await sb
@@ -368,8 +423,9 @@ router.post('/:id/paiements', async (req, res) => {
       mois,
       statut,
       date_paiement: datePaiement || null,
-      methode_paiement: methodePaiement,
+      methode_paiement: effectiveMethode,
       reference: reference,
+      moyen_employe_id: moyenEmployeId || null,
     })
     .select()
     .single();
@@ -380,12 +436,100 @@ router.post('/:id/paiements', async (req, res) => {
   }
 
   if (employe.account_uid) {
-    const label = statut === 'paye' ? 'payé' : 'enregistré (en attente)';
-    await notify(employe.account_uid, 'salaire', `Votre salaire de ${mois} a été ${label}.`);
+    if (statut === 'attente') {
+      const moyenLabel = effectiveMethode ? TYPE_MOYEN_LABELS[effectiveMethode] || effectiveMethode : null;
+      await notify(
+        employe.account_uid,
+        'salaire',
+        `Votre employeur indique avoir versé votre salaire de ${Number(montant).toLocaleString('fr-FR')} FCFA (${mois})` +
+          (moyenLabel ? ` via ${moyenLabel}` : '') +
+          `. Vérifiez votre compte de paiement puis confirmez la réception depuis votre espace.`
+      );
+    } else {
+      await notify(employe.account_uid, 'salaire', `Votre salaire de ${mois} a été payé.`);
+    }
   }
 
   gitAutoBackup(`Sauvegarde auto : paiement salaire employé ${employe.id} (${mois})`);
-  res.status(201).json({ success: true, data, message: 'Paiement enregistré.' });
+  res.status(201).json({
+    success: true,
+    data,
+    message: statut === 'attente' ? 'Versement déclaré : l\'employé doit confirmer la réception.' : 'Paiement enregistré.',
+  });
+});
+
+// ============================================================
+// Moyens de paiement d'un employé (consultation propriétaire).
+// ============================================================
+router.get('/:id/moyens-paiement', async (req, res) => {
+  const sb = serviceClient();
+  const ownerId = req.user.id;
+
+  const { data: employe } = await sb
+    .from('employes')
+    .select('id, account_uid')
+    .eq('id', req.params.id)
+    .eq('user_id', ownerId)
+    .maybeSingle();
+
+  if (!employe) {
+    return res.status(404).json({ success: false, message: 'Employé introuvable.' });
+  }
+  if (!employe.account_uid) {
+    return res.json({ success: true, data: [] });
+  }
+
+  const { data: moyens = [], error } = await sb
+    .from('moyens_paiement_employes')
+    .select('*')
+    .eq('employe_uid', employe.account_uid)
+    .eq('actif', true)
+    .order('type', { ascending: true });
+
+  if (error) {
+    console.error('[employes/moyens-paiement]', error.message);
+    return res.status(500).json({ success: false, message: 'Erreur lors du chargement des moyens.' });
+  }
+
+  res.json({ success: true, data: moyens });
+});
+
+// Création d'un moyen de paiement pour un employé (par le propriétaire).
+router.post('/:id/moyens-paiement', async (req, res) => {
+  const sb = serviceClient();
+  const ownerId = req.user.id;
+
+  const { data: employe } = await sb
+    .from('employes')
+    .select('id, account_uid')
+    .eq('id', req.params.id)
+    .eq('user_id', ownerId)
+    .maybeSingle();
+
+  if (!employe) {
+    return res.status(404).json({ success: false, message: 'Employé introuvable.' });
+  }
+  if (!employe.account_uid) {
+    return res.status(400).json({ success: false, message: 'Cet employé n\'a pas encore de compte de connexion.' });
+  }
+
+  const type = String((req.body || {}).type || '');
+  if (!TYPES_MOYENS_PAIEMENT.includes(type)) {
+    return res.status(400).json({ success: false, message: 'Type de moyen de paiement invalide.' });
+  }
+
+  const clean = sanitizeMoyenBody(type, req.body);
+  const { data, error } = await sb
+    .from('moyens_paiement_employes')
+    .insert({ employe_uid: employe.account_uid, type, ...clean })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('[employes/moyens-paiement] insert :', error.message);
+    return res.status(400).json({ success: false, message: 'Erreur lors de l\'enregistrement.' });
+  }
+  res.status(201).json({ success: true, data, message: 'Moyen de paiement enregistré.' });
 });
 
 // Solde courant : versé par défaut au mois courant (pré-remplissage frontend).

@@ -10,6 +10,8 @@ import { supabase, authedClient, serviceClient } from '../app.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { tenantEmailFor, usernameIsValid } from '../utils/tenantAccount.js';
+import { notify } from '../utils/notifications.js';
+import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
 
 const router = Router();
 
@@ -366,14 +368,18 @@ router.get('/paiements', requireEmploye, async (req, res) => {
   const { ownerId } = req.employe;
 
   try {
-    const { data: paiements = [], error } = await sb
-      .from('paiements_employes')
-      .select('*')
-      .eq('employe_uid', req.user.id)
-      .eq('user_id', ownerId)
-      .order('created_at', { ascending: false });
+    const [{ data: paiements = [], error }, { data: moyens = [] }] = await Promise.all([
+      sb.from('paiements_employes')
+        .select('*')
+        .eq('employe_uid', req.user.id)
+        .eq('user_id', ownerId)
+        .order('created_at', { ascending: false }),
+      sb.from('moyens_paiement_employes').select('id, type').eq('employe_uid', req.user.id),
+    ]);
 
     if (error) throw error;
+
+    const typeById = new Map((moyens || []).map((m) => [String(m.id), m.type]));
 
     res.json({
       success: true,
@@ -384,11 +390,275 @@ router.get('/paiements', requireEmploye, async (req, res) => {
         statut: p.statut,
         date_paiement: p.date_paiement || null,
         created_at: p.created_at,
+        reference: p.reference || null,
+        methode_paiement: p.methode_paiement || null,
+        moyen_label: p.moyen_employe_id ? TYPE_MOYEN_LABELS[typeById.get(String(p.moyen_employe_id))] || null : null,
+        confirmed_at: p.confirmed_at || null,
+        rejected_at: p.rejected_at || null,
+        rejection_reason: p.rejection_reason || null,
       })),
     });
   } catch (err) {
     console.error('[employe/paiements]', err.message);
     res.status(500).json({ success: false, message: 'Erreur lors du chargement des paiements.' });
+  }
+});
+
+// ============================================================
+// Confirmation de réception d'un salaire par l'employé.
+//
+// Le propriétaire a DÉCLARÉ avoir versé (statut « attente »).
+// Seul l'employé confirme la réception : statut « paye » +
+// confirmed_at + confirmed_by, notification au propriétaire.
+// Mise à jour conditionnelle (statut attendu) : anti-double-clic.
+// ============================================================
+router.post('/paiements/:id/confirmer', requireEmploye, async (req, res) => {
+  const sb = serviceClient();
+  const { employe, ownerId } = req.employe;
+  const uid = req.user.id;
+
+  try {
+    const { data: paiement } = await sb
+      .from('paiements_employes')
+      .select('id, user_id, employe_uid, montant, mois, statut')
+      .eq('id', req.params.id)
+      .eq('employe_uid', uid)
+      .eq('user_id', ownerId)
+      .maybeSingle();
+
+    if (!paiement) {
+      return res.status(404).json({ success: false, message: 'Paiement introuvable.' });
+    }
+    if (paiement.statut !== 'attente') {
+      const message =
+        paiement.statut === 'paye'
+          ? 'Ce paiement est déjà confirmé.'
+          : paiement.statut === 'non_recu'
+            ? 'Vous avez signalé ne pas avoir reçu ce paiement.'
+            : 'Ce paiement ne peut pas être confirmé.';
+      return res.status(400).json({ success: false, message });
+    }
+
+    const { data: updated, error } = await sb
+      .from('paiements_employes')
+      .update({
+        statut: 'paye',
+        confirmed_at: new Date().toISOString(),
+        confirmed_by: uid,
+      })
+      .eq('id', paiement.id)
+      .eq('statut', 'attente')
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error('[employe/confirmer]', error.message);
+      return res.status(500).json({ success: false, message: 'Impossible de confirmer le paiement.' });
+    }
+    if (!updated) {
+      return res.status(409).json({ success: false, message: 'Ce paiement a déjà été traité.' });
+    }
+
+    await notify(
+      ownerId,
+      'salaire',
+      `Paiement confirmé — ${employe.nom || 'Votre employé'} a confirmé avoir reçu son salaire de ` +
+        `${Number(paiement.montant).toLocaleString('fr-FR')} FCFA (${paiement.mois}).`
+    );
+    gitAutoBackup(`Sauvegarde auto : confirmation de salaire par l'employé ${uid}`);
+
+    res.json({ success: true, data: updated, message: 'Paiement confirmé. Votre employeur en a été informé.' });
+  } catch (err) {
+    console.error('[employe/confirmer]', err.message);
+    res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
+  }
+});
+
+// ============================================================
+// « Je n'ai pas reçu le paiement » (refus par l'employé).
+//
+// Le paiement passe à « non_recu » (l'historique est conservé) et
+// le propriétaire est notifié. Motifs fixés + précision libre.
+// ============================================================
+const REJECTION_MOTIFS_SALAIRE = ['Paiement non reçu', 'Montant incorrect', 'Autre'];
+
+router.post('/paiements/:id/non-recus', requireEmploye, async (req, res) => {
+  const sb = serviceClient();
+  const { employe, ownerId } = req.employe;
+  const uid = req.user.id;
+
+  try {
+    const motif = String((req.body || {}).motif || '').trim();
+    if (!motif || motif.length > 200) {
+      return res.status(400).json({ success: false, message: 'Indiquez le motif (200 caractères max).' });
+    }
+
+    const { data: paiement } = await sb
+      .from('paiements_employes')
+      .select('id, user_id, employe_uid, montant, mois, statut')
+      .eq('id', req.params.id)
+      .eq('employe_uid', uid)
+      .eq('user_id', ownerId)
+      .maybeSingle();
+
+    if (!paiement) {
+      return res.status(404).json({ success: false, message: 'Paiement introuvable.' });
+    }
+    if (paiement.statut !== 'attente') {
+      const message =
+        paiement.statut === 'paye'
+          ? 'Ce paiement est déjà confirmé.'
+          : paiement.statut === 'non_recu'
+            ? 'Vous avez déjà signalé ne pas avoir reçu ce paiement.'
+            : 'Ce paiement ne peut pas être refusé.';
+      return res.status(400).json({ success: false, message });
+    }
+
+    const { data: updated, error } = await sb
+      .from('paiements_employes')
+      .update({
+        statut: 'non_recu',
+        rejected_at: new Date().toISOString(),
+        rejection_reason: motif,
+      })
+      .eq('id', paiement.id)
+      .eq('statut', 'attente')
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error('[employe/non-recus]', error.message);
+      return res.status(500).json({ success: false, message: 'Impossible d\'enregistrer le signalement.' });
+    }
+    if (!updated) {
+      return res.status(409).json({ success: false, message: 'Ce paiement a déjà été traité.' });
+    }
+
+    await notify(
+      ownerId,
+      'salaire',
+      `Paiement non reçu — ${employe.nom || 'Votre employé'} indique ne pas avoir reçu son salaire de ` +
+        `${Number(paiement.montant).toLocaleString('fr-FR')} FCFA (${paiement.mois}). Motif : ${motif}.`
+    );
+    gitAutoBackup(`Sauvegarde auto : salaire non reçu signalé par l'employé ${uid}`);
+
+    res.json({ success: true, data: updated, message: 'Signalement enregistré : votre employeur en a été informé.' });
+  } catch (err) {
+    console.error('[employe/non-recus]', err.message);
+    res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
+  }
+});
+
+// ============================================================
+// Moyens de paiement de l'employé (gérés par lui-même).
+// ============================================================
+
+// Liste des moyens de l'employé connecté.
+router.get('/moyens-paiement', requireEmploye, async (req, res) => {
+  const sb = serviceClient();
+
+  try {
+    const { data: moyens = [], error } = await sb
+      .from('moyens_paiement_employes')
+      .select('*')
+      .eq('employe_uid', req.user.id)
+      .order('type', { ascending: true })
+      .order('id', { ascending: true });
+
+    if (error) throw error;
+    res.json({ success: true, data: moyens });
+  } catch (err) {
+    console.error('[employe/moyens-paiement]', err.message);
+    res.status(500).json({ success: false, message: 'Erreur lors du chargement.' });
+  }
+});
+
+// Création d'un moyen de paiement.
+router.post('/moyens-paiement', requireEmploye, async (req, res) => {
+  const sb = serviceClient();
+
+  try {
+    const type = String((req.body || {}).type || '');
+    if (!TYPES_MOYENS_PAIEMENT.includes(type)) {
+      return res.status(400).json({ success: false, message: 'Type de moyen de paiement invalide.' });
+    }
+
+    const clean = sanitizeMoyenBody(type, req.body);
+    const { data, error } = await sb
+      .from('moyens_paiement_employes')
+      .insert({ employe_uid: req.user.id, type, ...clean })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[employe/moyens-paiement] insert :', error.message);
+      return res.status(400).json({ success: false, message: 'Erreur lors de l\'enregistrement.' });
+    }
+    gitAutoBackup(`Sauvegarde auto : moyen de paiement employé ${req.user.id}`);
+    res.status(201).json({ success: true, data, message: 'Moyen de paiement enregistré.' });
+  } catch (err) {
+    console.error('[employe/moyens-paiement]', err.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de l\'enregistrement.' });
+  }
+});
+
+// Mise à jour d'un moyen (filtré par l'employé connecté).
+router.put('/moyens-paiement/:id', requireEmploye, async (req, res) => {
+  const sb = serviceClient();
+
+  try {
+    const { data: existing } = await sb
+      .from('moyens_paiement_employes')
+      .select('id, type')
+      .eq('id', req.params.id)
+      .eq('employe_uid', req.user.id)
+      .maybeSingle();
+
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Moyen de paiement introuvable.' });
+    }
+
+    const clean = sanitizeMoyenBody(existing.type, req.body);
+    const { data, error } = await sb
+      .from('moyens_paiement_employes')
+      .update(clean)
+      .eq('id', existing.id)
+      .eq('employe_uid', req.user.id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[employe/moyens-paiement] update :', error.message);
+      return res.status(400).json({ success: false, message: 'Erreur lors de la mise à jour.' });
+    }
+    res.json({ success: true, data, message: 'Moyen de paiement mis à jour.' });
+  } catch (err) {
+    console.error('[employe/moyens-paiement]', err.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de la mise à jour.' });
+  }
+});
+
+// Suppression d'un moyen (filtré par l'employé connecté).
+router.delete('/moyens-paiement/:id', requireEmploye, async (req, res) => {
+  const sb = serviceClient();
+
+  try {
+    const { data, error } = await sb
+      .from('moyens_paiement_employes')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('employe_uid', req.user.id)
+      .select()
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) {
+      return res.status(404).json({ success: false, message: 'Moyen de paiement introuvable.' });
+    }
+    res.json({ success: true, data, message: 'Moyen de paiement supprimé.' });
+  } catch (err) {
+    console.error('[employe/moyens-paiement]', err.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de la suppression.' });
   }
 });
 

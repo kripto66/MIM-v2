@@ -25,23 +25,25 @@
             </div>
 
             <nav class="sidebar-menu">
-
+                <div class="nav-category">Gestion</div>
                 <a href="dashboard.html">Tableau de bord</a>
                 <a href="biens.html">Mes biens</a>
                 <a href="locataires.html">Locataires & Logements</a>
-                <a href="paiements.html">Paiements</a>
                 <a href="employes.html" class="active">Mes employés</a>
+                <div class="nav-category">Finances</div>
+                <a href="paiements.html">Paiements</a>
+                <div class="nav-category">Suivi</div>
                 <a href="incidents.html">Incidents</a>
                 <a href="prestataires.html">Prestataires</a>
                 <a href="interventions.html">Interventions</a>
                 <a href="notifications.html">Notifications</a>
+                <div class="nav-category">Configuration</div>
                 <a href="parametres.html">Paramètres</a>
-
+                <a href="import.html">Importer / Configurer</a>
             </nav>
 
             <div class="sidebar-footer">
 
-                <button id="backupBtn" type="button">Sauvegarder</button>
                 <button id="logoutBtn" type="button">Déconnexion</button>
 
             </div>
@@ -798,25 +800,8 @@
                     const item = state.taches.find((x) => String(x.id) === String(editBtn.dataset.editTask));
                     if (item) openTaskEdit(item);
                 }
-                if (delBtn) deleteTask(delBtn.dataset.deleteTask);
+if (delBtn) deleteTask(delBtn.dataset.deleteTask);
             });
-
-            const backupBtn = el("backupBtn");
-            if (backupBtn) {
-                backupBtn.addEventListener("click", async () => {
-                    backupBtn.disabled = true;
-                    backupBtn.textContent = "Sauvegarde...";
-                    try {
-                        const data = await apiRequest("/git/backup", { method: "POST" });
-                        showToast(data.message);
-                    } catch (err) {
-                        showToast(err.message, "error");
-                    } finally {
-                        backupBtn.disabled = false;
-                        backupBtn.textContent = "Sauvegarder";
-                    }
-                });
-            }
 
             el("logoutBtn").addEventListener("click", async () => {
                 try {

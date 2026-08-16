@@ -8,13 +8,15 @@ router.get('/dashboard', async (req, res) => {
   const sb = authedClient(req.user.supabase_token);
 
   try {
-    const [{ data: logements }, { data: locataires }, { data: paiements }, { data: incidents }, { data: interventions }] =
+    const [{ data: logements }, { data: locataires }, { data: paiements }, { data: incidents }, { data: interventions }, { data: employes }, { data: salaires }] =
       await Promise.all([
         sb.from('logements').select('id, statut, loyer_mensuel').eq('user_id', userId),
         sb.from('locataires').select('id').eq('user_id', userId),
         sb.from('paiements').select('id, montant, statut, mois').eq('user_id', userId),
         sb.from('incidents').select('id, statut').eq('user_id', userId),
         sb.from('interventions').select('id, statut').eq('user_id', userId),
+        sb.from('employes').select('id').eq('user_id', userId),
+        sb.from('paiements_employes').select('id, statut').eq('user_id', userId),
       ]);
 
     const totalProperties = logements?.length ?? 0;
@@ -42,9 +44,13 @@ router.get('/dashboard', async (req, res) => {
         occupiedProperties: occupied,
         availableProperties: available,
         totalTenants: locataires?.length ?? 0,
+        totalEmployees: employes?.length ?? 0,
         expectedRent,
         paidRent,
         lateRent,
+        lateCount: monthPayments.filter((p) => p.statut === 'retard').length,
+        paiementsEnValidation: (paiements ?? []).filter((p) => p.statut === 'en_validation').length,
+        salairesAttente: (salaires ?? []).filter((p) => p.statut === 'attente').length,
         activeIncidents: incidents?.filter((i) => i.statut !== 'resolu').length ?? 0,
         activeInterventions: interventions?.filter((i) => i.statut !== 'termine').length ?? 0,
       },

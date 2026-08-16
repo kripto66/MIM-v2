@@ -49,80 +49,49 @@
 
             <!-- Menu principal -->
             <nav class="sidebar-menu">
-
-                <!-- Tableau de bord -->
+                <div class="nav-category">Gestion</div>
                 <a href="dashboard.html">
                     Tableau de bord
                 </a>
-
-
-                <!-- Gestion des biens -->
                 <a href="biens.html">
                     Mes biens
                 </a>
-
-
-                <!-- Gestion des locataires et des logements -->
                 <a href="locataires.html">
                     Locataires & Logements
                 </a>
-
-
-                <!-- Gestion des paiements -->
-                <a href="paiements.html">
-                    Paiements
-                </a>
-
-
-                <!-- Gestion des employés -->
                 <a href="employes.html">
                     Mes employés
                 </a>
-
-
-                <!-- Incidents signalés -->
+                <div class="nav-category">Finances</div>
+                <a href="paiements.html">
+                    Paiements
+                </a>
+                <div class="nav-category">Suivi</div>
                 <a href="incidents.html">
                     Incidents
                 </a>
-
-
-                <!-- Prestataires -->
                 <a href="prestataires.html">
                     Prestataires
                 </a>
-
-
-                <!-- Interventions -->
                 <a href="interventions.html">
                     Interventions
                 </a>
-
-
-                <!-- Notifications -->
                 <a href="notifications.html">
                     Notifications
                 </a>
-
-
-                <!-- Paramètres -->
+                <div class="nav-category">Configuration</div>
                 <a href="parametres.html">
                     Paramètres
                 </a>
-
-                <!-- Assistant de configuration / importation -->
                 <a href="import.html" id="setupLink" class="setup-link">
                     Importer / Configurer
                 </a>
-
             </nav>
 
 
             <!-- Déconnexion -->
             <div class="sidebar-footer">
 
-                <button id="backupBtn" type="button">
-                    Sauvegarder
-                </button>
 
                 <button id="logoutBtn" type="button">
                     Déconnexion
@@ -264,6 +233,25 @@
 
 
 
+                <!-- Employés -->
+                <article class="stat-card">
+
+                    <h3>
+                        Employés
+                    </h3>
+
+                    <strong id="totalEmployees">
+                        —
+                    </strong>
+
+                    <p>
+                        Employés actifs
+                    </p>
+
+                </article>
+
+
+
                 <!-- Loyers attendus -->
                 <article class="stat-card">
 
@@ -363,6 +351,58 @@
 
 
             <!-- =================================================
+                 ACTIONS NÉCESSAIRES
+                 ================================================= -->
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+
+                    <h2>
+                        Actions nécessaires
+                    </h2>
+
+                    <a href="paiements.html">
+                        Gérer les paiements
+                    </a>
+
+                </div>
+
+
+                <div class="actions-grid" id="actionsGrid">
+
+                    <a href="paiements.html" id="actValidations" class="action-card">
+                        <strong>—</strong>
+                        <span>Paiements à valider</span>
+                    </a>
+
+                    <a href="paiements.html" id="actSalaires" class="action-card">
+                        <strong>—</strong>
+                        <span>Salaires à confirmer</span>
+                    </a>
+
+                    <a href="paiements.html" id="actRetards" class="action-card">
+                        <strong>—</strong>
+                        <span>Loyers en retard</span>
+                    </a>
+
+                    <a href="incidents.html" id="actIncidents" class="action-card">
+                        <strong>—</strong>
+                        <span>Incidents en cours</span>
+                    </a>
+
+                </div>
+
+
+                <div id="actionsAllDone" class="empty-state" style="display:none;">
+                    ✔ Tout est à jour, aucune action requise.
+                </div>
+
+            </section>
+
+
+
+            <!-- =================================================
                  MES BIENS
                  ================================================= -->
 
@@ -396,42 +436,6 @@
                         - Immeuble A
                         - Maison Dakar
                         - Hôtel MIM
-                    -->
-
-                </div>
-
-            </section>
-
-
-
-            <!-- =================================================
-                 LOGEMENTS
-                 ================================================= -->
-
-            <section class="dashboard-section">
-
-                <div class="section-header">
-
-                    <h2>
-                        Logements
-                    </h2>
-
-                    <a href="locataires.html">
-                        Gérer les logements & locataires
-                    </a>
-
-                </div>
-
-
-                <div id="housingSummary">
-
-                    <!--
-                        Résumé des logements :
-
-                        - Total
-                        - Occupés
-                        - Libres
-                        - En maintenance
                     -->
 
                 </div>

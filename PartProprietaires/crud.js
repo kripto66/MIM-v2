@@ -173,24 +173,7 @@ const CrudPage = {
   },
 
   setupSidebar() {
-    const backupBtn = document.getElementById("backupBtn");
     const logoutBtn = document.getElementById("logoutBtn");
-
-    if (backupBtn) {
-      backupBtn.addEventListener("click", async () => {
-        backupBtn.disabled = true;
-        backupBtn.textContent = "Sauvegarde...";
-        try {
-          const data = await apiRequest("/git/backup", { method: "POST" });
-          showToast(data.message);
-        } catch (err) {
-          showToast(err.message, "error");
-        } finally {
-          backupBtn.disabled = false;
-          backupBtn.textContent = "Sauvegarder";
-        }
-      });
-    }
 
     if (logoutBtn) {
       logoutBtn.addEventListener("click", async () => {
