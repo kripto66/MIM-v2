@@ -17,6 +17,48 @@ export function nextMois(mois) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+// Mois courant au format AAAA-MM (fuseau serveur).
+export function currentMois() {
+  const d = new Date();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+// Crée l'échéance du mois courant pour un locataire venant d'être créé
+// (formulaire unique « Ajouter un locataire »). Si la date d'entrée est
+// dans le futur, l'échéance est créée pour le mois de la date d'entrée.
+// Anti-doublon : rien n'est créé si une échéance existe déjà pour ce mois.
+export async function creerEcheanceInitiale(sb, { userId, locataireId, logementId, montant, dateEntree }) {
+  let mois = currentMois();
+  if (dateEntree) {
+    const m = String(dateEntree).slice(0, 7);
+    if (/^\d{4}-\d{2}$/.test(m) && m > mois) mois = m;
+  }
+
+  const { data: existing } = await sb
+    .from('paiements')
+    .select('id')
+    .eq('locataire_id', locataireId)
+    .eq('mois', mois)
+    .limit(1);
+  if (existing?.length) return { created: false, mois, error: null, existing: true };
+
+  const { data, error } = await sb
+    .from('paiements')
+    .insert({
+      user_id: userId,
+      locataire_id: locataireId,
+      logement_id: logementId,
+      montant: Number(montant),
+      mois,
+      statut: 'attente',
+    })
+    .select()
+    .single();
+
+  if (error) return { created: false, mois, error: error.message };
+  return { created: true, mois, paiement: data };
+}
+
 // Crée l'échéance du mois suivant pour un paiement de loyer VALIDÉ.
 // Montant relu en base (loyer_mensuel du logement) : jamais le client.
 // Ne crée rien si une échéance existe déjà pour ce mois (anti-doublon).

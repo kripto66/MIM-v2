@@ -19,10 +19,11 @@
 //     automatiquement : amadou.diop, amadou.diop2, …).
 // ============================================================
 
-import { tenantEmailFor, usernameIsValid } from './tenantAccount.js';
+import { tenantEmailFor, usernameIsValid, uniqueUsername, INITIAL_PASSWORD } from './tenantAccount.js';
 import { notify } from './notifications.js';
 
-export const INITIAL_PASSWORD = '1234';
+// Ré-export de compatibilité (la logique vit désormais dans tenantAccount.js).
+export { INITIAL_PASSWORD, uniqueUsername };
 export const CATEGORIES = ['biens', 'logements', 'locataires', 'employes'];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -193,39 +194,10 @@ export function parseNumberFr(value) {
 }
 
 // ------------------------------------------------------------
-// Génération des usernames (convention : prenom.nom, puis 2, 3, …)
+// Génération des usernames : uniqueUsername et INITIAL_PASSWORD
+// sont définis dans tenantAccount.js (partagés avec la création
+// d'un locataire depuis le formulaire unique).
 // ------------------------------------------------------------
-
-function slugBase(prenom, nom) {
-  const strip = (s) =>
-    String(s || '')
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase();
-  let base = `${strip(prenom)}.${strip(nom)}`
-    .replace(/[^a-z0-9]+/g, '.')
-    .replace(/^\.+|\.+$/g, '')
-    .replace(/\.{2,}/g, '.');
-  if (base.length < 3) base = 'utilisateur';
-  if (base.length > 30) base = base.slice(0, 30).replace(/\.+$/, '');
-  return base;
-}
-
-async function usernameTaken(sb, username) {
-  const { data } = await sb.from('profiles').select('id').ilike('username', username).maybeSingle();
-  return Boolean(data);
-}
-
-export async function uniqueUsername(sb, prenom, nom) {
-  const base = slugBase(prenom, nom);
-  if (!(await usernameTaken(sb, base))) return base;
-  for (let i = 2; i <= 99; i++) {
-    const candidate = `${base}${i}`.slice(0, 32);
-    if (usernameIsValid(candidate) && !(await usernameTaken(sb, candidate))) return candidate;
-  }
-  const fallback = `${base}${Date.now() % 10000}`.slice(0, 32);
-  return usernameIsValid(fallback) ? fallback : `utilisateur${Date.now() % 100000}`;
-}
 
 export function splitFullName(nom, prenom) {
   const first = String(prenom || '').trim();
@@ -270,7 +242,10 @@ const CATEGORY_DEFS = {
 // ------------------------------------------------------------
 
 export async function prepareImport(sb, ownerId, payload) {
-  const { categories = [], files = {}, duplicatePolicy = 'ignore' } = payload || {};
+  const { categories = [], files = {}, duplicatePolicy = 'ignore', fileContent } = payload || {};
+
+  const contentOf = fileContent || ((f) => String(f?.content || ''));
+  const isCsvEmpty = (f) => !String(contentOf(f) || '').trim();
 
   if (!categories.length) {
     return { error: 'Sélectionnez au moins une catégorie à importer.' };
@@ -280,7 +255,7 @@ export async function prepareImport(sb, ownerId, payload) {
       return { error: `Catégorie inconnue : ${cat}` };
     }
     const file = files[cat];
-    if (!file || !String(file.content || '').trim()) {
+    if (!file || isCsvEmpty(file)) {
       return { error: `Le fichier de la catégorie « ${CATEGORY_DEFS[cat].label} » est vide ou manquant.` };
     }
   }
@@ -295,7 +270,7 @@ export async function prepareImport(sb, ownerId, payload) {
 
   const parsedFiles = {};
   for (const cat of categories) {
-    parsedFiles[cat] = parseCsv(String(files[cat].content || ''));
+    parsedFiles[cat] = parseCsv(contentOf(files[cat]));
   }
 
   if (parsedFiles.biens) {
@@ -372,8 +347,11 @@ export async function prepareImport(sb, ownerId, payload) {
         email = '';
       }
 
+      // Le statut des logements utilise un vocabulaire différent
+      // (libre / occupe / maintenance) : la validation commune
+      // actif/inactif ne s'applique qu'aux autres catégories.
       let statut = v.statut || 'actif';
-      if (!['actif', 'inactif'].includes(statut)) {
+      if (cat !== 'logements' && !['actif', 'inactif'].includes(statut)) {
         report.errors.push({ line, champ: 'statut', message: `Statut « ${statut} » invalide (actif ou inactif).` });
         statut = 'actif';
       }
@@ -728,7 +706,7 @@ async function prepareEmploye(sb, ownerId, report, ctx) {
   }
 
   if (v.bien) {
-    report.warnings.push({ line, message: 'MIM n\'associe pas les employés à un bien : la colonne « Bien » est ignorée.' });
+    report.warnings.push({ line, message: 'Le modèle MIM n\'associe pas les employés à un bien : la colonne « Bien » est ignorée.' });
   }
 
   if (hasLineErrors(report, line)) return;
@@ -791,6 +769,15 @@ export async function executeImport(sb, ownerId, payload) {
   }
 
   const duplicatePolicy = prepared.duplicatePolicy;
+  const contentOf = payload.fileContent || ((f) => String(f?.content || ''));
+
+  // Politique « abort » : un seul doublon suffit pour annuler tout l'import.
+  if (duplicatePolicy === 'abort' && prepared.totals.duplicates > 0) {
+    return {
+      error: `${prepared.totals.duplicates} doublon(s) détecté(s) : l'import a été annulé (politique « abandonner »). Réessayez avec « ignorer » ou « mettre à jour ».`,
+      prepared,
+    };
+  }
 
   const report = {
     categories: [],
@@ -805,7 +792,7 @@ export async function executeImport(sb, ownerId, payload) {
   for (const catReport of prepared.categories) {
     const cat = catReport.category;
     const def = CATEGORY_DEFS[cat];
-    const parsed = parseCsv(String(payload.files[cat].content || ''));
+    const parsed = parseCsv(contentOf(payload.files[cat]));
     const mapping = mapHeaders(parsed);
 
     const result = {
@@ -828,7 +815,7 @@ export async function executeImport(sb, ownerId, payload) {
         if (cat === 'biens') {
           await importBien(sb, ownerId, { line, v, result, duplicatePolicy, bienCache });
         } else if (cat === 'logements') {
-          await importLogement(sb, ownerId, { line, v, result, duplicatePolicy, bienCache });
+          await importLogement(sb, ownerId, { line, v, result, duplicatePolicy, bienCache, logementCache });
         } else if (cat === 'locataires') {
           await importLocataire(sb, ownerId, { line, v, result, duplicatePolicy, logementCache, bienCache, usernameSet });
         } else if (cat === 'employes') {
@@ -912,7 +899,7 @@ async function importBien(sb, ownerId, ctx) {
 }
 
 async function importLogement(sb, ownerId, ctx) {
-  const { line, v, result, duplicatePolicy, bienCache } = ctx;
+  const { line, v, result, duplicatePolicy, bienCache, logementCache } = ctx;
 
   const nom = String(v.nom || '').trim();
   if (!nom) {

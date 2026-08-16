@@ -73,6 +73,39 @@ l'application est accessible sur `http://localhost:3000` (l'usage via XAMPP rest
 | POST | `/api/auth/reset-password` | Nouveau mot de passe (avec `code` du lien envoyé par email) |
 | GET | `/api/stats/dashboard` | Statistiques du tableau de bord |
 | POST | `/api/git/backup` | Sauvegarde git manuelle |
+| GET | `/api/onboarding/status` | L'espace du propriétaire nécessite-t-il une première configuration ? |
+| GET | `/api/import/templates/:cat` | Télécharger le modèle CSV d'une catégorie (`biens`, `logements`, `locataires`, `employes`) |
+| POST | `/api/import/preview` | Validation + aperçu avant import (doublons, usernames générés) |
+| POST | `/api/import/execute` | Exécuter l'import (création des biens, logements, comptes locataires/employés) |
+| GET | `/api/import/meta` | Métadonnées de l'import (dictionnaire catégories/labels/colonnes) |
+
+## Import CSV et onboarding propriétaire
+
+À sa première connexion, le propriétaire est accueilli par un assistant
+(`PartProprietaires/onboarding.js`) qui propose soit d'**importer ses données**
+via des modèles CSV (`PartProprietaires/import.html`, wizard en 5 étapes), soit
+de **configurer manuellement** son espace (parcours existant, inchangé). La
+section « Importation / Exportation » des paramètres permet de relancer
+l'import à tout moment.
+
+Détails :
+
+- Les modèles CSV sont téléchargeables (BOM UTF-8, séparateur `;`, en-têtes
+  français, colonnes surlignées en jaune et sensibles à la casse).
+- L'ordre d'import respecte les dépendances : `biens` → `logements` →
+  `locataires` / `employes`.
+- L'aperçu (`/import/preview`) signale ligne par ligne les erreurs, doublons et
+  avertissements, et génère les usernames (`amadou.diop`, `amadou.diop2`, …).
+- L'exécution (`/import/execute`) crée les biens/logements/locataires/employés
+  **et** les comptes de connexion automatiquement : mot de passe initial
+  `1234` (affiché dans le rapport final, téléchargeable en CSV), avec
+  `must_change_password = true` → le premier login force le changement.
+- Politiques de doublons : `ignore` (défaut), `abort` (refuse tout l'import),
+  `update` (met à jour les champs fournis).
+- Sécurité : l'import n'opère que sur les données du propriétaire connecté
+  (isolation par RLS, `user_id` toujours issu de la session) ; le moteur se
+  trouve dans `server/utils/importCsv.js`, les routes dans
+  `server/routes/import.js`.
 
 ## Sauvegarde automatique
 
@@ -99,6 +132,23 @@ Le script `server/scripts/checkLoyers.js` :
 2. passe en « retard » les échéances « attente » dont le jour `jour_echeance` est dépassé, et notifie le locataire.
 
 Nécessite `SUPABASE_URL` et `SUPABASE_SERVICE_ROLE_KEY` dans `server/.env`.
+
+## Tests
+
+Suite de tests bout en bout (API réelle + Supabase local) dans
+`server/scripts/tests/` :
+
+```
+cd server
+node scripts/tests/run.js --suite=import   # une suite
+node scripts/tests/run.js                  # toutes les suites
+```
+
+Options : `--no-server` (serveur déjà lancé), `--no-seed`, `--suite=<nom>`.
+La suite `import` couvre : statut d'onboarding, modèles CSV, imports biens /
+logements / locataires / employés (comptes créés, mot de passe initial 1234,
+`must_change_password`, usernames uniques), isolation entre propriétaires et
+réimportation (doublons, politiques `abort` / `update`).
 
 ## Base de données
 

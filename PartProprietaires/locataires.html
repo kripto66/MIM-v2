@@ -116,61 +116,62 @@
 
                 <div class="form-group">
                     <label for="nom">Nom complet</label>
-                    <input type="text" id="nom" name="nom" required>
+                    <input type="text" id="nom" name="nom" placeholder="Ex : Amadou Diop" required>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="username">Username (connexion locataire)</label>
-                        <input type="text" id="username" name="username" placeholder="ex : jean.diop" autocomplete="off">
-                        <small class="username-status" id="usernameStatus"></small>
+                        <label for="phone">Téléphone</label>
+                        <input type="tel" id="phone" name="phone" placeholder="Ex : 77 123 45 67">
                     </div>
-                    <div class="form-group">
-                        <label for="password">Mot de passe temporaire</label>
-                        <input type="password" id="password" name="password" placeholder="Minimum 8 caractères" autocomplete="new-password" minlength="8" data-strength>
-                    </div>
-                </div>
-
-                <div class="form-row">
                     <div class="form-group">
                         <label for="email">Email (optionnel)</label>
                         <input type="email" id="email" name="email">
                     </div>
-                    <div class="form-group">
-                        <label for="phone">Téléphone</label>
-                        <input type="tel" id="phone" name="phone">
+                </div>
+
+                <hr class="form-separator">
+
+                <div class="form-group">
+                    <label for="bien_id">Bien / Résidence</label>
+                    <select id="bien_id" name="bien_id"></select>
+                </div>
+
+                <div class="fieldset-block" id="newBienFields" style="display:none;">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="nb_nom">Nom du bien</label>
+                            <input type="text" id="nb_nom" name="nb_nom" placeholder="Ex : Résidence Diop">
+                        </div>
+                        <div class="form-group">
+                            <label for="nb_type">Type</label>
+                            <select id="nb_type" name="nb_type">
+                                <option value="residence">Résidence</option>
+                                <option value="immeuble">Immeuble</option>
+                                <option value="villa">Villa</option>
+                                <option value="terrain">Terrain</option>
+                                <option value="autre">Autre</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label for="logement_id">Logement</label>
+                    <label for="logement_id">Appartement / Logement</label>
                     <select id="logement_id" name="logement_id"></select>
                 </div>
 
-                <div class="form-group" style="display:none;">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="editLgCheckbox">
-                        Modifier ce logement (loyer, adresse, type…)
-                    </label>
-                </div>
-
                 <fieldset class="fieldset-block" id="logementFields" style="display:none;">
-                    <legend>Informations du logement</legend>
+                    <legend>Nouveau logement</legend>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="lg_bien_id">Bien</label>
-                            <select id="lg_bien_id" name="lg_bien_id"></select>
-                        </div>
-                        <div class="form-group">
-                            <label for="lg_nom">Nom du logement</label>
-                            <input type="text" id="lg_nom" name="lg_nom" placeholder="Ex : Appartement B3">
-                        </div>
+                    <div class="form-group">
+                        <label for="lg_nom">Nom du logement</label>
+                        <input type="text" id="lg_nom" name="lg_nom" placeholder="Ex : Appartement 3B">
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="lg_type">Type de logement</label>
+                            <label for="lg_type">Type</label>
                             <select id="lg_type" name="lg_type">
                                 <option value="appartement">Appartement</option>
                                 <option value="chambre">Chambre</option>
@@ -182,21 +183,6 @@
                         </div>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="lg_loyer_mensuel">Loyer mensuel (FCFA)</label>
-                            <input type="number" id="lg_loyer_mensuel" name="lg_loyer_mensuel" min="0" step="0.01">
-                        </div>
-                        <div class="form-group">
-                            <label for="lg_statut">Statut</label>
-                            <select id="lg_statut" name="lg_statut">
-                                <option value="libre">Libre</option>
-                                <option value="occupe">Occupé</option>
-                                <option value="maintenance">En maintenance</option>
-                            </select>
-                        </div>
-                    </div>
-
                     <div class="form-group">
                         <label for="lg_adresse">Adresse du logement</label>
                         <input type="text" id="lg_adresse" name="lg_adresse" placeholder="Ex : Rue 12, Sicap Mbao">
@@ -205,21 +191,33 @@
 
                 <div class="form-row">
                     <div class="form-group">
+                        <label for="loyer_mensuel">Loyer mensuel (FCFA)</label>
+                        <input type="number" id="loyer_mensuel" name="loyer_mensuel" min="0" step="0.01" placeholder="Ex : 175000">
+                        <small class="form-hint" id="loyerHint"></small>
+                    </div>
+                    <div class="form-group">
                         <label for="jour_echeance">Jour d'échéance (1-31)</label>
                         <input type="number" id="jour_echeance" name="jour_echeance" min="1" max="31" placeholder="ex : 5">
                     </div>
+                </div>
+
+                <div class="form-row">
                     <div class="form-group">
                         <label for="date_entree">Date d'entrée</label>
                         <input type="date" id="date_entree" name="date_entree">
                     </div>
+                    <div class="form-group">
+                        <label for="statut">Statut du locataire</label>
+                        <select id="statut" name="statut">
+                            <option value="actif">Actif</option>
+                            <option value="inactif">Inactif</option>
+                        </select>
+                    </div>
                 </div>
 
-                <div class="form-group">
-                    <label for="statut">Statut du locataire</label>
-                    <select id="statut" name="statut">
-                        <option value="actif">Actif</option>
-                        <option value="inactif">Inactif</option>
-                    </select>
+                <div class="form-hint tenant-auto-hint" id="autoAccountHint">
+                    Le compte de connexion du locataire sera créé automatiquement
+                    (username généré, mot de passe initial 1234 à changer à la première connexion).
                 </div>
 
                 <div class="modal-actions">
@@ -228,6 +226,29 @@
                 </div>
 
             </form>
+
+        </div>
+    </div>
+
+    <!-- ====================== MODAL RÉSULTAT (IDENTIFIANTS) ====================== -->
+
+    <div class="modal-overlay" id="resultModal" style="display:none;">
+        <div class="modal">
+
+            <h2>✅ Locataire créé avec succès</h2>
+
+            <div class="result-summary" id="resultSummary"></div>
+
+            <div class="account-credentials" id="accountCredentials" style="display:none;">
+                <p class="result-note">
+                    Le locataire devra modifier son username et son mot de passe lors de sa première connexion.
+                </p>
+                <button type="button" class="btn btn-primary" id="copyCredentialsBtn">Copier les identifiants</button>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="closeResultModal">Fermer</button>
+            </div>
 
         </div>
     </div>
@@ -305,7 +326,6 @@
     </div>
 
     <script src="../PartPublic/form-utils.js"></script>
-    <script src="../PartPublic/password-strength.js"></script>
     <script src="api.js"></script>
     <script src="crud.js"></script>
     <script>
@@ -325,33 +345,35 @@
 
         const el = (id) => document.getElementById(id);
 
-        function usernameValid(u) {
-            return /^[a-z0-9._-]{3,30}$/.test(u);
+        function renderBienOptions(currentId) {
+            const currentIdStr = currentId == null ? null : String(currentId);
+            let html = '<option value="">— Aucun —</option>';
+            html += '<option value="__new_bien__">+ Créer un bien…</option>';
+            for (const b of state.biens) {
+                const selected = String(b.id) === currentIdStr ? " selected" : "";
+                html += `<option value="${b.id}"${selected}>${escapeHtml(b.nom)}</option>`;
+            }
+            return html;
         }
 
-        function renderBienOptions() {
-            return '<option value="">— Aucun —</option>' + state.biens.map(
-                (b) => `<option value="${b.id}">${escapeHtml(b.nom)}</option>`
-            ).join("");
-        }
-
-        function renderLogementOptions(currentId) {
+        function renderLogementOptions(currentId, bienId) {
             const currentIdStr = currentId == null ? null : String(currentId);
             const occupied = new Set(state.tenants.filter((t) => t.logement_id).map((t) => String(t.logement_id)));
             const sorted = [...state.logements].sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
+            const inBien = bienId ? sorted.filter((l) => String(l.bien_id) === String(bienId)) : sorted;
             const current = sorted.find((l) => String(l.id) === currentIdStr);
+            const freeInBien = inBien.filter((l) => !occupied.has(String(l.id)));
 
-            let html = '<option value="">— Aucun —</option>';
-            html += '<option value="__new__">+ Créer un logement…</option>';
+            let html = '<option value="__new__">+ Créer un logement…</option>';
 
             if (current) html += `<option value="${current.id}">${escapeHtml(current.nom)} (actuel)</option>`;
 
-            for (const l of sorted) {
+            for (const l of freeInBien) {
                 if (current && String(l.id) === currentIdStr) continue;
-                if (occupied.has(String(l.id))) continue;
-                const note = l.statut === "occupe" ? " (occupé)" : " (libre)";
+                const note = l.statut === "occupe" ? " (occupé)" : l.statut === "maintenance" ? " (maintenance)" : " (libre)";
                 html += `<option value="${l.id}">${escapeHtml(l.nom)}${note}</option>`;
             }
+            if (freeInBien.length === 0 && !current) html += '<option value="" disabled>— Aucun logement libre dans ce bien —</option>';
             return html;
         }
 
@@ -377,12 +399,9 @@
 
         function lgPayload(form) {
             const payload = {
-                bien_id: form.lg_bien_id.value || null,
                 nom: form.lg_nom.value.trim(),
                 type: form.lg_type.value,
-                loyer_mensuel: form.lg_loyer_mensuel.value,
                 adresse: form.lg_adresse.value.trim(),
-                statut: form.lg_statut.value,
             };
             if (form.lg_type.value === "appartement") payload.nombre_chambres = form.lg_nombre_chambres.value || null;
             return payload;
@@ -390,25 +409,10 @@
 
         function resetLgFields() {
             const form = el("tenantForm");
-            form.lg_bien_id.innerHTML = renderBienOptions();
             form.lg_nom.value = "";
             form.lg_type.value = "appartement";
             form.lg_nombre_chambres.value = "";
-            form.lg_loyer_mensuel.value = "";
-            form.lg_statut.value = "libre";
             form.lg_adresse.value = "";
-            toggleChambresLg();
-        }
-
-        function prefillLgFields(lg) {
-            const form = el("tenantForm");
-            form.lg_bien_id.value = lg.bien_id || "";
-            form.lg_nom.value = lg.nom || "";
-            form.lg_type.value = lg.type || "appartement";
-            form.lg_nombre_chambres.value = lg.nombre_chambres ?? "";
-            form.lg_loyer_mensuel.value = lg.loyer_mensuel ?? "";
-            form.lg_statut.value = lg.statut || "libre";
-            form.lg_adresse.value = lg.adresse || "";
             toggleChambresLg();
         }
 
@@ -424,18 +428,36 @@
             return state.logements.find((l) => String(l.id) === String(val)) || null;
         }
 
+        function selectedBien() {
+            const val = el("bien_id").value;
+            return state.biens.find((b) => String(b.id) === String(val)) || null;
+        }
+
+        function onBienChange() {
+            const val = el("bien_id").value;
+            el("newBienFields").style.display = val === "__new_bien__" ? "block" : "none";
+            el("logement_id").innerHTML = renderLogementOptions(null, val === "__new_bien__" ? null : val);
+            el("logement_id").value = "__new__";
+            onLogementSelectChange();
+        }
+
         function onLogementSelectChange() {
-            const editChk = el("editLgCheckbox");
             const fieldset = el("logementFields");
+            const loyerInput = el("loyer_mensuel");
+            const loyerHint = el("loyerHint");
             const mode = logementModeFromSelect();
 
-            editChk.checked = false;
-            editChk.closest(".form-group").style.display = mode === "existing" && tenantEditId != null ? "block" : "none";
-            fieldset.style.display = "none";
+            fieldset.style.display = mode === "new" ? "block" : "none";
+            if (mode === "new") resetLgFields();
 
-            if (mode === "new") {
-                fieldset.style.display = "block";
-                resetLgFields();
+            const lg = selectedLogement();
+            if (lg) {
+                loyerInput.value = lg.loyer_mensuel ?? "";
+                loyerInput.disabled = true;
+                loyerHint.textContent = "Loyer du logement sélectionné (modifiable depuis « Logements »).";
+            } else {
+                loyerInput.disabled = false;
+                loyerHint.textContent = "";
             }
         }
 
@@ -542,18 +564,18 @@
             clearFormErrors(form);
             el("tenantId").value = "";
             el("tenantModalTitle").textContent = "Ajouter un locataire";
-            form.username.disabled = false;
-            form.password.disabled = false;
-            el("usernameStatus").textContent = "";
+            el("autoAccountHint").style.display = "block";
+            el("newBienFields").style.display = "none";
             el("logementFields").style.display = "none";
-            el("editLgCheckbox").checked = false;
-            el("editLgCheckbox").closest(".form-group").style.display = "none";
-            el("logement_id").innerHTML = renderLogementOptions(null);
-            el("logement_id").value = "";
-            el("lg_bien_id").innerHTML = renderBienOptions();
-            form.lg_statut.value = "libre";
+            el("bien_id").innerHTML = renderBienOptions(null);
+            el("bien_id").value = state.biens.length ? String(state.biens[0].id) : "__new_bien__";
+            el("logement_id").innerHTML = renderLogementOptions(null, el("bien_id").value);
+            el("logement_id").value = "__new__";
+            el("loyer_mensuel").disabled = false;
+            el("loyerHint").textContent = "";
             form.lg_type.value = "appartement";
             toggleChambresLg();
+            onLogementSelectChange();
             el("tenantModal").style.display = "flex";
         }
 
@@ -564,9 +586,8 @@
             clearFormErrors(form);
             el("tenantId").value = item.id;
             el("tenantModalTitle").textContent = "Modifier le locataire";
-            form.username.disabled = true;
-            form.password.disabled = true;
-            el("usernameStatus").textContent = "Le username et le mot de passe ne se modifient pas ici.";
+            el("autoAccountHint").style.display = "none";
+            el("newBienFields").style.display = "none";
             form.nom.value = item.nom || "";
             form.email.value = item.email || "";
             form.phone.value = item.phone || "";
@@ -575,12 +596,17 @@
             form.statut.value = item.statut || "actif";
 
             const currentId = item.logement_id || null;
-            el("logement_id").innerHTML = renderLogementOptions(currentId);
-            el("logement_id").value = currentId || "";
+            const lg = currentId ? state.logements.find((l) => String(l.id) === String(currentId)) : null;
+            el("bien_id").innerHTML = renderBienOptions(lg?.bien_id || null);
+            el("bien_id").value = lg?.bien_id || "";
+            el("logement_id").innerHTML = renderLogementOptions(currentId, lg?.bien_id || null);
+            el("logement_id").value = currentId || "__new__";
             el("logementFields").style.display = "none";
-            el("editLgCheckbox").checked = false;
-            el("editLgCheckbox").closest(".form-group").style.display = currentId ? "block" : "none";
-            el("lg_bien_id").innerHTML = renderBienOptions();
+            el("loyer_mensuel").value = lg?.loyer_mensuel ?? "";
+            el("loyer_mensuel").disabled = false;
+            el("loyerHint").textContent = currentId
+                ? "Le loyer est enregistré sur le logement et sera mis à jour."
+                : "";
             el("tenantModal").style.display = "flex";
         }
 
@@ -593,13 +619,9 @@
 
             const editing = tenantEditId != null;
             const mode = logementModeFromSelect();
-            const editLinked = el("editLgCheckbox").checked;
-
+            const createNewBien = el("bien_id").value === "__new_bien__";
             const lgRules = [
-                { name: "lg_bien_id", test: (i) => !i.value, message: "Choisissez le bien du logement." },
                 { name: "lg_nom", test: (i) => !i.value.trim(), message: "Le nom du logement est obligatoire." },
-                { name: "lg_loyer_mensuel", test: (i) => i.value === "" || Number(i.value) <= 0, message: "Saisissez un loyer mensuel valide." },
-                { name: "lg_adresse", test: (i) => !i.value.trim(), message: "L'adresse du logement est obligatoire." },
                 {
                     name: "lg_nombre_chambres",
                     test: (i) => form.lg_type.value === "appartement" && (i.value === "" || Number(i.value) < 1),
@@ -609,26 +631,20 @@
 
             const errors = validateFields(form, [
                 { name: "nom", test: (i) => !i.value.trim(), message: "Le nom complet est obligatoire." },
-                ...(!editing
-                    ? [
-                        {
-                            name: "username",
-                            test: (i) => !usernameValid(i.value.trim()),
-                            message: "Username invalide : lettres minuscules, chiffres, . _ - (3 à 30 caractères).",
-                        },
-                        {
-                            name: "password",
-                            test: (i) => mimPasswordRuleMessage(i.value) !== null,
-                            message: mimPasswordRuleMessage(form.password.value) || "Mot de passe trop faible.",
-                        },
-                    ]
-                    : []),
+                { name: "bien_id", test: (i) => !i.value, message: "Choisissez le bien / résidence." },
+                ...(createNewBien ? [
+                    { name: "nb_nom", test: (i) => !i.value.trim(), message: "Le nom du bien est obligatoire." },
+                ] : []),
                 {
                     name: "jour_echeance",
                     test: (i) => i.value !== "" && (Number(i.value) < 1 || Number(i.value) > 31),
                     message: "Le jour d'échéance doit être entre 1 et 31.",
                 },
-                ...(mode === "new" || (mode === "existing" && editLinked) ? lgRules : []),
+                ...(mode === "new" ? [...lgRules, {
+                    name: "loyer_mensuel",
+                    test: (i) => i.value === "" || Number(i.value) <= 0,
+                    message: "Saisissez un loyer mensuel valide.",
+                }] : []),
             ]);
 
             if (Object.keys(errors).length) {
@@ -636,41 +652,61 @@
                 return;
             }
 
-            const payload = {
-                nom: form.nom.value.trim(),
-                email: form.email.value.trim(),
-                phone: form.phone.value.trim(),
-                jour_echeance: form.jour_echeance.value,
-                date_entree: form.date_entree.value,
-                statut: form.statut.value,
-            };
-            if (!editing) {
-                payload.username = form.username.value.trim();
-                payload.password = form.password.value;
-            }
-
-            if (mode === "new") {
-                if (editing) payload.logement_new = lgPayload(form);
-                else payload.logement = lgPayload(form);
-            } else if (mode === "existing") {
-                payload.logement_id = form.logement_id.value;
-                if (editLinked) payload.logement_update = { id: form.logement_id.value, ...lgPayload(form) };
-            } else {
-                payload.logement_id = "";
-            }
-
             const originalLabel = btn.textContent;
             btn.disabled = true;
             btn.textContent = "Enregistrement...";
 
             try {
-                if (editing) {
-                    await apiRequest(`/locataires/${tenantEditId}`, { method: "PUT", body: JSON.stringify(payload) });
-                } else {
-                    await apiRequest("/locataires", { method: "POST", body: JSON.stringify(payload) });
+                let bienId = el("bien_id").value;
+                if (createNewBien) {
+                    const bien = await apiRequest("/biens", {
+                        method: "POST",
+                        body: JSON.stringify({ nom: form.nb_nom.value.trim(), type: form.nb_type.value }),
+                    });
+                    bienId = bien.data.id;
                 }
-                showToast(editing ? "Locataire modifié avec succès." : "Locataire créé avec succès.");
+
+                const payload = {
+                    nom: form.nom.value.trim(),
+                    email: form.email.value.trim(),
+                    phone: form.phone.value.trim(),
+                    jour_echeance: form.jour_echeance.value,
+                    date_entree: form.date_entree.value,
+                    statut: form.statut.value,
+                };
+
+                if (mode === "new") {
+                    const lg = { ...lgPayload(form), bien_id: bienId, loyer_mensuel: form.loyer_mensuel.value };
+                    if (editing) payload.logement_new = lg;
+                    else payload.logement = lg;
+                } else if (mode === "existing") {
+                    payload.logement_id = form.logement_id.value;
+                    if (editing) {
+                        payload.logement_update = {
+                            id: form.logement_id.value,
+                            loyer_mensuel: form.loyer_mensuel.value,
+                        };
+                    }
+                } else {
+                    payload.logement_id = "";
+                }
+
+                if (!editing) payload.autoAccount = true;
+
+                let res;
+                if (editing) {
+                    res = await apiRequest(`/locataires/${tenantEditId}`, { method: "PUT", body: JSON.stringify(payload) });
+                } else {
+                    res = await apiRequest("/locataires", { method: "POST", body: JSON.stringify(payload) });
+                }
+
                 el("tenantModal").style.display = "none";
+
+                if (!editing && res.autoAccount && res.account) {
+                    showResultSummary(res);
+                } else {
+                    showToast(editing ? "Locataire modifié avec succès." : "Locataire créé avec succès.");
+                }
                 await loadAll();
             } catch (err) {
                 const mapped = {};
@@ -683,6 +719,33 @@
                 btn.disabled = false;
                 btn.textContent = originalLabel;
             }
+        }
+
+        function showResultSummary(res) {
+            const data = res.data;
+            const lg = res.logement || state.logements.find((l) => String(l.id) === String(data.logement_id));
+            const bien = lg && state.biens.find((b) => String(b.id) === String(lg.bien_id));
+            const loyer = Number(lg?.loyer_mensuel ?? data.loyer_mensuel ?? 0);
+
+            const rows = [
+                ["Nom", escapeHtml(data.nom)],
+                ["Appartement", lg ? `${escapeHtml(lg.nom)}${bien ? ` · ${escapeHtml(bien.nom)}` : ""}` : "—"],
+                ["Loyer", `${loyer.toLocaleString("fr-FR")} FCFA`],
+                ["Échéance", data.jour_echeance ? `le ${escapeHtml(data.jour_echeance)} de chaque mois` : "—"],
+                ["Compte", escapeHtml(res.account.username)],
+                ["Mot de passe initial", escapeHtml(res.account.password)],
+            ];
+            el("resultSummary").innerHTML = rows
+                .map(([k, v]) => `<div class="result-row"><span>${k}</span><strong>${v}</strong></div>`)
+                .join("");
+            if (res.echeance && res.echeance.mois) {
+                el("resultSummary").innerHTML +=
+                    `<div class="result-row"><span>Échéance créée</span><strong>${escapeHtml(res.echeance.mois)}</strong></div>`;
+            }
+            const creds = el("accountCredentials");
+            creds.style.display = "block";
+            creds.dataset.credentials = `Username : ${res.account.username}\nMot de passe : ${res.account.password}\nNom : ${data.nom}`;
+            el("resultModal").style.display = "flex";
         }
 
         async function deleteTenant(id) {
@@ -820,50 +883,26 @@
             el("cancelLogementModal").addEventListener("click", () => (el("logementModal").style.display = "none"));
             el("tenantModal").addEventListener("click", (e) => { if (e.target === el("tenantModal")) el("tenantModal").style.display = "none"; });
             el("logementModal").addEventListener("click", (e) => { if (e.target === el("logementModal")) el("logementModal").style.display = "none"; });
+            el("closeResultModal").addEventListener("click", () => (el("resultModal").style.display = "none"));
+            el("resultModal").addEventListener("click", (e) => { if (e.target === el("resultModal")) el("resultModal").style.display = "none"; });
+            el("copyCredentialsBtn").addEventListener("click", async () => {
+                const creds = el("accountCredentials").dataset.credentials || "";
+                try {
+                    await navigator.clipboard.writeText(creds);
+                    const b = el("copyCredentialsBtn");
+                    b.textContent = "Identifiants copiés ✓";
+                    setTimeout(() => (b.textContent = "Copier les identifiants"), 2000);
+                } catch (err) {
+                    showToast("Impossible de copier les identifiants.", "error");
+                }
+            });
 
             el("tenantForm").addEventListener("submit", submitTenant);
             el("logementForm").addEventListener("submit", submitLogement);
             el("logement_id").addEventListener("change", onLogementSelectChange);
-            el("editLgCheckbox").addEventListener("change", () => {
-                const fieldset = el("logementFields");
-                if (el("editLgCheckbox").checked) {
-                    const lg = selectedLogement();
-                    if (lg) {
-                        fieldset.style.display = "block";
-                        prefillLgFields(lg);
-                    } else {
-                        el("editLgCheckbox").checked = false;
-                    }
-                } else {
-                    fieldset.style.display = "none";
-                }
-            });
+            el("bien_id").addEventListener("change", onBienChange);
             el("lg_type").addEventListener("change", toggleChambresLg);
             el("lgm_type").addEventListener("change", toggleChambresLgm);
-
-            el("username").addEventListener("blur", async () => {
-                const input = el("username");
-                const status = el("usernameStatus");
-                const value = input.value.trim();
-                if (!value) { status.textContent = ""; status.className = "username-status"; return; }
-                if (!usernameValid(value)) {
-                    status.textContent = "Lettres minuscules, chiffres, . _ - (3 à 30 caractères).";
-                    status.className = "username-status username-taken";
-                    return;
-                }
-                try {
-                    const { available } = await apiRequest("/auth/username-available?username=" + encodeURIComponent(value));
-                    if (available) {
-                        status.textContent = "Disponible";
-                        status.className = "username-status username-ok";
-                    } else {
-                        status.textContent = "Ce nom d'utilisateur est déjà utilisé.";
-                        status.className = "username-status username-taken";
-                    }
-                } catch (err) {
-                    status.textContent = "";
-                }
-            });
 
             el("locatairesList").addEventListener("click", (e) => {
                 const editBtn = e.target.closest("[data-edit-t]");

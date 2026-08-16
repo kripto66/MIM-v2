@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { authedClient, serviceClient } from '../app.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
-import { tenantEmailFor, usernameIsValid } from '../utils/tenantAccount.js';
+import { tenantEmailFor, usernameIsValid, uniqueUsername, splitFullName, INITIAL_PASSWORD } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { notify, tenantUidOfLogement, tenantUidOfLocataire, logementNomOf } from '../utils/notifications.js';
 import { methodePaiementError } from '../utils/paiementMethodes.js';
+import { creerEcheanceInitiale } from '../utils/echeances.js';
 
 const SCHEMAS = {
   biens: {
@@ -357,45 +358,61 @@ export function createCrudRouter(tableName) {
 
   // ============================================================
   // Création d'un locataire AVEC un compte d'authentification.
-  // Règle métier : seul le propriétaire crée les comptes locataires
-  // (username + mot de passe temporaire, email optionnel).
+  //
+  // Deux modes :
+  //   - mode manuel (historique) : le propriétaire fournit lui-même
+  //     username + mot de passe (et le compte est créé tel quel) ;
+  //   - mode automatique (formulaire unique « Ajouter un locataire ») :
+  //     MIM génère le username (amadou.diop, amadou.diop2, …), le mot
+  //     de passe initial (1234, must_change_password = true), crée le
+  //     logement embarqué si demandé, l'échéance du mois courant et
+  //     renvoie un résumé des identifiants au propriétaire.
+  //
+  // Les données sensibles (user_id, loyer) ne proviennent JAMAIS du
+  // client : user_id vient de la session, le loyer de l'échéance est
+  // relu depuis logements.loyer_mensuel.
   // ============================================================
   async function createTenantWithAccount(req, res) {
     const admin = serviceClient();
     const ownerId = userId(req);
 
+    const autoAccount = !req.body?.username && !req.body?.password;
     const username = String(req.body.username || '').trim().toLowerCase();
-    const password = String(req.body.password || '');
+    const password = autoAccount ? INITIAL_PASSWORD : String(req.body.password || '');
     const nom = String(req.body.nom || '').trim();
     const logementNew = req.body.logement && typeof req.body.logement === 'object' ? req.body.logement : null;
     let logementId = logementNew ? null : req.body.logement_id || null;
     let createdLogementId = null;
+    let createdLogement = null;
     const email = req.body.email ? String(req.body.email).trim() : null;
     const phone = req.body.phone ? String(req.body.phone).trim() : null;
     const dateEntree = req.body.date_entree || null;
     const rawJour = req.body.jour_echeance;
     const jourEcheance = rawJour === '' || rawJour == null ? 1 : Number(rawJour);
     const statut = req.body.statut || 'actif';
+    let generatedUsername = null;
 
     if (!nom) {
       return res.status(400).json({ success: false, message: 'Le nom est obligatoire.', errors: { nom: 'Le nom est obligatoire.' } });
     }
 
-    if (!usernameIsValid(username)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Le username doit contenir entre 3 et 32 caractères (lettres minuscules, chiffres, . _ -).',
-        errors: { username: 'Le username doit contenir au moins 3 caractères (lettres minuscules, chiffres, . _ -).' },
-      });
+    if (!autoAccount) {
+      if (!usernameIsValid(username)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Le username doit contenir entre 3 et 32 caractères (lettres minuscules, chiffres, . _ -).',
+          errors: { username: 'Le username doit contenir au moins 3 caractères (lettres minuscules, chiffres, . _ -).' },
+        });
+      }
+
+      const pwError = passwordRuleError(password);
+      if (pwError) {
+        return res.status(400).json({ success: false, message: pwError, errors: { password: pwError } });
+      }
     }
 
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ success: false, message: 'Adresse email invalide.', errors: { email: 'Adresse email invalide.' } });
-    }
-
-    const pwError = passwordRuleError(password);
-    if (pwError) {
-      return res.status(400).json({ success: false, message: pwError, errors: { password: pwError } });
     }
 
     const jour = Number(jourEcheance);
@@ -404,35 +421,48 @@ export function createCrudRouter(tableName) {
     }
 
     // Un propriétaire ne peut créer un locataire que pour ses propres logements.
+    let logementLoyer = null;
     if (logementId) {
       const { data: logement, error: logementError } = await admin
         .from('logements')
-        .select('id, user_id')
+        .select('id, user_id, loyer_mensuel')
         .eq('id', logementId)
         .maybeSingle();
 
       if (logementError || !logement || logement.user_id !== ownerId) {
         return res.status(400).json({ success: false, message: 'Logement introuvable ou ne vous appartient pas.', errors: { logement_id: 'Logement introuvable ou ne vous appartient pas.' } });
       }
+      logementLoyer = logement.loyer_mensuel;
     }
 
-    // Création d'un logement embarqué (page fusionnée locataires / logements).
     // Username unique dans toute l'application (messages clairs, pas d'erreur technique).
-    const { data: existingUsername } = await admin
-      .from('profiles')
-      .select('id')
-      .ilike('username', username)
-      .maybeSingle();
+    if (!autoAccount) {
+      const { data: existingUsername } = await admin
+        .from('profiles')
+        .select('id')
+        .ilike('username', username)
+        .maybeSingle();
 
-    if (existingUsername) {
-      return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+      if (existingUsername) {
+        return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+      }
+    } else {
+      // Mode automatique : username généré depuis le nom complet.
+      const { prenom, nom: nomFamille } = splitFullName(nom);
+      generatedUsername = await uniqueUsername(admin, prenom, nomFamille);
+      if (!generatedUsername) {
+        return res.status(400).json({ success: false, message: 'Impossible de générer un nom d\'utilisateur unique pour ce locataire.' });
+      }
     }
 
-    // Création d'un logement embarqué (page fusionnée locataires / logements).
-    // Placée après la vérification du username pour ne pas laisser un logement
+    // Création d'un logement embarqué (formulaire unique).
+    // Placée après les vérifications pour ne pas laisser un logement
     // orphelin en cas de rejet du formulaire.
     if (logementNew) {
-      const created = await createLogementForOwner(admin, ownerId, logementNew);
+      const created = await createLogementForOwner(admin, ownerId, {
+        ...logementNew,
+        statut: statut === 'actif' ? 'occupe' : 'libre',
+      });
       if (created.errors || created.error) {
         const errors = created.errors
           ? Object.fromEntries(Object.entries(created.errors).map(([k, v]) => [`logement_${k}`, v]))
@@ -445,10 +475,15 @@ export function createCrudRouter(tableName) {
       }
       logementId = created.data.id;
       createdLogementId = created.data.id;
+      createdLogement = created.data;
+      logementLoyer = created.data.loyer_mensuel;
     }
 
     // Un logement ne peut avoir qu'un seul locataire actif.
     if (statut === 'actif' && (await logementHasOtherActiveTenant(admin, ownerId, logementId, null))) {
+      if (createdLogementId) {
+        await admin.from('logements').delete().eq('id', createdLogementId).catch(() => {});
+      }
       return res.status(400).json({
         success: false,
         message: 'Ce logement est déjà occupé par un autre locataire actif.',
@@ -456,15 +491,17 @@ export function createCrudRouter(tableName) {
       });
     }
 
+    const finalUsername = autoAccount ? generatedUsername : username;
+
     const { data: createdUser, error: createError } = await admin.auth.admin.createUser({
-      email: tenantEmailFor(username),
+      email: tenantEmailFor(finalUsername),
       password,
       email_confirm: true,
       user_metadata: {
         account_type: 'locataire',
         role: 'locataire',
         name: nom,
-        username,
+        username: finalUsername,
         phone: phone || '',
         must_change_password: true,
       },
@@ -472,7 +509,7 @@ export function createCrudRouter(tableName) {
 
     if (createError || !createdUser?.user?.id) {
       if (createdLogementId) {
-        await admin.from('logements').delete().eq('id', createdLogementId);
+        await admin.from('logements').delete().eq('id', createdLogementId).catch(() => {});
       }
       const msg = String(createError?.message || '').toLowerCase();
       if (msg.includes('already') || msg.includes('existe')) {
@@ -487,7 +524,7 @@ export function createCrudRouter(tableName) {
     const body = {
       user_id: ownerId,
       account_uid: accountUid,
-      username,
+      username: finalUsername,
       nom,
       email,
       phone,
@@ -501,7 +538,7 @@ export function createCrudRouter(tableName) {
 
     if (error) {
       if (createdLogementId) {
-        await admin.from('logements').delete().eq('id', createdLogementId);
+        await admin.from('logements').delete().eq('id', createdLogementId).catch(() => {});
       }
       await admin.auth.admin.deleteUser(accountUid).catch(() => {});
       console.error('[createTenant]', error.message);
@@ -516,14 +553,50 @@ export function createCrudRouter(tableName) {
         .eq('user_id', ownerId);
     }
 
-    await notify(accountUid, 'info', 'Votre compte locataire a été créé par votre propriétaire. À votre première connexion, vous devrez choisir un nouveau mot de passe.');
-    gitAutoBackup(`Sauvegarde auto : ajout dans locataires (avec compte ${username})`);
+    // Échéance initiale : créée uniquement en mode automatique (formulaire
+    // unique). En mode manuel (username/password fournis par le propriétaire),
+    // le comportement historique est conservé : l'échéance du mois courant
+    // est créée par le cron checkLoyers.
+    let echeance = null;
+    if (autoAccount && logementId && logementLoyer != null) {
+      echeance = await creerEcheanceInitiale(admin, {
+        userId: ownerId,
+        locataireId: data.id,
+        logementId,
+        montant: logementLoyer,
+        dateEntree,
+      });
+      if (echeance.error) {
+        await admin.from('paiements').delete().eq('locataire_id', data.id).catch(() => {});
+        await admin.from('locataires').delete().eq('id', data.id).eq('user_id', ownerId).catch(() => {});
+        await admin.auth.admin.deleteUser(accountUid).catch(() => {});
+        if (createdLogementId) {
+          await admin.from('logements').delete().eq('id', createdLogementId).catch(() => {});
+        }
+        console.error('[createTenant] échéance initiale :', echeance.error);
+        return res.status(400).json({ success: false, message: 'Impossible de créer l\'échéance du loyer. Veuillez réessayer.' });
+      }
+    }
 
-    res.status(201).json({ success: true, data, accountCreated: true });
+    await notify(accountUid, 'info', 'Votre compte locataire a été créé par votre propriétaire. À votre première connexion, vous devrez choisir un nouveau mot de passe.');
+    gitAutoBackup(`Sauvegarde auto : ajout dans locataires (avec compte ${finalUsername})`);
+
+    res.status(201).json({
+      success: true,
+      data,
+      accountCreated: true,
+      autoAccount,
+      account: autoAccount ? { username: finalUsername, password: INITIAL_PASSWORD } : undefined,
+      logement: createdLogement || null,
+      echeance: echeance && echeance.created ? { mois: echeance.mois } : null,
+    });
   }
 
   router.post('/', async (req, res) => {
-    if (tableName === 'locataires' && req.body?.username && req.body?.password) {
+    if (
+      tableName === 'locataires' &&
+      (req.body?.username || req.body?.password || req.body?.logement || req.body?.autoAccount)
+    ) {
       return createTenantWithAccount(req, res);
     }
 

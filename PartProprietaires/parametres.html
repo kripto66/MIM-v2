@@ -138,6 +138,25 @@
             <section class="dashboard-section">
 
                 <div class="section-header">
+                    <h2>Importation / Exportation</h2>
+                </div>
+
+                <p class="muted" style="margin-bottom:15px;">
+                    Importez de nouveaux biens, logements, locataires ou employés à partir de fichiers CSV.
+                    Les comptes de connexion sont créés automatiquement (mot de passe initial à changer
+                    à la première connexion).
+                </p>
+
+                <div class="param-actions">
+                    <a href="import.html" class="btn btn-primary">📥 Importer des données</a>
+                    <a href="import.html" class="btn btn-secondary" id="resumeSetupLink" hidden>Reprendre l'assistant de configuration</a>
+                </div>
+
+            </section>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
                     <h2>Sauvegarde</h2>
                 </div>
 
@@ -202,6 +221,7 @@
 
     <script src="api.js"></script>
     <script src="crud.js"></script>
+    <script src="onboarding.js"></script>
     <script>
         const ACCOUNT_TYPE_LABEL = {
             proprietaire: "Propriétaire",
@@ -370,6 +390,14 @@
             loadProfile();
             loadSubscription();
             loadMoyens();
+
+            // Assistant de configuration : lien « reprendre » si l'espace est vide.
+            Onboarding.needsSetup()
+                .then((needs) => {
+                    const link = document.getElementById("resumeSetupLink");
+                    if (link) link.hidden = !needs;
+                })
+                .catch(() => {});
 
             document.getElementById("profileForm").addEventListener("submit", async (e) => {
                 e.preventDefault();
