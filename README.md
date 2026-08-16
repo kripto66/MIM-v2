@@ -78,6 +78,19 @@ l'application est accessible sur `http://localhost:3000` (l'usage via XAMPP rest
 | POST | `/api/import/preview` | Validation + aperçu avant import (doublons, usernames générés) |
 | POST | `/api/import/execute` | Exécuter l'import (création des biens, logements, comptes locataires/employés) |
 | GET | `/api/import/meta` | Métadonnées de l'import (dictionnaire catégories/labels/colonnes) |
+| GET | `/api/employes` | Liste des employés du propriétaire (avec `en_attente_confirmation`, `dernier_paiement`) |
+| POST | `/api/employes` | Créer un employé + son compte de connexion |
+| GET | `/api/employes/:id/paiements` | Historique des salaires d'un employé (avec moyen de réception) |
+| POST | `/api/employes/:id/paiements` | Déclarer un versement de salaire (`attente` → l'employé confirme) ; `paye` direct conservé (UnitechPay) |
+| GET | `/api/employes/:id/moyens-paiement` | Moyens de réception **actifs** d'un employé (vue propriétaire) |
+| POST | `/api/employes/:id/moyens-paiement` | Créer un moyen de réception pour un employé |
+| GET | `/api/employe/paiements` | Salaires de l'employé connecté (statut, moyen, confirmations/refus) |
+| POST | `/api/employe/paiements/:id/confirmer` | L'employé confirme avoir reçu son salaire (`paye` + notification propriétaire) |
+| POST | `/api/employe/paiements/:id/non-recus` | L'employé signale ne pas avoir reçu le paiement (`non_recu` + motif + notification propriétaire) |
+| GET | `/api/employe/moyens-paiement` | Moyens de réception de l'employé connecté |
+| POST | `/api/employe/moyens-paiement` | Ajouter un moyen de réception (Wave, Orange Money, virement, espèces) |
+| PUT | `/api/employe/moyens-paiement/:id` | Modifier un moyen de réception (ex. `actif`) |
+| DELETE | `/api/employe/moyens-paiement/:id` | Supprimer un moyen de réception |
 
 ## Import CSV et onboarding propriétaire
 
@@ -173,6 +186,12 @@ La suite `locataires` couvre le formulaire unique : création auto (logement,
 compte, échéance), usernames uniques, première connexion (changement username +
 mot de passe), paiement immédiat, édition sans recréation de compte, isolation
 et suppression.
+La suite `salaires` couvre les paiements de salaire : moyens de réception gérés
+par l'employé (ajout / édition / désactivation / suppression, multiples), vue
+propriétaire (actifs uniquement), déclaration de versement (`attente`),
+confirmation par l'employé (`paye` + notifications des deux côtés), refus
+(`non_recu` + motif), paiement direct `paye` (compat UnitechPay), historique
+enrichi et isolation propriétaire / employé.
 
 ## Base de données
 
@@ -180,6 +199,8 @@ Le schéma complet se trouve dans `server/supabase-schema.sql` :
 
 - `profiles` — profils utilisateurs (créés automatiquement par trigger à l'inscription)
 - `biens`, `logements`, `locataires`, `paiements`
+- `employes`, `paiements_employes` (salaires : `attente` → `paye` / `non_recu`)
+- `moyens_paiement` (réception des loyers), `moyens_paiement_employes` (réception des salaires)
 - `incidents`, `prestataires`, `interventions`
 - `notifications`, `sessions`, `password_resets`
 

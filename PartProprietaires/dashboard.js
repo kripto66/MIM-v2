@@ -92,6 +92,7 @@ async function loadStats() {
       totalProperties: s.totalProperties,
       occupiedProperties: s.occupiedProperties,
       availableProperties: s.availableProperties,
+      totalEmployees: s.totalEmployees ?? 0,
       expectedRent: fmtFCFA(s.expectedRent),
       paidRent: fmtFCFA(s.paidRent),
       lateRent: fmtFCFA(s.lateRent),
@@ -102,6 +103,28 @@ async function loadStats() {
     for (const [id, value] of Object.entries(map)) {
       const el = document.getElementById(id);
       if (el) el.textContent = value;
+    }
+
+    const actions = [
+      ["actValidations", s.paiementsEnValidation ?? 0],
+      ["actSalaires", s.salairesAttente ?? 0],
+      ["actRetards", s.lateCount ?? 0],
+      ["actIncidents", s.activeIncidents ?? 0],
+    ];
+    let total = 0;
+    for (const [id, value] of actions) {
+      const card = document.getElementById(id);
+      if (!card) continue;
+      const strong = card.querySelector("strong");
+      if (strong) strong.textContent = value;
+      card.classList.toggle("warn", value > 0);
+      total += value;
+    }
+    const grid = document.getElementById("actionsGrid");
+    const allDone = document.getElementById("actionsAllDone");
+    if (grid && allDone) {
+      grid.style.display = total === 0 ? "none" : "";
+      allDone.style.display = total === 0 ? "" : "none";
     }
   } catch (error) {
     displayMessage("Impossible de contacter le serveur.");
@@ -136,23 +159,6 @@ function renderProperties(biens) {
         <h3>${escapeHtml(b.nom)}</h3>
         <p>${escapeHtml(b.type || "")}${b.ville ? " — " + escapeHtml(b.ville) : ""}</p>
       </div>`).join("")}</div>`;
-}
-
-function renderHousing(logements) {
-  const el = document.getElementById("housingSummary");
-  if (!el) return;
-  const count = (s) => logements.filter((l) => l.statut === s).length;
-  const rows = [
-    ["Total logements", logements.length, "status-info"],
-    ["Occupés", count("occupe"), "status-success"],
-    ["Libres", count("libre"), "status-info"],
-    ["En maintenance", count("maintenance"), "status-warning"],
-  ];
-  el.innerHTML = rows.map(([label, value, cls]) => `
-      <div class="list-item">
-        <div class="list-item-info"><h3>${label}</h3></div>
-        <span class="status ${cls}">${value}</span>
-      </div>`).join("");
 }
 
 function renderTenants(locataires, logements) {
@@ -277,7 +283,6 @@ async function loadOverview() {
     const data = await Promise.all(responses.map(parse));
 
     renderProperties(data[0]);
-    renderHousing(data[1]);
     renderTenants(data[2], data[1]);
     renderPayments(data[3], data[2], data[1]);
     renderIncidents(data[4], data[1]);
@@ -287,7 +292,6 @@ async function loadOverview() {
     console.error(error);
     const sections = [
       "propertiesList",
-      "housingSummary",
       "tenantsList",
       "paymentsSummary",
       "recentPayments",
@@ -353,21 +357,6 @@ async function logout() {
   window.location.href = "../PartPublic/connexion.html";
 }
 
-async function manualBackup() {
-  try {
-    const res = await fetch(`${API}/git/backup`, {
-      method: "POST",
-      credentials: "include",
-    });
-    const { ok, error, data } = await MIM.parse(res);
-    if (!ok && MIM.handleAuthError(error)) return;
-    const message = ok ? data.message || "Sauvegarde effectuée." : MIM.userMessage(error);
-    displayMessage(message, ok && data.success ? "success" : "error");
-  } catch (error) {
-    displayMessage("Impossible de contacter le serveur.");
-  }
-}
-
 document.addEventListener("DOMContentLoaded", () => {
   loadUserName();
   loadStats();
@@ -377,9 +366,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
-
-  const backupBtn = document.getElementById("backupBtn");
-  if (backupBtn) backupBtn.addEventListener("click", manualBackup);
 });
 
 // Assistant de première configuration : modal d'accueil si l'espace

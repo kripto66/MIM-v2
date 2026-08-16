@@ -51,3 +51,24 @@ export const TYPE_MOYEN_ICONS = {
   virement: '🏦',
   especes: '💵',
 };
+
+// Champs admis par type de moyen de paiement (propriétaire ET employé).
+export const CHAMPS_MOYEN = {
+  wave: ['nom_titulaire', 'numero', 'lien_paiement', 'instructions'],
+  orange_money: ['nom_titulaire', 'numero', 'lien_paiement', 'instructions'],
+  virement: ['banque', 'nom_titulaire', 'num_compte', 'iban', 'bic', 'instructions'],
+  especes: ['instructions'],
+};
+
+// Nettoie un corps de moyen de paiement selon son type (champs admis,
+// chaînes tronquées à 200 caractères, valeurs vides ignorées).
+export function sanitizeMoyenBody(type, body) {
+  const clean = {};
+  for (const field of CHAMPS_MOYEN[type] || []) {
+    const v = body?.[field];
+    if (v != null && String(v).trim() !== '') clean[field] = String(v).trim().slice(0, 200);
+  }
+  if (body?.actif === false || body?.actif === true) clean.actif = Boolean(body.actif);
+  clean.updated_at = new Date().toISOString();
+  return clean;
+}

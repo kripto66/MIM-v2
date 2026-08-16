@@ -16,6 +16,7 @@
 <button class="nav" data-view="logements">⌂ Logements</button>
 <button class="nav" data-view="locataires">👥 Locataires</button>
 <button class="nav" data-view="notifications">🔔 Notifications <i id="notifBadge"></i></button>
+<button class="nav" data-view="paiements">💳 Mes paiements</button>
 <button class="nav" data-view="profile">⚙ Mon profil</button></nav>
 <button id="logout" class="logout">↪ Déconnexion</button></aside>
 <main><header><button id="menu" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">☰</button><div><small>ESPACE EMPLOYÉ</small><h1 id="title">Tableau de bord</h1></div><span id="topName">Employé</span></header>
@@ -28,6 +29,11 @@
 <section id="logements" class="view"><div class="head"><div><h2>Logements</h2><p>Logements accessibles selon les permissions backend.</p></div><button class="secondary" data-refresh="logements">Actualiser</button></div><div id="logementsList"></div></section>
 <section id="locataires" class="view"><div class="head"><div><h2>Locataires</h2><p>Locataires accessibles selon les permissions backend.</p></div><button class="secondary" data-refresh="locataires">Actualiser</button></div><div id="locatairesList"></div></section>
 <section id="notifications" class="view"><div class="head"><div><h2>Notifications</h2><p>Événements réels liés à votre activité.</p></div><button id="readAll" class="secondary">Tout marquer comme lu</button></div><div id="notificationsList"></div></section>
+<section id="paiements" class="view"><div class="head"><div><h2>Mes paiements</h2><p>Confirmez la réception de vos salaires et gérez vos moyens de réception.</p></div><button class="secondary" data-refresh="paiements">Actualiser</button></div>
+<article class="panel"><h3>Moyens de réception</h3><div class="moyens-tools"><button class="primary small" id="addMoyenBtn">+ Ajouter un moyen</button></div><div id="moyensList"></div></article>
+<h3 class="subtitle">Salaires</h3><div id="salairesList"></div></section>
+<div class="overlay hidden" id="moyenOverlay"><div class="modal"><h3 id="moyenModalTitle">Ajouter un moyen de réception</h3><label>Type<select id="moyenType"><option value="wave">Wave</option><option value="orange_money">Orange Money</option><option value="virement">Virement bancaire</option><option value="especes">Espèces</option></select></label><div id="moyenFields"></div><label class="check"><input type="checkbox" id="moyenActif" checked> Moyen actif</label><div class="modal-actions"><button class="secondary" data-close>Annuler</button><button class="primary" id="moyenSave">Enregistrer</button></div></div></div>
+<div class="overlay hidden" id="refusOverlay"><div class="modal"><h3>Je n'ai pas reçu le paiement</h3><label>Motif<select id="refusMotif"><option>Paiement non reçu</option><option>Montant incorrect</option><option>Autre</option></select></label><label>Précisions (optionnel)<input id="refusDetail" placeholder="Ex. montant erroné…"></label><div class="modal-actions"><button class="secondary" data-close>Annuler</button><button class="primary" id="refusSave">Signaler</button></div></div></div>
 <section id="profile" class="view"><div class="head"><div><h2>Mon profil</h2><p>Informations du compte employé.</p></div></div>
 <form id="profileForm" class="panel form"><label>Nom<input id="pName" required></label><label>Username<input id="pUsername" required></label><label>Rôle<input id="pRole" disabled></label><label>Email<input id="pEmail" type="email"></label><hr><label>Mot de passe actuel<input id="pCurrent" type="password"></label><label>Nouveau mot de passe<input id="pNew" type="password"><small id="pwdHint"></small></label><label>Confirmation<input id="pConfirm" type="password"></label><button class="primary">Enregistrer</button></form></section>
 </main></div><script src="employe.js"></script><script src="../PartPublic/sidebar.js"></script></body></html>

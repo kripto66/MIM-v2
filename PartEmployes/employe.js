@@ -14,6 +14,8 @@ const E = {
   logements: "/api/employe/logements",
   locataires: "/api/employe/locataires",
   notifications: "/api/employe/notifications",
+  paiements: "/api/employe/paiements",
+  moyens: "/api/employe/moyens-paiement",
   profile: "/api/employe/profile",
   password: "/api/employe/password",
   logout: "/api/auth/logout",
@@ -66,6 +68,48 @@ function date(x) {
   let d = new Date(x);
   return isNaN(d) ? "—" : d.toLocaleDateString("fr-FR");
 }
+
+function dateTime(x) {
+  if (!x) return "—";
+  let d = new Date(x);
+  return isNaN(d)
+    ? "—"
+    : d.toLocaleDateString("fr-FR") + " " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function fmtMoney(x) {
+  let n = Number(x ?? 0);
+  return (isNaN(n) ? 0 : n).toLocaleString("fr-FR") + " FCFA";
+}
+
+const SALAIRE_LABELS = { paye: "Confirmé", attente: "En attente de confirmation", non_recu: "Non reçu" };
+
+const MOYEN_TYPE_LABELS = {
+  wave: "Wave",
+  orange_money: "Orange Money",
+  virement: "Virement bancaire",
+  especes: "Espèces",
+};
+
+const MOYEN_TYPE_ICONS = { wave: "🟣", orange_money: "🟠", virement: "🏦", especes: "💵" };
+
+const MOYEN_FIELD_LABELS = {
+  nom_titulaire: "Nom du titulaire",
+  numero: "Numéro",
+  lien_paiement: "Lien de paiement",
+  banque: "Banque",
+  num_compte: "Numéro de compte",
+  iban: "IBAN",
+  bic: "BIC",
+  instructions: "Instructions",
+};
+
+const MOYEN_FIELDS = {
+  wave: [["nom_titulaire"], ["numero"], ["lien_paiement"], ["instructions"]],
+  orange_money: [["nom_titulaire"], ["numero"], ["lien_paiement"], ["instructions"]],
+  virement: [["banque"], ["nom_titulaire"], ["num_compte"], ["iban"], ["bic"], ["instructions"]],
+  especes: [["instructions"]],
+};
 
 function empty(id, m = "Aucune donnée.") {
   $("#" + id).innerHTML = `<div class="empty">${esc(m)}</div>`;
@@ -128,6 +172,191 @@ async function dashboard() {
 function render(id, a, fn) {
   if (!a.length) return empty(id);
   $("#" + id).innerHTML = a.map(fn).join("");
+}
+
+// ============================================================
+// Mes paiements : salaires + moyens de réception
+// ============================================================
+
+async function loadPaiements() {
+  try {
+    $("#moyensList").innerHTML = '<div class="empty">Chargement…</div>';
+    $("#salairesList").innerHTML = '<div class="empty">Chargement…</div>';
+    const [p, m] = await Promise.all([
+      api(E.paiements).then((d) => arr(d, "paiements")),
+      api(E.moyens).then((d) => arr(d, "moyens")),
+    ]);
+    renderMoyens(m);
+    renderSalaires(p);
+  } catch (e) {
+    empty("moyensList", e.message);
+    empty("salairesList", e.message);
+    toast(e.message, "error");
+  }
+}
+
+function renderMoyens(list) {
+  S.moyens = list;
+  const el = $("#moyensList");
+  if (!list.length) {
+    el.innerHTML = '<div class="empty">Aucun moyen de réception. Ajoutez-en un pour recevoir vos salaires.</div>';
+    return;
+  }
+  el.innerHTML = list
+    .map((m) => {
+      const keys = ["nom_titulaire", "numero", "lien_paiement", "banque", "num_compte", "iban", "bic"];
+      const details = keys
+        .filter((k) => m[k])
+        .map((k) => `<span>${MOYEN_FIELD_LABELS[k]} : ${esc(m[k])}</span>`)
+        .join("<br>");
+      return `<div class="card moyen ${m.actif === false ? "inactif" : ""}"><b>${MOYEN_TYPE_ICONS[m.type] || ""} ${
+        esc(MOYEN_TYPE_LABELS[m.type] || m.type)
+      }</b> ${m.actif === false ? '<span class="status st-non_recu">Inactif</span>' : ""}<div class="muted small">${
+        details || "—"
+      }</div>${m.instructions ? `<div class="muted small">${esc(m.instructions)}</div>` : ""}<div class="sal-actions"><button class="secondary small" data-edit="${
+        m.id
+      }">Modifier</button><button class="danger small" data-del="${m.id}">Supprimer</button></div></div>`;
+    })
+    .join("");
+}
+
+function renderSalaires(list) {
+  const el = $("#salairesList");
+  if (!list.length) {
+    el.innerHTML = '<div class="empty">Aucun salaire enregistré. Votre employeur vous en déclarera ici.</div>';
+    return;
+  }
+  el.innerHTML = list
+    .map((p) => {
+      const st = p.statut || "attente";
+      let body = "";
+      if (st === "attente") {
+        body = `<div class="sal-actions"><button class="primary small" data-confirm="${p.id}">Confirmer la réception</button><button class="danger small" data-refuse="${p.id}">Je n'ai pas reçu</button></div>`;
+      } else if (st === "paye") {
+        body = `<div class="muted small ok">✔ Reçu — confirmé le ${dateTime(p.confirmed_at)}</div>`;
+      } else if (st === "non_recu") {
+        body = `<div class="muted small ko">✖ Non reçu le ${dateTime(p.rejected_at)} — ${esc(p.rejection_reason || "")}</div>`;
+      }
+      const meta = [p.moyen_label, MOYEN_TYPE_LABELS[p.methode_paiement] || null].filter(Boolean).join(" · ");
+      const ref = p.reference ? "Réf. " + esc(p.reference) : "";
+      return `<article class="card salaire"><span class="status st-${st}">${esc(SALAIRE_LABELS[st] || st)}</span><h3>${
+        esc(p.mois) || "—"
+      } — ${fmtMoney(p.montant)}</h3><div class="muted">${esc(meta || "—")}</div><div class="muted small">${
+        p.date_paiement ? "Date de paiement : " + date(p.date_paiement) + (ref ? " · " + ref : "") : ref
+      }</div>${body}</article>`;
+    })
+    .join("");
+}
+
+async function confirmPaiement(id) {
+  if (!confirm("Confirmez-vous avoir bien reçu ce salaire ?")) return;
+  try {
+    const r = await api(E.paiements + "/" + id + "/confirmer", { method: "POST", body: "{}" });
+    toast(r?.message || "Paiement confirmé");
+    loadPaiements();
+  } catch (x) {
+    toast(x.message, "error");
+  }
+}
+
+let refusId = null;
+function openRefus(id) {
+  refusId = id;
+  $("#refusMotif").value = "Paiement non reçu";
+  $("#refusDetail").value = "";
+  $("#refusOverlay").classList.remove("hidden");
+}
+$("#refusSave").onclick = async () => {
+  if (!refusId) return;
+  let motif = $("#refusMotif").value;
+  const detail = $("#refusDetail").value.trim();
+  if (detail) motif = (motif + " — " + detail).slice(0, 200);
+  try {
+    const r = await api(E.paiements + "/" + refusId + "/non-recus", { method: "POST", body: JSON.stringify({ motif }) });
+    refusId = null;
+    $("#refusOverlay").classList.add("hidden");
+    toast(r?.message || "Signalement enregistré");
+    loadPaiements();
+  } catch (x) {
+    toast(x.message, "error");
+  }
+};
+
+let editingMoyen = null;
+function moyenFieldsHtml(type) {
+  const fields = MOYEN_FIELDS[type] || [];
+  return fields
+    .map(([k]) => `<label>${MOYEN_FIELD_LABELS[k]}<input data-field="${k}" type="text"></label>`)
+    .join("");
+}
+function openMoyenModal(m) {
+  editingMoyen = m || null;
+  $("#moyenModalTitle").textContent = m ? "Modifier le moyen de réception" : "Ajouter un moyen de réception";
+  const type = m?.type || "wave";
+  $("#moyenType").value = type;
+  $("#moyenFields").innerHTML = moyenFieldsHtml(type);
+  if (m) {
+    for (const k of Object.keys(MOYEN_FIELD_LABELS)) {
+      const inp = $(`[data-field="${k}"]`);
+      if (inp && m[k] != null) inp.value = m[k];
+    }
+    $("#moyenActif").checked = m.actif !== false;
+  } else {
+    $("#moyenActif").checked = true;
+  }
+  $("#moyenOverlay").classList.remove("hidden");
+}
+$("#moyenType").onchange = (e) => {
+  $("#moyenFields").innerHTML = moyenFieldsHtml(e.target.value);
+};
+$("#addMoyenBtn").onclick = () => openMoyenModal(null);
+$("#moyenSave").onclick = async () => {
+  const type = $("#moyenType").value;
+  const body = { type, actif: $("#moyenActif").checked };
+  for (const k of (MOYEN_FIELDS[type] || []).map((x) => x[0])) {
+    const v = $(`[data-field="${k}"]`)?.value.trim();
+    if (v) body[k] = v;
+  }
+  try {
+    const r = editingMoyen
+      ? await api(E.moyens + "/" + editingMoyen.id, { method: "PUT", body: JSON.stringify(body) })
+      : await api(E.moyens, { method: "POST", body: JSON.stringify(body) });
+    editingMoyen = null;
+    $("#moyenOverlay").classList.add("hidden");
+    toast(r?.message || "Moyen de paiement enregistré");
+    loadPaiements();
+  } catch (x) {
+    toast(x.message, "error");
+  }
+};
+$("#moyensList").onclick = (e) => {
+  const ed = e.target.closest("[data-edit]");
+  const del = e.target.closest("[data-del]");
+  if (ed) {
+    const m = (S.moyens || []).find((x) => String(x.id) === ed.dataset.edit);
+    if (m) openMoyenModal(m);
+  } else if (del) {
+    if (!confirm("Supprimer ce moyen de réception ?")) return;
+    api(E.moyens + "/" + del.dataset.del, { method: "DELETE" })
+      .then(() => {
+        toast("Moyen de paiement supprimé");
+        loadPaiements();
+      })
+      .catch((x) => toast(x.message, "error"));
+  }
+};
+$("#salairesList").onclick = (e) => {
+  const c = e.target.closest("[data-confirm]");
+  const r = e.target.closest("[data-refuse]");
+  if (c) confirmPaiement(c.dataset.confirm);
+  else if (r) openRefus(r.dataset.refuse);
+};
+for (const id of ["moyenOverlay", "refusOverlay"]) {
+  const ov = $("#" + id);
+  ov.addEventListener("click", (e) => {
+    if (e.target === ov) ov.classList.add("hidden");
+  });
+  ov.querySelectorAll("[data-close]").forEach((b) => (b.onclick = () => ov.classList.add("hidden")));
 }
 
 // Applique les filtres (recherche + statut) sur la liste en cache et rend.
@@ -202,15 +431,19 @@ function view(v) {
     logements: "Logements",
     locataires: "Locataires",
     notifications: "Notifications",
+    paiements: "Mes paiements",
     profile: "Mon profil",
   }[v];
   $("#sidebar").classList.remove("open");
   if (v === "overview") dashboard();
+  else if (v === "paiements") loadPaiements();
   else if (v !== "profile") load(v);
 }
 
 $$("[data-view]").forEach((x) => (x.onclick = () => view(x.dataset.view)));
-$$("[data-refresh]").forEach((x) => (x.onclick = () => load(x.dataset.refresh)));
+$$("[data-refresh]").forEach(
+  (x) => (x.onclick = () => (x.dataset.refresh === "paiements" ? loadPaiements() : load(x.dataset.refresh)))
+);
 $("#logout").onclick = async () => {
   try {
     await api(E.logout, { method: "POST", body: "{}" });

@@ -435,3 +435,114 @@ header button {
     word-break: break-word
   }
 }
+
+/* ============================================================
+   MES PAIEMENTS (salaires + moyens de réception)
+   ============================================================ */
+.subtitle {
+  margin: 24px 0 12px;
+  color: var(--dark);
+  font-size: 16px
+}
+.hidden {
+  display: none !important
+}
+.small {
+  font-size: 12px;
+  padding: 8px 11px
+}
+.danger {
+  border: 0;
+  background: #fee2e2;
+  color: #b91c1c;
+  border-radius: 9px;
+  padding: 10px 14px;
+  font-weight: 700;
+  cursor: pointer
+}
+.danger:hover {
+  background: #fecaca
+}
+.status.st-paye {
+  background: #dcfce7;
+  color: #15803d
+}
+.status.st-attente {
+  background: #fef9c3;
+  color: #a16207
+}
+.status.st-non_recu {
+  background: #fee2e2;
+  color: #b91c1c
+}
+.sal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px
+}
+.moyen.inactif {
+  opacity: .65
+}
+.ok {
+  color: #15803d
+}
+.ko {
+  color: #b91c1c
+}
+.moyens-tools {
+  margin-bottom: 12px
+}
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: #0f172a99;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px
+}
+.modal {
+  width: 100%;
+  max-width: 460px;
+  max-height: 88vh;
+  overflow-y: auto;
+  background: #fff;
+  border-radius: 15px;
+  padding: 22px
+}
+.modal h3 {
+  margin: 0 0 14px
+}
+.modal label {
+  display: grid;
+  gap: 6px;
+  font-weight: 700;
+  font-size: 13px;
+  margin-bottom: 12px;
+  color: var(--dark)
+}
+.modal input,
+.modal select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #fff
+}
+.modal .check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600
+}
+.modal .check input {
+  width: auto
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 16px
+}

@@ -24,6 +24,7 @@ import { runUnitech, startUnitechMock, stopUnitechMock } from './unitech.test.js
 import { runDeclarations } from './declarations.test.js';
 import { runImport } from './import.test.js';
 import { runLocataires } from './locataires.test.js';
+import { runSalaires } from './salaires.test.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.join(__dirname, '..', '..');
@@ -49,6 +50,7 @@ const SUITES = [
   ['declarations', runDeclarations],
   ['import', runImport],
   ['locataires', runLocataires],
+  ['salaires', runSalaires],
 ];
 
 const runner = new Runner();
