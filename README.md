@@ -107,6 +107,26 @@ Détails :
   trouve dans `server/utils/importCsv.js`, les routes dans
   `server/routes/import.js`.
 
+## Création d'un locataire (formulaire unique)
+
+Depuis `PartProprietaires/locataires.html`, un seul formulaire « Ajouter un
+locataire » crée tout ce qui est nécessaire (`POST /api/locataires` avec
+`autoAccount: true`) :
+
+- **Logement** : existant (sélectionné par bien) ou créé à la volée (nom, type,
+  chambres, adresse) ; marqué `occupe` ; le loyer est toujours relu depuis
+  `logements.loyer_mensuel`, jamais pris du client ;
+- **Locataire** : fiche + profil ; le loyer, la date d'entrée et le
+  `jour_echeance` viennent du formulaire ;
+- **Compte** : username généré (`amadou.diop`, `amadou.diop2`, …), mot de passe
+  initial `1234` (jamais stocké en clair, `must_change_password = true`) ;
+- **Échéance initiale** : une ligne `paiements` `attente` pour le mois courant
+  (montant = loyer du logement).
+
+La première connexion force le changement du username et du mot de passe
+(`PartPublic/change-password.html`). En cas d'échec intermédiaire, tout est
+annulé (compensation). L'édition d'un locataire ne recrée jamais le compte.
+
 ## Sauvegarde automatique
 
 À chaque **connexion**, **déconnexion** et **écriture**, une sauvegarde git
@@ -149,6 +169,10 @@ La suite `import` couvre : statut d'onboarding, modèles CSV, imports biens /
 logements / locataires / employés (comptes créés, mot de passe initial 1234,
 `must_change_password`, usernames uniques), isolation entre propriétaires et
 réimportation (doublons, politiques `abort` / `update`).
+La suite `locataires` couvre le formulaire unique : création auto (logement,
+compte, échéance), usernames uniques, première connexion (changement username +
+mot de passe), paiement immédiat, édition sans recréation de compte, isolation
+et suppression.
 
 ## Base de données
 
