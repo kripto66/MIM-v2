@@ -325,7 +325,7 @@ router.get('/interventions', requireEmploye, async (req, res) => {
         id: x.id,
         titre: x.titre,
         description: x.description || '',
-        status: x.statut,
+        statut: x.statut,
         scheduled_at: x.date_prevue || x.created_at,
         created_at: x.created_at,
       })),

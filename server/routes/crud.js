@@ -658,6 +658,18 @@ if (createdLogementId) {
       return res.status(400).json({ success: false, message: 'Ce logement est déjà occupé par un autre locataire actif.', errors: { logement_id: 'Ce logement est déjà occupé par un autre locataire actif.' } });
     }
 
+    // Dénormalisation locataires.bien_id : reflète le bien du logement
+    // (nécessaire pour les politiques RLS employé par bien) — même règle
+    // que le PUT générique ci-dessous.
+    if (tableName === 'locataires' && body.logement_id) {
+      const { data: logementRef } = await serviceClient()
+        .from('logements')
+        .select('bien_id')
+        .eq('id', body.logement_id)
+        .maybeSingle();
+      body.bien_id = logementRef?.bien_id ?? null;
+    }
+
     // Un paiement confirmé (« paye ») sans date renseignée est daté du jour.
     if (tableName === 'paiements' && body.statut === 'paye' && !body.date_paiement) {
       body.date_paiement = new Date().toISOString().slice(0, 10);

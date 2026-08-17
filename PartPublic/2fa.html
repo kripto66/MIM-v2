@@ -118,7 +118,16 @@
                 if (data.success) {
                     message.textContent = data.message;
                     message.className = "success";
-                    window.location.href = "../" + data.redirect;
+                    // Un locataire/employé avec changement de mot de passe
+                    // obligatoire doit passer par change-password.html avant
+                    // d'atteindre sa zone (sinon must_change_password reste
+                    // vrai et le drapeau est contourné).
+                    if (data.mustChangePassword && data.redirect) {
+                        window.location.href = "../PartPublic/change-password.html?next=" +
+                            encodeURIComponent("../" + data.redirect);
+                    } else {
+                        window.location.href = "../" + data.redirect;
+                    }
                     return;
                 }
 

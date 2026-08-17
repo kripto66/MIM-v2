@@ -385,10 +385,19 @@ router.post('/login', async (req, res) => {
       factorId: factors[0].id,
     }, '10m'));
 
+    // Le drapeau must_change_password doit survivre à l'étape 2FA :
+    // sans lui, un locataire/employé avec 2FA activée contournerait le
+    // changement de mot de passe obligatoire (redirection directe vers
+    // sa zone après vérification).
+    const mfaProfile = await profileOf(data.user.id);
+
     return res.json({
       success: true,
       mfaRequired: true,
       redirect: 'PartPublic/2fa.html',
+      mustChangePassword:
+        (accountType === 'locataire' || accountType === 'employe') &&
+        Boolean(mfaProfile?.must_change_password),
       message: 'Code de vérification requis.',
     });
   }
