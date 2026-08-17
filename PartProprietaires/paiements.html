@@ -616,7 +616,9 @@
                 document.getElementById("reference").value = "";
             },
             onOpenEdit: () => {
-                document.getElementById("methode_paiement").value = "wave";
+                // La méthode de paiement est déjà pré-remplie par
+                // CrudPage.openEdit (crud.js) depuis l'enregistrement :
+                // on ne doit PAS l'écraser (perte de donnée silencieuse).
             },
             renderItem: (p) => {
                 const [label, cls] = PAIEMENT_STATUS[p.statut] || [p.statut, "status-info"];

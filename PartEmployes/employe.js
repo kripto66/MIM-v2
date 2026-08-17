@@ -427,7 +427,8 @@ function paint(kind) {
     let q = ($("#" + kind + "Q")?.value || "").trim().toLowerCase();
     let s = $("#" + kind + "S")?.value || "";
     a = a.filter((x) => {
-      if (s && x.status !== s) return false;
+      const st = x.statut ?? x.status;
+      if (s && st !== s) return false;
       if (!q) return true;
       const hay = `${x.titre || ""} ${x.description || ""} ${x.logement || ""} ${x.name || ""}`.toLowerCase();
       return hay.includes(q);
@@ -438,6 +439,7 @@ function paint(kind) {
 }
 
 const INCIDENT_LABELS = { nouveau: "Nouveau", en_cours: "En cours", resolu: "Résolu" };
+const TASK_LABELS = { a_faire: "À faire", en_cours: "En cours", termine: "Terminée" };
 
 function incidentStatus(x) {
   const label = INCIDENT_LABELS[x] || x || "—";
@@ -462,8 +464,10 @@ function cardFor(kind) {
       </article>`;
     };
   }
-  return (x) =>
-    `<article class="card"><h3>${esc(x.title || x.name || kind)} ${status(x.status)}</h3><div class="muted">${esc(x.description || "")}</div><small>${date(x.due_date || x.scheduled_at || x.created_at)}</small></article>`;
+  return (x) => {
+    const st = x.statut ?? x.status;
+    return `<article class="card"><h3>${esc(x.titre || x.title || x.name || kind)} ${status(TASK_LABELS[st] || st)}</h3><div class="muted">${esc(x.description || "")}</div><small>${date(x.due_date || x.scheduled_at || x.created_at)}</small></article>`;
+  };
 }
 
 async function load(kind) {
@@ -473,7 +477,7 @@ async function load(kind) {
     let d = await api(E[kind]),
       a = arr(d, kind);
     S[kind] = a;
-    if (kind === "tasks") badge("taskBadge", a.filter((x) => x.status !== "termine").length);
+    if (kind === "tasks") badge("taskBadge", a.filter((x) => (x.statut ?? x.status) !== "termine").length);
     if (kind === "incidents") badge("incidentBadge", a.filter((x) => x.status !== "resolu").length);
     if (kind === "notifications") badge("notifBadge", a.filter((x) => !x.read && !x.is_read).length);
     if (kind === "logements" || kind === "locataires") {
