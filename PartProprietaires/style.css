@@ -23,6 +23,34 @@ body {
     background: #f5f6fa;
     color: #222;
 }
+#logoutBtn {
+    display: inline-block;
+
+    padding: 10px 15px;
+
+    border-radius: 8px;
+
+    background: #f74e4efa;
+
+    color: white;
+
+    font-size: 14px;
+    font-weight: 600;
+
+    text-decoration: none;
+    border : none;
+    transition: background 0.2s ease;
+
+    
+}
+#logoutBtn:hover {
+    background: #c50974;
+
+    color: white;
+}
+
+
+
 
 
 /* =========================================================
@@ -72,35 +100,33 @@ body {
    ========================================================= */
 
 .logo {
+    width: 58px;
+    height: 58px;
+
+    flex-shrink: 0;
+
     display: flex;
 
     justify-content: center;
     align-items: center;
 
-    width: 60px;
-    height: 60px;
+    border-radius: 15px;
 
-    margin: 0 auto 35px;
+    background: #020f38;
 
-    border-radius: 17px;
 
-    background:
-        linear-gradient(
-            45deg,
-            #5717a5,
-            #c50974
-        );
+    color: rgb(246, 11, 226);
 
-    color: white;
+    font-size: 20px;
 
-    font-size: 22px;
     font-weight: bold;
 
-    text-decoration: none;
-
     box-shadow:
-        0 8px 20px rgba(0, 0, 0, 0.2);
+        0 8px 20px rgba(87, 23, 165, 0.25);
+        margin : 0  5px 15px 0;
+        cursor : pointer;
 }
+
 
 
 /* =========================================================
