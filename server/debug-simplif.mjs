@@ -36,6 +36,12 @@ async function main() {
   const liaison = await service.from('employes_biens').select('*').eq('employe_id', emp.data.data.id);
   console.log('liaison db:', JSON.stringify(liaison.error || liaison.data));
 
+  const jar2 = newJar();
+  const ownerLogin = await api('/auth/login', { method: 'POST', jar: jar2, body: { identifier: email, password: 'DebugPass123!' } });
+  console.log('owner login:', ownerLogin.status, 'cookies:', JSON.stringify(jar2.cookies));
+  const meOwner = await api('/auth/me', { jar: jar2 });
+  console.log('owner auth/me:', meOwner.status);
+
   const ejar = newJar();
   const login = await api('/auth/login', { method: 'POST', ejar, body: { identifier: username, password: '1234' } });
   console.log('login:', login.status, JSON.stringify(login.data));
