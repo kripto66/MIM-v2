@@ -143,6 +143,7 @@ async function finalizeLogin(res, user, session, userAgent) {
   const token = signToken(sessionPayload(user, session));
 
   setAuthCookie(res, token);
+  console.log('[DBG finalizeLogin]', user.id, accountType, 'cookie posé:', Boolean(res.getHeader('set-cookie')));
 
   await linkTenantAccount(user, session?.access_token);
   await logSession(user.id, 'login', session?.access_token, userAgent);
