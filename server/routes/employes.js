@@ -27,6 +27,51 @@ function currentMonth() {
 }
 
 // ============================================================
+// Affectation d'un employé à ses biens (remplace les liaisons
+// existantes). Chaque bien doit appartenir au propriétaire.
+// ============================================================
+async function setEmployeBiens(sb, ownerId, employeId, biens, opts = {}) {
+  if (biens === undefined || biens === null) return null;
+
+  const bienIds = Array.isArray(biens)
+    ? [...new Set(biens.map((b) => (typeof b === 'object' && b !== null ? b.id : b)).filter((id) => id != null && id !== '').map(Number))]
+    : [];
+  if (bienIds.some((id) => Number.isNaN(id))) {
+    return { message: 'Affectations aux biens invalides.', errors: { biens: 'Affectations aux biens invalides.' } };
+  }
+
+  const { data: owned = [], error: bienError } = await sb
+    .from('biens')
+    .select('id')
+    .eq('user_id', ownerId)
+    .in('id', bienIds.length ? bienIds : [0]);
+
+  if (bienError) {
+    console.error('[employes/biens]', bienError.message);
+    return { message: 'Erreur lors de la vérification des biens.' };
+  }
+
+  const ownedIds = new Set(owned.map((b) => b.id));
+  const foreign = bienIds.filter((id) => !ownedIds.has(id));
+  if (foreign.length) {
+    return { message: 'Un ou plusieurs biens ne vous appartiennent pas.', errors: { biens: `Biens inconnus : ${foreign.join(', ')}` } };
+  }
+
+  await sb.from('employes_biens').delete().eq('employe_id', employeId).eq('user_id', ownerId);
+
+  if (bienIds.length) {
+    const rows = bienIds.map((bien_id) => ({ user_id: ownerId, employe_id: employeId, bien_id }));
+    const { error } = await sb.from('employes_biens').insert(rows);
+    if (error) {
+      console.error('[employes/biens/insert]', error.message);
+      if (opts.rollback) opts.rollback();
+      return { message: 'Erreur lors de l\'affectation aux biens.' };
+    }
+  }
+  return null;
+}
+
+// ============================================================
 // Liste des employés du propriétaire (avec résumé des paiements).
 // ============================================================
 router.get('/', async (req, res) => {
@@ -51,11 +96,23 @@ router.get('/', async (req, res) => {
       .eq('user_id', ownerId)
       .order('created_at', { ascending: false });
 
+    const { data: liaisons = [] } = await sb
+      .from('employes_biens')
+      .select('employe_id, bien_id, biens(id, nom)')
+      .eq('user_id', ownerId);
+
+    const biensByEmploye = {};
+    for (const l of liaisons) {
+      if (!biensByEmploye[l.employe_id]) biensByEmploye[l.employe_id] = [];
+      biensByEmploye[l.employe_id].push(l.biens ? { id: l.biens.id, nom: l.biens.nom } : { id: l.bien_id, nom: null });
+    }
+
     const data = (employes || []).map((e) => {
       const own = (paiements || []).filter((p) => p.employe_id === e.id);
       return {
         ...e,
         salaire: Number(e.salaire || 0),
+        biens: biensByEmploye[e.id] || [],
         paiements_count: own.length,
         total_paye: own.filter((p) => p.statut === 'paye').reduce((s, p) => s + Number(p.montant || 0), 0),
         en_attente_confirmation: own.filter((p) => p.statut === 'attente').length,
@@ -196,6 +253,17 @@ router.post('/', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Erreur lors de la création de l\'employé.' });
   }
 
+  // Affectation de l'employé à ses biens (aucun bien étranger accepté).
+  const biensError = await setEmployeBiens(sb, ownerId, data.id, req.body.biens, { rollback: () => sb.auth.admin.deleteUser(accountUid).catch(() => {}) });
+  if (biensError) {
+    try {
+      await sb.from('employes').delete().eq('id', data.id);
+    } catch {
+      /* déjà nettoyé */
+    }
+    return res.status(400).json({ success: false, message: biensError.message, errors: biensError.errors });
+  }
+
   await notify(accountUid, 'info', 'Votre compte employé a été créé par votre employeur. À votre première connexion, vous devrez choisir un nouveau mot de passe.');
   gitAutoBackup(`Sauvegarde auto : ajout employé (compte ${finalUsername})`);
 
@@ -269,17 +337,37 @@ router.put('/:id', async (req, res) => {
   if (updates.poste !== undefined) updates.poste = String(updates.poste || '').trim() || null;
   if (updates.phone !== undefined) updates.phone = String(updates.phone || '').trim() || null;
 
-  const { data, error } = await sb
-    .from('employes')
-    .update(updates)
-    .eq('id', req.params.id)
-    .eq('user_id', ownerId)
-    .select()
-    .single();
+  let data;
+  if (Object.keys(updates).length) {
+    const { data: updated, error } = await sb
+      .from('employes')
+      .update(updates)
+      .eq('id', req.params.id)
+      .eq('user_id', ownerId)
+      .select()
+      .single();
 
-  if (error) {
-    console.error('[employes/update]', error.message);
-    return res.status(400).json({ success: false, message: 'Erreur lors de la mise à jour de l\'employé.' });
+    if (error) {
+      console.error('[employes/update]', error.message);
+      return res.status(400).json({ success: false, message: 'Erreur lors de la mise à jour de l\'employé.' });
+    }
+    data = updated;
+  } else {
+    const { data: current } = await sb
+      .from('employes')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', ownerId)
+      .maybeSingle();
+    data = current;
+  }
+
+  // Remplacement des affectations aux biens (si le champ est fourni).
+  if (req.body.biens !== undefined) {
+    const biensError = await setEmployeBiens(sb, ownerId, req.params.id, req.body.biens);
+    if (biensError) {
+      return res.status(400).json({ success: false, message: biensError.message, errors: biensError.errors });
+    }
   }
 
   gitAutoBackup(`Sauvegarde auto : mise à jour employé ${req.params.id}`);

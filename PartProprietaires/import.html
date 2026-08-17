@@ -245,8 +245,30 @@
 
                 </div>
 
-                <!-- ============ ÉTAPE 5 : RAPPORT FINAL ============ -->
+<!-- ============ ÉTAPE 5 : EXÉCUTION + RAPPORT FINAL ============ -->
                 <div class="wizard-pane" id="step5" hidden>
+
+                    <div id="progressPanel" hidden>
+
+                        <h2>Importation en cours…</h2>
+                        <p class="muted" id="progressMessage">Préparation…</p>
+
+                        <div class="wizard-progress-track">
+                            <div class="wizard-progress-bar" id="progressBar" style="width:0%"></div>
+                        </div>
+
+                        <div class="wizard-progress-meta">
+                            <span id="progressPercent">0%</span>
+                            <span id="progressSpeed">—</span>
+                            <span id="progressEta">—</span>
+                        </div>
+
+                        <p class="muted">
+                            La progression est réelle : elle suit le traitement ligne par ligne de vos fichiers.
+                            Ne fermez pas cette page pendant l'importation.
+                        </p>
+
+                    </div>
 
                     <div id="finalReport"></div>
 

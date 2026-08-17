@@ -134,12 +134,58 @@ async function me() {
   $("#topName").textContent = n;
   $("#welcome").textContent = n;
   $("#avatar").textContent = n[0]?.toUpperCase() || "E";
+  if (u.avatar_url) {
+    $("#avatar").innerHTML = `<img src="${esc(u.avatar_url)}" alt="">`;
+  }
   $("#sideRole").textContent = u.role || u.employee_role || "Employé";
   $("#pName").value = u.name || u.full_name || "";
   $("#pUsername").value = u.username || "";
   $("#pRole").value = u.role || u.employee_role || "";
   $("#pEmail").value = u.email || "";
+  setAvatar(u.avatar_url || null);
 }
+
+function setAvatar(url) {
+  const img = $("#pAvatar");
+  if (url) {
+    img.src = url;
+    $("#pAvatarRemove").style.display = "";
+  } else {
+    img.src = img.dataset.placeholder;
+    $("#pAvatarRemove").style.display = "none";
+  }
+}
+
+$("#pAvatar").dataset.placeholder = $("#pAvatar").src;
+
+$("#pAvatarInput").addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) return toast("Photo trop lourde : 2 Mo maximum.", "error");
+  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return toast("Format invalide : JPEG, PNG ou WebP uniquement.", "error");
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const res = await api("/api/upload/avatar", { method: "POST", body: JSON.stringify({ dataUri: reader.result }) });
+      setAvatar(res.avatar_url);
+      toast("Photo de profil mise à jour.");
+    } catch (err) {
+      toast(err.message, "error");
+    }
+    e.target.value = "";
+  };
+  reader.readAsDataURL(file);
+});
+
+$("#pAvatarRemove").addEventListener("click", async () => {
+  try {
+    await api("/api/upload/avatar", { method: "DELETE" });
+    setAvatar(null);
+    toast("Photo de profil supprimée.");
+  } catch (err) {
+    toast(err.message, "error");
+  }
+});
 
 async function dashboard() {
   try {

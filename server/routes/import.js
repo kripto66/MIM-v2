@@ -17,6 +17,18 @@ import { prepareImport, executeImport, decodeCsvBuffer, CATEGORIES, INITIAL_PASS
 
 const router = Router();
 
+// État de progression des imports en cours (mémoire du process).
+// POST /execute reste synchrone (compatibilité) mais écrit ici sa
+// progression par lots ; GET /import/progress/:runId permet au
+// frontend de suivre la barre en temps réel pendant l'exécution.
+const importRuns = new Map();
+let runSeq = 0;
+
+function newRunId(ownerId) {
+  runSeq++;
+  return `${Date.now()}-${ownerId.slice(0, 8)}-${runSeq}`;
+}
+
 // Décodage du contenu d'un fichier : le frontend peut envoyer le texte brut
 // (content) ou le fichier en base64 (content_b64) — ce dernier cas permet de
 // décoder correctement les fichiers latin1/ANSI produits par Excel FR.
@@ -158,11 +170,32 @@ router.post('/execute', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Politique de doublons invalide.' });
   }
 
+  const runId = newRunId(ownerId);
+  const run = { runId, ownerId, done: 0, total: 0, status: 'running', message: 'Démarrage…' };
+  importRuns.set(runId, run);
+
+  // Nettoyage des anciennes entrées (max 50 par propriétaire).
+  const own = [...importRuns.values()].filter((r) => r.ownerId === ownerId);
+  if (own.length > 50) {
+    for (const stale of own.slice(0, own.length - 50)) importRuns.delete(stale.runId);
+  }
+
   try {
-    const result = await executeImport(sb, ownerId, { categories, files, duplicatePolicy, fileContent });
+    const result = await executeImport(sb, ownerId, { categories, files, duplicatePolicy, fileContent }, {
+      onProgress: (done, total) => {
+        run.done = done;
+        run.total = total;
+        run.message = `Traitement… ${done}/${total}`;
+      },
+    });
+
+    run.status = 'done';
+    run.message = 'Terminé';
 
     if (result.error) {
-      return res.status(409).json({ success: false, message: result.error, prepared: result.prepared });
+      run.status = 'error';
+      run.message = String(result.error || 'Import bloqué');
+      return res.status(409).json({ success: false, message: result.error, prepared: result.prepared, runId });
     }
 
     const r = result.report;
@@ -174,12 +207,65 @@ router.post('/execute', async (req, res) => {
       success: true,
       message: `Importation terminée : ${labels || 'aucun élément créé'}.`,
       initialPassword: INITIAL_PASSWORD,
+      runId,
       report: r,
     });
   } catch (err) {
+    run.status = 'error';
+    run.message = err?.message || 'Erreur technique';
     console.error('[import/execute]', err.message);
-    res.status(500).json({ success: false, message: 'Erreur lors de l\'importation des données.' });
+    res.status(500).json({ success: false, message: 'Erreur lors de l\'importation des données.', runId });
   }
+});
+
+// ------------------------------------------------------------
+// Progression d'un import (polling pendant l'exécution)
+// ------------------------------------------------------------
+router.get('/progress/:runId', async (req, res) => {
+  const run = importRuns.get(String(req.params.runId || ''));
+  if (!run || run.ownerId !== req.user.id) {
+    return res.status(404).json({ success: false, message: 'Import introuvable.' });
+  }
+
+  const percent = run.total > 0 ? Math.min(100, Math.round((run.done / run.total) * 100)) : 0;
+
+  res.json({
+    success: true,
+    runId: run.runId,
+    done: run.done,
+    total: run.total,
+    percent,
+    status: run.status,
+    message: run.message,
+  });
+});
+
+// ------------------------------------------------------------
+// Progression du dernier import du propriétaire (utilisé par le
+// frontend pendant que POST /execute est en vol : le run est créé
+// dès l'arrivée de la requête, avant tout traitement).
+// ------------------------------------------------------------
+router.get('/progress/latest', async (req, res) => {
+  const own = [...importRuns.values()]
+    .filter((r) => r.ownerId === req.user.id)
+    .sort((a, b) => String(b.runId).localeCompare(String(a.runId)));
+
+  if (!own.length) {
+    return res.status(404).json({ success: false, message: 'Aucun import en cours.' });
+  }
+
+  const run = own[0];
+  const percent = run.total > 0 ? Math.min(100, Math.round((run.done / run.total) * 100)) : 0;
+
+  res.json({
+    success: true,
+    runId: run.runId,
+    done: run.done,
+    total: run.total,
+    percent,
+    status: run.status,
+    message: run.message,
+  });
 });
 
 // Aide à la vérification (réutilisé par les tests) : catégories valides.

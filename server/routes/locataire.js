@@ -548,10 +548,16 @@ router.get('/dashboard', async (req, res) => {
       });
     }
 
+    const { data: profile } = await sb
+      .from('profiles')
+      .select('avatar_url')
+      .eq('id', uid)
+      .maybeSingle();
+
     res.json({
       success: true,
       linked: true,
-      locataire,
+      locataire: { ...locataire, avatar_url: profile?.avatar_url || null },
       logement,
       bien,
       paiements,

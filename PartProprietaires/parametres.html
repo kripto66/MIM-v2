@@ -76,7 +76,19 @@
                     <h2>Mon profil</h2>
                 </div>
 
-                <form id="profileForm" class="profile-form">
+<form id="profileForm" class="profile-form">
+
+                    <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
+                        <img id="avatarPreview" alt="Photo de profil"
+                            style="width:84px;height:84px;border-radius:50%;object-fit:cover;background:#e9edf2;border:2px solid #dfe5ec;"
+                            src="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84'%3E%3Crect width='84' height='84' fill='%23e9edf2'/%3E%3Ctext x='42' y='50' font-size='32' text-anchor='middle' fill='%239aa7b4'%3E👤%3C/text%3E%3C/svg%3E">
+                        <div>
+                            <label for="avatarInput" class="btn btn-secondary" style="display:inline-block;cursor:pointer;">Changer la photo</label>
+                            <input type="file" id="avatarInput" accept="image/jpeg,image/png,image/webp" hidden>
+                            <button type="button" class="btn btn-delete" id="avatarRemoveBtn" style="display:none;">Supprimer la photo</button>
+                            <p class="muted" style="margin-top:6px;">JPEG, PNG ou WebP — 2 Mo maximum.</p>
+                        </div>
+                    </div>
 
                     <div class="form-group">
                         <label for="name">Nom complet</label>
@@ -231,7 +243,7 @@
             entreprise: "Entreprise",
         };
 
-        async function loadProfile() {
+async function loadProfile() {
             try {
                 const { user } = await apiRequest("/auth/me");
                 document.getElementById("name").value = user.name || "";
@@ -239,8 +251,20 @@
                 document.getElementById("phone").value = user.phone || "";
                 document.getElementById("account_type").value =
                     ACCOUNT_TYPE_LABEL[user.account_type] || user.account_type;
+                setAvatar(user.avatar_url || null);
             } catch (err) {
                 showToast(err.message, "error");
+            }
+        }
+
+        function setAvatar(url) {
+            const img = document.getElementById("avatarPreview");
+            if (url) {
+                img.src = url;
+                document.getElementById("avatarRemoveBtn").style.display = "";
+            } else {
+                img.src = img.dataset.placeholder || img.src;
+                document.getElementById("avatarRemoveBtn").style.display = "none";
             }
         }
 
@@ -401,7 +425,7 @@
                 })
                 .catch(() => {});
 
-            document.getElementById("profileForm").addEventListener("submit", async (e) => {
+document.getElementById("profileForm").addEventListener("submit", async (e) => {
                 e.preventDefault();
 
                 try {
@@ -413,6 +437,50 @@
                         }),
                     });
                     showToast("Profil mis à jour avec succès.");
+                } catch (err) {
+                    showToast(err.message, "error");
+                }
+            });
+
+            // ---- Photo de profil ----
+            const avatarImg = document.getElementById("avatarPreview");
+            avatarImg.dataset.placeholder = avatarImg.src;
+
+            document.getElementById("avatarInput").addEventListener("change", async (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+                if (file.size > 2 * 1024 * 1024) {
+                    showToast("Photo trop lourde : 2 Mo maximum.", "error");
+                    e.target.value = "";
+                    return;
+                }
+                if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+                    showToast("Format invalide : JPEG, PNG ou WebP uniquement.", "error");
+                    e.target.value = "";
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = async () => {
+                    try {
+                        const res = await apiRequest("/upload/avatar", {
+                            method: "POST",
+                            body: JSON.stringify({ dataUri: reader.result }),
+                        });
+                        setAvatar(res.avatar_url);
+                        showToast("Photo de profil mise à jour.");
+                    } catch (err) {
+                        showToast(err.message, "error");
+                    }
+                    e.target.value = "";
+                };
+                reader.readAsDataURL(file);
+            });
+
+            document.getElementById("avatarRemoveBtn").addEventListener("click", async () => {
+                try {
+                    await apiRequest("/upload/avatar", { method: "DELETE" });
+                    setAvatar(null);
+                    showToast("Photo de profil supprimée.");
                 } catch (err) {
                     showToast(err.message, "error");
                 }

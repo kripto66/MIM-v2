@@ -20,6 +20,7 @@ import unitechRoutes, { webhookRouter } from './routes/unitech.js';
 import validationsRoutes from './routes/validations.js';
 import moyensPaiementRoutes from './routes/moyensPaiement.js';
 import importRoutes from './routes/import.js';
+import uploadRoutes from './routes/upload.js';
 import { createCrudRouter } from './routes/crud.js';
 import { authenticate, requireActive, requireAdmin, requireRole, authenticatePage, requireZone } from './middleware/auth.js';
 import { authRateLimit, apiRateLimit } from './middleware/rateLimit.js';
@@ -82,7 +83,7 @@ app.use((req, res, next) => {
 // corps brut (Buffer) pour vérifier la signature HMAC-SHA256.
 app.use('/api/unitech/webhook', webhookRouter);
 
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '4mb' }));
 app.use(cookieParser());
 
 const ROOT = path.join(__dirname, '..');
@@ -119,6 +120,7 @@ app.use('/api/unitech', authenticate, requireActive, requireRole('proprietaire',
 app.use('/api/paiements-validation', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), validationsRoutes);
 app.use('/api/moyens-paiement', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), moyensPaiementRoutes);
 app.use('/api/import', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), importRoutes);
+app.use('/api/upload', authenticate, requireActive, uploadRoutes);
 app.use('/api/onboarding', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), importRoutes);
 
 const ownerOnly = requireRole('proprietaire', 'agence', 'entreprise');
