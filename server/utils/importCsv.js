@@ -364,7 +364,7 @@ export async function prepareImport(sb, ownerId, payload) {
       } else if (cat === 'locataires') {
         generated = await prepareLocataire(sb, ownerId, report, { line, v, seenUsernames, bienNoms, logementKeys, batch, locataireKeys });
       } else if (cat === 'employes') {
-        generated = await prepareEmploye(sb, ownerId, report, { line, v, seenUsernames, bienNoms, employeNoms });
+        generated = await prepareEmploye(sb, ownerId, report, { line, v, seenUsernames, bienNoms, employeNoms, batch });
       }
 
       if (generated) {
@@ -681,7 +681,7 @@ async function prepareLocataire(sb, ownerId, report, ctx) {
 }
 
 async function prepareEmploye(sb, ownerId, report, ctx) {
-  const { line, v, seenUsernames, employeNoms } = ctx;
+  const { line, v, seenUsernames, bienNoms, employeNoms, batch } = ctx;
 
   if (report.errors.some((e) => e.line === 0)) return;
 
@@ -706,7 +706,19 @@ async function prepareEmploye(sb, ownerId, report, ctx) {
   }
 
   if (v.bien) {
-    report.warnings.push({ line, message: 'Le modèle MIM n\'associe pas les employés à un bien : la colonne « Bien » est ignorée.' });
+    // L'employé est affecté au bien indiqué (existence vérifiée :
+    // en base d'abord, puis dans le lot de biens importés ensemble).
+    const bienKey = v.bien.toLowerCase();
+    const { data: bien } = await sb
+      .from('biens')
+      .select('id, nom')
+      .eq('user_id', ownerId)
+      .ilike('nom', v.bien)
+      .maybeSingle();
+    if (!bien && !bienNoms.has(bienKey) && !batch.batchBiens.has(bienKey)) {
+      report.errors.push({ line, champ: 'bien', message: `Le bien « ${v.bien} » n'existe pas dans votre espace.` });
+      return;
+    }
   }
 
   if (hasLineErrors(report, line)) return;
@@ -758,7 +770,7 @@ async function prepareEmploye(sb, ownerId, report, ctx) {
 // Exécution : création (avec compensation par ligne)
 // ------------------------------------------------------------
 
-export async function executeImport(sb, ownerId, payload) {
+export async function executeImport(sb, ownerId, payload, opts = {}) {
   const prepared = await prepareImport(sb, ownerId, payload);
   if (prepared.error) return prepared;
   if (!prepared.ready) {
@@ -788,6 +800,17 @@ export async function executeImport(sb, ownerId, payload) {
   const bienCache = new Map(); // nom (lower) -> {id, nom}
   const logementCache = new Map(); // `${bienNom}|${logementNom}` -> {id, nom, loyer_mensuel}
   const usernameSet = new Set();
+
+  // --- Progression réelle : les lignes sont traitées en lots et
+  // l'event loop est libérée régulièrement (setImmediate) pour que
+  // le polling GET /api/import/progress/:runId puisse répondre. ---
+  const { onProgress } = opts;
+  let done = 0;
+  const totals = prepared.categories.reduce((sum, c) => sum + c.total, 0);
+  const emit = () => {
+    if (onProgress) onProgress(Math.min(done, totals), totals);
+  };
+  const yieldLoop = () => new Promise((resolve) => setImmediate(resolve));
 
   for (const catReport of prepared.categories) {
     const cat = catReport.category;
@@ -819,11 +842,17 @@ export async function executeImport(sb, ownerId, payload) {
         } else if (cat === 'locataires') {
           await importLocataire(sb, ownerId, { line, v, result, duplicatePolicy, logementCache, bienCache, usernameSet });
         } else if (cat === 'employes') {
-          await importEmploye(sb, ownerId, { line, v, result, duplicatePolicy, usernameSet });
+          await importEmploye(sb, ownerId, { line, v, result, duplicatePolicy, usernameSet, bienCache });
         }
       } catch (err) {
         console.error(`[import/${cat}] ligne ${line} :`, err.message);
         result.rowErrors.push({ line, message: `Erreur technique : ${err.message || 'inconnue'}` });
+      }
+
+      done++;
+      if (done % 10 === 0) {
+        emit();
+        await yieldLoop();
       }
     }
 
@@ -833,6 +862,7 @@ export async function executeImport(sb, ownerId, payload) {
     report.totals.ignored += result.ignored;
     report.totals.accounts += result.accounts.length;
     report.accounts.push(...result.accounts);
+    emit();
   }
 
   return { report };
@@ -1032,7 +1062,7 @@ async function resolveLogement(sb, ownerId, { v, bienCache, logementCache }) {
   const cacheKey = `${String(bienId)}|${v.logement.toLowerCase()}`;
   const cached = logementCache.get(cacheKey);
   if (cached) {
-    return { logementId: cached.id, loyerLogement: cached.loyer_mensuel, logementStatut: cached.statut };
+    return { logementId: cached.id, loyerLogement: cached.loyer_mensuel, logementStatut: cached.statut, bienId };
   }
 
   const { data: logement } = await sb
@@ -1046,9 +1076,9 @@ async function resolveLogement(sb, ownerId, { v, bienCache, logementCache }) {
   if (!logement) {
     return { error: `Le logement « ${v.logement} » n'existe pas dans votre espace.` };
   }
-  const entry = { id: logement.id, nom: logement.nom, loyer_mensuel: Number(logement.loyer_mensuel || 0), statut: logement.statut };
+  const entry = { id: logement.id, nom: logement.nom, loyer_mensuel: Number(logement.loyer_mensuel || 0), statut: logement.statut, bien_id: logement.bien_id };
   logementCache.set(cacheKey, entry);
-  return { logementId: entry.id, loyerLogement: entry.loyer_mensuel, logementStatut: entry.statut };
+  return { logementId: entry.id, loyerLogement: entry.loyer_mensuel, logementStatut: entry.statut, bienId: entry.bien_id };
 }
 
 async function importLocataire(sb, ownerId, ctx) {
@@ -1078,7 +1108,7 @@ async function importLocataire(sb, ownerId, ctx) {
     result.rowErrors.push({ line, message: resolved.error });
     return;
   }
-  const { logementId, loyerLogement } = resolved;
+  const { logementId, loyerLogement, bienId } = resolved;
 
   // Doublon (relu en base, jamais uniquement depuis l'aperçu).
   if (logementId) {
@@ -1170,6 +1200,7 @@ async function importLocataire(sb, ownerId, ctx) {
     email,
     phone: v.telephone || null,
     logement_id: logementId,
+    bien_id: bienId ?? null,
     date_entree: v.dateentree || null,
     jour_echeance: jour,
     statut,
@@ -1192,7 +1223,7 @@ async function importLocataire(sb, ownerId, ctx) {
 }
 
 async function importEmploye(sb, ownerId, ctx) {
-  const { line, v, result, duplicatePolicy, usernameSet } = ctx;
+  const { line, v, result, duplicatePolicy, usernameSet, bienCache } = ctx;
 
   const { prenom, nom } = splitFullName(v.nom, v.prenom);
   if (!nom) {
@@ -1216,8 +1247,26 @@ async function importEmploye(sb, ownerId, ctx) {
     return;
   }
 
+  // Résolution du bien affecté (nom) — périmètre propriétaire uniquement.
+  let bienId = null;
   if (v.bien) {
-    // MIM n'associe pas les employés à un bien : colonne ignorée (avertissement en aperçu).
+    const cached = bienCache.get(v.bien.toLowerCase());
+    if (cached) {
+      bienId = cached.id;
+    } else {
+      const { data: bien } = await sb
+        .from('biens')
+        .select('id')
+        .eq('user_id', ownerId)
+        .ilike('nom', v.bien)
+        .maybeSingle();
+      if (!bien) {
+        result.rowErrors.push({ line, message: `Le bien « ${v.bien} » n'existe pas dans votre espace.` });
+        return;
+      }
+      bienId = bien.id;
+      bienCache.set(v.bien.toLowerCase(), bien);
+    }
   }
 
   const { data: sameNom } = await sb
@@ -1285,23 +1334,42 @@ async function importEmploye(sb, ownerId, ctx) {
   }
   const accountUid = createdUser.user.id;
 
-  const { error: insertError } = await sb.from('employes').insert({
-    user_id: ownerId,
-    account_uid: accountUid,
-    username: final,
-    nom,
-    poste: v.poste || null,
-    salaire,
-    email,
-    phone: v.telephone || null,
-    date_embauche: v.dateembauche || null,
-    statut,
-  });
+  const { data: fiche, error: insertError } = await sb
+    .from('employes')
+    .insert({
+      user_id: ownerId,
+      account_uid: accountUid,
+      username: final,
+      nom,
+      poste: v.poste || null,
+      salaire,
+      email,
+      phone: v.telephone || null,
+      date_embauche: v.dateembauche || null,
+      statut,
+    })
+    .select()
+    .single();
 
   if (insertError) {
     await sb.auth.admin.deleteUser(accountUid).catch(() => {});
     result.rowErrors.push({ line, message: `Création impossible : ${insertError.message}` });
     return;
+  }
+
+  // Affectation de l'employé à son bien (employes_biens).
+  if (bienId) {
+    const { error: lienError } = await sb.from('employes_biens').insert({
+      user_id: ownerId,
+      employe_id: fiche.id,
+      bien_id: bienId,
+    });
+    if (lienError) {
+      await sb.from('employes').delete().eq('id', fiche.id).catch(() => {});
+      await sb.auth.admin.deleteUser(accountUid).catch(() => {});
+      result.rowErrors.push({ line, message: `Affectation au bien impossible : ${lienError.message}` });
+      return;
+    }
   }
 
   await notify(accountUid, 'info', 'Votre compte employé a été créé par votre employeur. À votre première connexion, vous devrez choisir un nouveau mot de passe.');

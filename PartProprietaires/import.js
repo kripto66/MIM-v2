@@ -318,7 +318,19 @@ function renderPreview(p) {
 
 // ------------------------------------------------------------
 // Étape 5 : exécution + rapport final
+// Le POST /execute reste synchrone mais écrit sa progression
+// dans l'état du serveur ; on la suit via GET /import/progress/latest
+// (polling) pendant que la requête est en vol. La barre, la vitesse
+// et l'ETA reflètent le traitement réel, ligne par ligne.
 // ------------------------------------------------------------
+
+function fmtDuration(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return "—";
+  const s = Math.round(ms / 1000);
+  if (s < 60) return s + " s";
+  const m = Math.floor(s / 60);
+  return m + " min " + (s % 60) + " s";
+}
 
 async function runImport() {
   const btn = document.getElementById("wImport");
@@ -326,34 +338,103 @@ async function runImport() {
   const original = btn.textContent;
   btn.textContent = "Importation en cours…";
 
-  try {
-    const files = {};
-    for (const cat of selectedCats()) {
-      files[cat] = state.files[cat];
-    }
+  const progressPanel = document.getElementById("progressPanel");
+  progressPanel.hidden = false;
+  const bar = document.getElementById("progressBar");
+  const percentEl = document.getElementById("progressPercent");
+  const speedEl = document.getElementById("progressSpeed");
+  const etaEl = document.getElementById("progressEta");
+  const msgEl = document.getElementById("progressMessage");
+  bar.style.width = "0%";
+  percentEl.textContent = "0%";
+  speedEl.textContent = "—";
+  etaEl.textContent = "—";
+  msgEl.textContent = "Préparation…";
 
-    const res = await apiRequest("/import/execute", {
-      method: "POST",
-      body: JSON.stringify({
-        categories: selectedCats(),
-        files,
-        duplicatePolicy: state.duplicatePolicy,
-      }),
-    });
+  const files = {};
+  for (const cat of selectedCats()) {
+    files[cat] = state.files[cat];
+  }
 
-    state.initialPassword = res.initialPassword || "1234";
+  const startedAt = performance.now();
+  const importPromise = apiRequest("/import/execute", {
+    method: "POST",
+    body: JSON.stringify({
+      categories: selectedCats(),
+      files,
+      duplicatePolicy: state.duplicatePolicy,
+    }),
+  });
+
+  let finished = false;
+  const finish = async (res) => {
+    if (finished) return;
+    finished = true;
+    clearInterval(pollTimer);
+    progressPanel.hidden = true;
+    state.initialPassword = (res && res.initialPassword) || "1234";
     renderFinal(res);
     setStep(5);
-  } catch (err) {
-    showToast(err.message, "error");
-    if (err.prepared) {
-      state.preview = err.prepared;
-      renderPreview(err.prepared);
+  };
+
+  const pollTimer = setInterval(async () => {
+    try {
+      const p = await apiRequest("/import/progress/latest");
+      const pct = Math.max(0, Math.min(100, Number(p.percent) || 0));
+      bar.style.width = pct + "%";
+      percentEl.textContent = pct + "%";
+      msgEl.textContent = p.message || "Traitement…";
+
+      const elapsed = (performance.now() - startedAt) / 1000;
+      if (elapsed > 0.5 && p.done > 0) {
+        speedEl.textContent = `${p.done} / ${p.total} ligne(s) · ${(p.done / elapsed).toFixed(1)} ligne(s)/s`;
+        const remaining = p.total - p.done;
+        const rate = p.done / elapsed;
+        etaEl.textContent = remaining > 0 && rate > 0 ? `ETA ~${fmtDuration((remaining / rate) * 1000)}` : "—";
+      }
+
+      if (p.status === "done") {
+        const res = await importPromise;
+        await finish(res);
+      } else if (p.status === "error") {
+        try {
+          await importPromise;
+        } catch (err) {
+          showToast(err.message, "error");
+          if (err.prepared) {
+            state.preview = err.prepared;
+            renderPreview(err.prepared);
+          }
+        }
+        clearInterval(pollTimer);
+        progressPanel.hidden = true;
+        setStep(4);
+      }
+    } catch (err) {
+      // Polling transitoire (pas encore de run) : on attend le POST.
     }
-  } finally {
-    btn.disabled = false;
-    btn.textContent = original;
-  }
+  }, 400);
+
+  // Si le polling ne voit jamais le run (réseau ou cas limite), on se
+  // rabat sur la réponse du POST lui-même.
+  importPromise
+    .then(finish)
+    .catch(async (err) => {
+      if (finished) return;
+      finished = true;
+      clearInterval(pollTimer);
+      progressPanel.hidden = true;
+      showToast(err.message, "error");
+      if (err.prepared) {
+        state.preview = err.prepared;
+        renderPreview(err.prepared);
+        setStep(4);
+      }
+    })
+    .finally(() => {
+      btn.disabled = false;
+      btn.textContent = original;
+    });
 }
 
 function renderFinal(res) {

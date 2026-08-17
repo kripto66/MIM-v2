@@ -157,6 +157,18 @@
 
             <form id="profileForm">
 
+                <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
+                    <img id="avatarPreview" alt="Photo de profil"
+                        style="width:84px;height:84px;border-radius:50%;object-fit:cover;background:#e9edf2;border:2px solid #dfe5ec;"
+                        src="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84'%3E%3Crect width='84' height='84' fill='%23e9edf2'/%3E%3Ctext x='42' y='50' font-size='32' text-anchor='middle' fill='%239aa7b4'%3E👤%3C/text%3E%3C/svg%3E">
+                    <div>
+                        <label for="avatarInput" class="secondary-button" style="display:inline-block;cursor:pointer;">Changer la photo</label>
+                        <input type="file" id="avatarInput" accept="image/jpeg,image/png,image/webp" hidden>
+                        <button type="button" class="danger-button" id="avatarRemoveBtn" style="display:none;">Supprimer la photo</button>
+                        <p class="form-hint" style="margin-top:6px;">JPEG, PNG ou WebP — 2 Mo maximum.</p>
+                    </div>
+                </div>
+
                 <div class="form-group">
                     <label for="profileNameInput">Nom complet</label>
                     <input type="text" id="profileNameInput" name="name" required>
@@ -254,6 +266,59 @@
             const usernameInput = document.getElementById("profileUsernameInput");
             const usernameStatus = document.getElementById("usernameStatus");
 
+            const avatarImg = document.getElementById("avatarPreview");
+            avatarImg.dataset.placeholder = avatarImg.src;
+
+            function setAvatar(url) {
+                if (url) {
+                    avatarImg.src = url;
+                    document.getElementById("avatarRemoveBtn").style.display = "";
+                } else {
+                    avatarImg.src = avatarImg.dataset.placeholder;
+                    document.getElementById("avatarRemoveBtn").style.display = "none";
+                }
+            }
+
+            document.getElementById("avatarInput").addEventListener("change", async (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+                if (file.size > 2 * 1024 * 1024) {
+                    showTenantError("Photo trop lourde : 2 Mo maximum.");
+                    e.target.value = "";
+                    return;
+                }
+                if (!/^image\/(jpeg|png|webp)$/.test(file.type)) {
+                    showTenantError("Format invalide : JPEG, PNG ou WebP uniquement.");
+                    e.target.value = "";
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = async () => {
+                    try {
+                        const res = await tenantRequest("/upload/avatar", {
+                            method: "POST",
+                            body: JSON.stringify({ dataUri: reader.result }),
+                        });
+                        setAvatar(res.avatar_url);
+                        showTenantError("Photo de profil mise à jour.", true);
+                    } catch (err) {
+                        showTenantError(err.message);
+                    }
+                    e.target.value = "";
+                };
+                reader.readAsDataURL(file);
+            });
+
+            document.getElementById("avatarRemoveBtn").addEventListener("click", async () => {
+                try {
+                    await tenantRequest("/upload/avatar", { method: "DELETE" });
+                    setAvatar(null);
+                    showTenantError("Photo de profil supprimée.", true);
+                } catch (err) {
+                    showTenantError(err.message);
+                }
+            });
+
             function usernameValid(u) {
                 return /^[a-z0-9._-]{3,30}$/.test(u);
             }
@@ -296,6 +361,7 @@
                 document.getElementById("profileUsernameInput").value = user.username || "";
                 document.getElementById("profileEmail").value = user.email || "";
                 document.getElementById("profilePhoneInput").value = user.phone || "";
+                setAvatar(user.avatar_url || null);
             } catch (err) {
                 showTenantError(err.message);
             }

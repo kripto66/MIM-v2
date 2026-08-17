@@ -15,7 +15,9 @@ import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, TYPE_MOYEN_LABELS } from '../
 
 const router = Router();
 
-// Charge la fiche employé + le propriétaire qui l'emploie (ou null).
+// Charge la fiche employé + le propriétaire qui l'emploie (ou null),
+// ainsi que ses biens affectés (employes_biens) et les logements
+// de ces biens : l'employé ne voit que les données de SES biens.
 async function employeContext(userId) {
   const sb = serviceClient();
 
@@ -27,7 +29,20 @@ async function employeContext(userId) {
 
   if (!employe) return null;
 
-  return { employe, ownerId: employe.user_id };
+  const { data: liaisons = [] } = await sb
+    .from('employes_biens')
+    .select('bien_id')
+    .eq('employe_id', employe.id);
+
+  const bienIds = [...new Set((liaisons || []).map((l) => l.bien_id).filter((id) => id != null))];
+
+  // Logements couverts par les biens affectés (sentinelle [0] si aucun).
+  const { data: scopedLogements = [] } = await sb
+    .from('logements')
+    .select('id')
+    .in('bien_id', bienIds.length ? bienIds : [0]);
+
+  return { employe, ownerId: employe.user_id, bienIds, scopedLogementIds: [...new Set(scopedLogements.map((l) => l.id))] };
 }
 
 async function requireEmploye(req, res, next) {
@@ -53,7 +68,7 @@ router.get('/me', async (req, res) => {
   try {
     const { data: profile } = await sb
       .from('profiles')
-      .select('id, account_type, name, email, phone, username')
+      .select('id, account_type, name, email, phone, username, avatar_url')
       .eq('id', req.user.id)
       .maybeSingle();
 
@@ -75,6 +90,7 @@ router.get('/me', async (req, res) => {
         username: profile?.username || employe.username || '',
         email: employe.email || profile?.email || '',
         phone: profile?.phone || employe.phone || '',
+        avatar_url: profile?.avatar_url || null,
         role: 'employe',
         employee_role: employe.poste || 'Employé',
         poste: employe.poste || '',
@@ -93,15 +109,15 @@ router.get('/me', async (req, res) => {
 // ============================================================
 router.get('/dashboard', requireEmploye, async (req, res) => {
   const sb = serviceClient();
-  const { employe, ownerId } = req.employe;
+  const { employe, ownerId, scopedLogementIds } = req.employe;
   const uid = req.user.id;
 
   try {
     const [{ data: tasks = [] }, { data: incidents = [] }, { data: interventions = [] }, { data: notifications = [] }, { data: paiements = [] }] =
       await Promise.all([
         sb.from('tasks').select('titre, statut, description, echeance, created_at').eq('employe_uid', uid),
-        sb.from('incidents').select('titre, statut, created_at').eq('user_id', ownerId),
-        sb.from('interventions').select('titre, statut, date_prevue, created_at').eq('user_id', ownerId),
+        sb.from('incidents').select('titre, statut, created_at').eq('user_id', ownerId).in('logement_id', scopedLogementIds.length ? scopedLogementIds : [0]),
+        sb.from('interventions').select('titre, statut, date_prevue, created_at').eq('user_id', ownerId).in('logement_id', scopedLogementIds.length ? scopedLogementIds : [0]),
         sb.from('notifications').select('type, message, lu, created_at').eq('user_id', uid),
         sb.from('paiements_employes').select('mois, montant, statut, created_at').eq('employe_uid', uid).eq('user_id', ownerId),
       ]);
@@ -179,12 +195,13 @@ router.get('/tasks', async (req, res) => {
 // ============================================================
 router.get('/incidents', requireEmploye, async (req, res) => {
   const sb = serviceClient();
-  const { ownerId } = req.employe;
+  const { ownerId, scopedLogementIds } = req.employe;
+  const logementsFilter = scopedLogementIds.length ? scopedLogementIds : [0];
 
   try {
     const [{ data: incidents = [], error: e1 }, { data: logements = [] }] = await Promise.all([
-      sb.from('incidents').select('*').eq('user_id', ownerId).order('created_at', { ascending: false }),
-      sb.from('logements').select('id, nom').eq('user_id', ownerId),
+      sb.from('incidents').select('*').eq('user_id', ownerId).in('logement_id', logementsFilter).order('created_at', { ascending: false }),
+      sb.from('logements').select('id, nom').eq('user_id', ownerId).in('id', logementsFilter),
     ]);
 
     if (e1) throw e1;
@@ -213,13 +230,14 @@ router.get('/incidents', requireEmploye, async (req, res) => {
 // ============================================================
 router.get('/interventions', requireEmploye, async (req, res) => {
   const sb = serviceClient();
-  const { ownerId } = req.employe;
+  const { ownerId, scopedLogementIds } = req.employe;
 
   try {
     const { data: interventions = [], error } = await sb
       .from('interventions')
       .select('*')
       .eq('user_id', ownerId)
+      .in('logement_id', scopedLogementIds.length ? scopedLogementIds : [0])
       .order('created_at', { ascending: false });
 
     if (error) throw error;
@@ -246,12 +264,12 @@ router.get('/interventions', requireEmploye, async (req, res) => {
 // ============================================================
 router.get('/logements', requireEmploye, async (req, res) => {
   const sb = serviceClient();
-  const { ownerId } = req.employe;
+  const { ownerId, bienIds, scopedLogementIds } = req.employe;
 
   try {
     const [{ data: logements = [], error: e1 }, { data: locataires = [] }] = await Promise.all([
-      sb.from('logements').select('*').eq('user_id', ownerId).order('created_at', { ascending: false }),
-      sb.from('locataires').select('logement_id, nom').eq('user_id', ownerId).eq('statut', 'actif'),
+      sb.from('logements').select('*').eq('user_id', ownerId).in('bien_id', bienIds.length ? bienIds : [0]).order('created_at', { ascending: false }),
+      sb.from('locataires').select('logement_id, nom').eq('user_id', ownerId).eq('statut', 'actif').in('logement_id', scopedLogementIds.length ? scopedLogementIds : [0]),
     ]);
 
     if (e1) throw e1;
@@ -280,12 +298,12 @@ router.get('/logements', requireEmploye, async (req, res) => {
 // ============================================================
 router.get('/locataires', requireEmploye, async (req, res) => {
   const sb = serviceClient();
-  const { ownerId } = req.employe;
+  const { ownerId, scopedLogementIds } = req.employe;
 
   try {
     const [{ data: locataires = [], error: e1 }, { data: logements = [] }] = await Promise.all([
-      sb.from('locataires').select('*').eq('user_id', ownerId).order('created_at', { ascending: false }),
-      sb.from('logements').select('id, nom').eq('user_id', ownerId),
+      sb.from('locataires').select('*').eq('user_id', ownerId).in('logement_id', scopedLogementIds.length ? scopedLogementIds : [0]).order('created_at', { ascending: false }),
+      sb.from('logements').select('id, nom').eq('user_id', ownerId).in('id', scopedLogementIds.length ? scopedLogementIds : [0]),
     ]);
 
     if (e1) throw e1;

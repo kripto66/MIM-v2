@@ -80,7 +80,6 @@ function validateResource(tableName, body, partial = false) {
     case 'logements':
       check('nom', () => !present('nom'), 'Le nom du logement est obligatoire.');
       check('type', () => present('type') && !['appartement', 'chambre'].includes(body.type), 'Type de logement invalide.');
-      check('nombre_chambres', () => body.type === 'appartement' && !present('nombre_chambres'), 'Indiquez le nombre de chambres.');
       check('nombre_chambres', () => present('nombre_chambres') && Number(body.nombre_chambres) < 1, 'Le nombre de chambres doit être au moins 1.');
       check('adresse', () => !present('adresse'), 'L\'adresse est obligatoire.');
       check('loyer_mensuel', () => !present('loyer_mensuel') || Number(body.loyer_mensuel) <= 0, 'Le loyer mensuel doit être supérieur à 0.');
@@ -282,15 +281,30 @@ export function createCrudRouter(tableName) {
   }
 
   async function createLogementForOwner(admin, ownerId, payload) {
-    const errors = validateResource('logements', sanitize('logements', payload), false);
-    if (Object.keys(errors).length) return { errors };
-
     if (!(await bienBelongsTo(admin, payload?.bien_id, ownerId))) {
       return { errors: { bien_id: 'Bien introuvable ou ne vous appartient pas.' } };
     }
 
+    // L'adresse du logement est héritée du bien si elle n'est pas fournie :
+    // le propriétaire ne ressaisit jamais l'adresse (elle vit sur le bien).
+    let logementBody = sanitize('logements', payload);
+    if (!logementBody.adresse && payload?.bien_id) {
+      const { data: bien } = await admin
+        .from('biens')
+        .select('adresse, ville, pays')
+        .eq('id', payload.bien_id)
+        .maybeSingle();
+      if (bien) {
+        const inherited = [bien.adresse, bien.ville, bien.pays].filter(Boolean).join(', ');
+        if (inherited) logementBody = { ...logementBody, adresse: inherited };
+      }
+    }
+
+    const errors = validateResource('logements', logementBody, false);
+    if (Object.keys(errors).length) return { errors };
+
     const body = {
-      ...sanitize('logements', payload),
+      ...logementBody,
       user_id: ownerId,
       statut: payload?.statut || 'libre',
     };
@@ -422,10 +436,11 @@ export function createCrudRouter(tableName) {
 
     // Un propriétaire ne peut créer un locataire que pour ses propres logements.
     let logementLoyer = null;
+    let logementBienId = null;
     if (logementId) {
       const { data: logement, error: logementError } = await admin
         .from('logements')
-        .select('id, user_id, loyer_mensuel')
+        .select('id, user_id, loyer_mensuel, bien_id')
         .eq('id', logementId)
         .maybeSingle();
 
@@ -433,6 +448,7 @@ export function createCrudRouter(tableName) {
         return res.status(400).json({ success: false, message: 'Logement introuvable ou ne vous appartient pas.', errors: { logement_id: 'Logement introuvable ou ne vous appartient pas.' } });
       }
       logementLoyer = logement.loyer_mensuel;
+      logementBienId = logement.bien_id;
     }
 
     // Username unique dans toute l'application (messages clairs, pas d'erreur technique).
@@ -461,6 +477,7 @@ export function createCrudRouter(tableName) {
     if (logementNew) {
       const created = await createLogementForOwner(admin, ownerId, {
         ...logementNew,
+        bien_id: req.body.bien_id ?? null,
         statut: statut === 'actif' ? 'occupe' : 'libre',
       });
       if (created.errors || created.error) {
@@ -477,6 +494,7 @@ export function createCrudRouter(tableName) {
       createdLogementId = created.data.id;
       createdLogement = created.data;
       logementLoyer = created.data.loyer_mensuel;
+      logementBienId = created.data.bien_id;
     }
 
     // Un logement ne peut avoir qu'un seul locataire actif.
@@ -529,6 +547,7 @@ export function createCrudRouter(tableName) {
       email,
       phone,
       logement_id: logementId,
+      bien_id: logementBienId,
       date_entree: dateEntree,
       jour_echeance: jour,
       statut,
@@ -570,9 +589,13 @@ export function createCrudRouter(tableName) {
         await admin.from('paiements').delete().eq('locataire_id', data.id).catch(() => {});
         await admin.from('locataires').delete().eq('id', data.id).eq('user_id', ownerId).catch(() => {});
         await admin.auth.admin.deleteUser(accountUid).catch(() => {});
-        if (createdLogementId) {
-          await admin.from('logements').delete().eq('id', createdLogementId).catch(() => {});
+if (createdLogementId) {
+        try {
+          await admin.from('logements').delete().eq('id', createdLogementId);
+        } catch {
+          /* déjà supprimé */
         }
+      }
         console.error('[createTenant] échéance initiale :', echeance.error);
         return res.status(400).json({ success: false, message: 'Impossible de créer l\'échéance du loyer. Veuillez réessayer.' });
       }
@@ -601,6 +624,19 @@ export function createCrudRouter(tableName) {
     }
 
     const body = { ...sanitize(tableName, req.body), user_id: userId(req) };
+
+    // L'adresse d'un logement est héritée du bien si elle n'est pas fournie.
+    if (tableName === 'logements' && !body.adresse && body.bien_id) {
+      const { data: bien } = await serviceClient()
+        .from('biens')
+        .select('adresse, ville, pays')
+        .eq('id', body.bien_id)
+        .maybeSingle();
+      if (bien) {
+        const inherited = [bien.adresse, bien.ville, bien.pays].filter(Boolean).join(', ');
+        if (inherited) body.adresse = inherited;
+      }
+    }
 
     const errors = validateResource(tableName, body, false);
     if (Object.keys(errors).length) {
@@ -698,6 +734,17 @@ export function createCrudRouter(tableName) {
           errors,
         });
       }
+    }
+
+    // Dénormalisation locataires.bien_id : reflète le bien du logement
+    // (nécessaire pour les politiques RLS employé par bien).
+    if (tableName === 'locataires' && body.logement_id) {
+      const { data: logementRef } = await serviceClient()
+        .from('logements')
+        .select('bien_id')
+        .eq('id', body.logement_id)
+        .maybeSingle();
+      body.bien_id = logementRef?.bien_id ?? null;
     }
 
     const errors = validateResource(tableName, body, true);

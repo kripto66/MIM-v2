@@ -138,7 +138,7 @@
                     à la première connexion.
                 </div>
 
-                <div class="form-row">
+<div class="form-row">
                     <div class="form-group">
                         <label for="emp_poste">Poste / fonction</label>
                         <input type="text" id="emp_poste" name="emp_poste" placeholder="Ex : Gardien, Gérant, Agent d'entretien">
@@ -147,6 +147,14 @@
                         <label for="emp_salaire">Salaire mensuel (FCFA)</label>
                         <input type="number" id="emp_salaire" name="emp_salaire" min="0" step="0.01" placeholder="ex : 100000">
                     </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="emp_biens">Biens affectés (l'employé ne voit que ces biens)</label>
+                    <select id="emp_biens" name="emp_biens" multiple size="4">
+                        <option value="" disabled>Chargement...</option>
+                    </select>
+                    <small class="form-hint">Maintenez Ctrl (ou ⌘) pour sélectionner plusieurs biens.</small>
                 </div>
 
                 <div class="form-row">
@@ -337,7 +345,7 @@
             termine: ["Terminée", "status-success"],
         };
 
-        const state = { employes: [], taches: [], tab: "employes" };
+        const state = { employes: [], taches: [], biens: [], tab: "employes" };
         let employeeEditId = null;
         let taskEditId = null;
 
@@ -365,14 +373,16 @@
         // Chargement + rendu
         // ============================================================
 
-        async function loadAll() {
+async function loadAll() {
             try {
-                const [employes, taches] = await Promise.all([
+                const [employes, taches, biens] = await Promise.all([
                     apiRequest("/employes"),
                     apiRequest("/tasks"),
+                    apiRequest("/biens"),
                 ]);
                 state.employes = employes.data;
                 state.taches = taches.data;
+                state.biens = biens.data;
                 renderEmployes();
                 renderTaches();
             } catch (err) {
@@ -381,20 +391,32 @@
             }
         }
 
+        function renderBienOptions(selectedIds) {
+            const selected = new Set((selectedIds || []).map((id) => String(id)));
+            if (!state.biens.length) {
+                return '<option value="" disabled>Aucun bien créé — créez d\'abord un bien.</option>';
+            }
+            return state.biens.map(
+                (b) => `<option value="${b.id}"${selected.has(String(b.id)) ? " selected" : ""}>${escapeHtml(b.nom)}${b.adresse ? " — " + escapeHtml(b.adresse) : ""}</option>`
+            ).join("");
+        }
+
         function renderEmployes() {
             const list = el("employesList");
             if (!state.employes.length) {
                 list.innerHTML = '<div class="empty-state">Aucun employé pour le moment. Créez le premier compte avec le bouton « + Ajouter un employé ».</div>';
                 return;
             }
-            list.innerHTML = state.employes.map((e) => {
+list.innerHTML = state.employes.map((e) => {
                 const [label, cls] = EMPLOYE_STATUS[e.statut] || [e.statut, "status-info"];
+                const biens = (e.biens || []).map((b) => escapeHtml(b.nom)).filter(Boolean).join(", ");
                 return `
                     <div class="crud-card">
                         <div>
                             <h3>${escapeHtml(e.nom)}</h3>
                             <p>${e.poste ? escapeHtml(e.poste) + " · " : ""}${e.account_uid ? "Compte actif" : "Sans compte"}${e.phone ? " · " + escapeHtml(e.phone) : ""}${e.email ? " — " + escapeHtml(e.email) : ""}</p>
                             <p><strong>${formatFCFA(e.salaire)}</strong> / mois</p>
+                            <p>${biens ? "<span class=\"logement-chip\">Biens : " + biens + "</span>" : ""}</p>
                             <p><span class="status ${cls}">${label}</span>${e.paiements_count ? " · " + e.paiements_count + " paiement(s) · " + formatFCFA(e.total_paye) + " versés" : ""}</p>
                         </div>
                         <div class="card-actions">
@@ -447,7 +469,7 @@
         // Modal employé
         // ============================================================
 
-        function openEmployeeAdd() {
+function openEmployeeAdd() {
             employeeEditId = null;
             const form = el("employeeForm");
             form.reset();
@@ -458,6 +480,7 @@
             form.emp_password.disabled = false;
             el("empUsernameStatus").textContent = "";
             form.emp_statut.value = "actif";
+            el("emp_biens").innerHTML = renderBienOptions([]);
             el("employeeModal").style.display = "flex";
         }
 
@@ -478,6 +501,7 @@
             form.emp_phone.value = item.phone || "";
             form.emp_date_embauche.value = item.date_embauche || "";
             form.emp_statut.value = item.statut || "actif";
+            el("emp_biens").innerHTML = renderBienOptions((item.biens || []).map((b) => b.id));
             el("employeeModal").style.display = "flex";
         }
 
@@ -529,6 +553,7 @@ const editing = employeeEditId != null;
                 phone: form.emp_phone.value.trim(),
                 date_embauche: form.emp_date_embauche.value,
                 statut: form.emp_statut.value,
+                biens: [...form.emp_biens.selectedOptions].map((o) => o.value),
             };
             if (!editing && (hasUsername || hasPassword)) {
                 payload.username = form.emp_username.value.trim();

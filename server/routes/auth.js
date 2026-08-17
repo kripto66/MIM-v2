@@ -702,7 +702,7 @@ router.get('/me', authenticate, async (req, res) => {
 
   const { data: user, error } = await sb
     .from('profiles')
-    .select('id, account_type, name, email, phone, username, must_change_password')
+    .select('id, account_type, name, email, phone, username, must_change_password, avatar_url')
     .eq('id', req.user.id)
     .maybeSingle();
 
