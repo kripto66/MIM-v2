@@ -38,7 +38,7 @@ async function main() {
 
   const ejar = newJar();
   const login = await api('/auth/login', { method: 'POST', ejar, body: { identifier: username, password: '1234' } });
-  console.log('login:', login.status, JSON.stringify(login.data).slice(0, 200));
+  console.log('login:', login.status, JSON.stringify(login.data));
   console.log('jar cookies after login:', JSON.stringify(ejar.cookies));
 
   const meAuth = await api('/auth/me', { jar: ejar });
