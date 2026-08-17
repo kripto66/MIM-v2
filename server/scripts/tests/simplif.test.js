@@ -345,6 +345,215 @@ export async function runSimplif(runner, ctx) {
     await api('/upload/avatar', { method: 'DELETE', jar });
   });
 
+  await runner.section('Moyens de paiement : lien strictement facultatif', async () => {
+    // 1. Wave SANS lien → création acceptée, lien null en base.
+    const wave = await api('/moyens-paiement', {
+      method: 'POST',
+      jar,
+      body: { type: 'wave', nom_titulaire: 'SIMPLIF Amadou Diop', numero: '77xxxxxxx', lien_paiement: '' },
+    });
+    if (expectSuccess(runner, wave, S, 'création Wave sans lien', [201])) {
+      if (wave.data.data.lien_paiement === null) runner.pass(S, 'Wave sans lien : lien null en base');
+      else runner.fail(S, 'Wave sans lien : lien null en base', String(wave.data.data.lien_paiement));
+    }
+
+    // 2. Orange Money SANS lien → création acceptée.
+    const om = await api('/moyens-paiement', {
+      method: 'POST',
+      jar,
+      body: { type: 'orange_money', nom_titulaire: 'SIMPLIF Amadou Diop', numero: '77xxxxxxx', lien_paiement: null },
+    });
+    if (expectSuccess(runner, om, S, 'création Orange Money sans lien', [201])) {
+      if (om.data.data.lien_paiement === null) runner.pass(S, 'Orange Money sans lien : lien null');
+      else runner.fail(S, 'Orange Money sans lien : lien null', String(om.data.data.lien_paiement));
+    }
+
+    // 3. Moyen AVEC lien → création + lien conservé.
+    const avecLien = await api('/moyens-paiement', {
+      method: 'POST',
+      jar,
+      body: { type: 'wave', nom_titulaire: 'SIMPLIF Titulaire Lien', numero: '771112223', lien_paiement: 'https://pay.wave.example/abc' },
+    });
+    if (expectSuccess(runner, avecLien, S, 'création avec lien', [201])) {
+      if (avecLien.data.data.lien_paiement === 'https://pay.wave.example/abc') runner.pass(S, 'lien conservé après création');
+      else runner.fail(S, 'lien conservé après création', String(avecLien.data.data.lien_paiement));
+    }
+
+    // 4. Édition : effacer le lien (valeur vide) → converti en null.
+    const upd = await api(`/moyens-paiement/${avecLien.data.data.id}`, {
+      method: 'PUT',
+      jar,
+      body: { lien_paiement: '' },
+    });
+    if (expectSuccess(runner, upd, S, 'édition : lien effacé')) {
+      if (upd.data.data.lien_paiement === null) runner.pass(S, 'édition sans lien : lien null');
+      else runner.fail(S, 'édition sans lien : lien null', String(upd.data.data.lien_paiement));
+    }
+
+    // 5. Vue locataire : nom et numéro copiables, aucun lien à ouvrir.
+    const tjar = newJar();
+    const tlogin = await api('/auth/login', {
+      method: 'POST',
+      jar: tjar,
+      body: { identifier: `own${owner.i}loc1`, password: OWNER_PASSWORD },
+    });
+    if (!expectSuccess(runner, tlogin, S, 'connexion locataire (vue moyens)')) return;
+
+    const moyens = await api('/locataire/moyens-paiement', { jar: tjar });
+    const vus = (moyens.data.data || []).filter((m) => m.nom_titulaire === 'SIMPLIF Amadou Diop');
+    const waveVu = vus.find((m) => m.type === 'wave');
+    if (waveVu) {
+      if (waveVu.nom_titulaire) runner.pass(S, 'locataire : nom copiable présent');
+      else runner.fail(S, 'locataire : nom copiable présent', 'nom absent');
+      if (waveVu.numero) runner.pass(S, 'locataire : numéro copiable présent');
+      else runner.fail(S, 'locataire : numéro copiable présent', 'numéro absent');
+      if (waveVu.lien_paiement == null) runner.pass(S, 'locataire : aucun lien → pas de bouton « Ouvrir »');
+      else runner.fail(S, 'locataire : aucun lien → pas de bouton « Ouvrir »', String(waveVu.lien_paiement));
+    } else {
+      runner.fail(S, 'locataire : moyens du propriétaire visibles', 'Wave Amadou Diop introuvable');
+    }
+
+    // Nettoyage.
+    await api(`/moyens-paiement/${wave.data.data.id}`, { method: 'DELETE', jar });
+    await api(`/moyens-paiement/${om.data.data.id}`, { method: 'DELETE', jar });
+    await api(`/moyens-paiement/${avecLien.data.data.id}`, { method: 'DELETE', jar });
+  });
+
+  await runner.section('Employé : résolution des incidents de SES biens', async () => {
+    // Bien A (seed) avec incident ; bien B avec incident protégé.
+    const incA = (
+      await api('/incidents', {
+        method: 'POST',
+        jar,
+        body: { logement_id: owner.logements[0].id, titre: 'SIMPLIF Incident Resolvable A', description: 'Fuite à réparer', statut: 'nouveau' },
+      })
+    ).data.data;
+
+    const bienB = (
+      await api('/biens', {
+        method: 'POST',
+        jar,
+        body: { nom: 'SIMPLIF Résidence Reso B', type: 'villa', adresse: 'Rue Reso B', ville: 'Dakar', pays: 'Sénégal' },
+      })
+    ).data.data;
+    const logB = (
+      await api('/logements', {
+        method: 'POST',
+        jar,
+        body: { bien_id: bienB.id, nom: 'SIMPLIF Log Reso B', type: 'appartement', loyer_mensuel: 70000, statut: 'libre' },
+      })
+    ).data.data;
+    const incB = (
+      await api('/incidents', {
+        method: 'POST',
+        jar,
+        body: { logement_id: logB.id, titre: 'SIMPLIF Incident Protege B', statut: 'nouveau' },
+      })
+    ).data.data;
+
+    // Employé affecté UNIQUEMENT au bien A.
+    const created = await api('/employes', {
+      method: 'POST',
+      jar,
+      body: { nom: 'SIMPLIF Employe Resolveur', poste: 'Agent', biens: [owner.bienId] },
+    });
+    if (!expectSuccess(runner, created, S, 'création employé résolveur (bien A)', [201])) return;
+    const empId = created.data.data.id;
+
+    const ejar = newJar();
+    const login = await api('/auth/login', {
+      method: 'POST',
+      jar: ejar,
+      body: { identifier: created.data.account.username, password: '1234' },
+    });
+    if (!expectSuccess(runner, login, S, 'connexion de l\'employé résolveur')) return;
+
+    // Il VOIT l'incident de son bien, avec logement et description.
+    const list = await api('/employe/incidents', { jar: ejar });
+    const seenA = (list.data.data || []).find((x) => x.titre === 'SIMPLIF Incident Resolvable A');
+    if (seenA) {
+      runner.pass(S, 'employé affecté : voit l\'incident de son bien');
+      if (seenA.logement && seenA.logement !== '—') runner.pass(S, 'carte incident : logement présent');
+      else runner.fail(S, 'carte incident : logement présent', String(seenA.logement));
+      if (seenA.description !== undefined) runner.pass(S, 'carte incident : description présente');
+      else runner.fail(S, 'carte incident : description présente', 'description absente');
+      if (seenA.created_at) runner.pass(S, 'carte incident : date présente');
+      else runner.fail(S, 'carte incident : date présente', 'created_at absent');
+    } else {
+      runner.fail(S, 'employé affecté : voit l\'incident de son bien', 'incident A absent');
+    }
+
+    const seenB = (list.data.data || []).find((x) => x.titre === 'SIMPLIF Incident Protege B');
+    if (seenB) runner.fail(S, 'employé : incident du bien B invisible', 'vu');
+    else runner.pass(S, 'employé : incident du bien B invisible');
+
+    // Résolution d'un incident HORS de ses biens → 403.
+    const tryB = await api(`/employe/incidents/${incB.id}/resoudre`, { method: 'POST', jar: ejar, body: {} });
+    if (tryB.status === 403) runner.pass(S, 'résolution d\'un incident hors biens affectés : 403');
+    else runner.fail(S, 'résolution d\'un incident hors biens affectés : 403', `statut ${tryB.status}`);
+
+    // Résolution valide : statut resolu + traces + horodatage serveur.
+    const ok = await api(`/employe/incidents/${incA.id}/resoudre`, { method: 'POST', jar: ejar, body: {} });
+    if (expectSuccess(runner, ok, S, 'résolution valide (200)')) {
+      if (ok.data.data.statut === 'resolu') runner.pass(S, 'statut passé à resolu');
+      else runner.fail(S, 'statut passé à resolu', ok.data.data.statut);
+      if (String(ok.data.data.resolved_by) === String(empId)) runner.pass(S, 'resolved_by = fiche employé');
+      else runner.fail(S, 'resolved_by = fiche employé', String(ok.data.data.resolved_by));
+      if (ok.data.data.resolved_at) runner.pass(S, 'resolved_at = horodatage serveur présent');
+      else runner.fail(S, 'resolved_at = horodatage serveur présent', 'absent');
+    }
+
+    // Résolution déjà effectuée → refus (400).
+    const again = await api(`/employe/incidents/${incA.id}/resoudre`, { method: 'POST', jar: ejar, body: {} });
+    if (again.status === 400) runner.pass(S, 'résolution déjà effectuée : refus (400)');
+    else runner.fail(S, 'résolution déjà effectuée : refus (400)', `statut ${again.status}`);
+
+    // Propriétaire notifié de la résolution.
+    const { data: notifs, error: notifErr } = await service
+      .from('notifications')
+      .select('*')
+      .eq('user_id', owner.id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    const notifReso = (notifs || []).find((n) => n.message && n.message.includes('SIMPLIF Incident Resolvable A') && n.message.includes('résolu'));
+    if (notifReso) runner.pass(S, 'propriétaire notifié de la résolution');
+    else runner.fail(S, 'propriétaire notifié de la résolution', `err=${notifErr?.message || 'aucune'} total=${(notifs || []).length}`);
+
+    // Employé NON affecté au bien de l'incident → refus (403).
+    const created2 = await api('/employes', {
+      method: 'POST',
+      jar,
+      body: { nom: 'SIMPLIF Employe Etranger', poste: 'Agent', biens: [bienB.id] },
+    });
+    const ejar2 = newJar();
+    const login2 = await api('/auth/login', {
+      method: 'POST',
+      jar: ejar2,
+      body: { identifier: created2.data.account.username, password: '1234' },
+    });
+    if (expectSuccess(runner, login2, S, 'connexion de l\'employé étranger')) {
+      const tryA2 = await api(`/employe/incidents/${incA.id}/resoudre`, { method: 'POST', jar: ejar2, body: {} });
+      if (tryA2.status === 403) runner.pass(S, 'employé non affecté au bien : 403');
+      else runner.fail(S, 'employé non affecté au bien : 403', `statut ${tryA2.status}`);
+    }
+
+    // État final vérifié en base.
+    const { data: finalInc } = await service.from('incidents').select('statut, resolved_by, resolved_at').eq('id', incA.id).single();
+    if (finalInc && finalInc.statut === 'resolu' && finalInc.resolved_by && finalInc.resolved_at) {
+      runner.pass(S, 'état résolu vérifié en base (statut + resolved_by + resolved_at)');
+    } else {
+      runner.fail(S, 'état résolu vérifié en base (statut + resolved_by + resolved_at)', JSON.stringify(finalInc));
+    }
+
+    // Nettoyage.
+    await api(`/employes/${empId}`, { method: 'DELETE', jar });
+    await api(`/employes/${created2.data.data.id}`, { method: 'DELETE', jar });
+    await api(`/incidents/${incA.id}`, { method: 'DELETE', jar });
+    await api(`/incidents/${incB.id}`, { method: 'DELETE', jar });
+    await api(`/logements/${logB.id}`, { method: 'DELETE', jar });
+    await api(`/biens/${bienB.id}`, { method: 'DELETE', jar });
+  });
+
   await runner.section('Import par lots : progression réelle + bien des employés', async () => {
     const csv = (cat) => {
       const files = {

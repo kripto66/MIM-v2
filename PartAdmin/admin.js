@@ -119,31 +119,21 @@ function monthLetter(ym) {
 // ============================================================
 
 function statCard(cfg) {
+  const value = cfg.money ? money(cfg.raw) : Number(cfg.raw || 0).toLocaleString("fr-FR");
   return `<div class="stat-card" data-tilt style="--d:${cfg.d || 0}s">
     <div class="stat-head"><span>${cfg.label}</span><span class="stat-icon">${svg(cfg.icon)}</span></div>
-    <div class="stat-value" data-count="${cfg.raw}" data-fmt="${cfg.money ? "money" : "int"}">0</div>
+    <div class="stat-value">${value}</div>
     <div class="stat-sub">${cfg.sub || ""}</div>
   </div>`;
 }
 
+// Aucune animation décorative : les compteurs affichent directement les
+// valeurs réelles renvoyées par l'API (pas de nombre intermédiaire fictif).
 function animateCounts() {
   document.querySelectorAll("[data-count]").forEach((el) => {
     const target = parseFloat(el.dataset.count || "0");
     const isMoney = el.dataset.fmt === "money";
-    if (reducedMotion) {
-      el.textContent = isMoney ? money(target) : target.toLocaleString("fr-FR");
-      return;
-    }
-    const dur = 700;
-    const t0 = performance.now();
-    const step = (t) => {
-      const p = Math.min((t - t0) / dur, 1);
-      const e = 1 - Math.pow(1 - p, 3);
-      const cur = target * e;
-      el.textContent = isMoney ? money(cur) : Math.round(cur).toLocaleString("fr-FR");
-      if (p < 1) requestAnimationFrame(step);
-    };
-    requestAnimationFrame(step);
+    el.textContent = isMoney ? money(target) : target.toLocaleString("fr-FR");
   });
 }
 
