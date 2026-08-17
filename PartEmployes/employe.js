@@ -6,19 +6,19 @@ const API = (() => {
 })();
 
 const E = {
-  me: "/api/employe/me",
-  dashboard: "/api/employe/dashboard",
-  tasks: "/api/employe/tasks",
-  incidents: "/api/employe/incidents",
-  interventions: "/api/employe/interventions",
-  logements: "/api/employe/logements",
-  locataires: "/api/employe/locataires",
-  notifications: "/api/employe/notifications",
-  paiements: "/api/employe/paiements",
-  moyens: "/api/employe/moyens-paiement",
-  profile: "/api/employe/profile",
-  password: "/api/employe/password",
-  logout: "/api/auth/logout",
+  me: "/employe/me",
+  dashboard: "/employe/dashboard",
+  tasks: "/employe/tasks",
+  incidents: "/employe/incidents",
+  interventions: "/employe/interventions",
+  logements: "/employe/logements",
+  locataires: "/employe/locataires",
+  notifications: "/employe/notifications",
+  paiements: "/employe/paiements",
+  moyens: "/employe/moyens-paiement",
+  profile: "/employe/profile",
+  password: "/employe/password",
+  logout: "/auth/logout",
 };
 
 const S = {};
@@ -166,7 +166,7 @@ $("#pAvatarInput").addEventListener("change", async (e) => {
   const reader = new FileReader();
   reader.onload = async () => {
     try {
-      const res = await api("/api/upload/avatar", { method: "POST", body: JSON.stringify({ dataUri: reader.result }) });
+      const res = await api("/upload/avatar", { method: "POST", body: JSON.stringify({ dataUri: reader.result }) });
       setAvatar(res.avatar_url);
       toast("Photo de profil mise à jour.");
     } catch (err) {
@@ -179,7 +179,7 @@ $("#pAvatarInput").addEventListener("change", async (e) => {
 
 $("#pAvatarRemove").addEventListener("click", async () => {
   try {
-    await api("/api/upload/avatar", { method: "DELETE" });
+    await api("/upload/avatar", { method: "DELETE" });
     setAvatar(null);
     toast("Photo de profil supprimée.");
   } catch (err) {

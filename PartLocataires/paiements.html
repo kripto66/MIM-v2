@@ -313,6 +313,23 @@
 
             const s = pending.statut;
 
+            if (s === "a_confirmer") {
+                zone.innerHTML = `
+                    <div class="payer-card pending">
+                        <div class="payer-head">
+                            <strong>${formatMois(pending.mois)}</strong>
+                            <span class="status info">À confirmer</span>
+                        </div>
+                        <p>Votre paiement de <strong>${fmtFCFA(pending.montant)}</strong> a été reçu. Confirmez-le pour qu'il soit validé par votre propriétaire.</p>
+                        ${pending.date_paiement ? `<p class="payer-meta">Reçu le ${formatDate(pending.date_paiement)}</p>` : ""}
+                        <div style="margin-top:12px;">
+                            <button type="button" class="btn btn-primary" data-confirm-payment="${pending.id}">Confirmer le paiement</button>
+                        </div>
+                    </div>`;
+                if (subtitle) subtitle.textContent = "Votre paiement a été reçu : il reste à le confirmer.";
+                return;
+            }
+
             if (s === "en_validation") {
                 zone.innerHTML = `
                     <div class="payer-card pending">
@@ -491,6 +508,21 @@
                 await reloadPage();
 
                 document.getElementById("payerContent").addEventListener("click", (e) => {
+                    const confirmBtn = e.target.closest("[data-confirm-payment]");
+                    if (confirmBtn) {
+                        if (confirmBtn.disabled) return;
+                        confirmBtn.disabled = true;
+                        tenantRequest(`/locataire/paiements/${confirmBtn.dataset.confirmPayment}/confirmer`, { method: "POST" })
+                            .then(async (res) => {
+                                showTenantError(res.message || "Paiement confirmé.", true);
+                                await reloadPage();
+                            })
+                            .catch((err) => {
+                                confirmBtn.disabled = false;
+                                showTenantError(err.message);
+                            });
+                        return;
+                    }
                     const btn = e.target.closest(".declare-btn");
                     if (btn) {
                         openDeclareModal(btn.dataset.method);

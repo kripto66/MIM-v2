@@ -402,7 +402,13 @@ deno_version = 2
 # secret_key = "env(SECRET_VALUE)"
 
 [analytics]
-enabled = true
+# Désactivé (17/08/2026) : la pipeline d'analytics (vector -> logflare) n'est
+# utilisée par aucune fonctionnalité de MIM. Le conteneur `supabase_vector_MIM`
+# tournait en boucle de restart (impossible de joindre le socket Docker sous
+# Windows), sans aucun impact sur l'application : MIM ne lit jamais la base
+# d'analytics (SUPABASE_URL pointe uniquement vers Kong/postgres). Les logs
+# Studio ne sont pas nécessaires au fonctionnement. Réactiver si besoin.
+enabled = false
 port = 64327
 # Configure one of the supported backends: `postgres`, `bigquery`.
 backend = "postgres"
