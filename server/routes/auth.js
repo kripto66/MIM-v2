@@ -143,7 +143,6 @@ async function finalizeLogin(res, user, session, userAgent) {
   const token = signToken(sessionPayload(user, session));
 
   setAuthCookie(res, token);
-  console.log('[DBG finalizeLogin]', user.id, accountType, 'cookie posé:', Boolean(res.getHeader('set-cookie')));
 
   await linkTenantAccount(user, session?.access_token);
   await logSession(user.id, 'login', session?.access_token, userAgent);
@@ -800,13 +799,14 @@ router.put('/change-password', authenticate, async (req, res) => {
 router.put('/update-username', authenticate, async (req, res) => {
   const username = String(req.body?.username || '').trim().toLowerCase();
 
-  // Seuls les comptes locataires ont un username : un propriétaire ne doit
-  // pas pouvoir réserver un username ni détourner l'email interne @mim.local.
-  if (req.user.account_type !== 'locataire') {
+  // Seuls les comptes locataires et employés ont un username : un
+  // propriétaire ne doit pas pouvoir réserver un username ni détourner
+  // l'email interne @mim.local.
+  if (req.user.account_type !== 'locataire' && req.user.account_type !== 'employe') {
     return res.status(403).json({
       success: false,
-      message: 'Le nom d\'utilisateur ne peut être modifié que depuis un compte locataire.',
-      errors: { username: 'Modification réservée aux comptes locataires.' },
+      message: 'Le nom d\'utilisateur ne peut être modifié que depuis un compte locataire ou employé.',
+      errors: { username: 'Modification réservée aux comptes locataires et employés.' },
     });
   }
 
@@ -863,6 +863,15 @@ router.put('/update-username', authenticate, async (req, res) => {
 
       if (locataireError) {
         console.warn('[update-username] fiche locataire :', locataireError.message);
+      }
+    } else if (req.user.account_type === 'employe') {
+      const { error: employeError } = await sb
+        .from('employes')
+        .update({ username })
+        .eq('account_uid', req.user.id);
+
+      if (employeError) {
+        console.warn('[update-username] fiche employé :', employeError.message);
       }
     }
 

@@ -477,7 +477,7 @@ export function createCrudRouter(tableName) {
     if (logementNew) {
       const created = await createLogementForOwner(admin, ownerId, {
         ...logementNew,
-        bien_id: req.body.bien_id ?? null,
+        bien_id: logementNew.bien_id ?? req.body.bien_id ?? null,
         statut: statut === 'actif' ? 'occupe' : 'libre',
       });
       if (created.errors || created.error) {

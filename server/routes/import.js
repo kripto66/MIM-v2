@@ -219,14 +219,22 @@ router.post('/execute', async (req, res) => {
 });
 
 // ------------------------------------------------------------
-// Progression d'un import (polling pendant l'exécution)
+// Progression du dernier import du propriétaire (utilisé par le
+// frontend pendant que POST /execute est en vol : le run est créé
+// dès l'arrivée de la requête, avant tout traitement).
+// NOTE : déclarée AVANT /progress/:runId pour que « latest » ne
+// soit pas capturé comme un identifiant de run.
 // ------------------------------------------------------------
-router.get('/progress/:runId', async (req, res) => {
-  const run = importRuns.get(String(req.params.runId || ''));
-  if (!run || run.ownerId !== req.user.id) {
-    return res.status(404).json({ success: false, message: 'Import introuvable.' });
+router.get('/progress/latest', async (req, res) => {
+  const own = [...importRuns.values()]
+    .filter((r) => r.ownerId === req.user.id)
+    .sort((a, b) => String(b.runId).localeCompare(String(a.runId)));
+
+  if (!own.length) {
+    return res.status(404).json({ success: false, message: 'Aucun import en cours.' });
   }
 
+  const run = own[0];
   const percent = run.total > 0 ? Math.min(100, Math.round((run.done / run.total) * 100)) : 0;
 
   res.json({
@@ -241,20 +249,14 @@ router.get('/progress/:runId', async (req, res) => {
 });
 
 // ------------------------------------------------------------
-// Progression du dernier import du propriétaire (utilisé par le
-// frontend pendant que POST /execute est en vol : le run est créé
-// dès l'arrivée de la requête, avant tout traitement).
+// Progression d'un import (polling pendant l'exécution)
 // ------------------------------------------------------------
-router.get('/progress/latest', async (req, res) => {
-  const own = [...importRuns.values()]
-    .filter((r) => r.ownerId === req.user.id)
-    .sort((a, b) => String(b.runId).localeCompare(String(a.runId)));
-
-  if (!own.length) {
-    return res.status(404).json({ success: false, message: 'Aucun import en cours.' });
+router.get('/progress/:runId', async (req, res) => {
+  const run = importRuns.get(String(req.params.runId || ''));
+  if (!run || run.ownerId !== req.user.id) {
+    return res.status(404).json({ success: false, message: 'Import introuvable.' });
   }
 
-  const run = own[0];
   const percent = run.total > 0 ? Math.min(100, Math.round((run.done / run.total) * 100)) : 0;
 
   res.json({

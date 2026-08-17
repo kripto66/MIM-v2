@@ -26,10 +26,11 @@ async function ensureBucket(sb) {
   }
 }
 
-async function deleteAvatarIfAny(sb, userId) {
-  const ext = CONTENT_TYPES;
-  for (const e of Object.values(ext)) {
-    const { error } = await sb.storage.from(BUCKET).remove([`${userId}.${e}`]);
+async function deleteAvatarIfAny(sb, userId, excludePath = null) {
+  for (const e of Object.values(CONTENT_TYPES)) {
+    const path = `${userId}.${e}`;
+    if (path === excludePath) continue;
+    const { error } = await sb.storage.from(BUCKET).remove([path]);
     if (!error) break;
   }
 }
@@ -72,8 +73,9 @@ router.post('/avatar', async (req, res) => {
   const { data: pub } = sb.storage.from(BUCKET).getPublicUrl(filePath);
   const avatarUrl = pub?.publicUrl || null;
 
-  // Une seule photo par compte : on retire les anciennes extensions.
-  await deleteAvatarIfAny(sb, userId).catch(() => {});
+  // Une seule photo par compte : on retire les anciennes extensions
+  // (jamais le fichier qui vient d'être écrit).
+  await deleteAvatarIfAny(sb, userId, filePath).catch(() => {});
 
   const { error: profileError } = await sb.from('profiles').update({ avatar_url: avatarUrl }).eq('id', userId);
   if (profileError) {

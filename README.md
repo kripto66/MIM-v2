@@ -150,6 +150,10 @@ automatique (`POST /api/employes`) :
   (`amadou.diop`, `amadou.diop2`, …), unique dans toute l'application
   (vérifié + index unique `profiles_username_uniq` en base) ;
 - **Mot de passe initial** : `1234` (temporaire, `must_change_password = true`) ;
+- **Biens affectés** : champ multi-sélection « Biens affectés » — l'employé ne
+  voit que les données de SES biens (logements, locataires, incidents,
+  interventions), vérifié côté serveur (aucun bien étranger accepté) et par
+  RLS (`employes_biens`). Une réaffectation remplace les liaisons existantes ;
 - **Compte** : créé via `auth.admin` (email interne `@mim.local`), fiche
   `employes` liée, notification envoyée à l'employé ;
 - **Retour** : `201` + `account: { username, password }` → l'interface affiche
@@ -157,7 +161,41 @@ automatique (`POST /api/employes`) :
 
 Le propriétaire peut toujours fournir lui-même username + mot de passe (mode
 manuel, mêmes validations qu'avant). La première connexion force le changement
-du mot de passe (`PartPublic/change-password.html`).
+du mot de passe (`PartPublic/change-password.html`) ; l'employé peut aussi
+changer son username (profil `PartEmployes/employe.html` ou première
+connexion, `POST /api/auth/update-username` autorise les comptes employés,
+unicité vérifiée, fiche `employes` + `profiles` + email `@mim.local` mis à
+jour).
+
+## Photo de profil (propriétaire, locataire, employé)
+
+Chaque profil (paramètres du propriétaire, profil locataire, profil employé)
+permet d'uploader une vraie photo :
+
+- **Upload** : `POST /api/upload/avatar` (base64 JSON, jpeg/png/webp, 2 Mo
+  max décodés) → bucket Supabase Storage `avatars` (public), fichier nommé
+  `<user_id>.<ext>`, remplacé par `upsert` (une seule photo par compte,
+  anciennes extensions supprimées, jamais le fichier tout juste écrit) ;
+- **Lecture** : `profiles.avatar_url` renvoyé par `/auth/me`,
+  `/api/locataire/dashboard` et `/api/employe/me` ;
+- **Suppression** : `DELETE /api/upload/avatar` (fichier retiré du bucket,
+  `avatar_url` remis à `null`) ;
+- **Défaut** : si aucune photo, un avatar par défaut (SVG ou initiale) est
+  affiché, clairement distinct d'une photo réelle. Aucune fausse image.
+
+## Import CSV et progression réelle
+
+L'import (`/import/execute`) écrit sa progression dans l'état du serveur
+(`GET /api/import/progress/:runId` et `/progress/latest`) : le frontend
+(`PartProprietaires/import.js`) poll et affiche un pourcentage **réel**
+(barre, `ligne(s)/s`, ETA calculés depuis le travail effectué), jamais simulé.
+Le moteur traite les lignes en libérant l'event loop (`setImmediate`) pour que
+le polling réponde pendant un gros import. Chaque ligne est créée avec
+compensation en cas d'erreur (fiche + compte nettoyés), les erreurs sont
+collectées ligne par ligne (`997 réussies / 3 erreurs`) et le rapport final
+(comptes créés, usernames, mot de passe initial `1234`) est téléchargeable en
+CSV. Les employés importés sont affectés au bien indiqué dans la colonne
+« bien » du modèle.
 
 ## Sauvegarde automatique
 
@@ -217,16 +255,25 @@ d'un locataire et d'un employé en mode automatique (username généré, mot de
 passe initial `1234`, `must_change_password`, changement obligatoire puis
 compte normal), unicité des usernames (3 × même nom) et isolation de ses
 données.
+La suite `simplif` couvre le parcours simplifié : locataire créé en une
+requête avec logement embarqué (adresse héritée du bien, logement marqué
+occupé), employé affecté à un ou plusieurs biens (création, remplacement,
+bien étranger refusé), isolation réelle de l'employé (logements/locataires/
+incidents limités à SES biens, élargissement par réaffectation), changement
+de username employé à la première connexion, photos de profil (upload,
+remplacement PNG→JPG, suppression) et import par lots avec progression réelle
+(runId, `progress/latest`, employés importés affectés à leur bien, bien
+inconnu détecté à l'aperçu).
 
 ## Base de données
 
 Le schéma complet se trouve dans `server/supabase-schema.sql` :
 
-- `profiles` — profils utilisateurs (créés automatiquement par trigger à l'inscription ; `username` unique pour les comptes locataires/employés, `must_change_password`)
-- `biens`, `logements`, `locataires`, `paiements`
-- `employes`, `paiements_employes` (salaires : `attente` → `paye` / `non_recu`)
+- `profiles` — profils utilisateurs (créés automatiquement par trigger à l'inscription ; `username` unique pour les comptes locataires/employés, `must_change_password`, `avatar_url` photo de profil)
+- `biens`, `logements`, `locataires`, `paiements` (le logement d'un locataire créé via le formulaire unique est créé sur la volée ; `locataires.bien_id` dénormalise le bien pour les RLS employé par bien)
+- `employes`, `employes_biens` (affectation d'un employé à ses biens), `paiements_employes` (salaires : `attente` → `paye` / `non_recu`)
 - `moyens_paiement` (réception des loyers), `moyens_paiement_employes` (réception des salaires)
 - `incidents`, `prestataires`, `interventions`
 - `notifications`, `sessions`, `password_resets`
 
-Chaque table est protégée par Row Level Security : un utilisateur ne voit que ses propres données.
+Chaque table est protégée par Row Level Security : un utilisateur ne voit que ses propres données, et un employé uniquement les données de SES biens affectés.
