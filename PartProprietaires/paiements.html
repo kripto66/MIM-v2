@@ -662,8 +662,8 @@
             const type = form.moyen_type.value;
             const payload = { type };
             for (const field of TYPE_FIELDS[type] || []) {
-                const v = form[field] ? String(form[field].value || "").trim() : "";
-                if (v) payload[field] = v;
+                const el = form[field];
+                payload[field] = el ? String(el.value || "").trim() : "";
             }
             return payload;
         }
@@ -752,8 +752,8 @@
                     document.getElementById("moyenModalTitle").textContent = "Modifier le moyen de paiement";
                     form.moyen_type.value = m.type;
                     moyenFields(m.type);
-                    for (const field of Object.keys(TYPE_FIELDS[m.type] || {})) {
-                        if (form[field] && m[field]) form[field].value = m[field];
+                    for (const field of TYPE_FIELDS[m.type] || []) {
+                        if (form[field]) form[field].value = m[field] || "";
                     }
                     document.getElementById("moyenModal").style.display = "flex";
                 } catch (err) {
@@ -1042,6 +1042,7 @@
         });
 
         loadData();
+        loadPending();
         loadMoyens();
         loadEmployes();
     </script>

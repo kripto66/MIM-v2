@@ -272,6 +272,16 @@ aucun lien à ouvrir) et la **résolution d'incidents par l'employé** (il voit
 les incidents de SES biens avec logement/description/date, ne voit pas ceux
 des autres biens, résolution valide → `resolu` + `resolved_by` + `resolved_at`
 serveur + notification propriétaire, hors périmètre → 403, déjà résolu → 400).
+Elle couvre enfin le **flux complet d'un incident signalé par le locataire** :
+logement déduit de la fiche (id envoyé ignoré), visible chez le propriétaire
+(`GET /incidents`), invisible chez un autre propriétaire, visible chez
+l'employé affecté (logement + locataire), puis résolu par lui avec
+notification du propriétaire.
+La suite `auth` couvre aussi la **déconnexion côté pages** : une page de zone
+protégée est servie avec session (200 + `Cache-Control: no-store`), redirigée
+vers la connexion (302) sans session et après logout — le bouton « retour »
+du navigateur ne peut donc pas réafficher un dashboard avec une session
+invalide.
 
 ## Base de données
 
