@@ -170,7 +170,12 @@
                 if (ok) {
                     message.textContent = data.message;
                     message.className = 'success';
-                    if (data.mustChangePassword) {
+                    if (data.mfaRequired) {
+                        // La 2FA prime sur le changement forcé : la page de
+                        // vérification redirigera ensuite vers
+                        // change-password.html si nécessaire (voir 2fa.html).
+                        window.location.href = '../' + data.redirect;
+                    } else if (data.mustChangePassword) {
                         const next = data.redirect ? '../' + data.redirect : '../PartLocataires/LocaDash.html';
                         window.location.href = 'change-password.html?next=' + encodeURIComponent(next);
                     } else {
