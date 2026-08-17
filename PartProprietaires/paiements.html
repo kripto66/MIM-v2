@@ -113,6 +113,7 @@
 
                     <div class="section-header">
                         <h2>Historique des paiements</h2>
+                        <button type="button" class="btn btn-primary" id="addPaiementBtn">+ Enregistrer un paiement</button>
                     </div>
 
                     <div id="paiementsList">
@@ -422,6 +423,10 @@
 
         function fmtFCFA(n) {
             return `${Number(n || 0).toLocaleString("fr-FR")} FCFA`;
+        }
+
+        function escapeAttr(v) {
+            return String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
 
         // ============================================================
