@@ -6,10 +6,11 @@ const service = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERV
 
 async function main() {
   const jar = newJar();
+  const email = `debug.owner.${Date.now()}@mim.test`;
   const reg = await api('/auth/register', {
     method: 'POST',
     jar,
-    body: { account_type: 'proprietaire', name: 'Debug Owner', email: 'debug.owner@mim.test', phone: '+221771234567', password: 'DebugPass123!', password_confirm: 'DebugPass123!' },
+    body: { account_type: 'proprietaire', name: 'Debug Owner', email, phone: '+221771234567', password: 'DebugPass123!', password_confirm: 'DebugPass123!' },
   });
   console.log('register:', reg.status, JSON.stringify(reg.data).slice(0, 150));
 
@@ -38,6 +39,10 @@ async function main() {
   const ejar = newJar();
   const login = await api('/auth/login', { method: 'POST', ejar, body: { identifier: username, password: '1234' } });
   console.log('login:', login.status, JSON.stringify(login.data).slice(0, 200));
+  console.log('jar cookies after login:', JSON.stringify(ejar.cookies));
+
+  const meAuth = await api('/auth/me', { jar: ejar });
+  console.log('auth/me:', meAuth.status, JSON.stringify(meAuth.data).slice(0, 200));
 
   const me = await api('/employe/me', { jar: ejar });
   console.log('employe/me:', me.status, JSON.stringify(me.data).slice(0, 300));
