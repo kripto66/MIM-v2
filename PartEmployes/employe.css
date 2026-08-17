@@ -265,6 +265,21 @@ header button {
   background: #dbeafe;
   color: #1e40af
 }
+.status.danger {
+  background: #fee2e2;
+  color: #b91c1c
+}
+.status.warn {
+  background: #ffedd5;
+  color: #c2410c
+}
+.status.ok {
+  background: #dcfce7;
+  color: #15803d
+}
+.card .resolve-btn {
+  margin-top: 10px
+}
 .empty {
   text-align: center;
   color: var(--muted);

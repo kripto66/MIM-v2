@@ -87,6 +87,8 @@ l'application est accessible sur `http://localhost:3000` (l'usage via XAMPP rest
 | GET | `/api/employe/paiements` | Salaires de l'employé connecté (statut, moyen, confirmations/refus) |
 | POST | `/api/employe/paiements/:id/confirmer` | L'employé confirme avoir reçu son salaire (`paye` + notification propriétaire) |
 | POST | `/api/employe/paiements/:id/non-recus` | L'employé signale ne pas avoir reçu le paiement (`non_recu` + motif + notification propriétaire) |
+| GET | `/api/employe/incidents` | Incidents des biens affectés à l'employé (logement, locataire, statut, traces de résolution) |
+| POST | `/api/employe/incidents/:id/resoudre` | Résoudre un incident de SES biens : `resolu` + `resolved_by` + `resolved_at` (heure serveur) + notification propriétaire |
 | GET | `/api/employe/moyens-paiement` | Moyens de réception de l'employé connecté |
 | POST | `/api/employe/moyens-paiement` | Ajouter un moyen de réception (Wave, Orange Money, virement, espèces) |
 | PUT | `/api/employe/moyens-paiement/:id` | Modifier un moyen de réception (ex. `actif`) |
@@ -263,7 +265,13 @@ incidents limités à SES biens, élargissement par réaffectation), changement
 de username employé à la première connexion, photos de profil (upload,
 remplacement PNG→JPG, suppression) et import par lots avec progression réelle
 (runId, `progress/latest`, employés importés affectés à leur bien, bien
-inconnu détecté à l'aperçu).
+inconnu détecté à l'aperçu). Elle couvre aussi les **moyens de paiement sans
+lien** (Wave et Orange Money sans lien → lien null en base, avec lien →
+conservé, édition qui efface le lien, vue locataire : nom/numéro présents et
+aucun lien à ouvrir) et la **résolution d'incidents par l'employé** (il voit
+les incidents de SES biens avec logement/description/date, ne voit pas ceux
+des autres biens, résolution valide → `resolu` + `resolved_by` + `resolved_at`
+serveur + notification propriétaire, hors périmètre → 403, déjà résolu → 400).
 
 ## Base de données
 
@@ -273,7 +281,7 @@ Le schéma complet se trouve dans `server/supabase-schema.sql` :
 - `biens`, `logements`, `locataires`, `paiements` (le logement d'un locataire créé via le formulaire unique est créé sur la volée ; `locataires.bien_id` dénormalise le bien pour les RLS employé par bien)
 - `employes`, `employes_biens` (affectation d'un employé à ses biens), `paiements_employes` (salaires : `attente` → `paye` / `non_recu`)
 - `moyens_paiement` (réception des loyers), `moyens_paiement_employes` (réception des salaires)
-- `incidents`, `prestataires`, `interventions`
+- `incidents`, `prestataires`, `interventions` (`incidents.resolved_by` → fiche `employes`, `resolved_at` horodatage serveur de résolution par un employé)
 - `notifications`, `sessions`, `password_resets`
 
 Chaque table est protégée par Row Level Security : un utilisateur ne voit que ses propres données, et un employé uniquement les données de SES biens affectés.

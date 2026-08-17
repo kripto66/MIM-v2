@@ -397,6 +397,20 @@ $("#salairesList").onclick = (e) => {
   if (c) confirmPaiement(c.dataset.confirm);
   else if (r) openRefus(r.dataset.refuse);
 };
+$("#incidentsList").onclick = (e) => {
+  const r = e.target.closest("[data-resolve]");
+  if (r) resolveIncident(r.dataset.resolve);
+};
+
+async function resolveIncident(id) {
+  try {
+    await api(E.incidents + "/" + id + "/resoudre", { method: "POST", body: "{}" });
+    toast("Incident résolu. Le propriétaire a été informé.");
+    load("incidents");
+  } catch (x) {
+    toast(x.message, "error");
+  }
+}
 for (const id of ["moyenOverlay", "refusOverlay"]) {
   const ov = $("#" + id);
   ov.addEventListener("click", (e) => {
@@ -423,10 +437,30 @@ function paint(kind) {
   render(id, a, cardFor(kind));
 }
 
+const INCIDENT_LABELS = { nouveau: "Nouveau", en_cours: "En cours", resolu: "Résolu" };
+
+function incidentStatus(x) {
+  const label = INCIDENT_LABELS[x] || x || "—";
+  const cls = x === "resolu" ? "status ok" : x === "en_cours" ? "status warn" : "status danger";
+  return `<span class="${cls}">${esc(label)}</span>`;
+}
+
 function cardFor(kind) {
   if (kind === "notifications") {
     return (x) =>
       `<div class="notice ${x.read || x.is_read ? "" : "unread"}"><b>${esc(x.title || "Notification")}</b><div class="muted">${esc(x.message || x.description || "")}</div><small>${date(x.created_at)}</small></div>`;
+  }
+  if (kind === "incidents") {
+    return (x) => {
+      const resolved = x.status === "resolu";
+      return `<article class="card">
+        <h3>${esc(x.titre || "Incident")} ${incidentStatus(x.status)}</h3>
+        ${x.logement && x.logement !== "—" ? `<div class="muted"><b>${esc(x.logement)}</b>${x.tenant ? " — " + esc(x.tenant) : ""}</div>` : ""}
+        <div class="muted">${esc(x.description || "")}</div>
+        <small>${dateTime(x.created_at)}</small>
+        ${resolved ? `<small class="muted">Résolu${x.resolved_at ? " le " + date(x.resolved_at) : ""}</small>` : `<button class="primary resolve-btn" data-resolve="${x.id}">Résoudre</button>`}
+      </article>`;
+    };
   }
   return (x) =>
     `<article class="card"><h3>${esc(x.title || x.name || kind)} ${status(x.status)}</h3><div class="muted">${esc(x.description || "")}</div><small>${date(x.due_date || x.scheduled_at || x.created_at)}</small></article>`;

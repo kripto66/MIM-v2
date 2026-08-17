@@ -88,6 +88,8 @@ CREATE TABLE IF NOT EXISTS public.incidents (
     titre TEXT NOT NULL,
     description TEXT,
     statut TEXT NOT NULL DEFAULT 'nouveau' CHECK (statut IN ('nouveau', 'en_cours', 'resolu')),
+    resolved_by BIGINT REFERENCES public.employes(id) ON DELETE SET NULL,
+    resolved_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

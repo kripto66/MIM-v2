@@ -191,7 +191,7 @@ router.get('/tasks', async (req, res) => {
 });
 
 // ============================================================
-// Incidents du propriétaire employeur.
+// Incidents du propriétaire employeur (scopés sur SES biens).
 // ============================================================
 router.get('/incidents', requireEmploye, async (req, res) => {
   const sb = serviceClient();
@@ -199,14 +199,17 @@ router.get('/incidents', requireEmploye, async (req, res) => {
   const logementsFilter = scopedLogementIds.length ? scopedLogementIds : [0];
 
   try {
-    const [{ data: incidents = [], error: e1 }, { data: logements = [] }] = await Promise.all([
-      sb.from('incidents').select('*').eq('user_id', ownerId).in('logement_id', logementsFilter).order('created_at', { ascending: false }),
-      sb.from('logements').select('id, nom').eq('user_id', ownerId).in('id', logementsFilter),
-    ]);
+    const [{ data: incidents = [], error: e1 }, { data: logements = [] }, { data: locataires = [] }] =
+      await Promise.all([
+        sb.from('incidents').select('*').eq('user_id', ownerId).in('logement_id', logementsFilter).order('created_at', { ascending: false }),
+        sb.from('logements').select('id, nom').eq('user_id', ownerId).in('id', logementsFilter),
+        sb.from('locataires').select('logement_id, nom').eq('user_id', ownerId).eq('statut', 'actif').in('logement_id', logementsFilter),
+      ]);
 
     if (e1) throw e1;
 
     const nomByLogement = new Map(logements.map((l) => [l.id, l.nom]));
+    const tenantByLogement = new Map(locataires.map((l) => [l.logement_id, l.nom]));
 
     res.json({
       success: true,
@@ -216,12 +219,86 @@ router.get('/incidents', requireEmploye, async (req, res) => {
         description: i.description || '',
         status: i.statut,
         logement: nomByLogement.get(i.logement_id) || '—',
+        tenant: tenantByLogement.get(i.logement_id) || null,
+        resolved_by: i.resolved_by || null,
+        resolved_at: i.resolved_at || null,
         created_at: i.created_at,
       })),
     });
   } catch (err) {
     console.error('[employe/incidents]', err.message);
     res.status(500).json({ success: false, message: 'Erreur lors du chargement des incidents.' });
+  }
+});
+
+// ============================================================
+// Résolution d'un incident par l'employé.
+//
+// Vérifications, dans l'ordre :
+//   1. utilisateur authentifié (middleware) ;
+//   2. compte rattaché à une fiche employé (requireEmploye) ;
+//   3. incident du propriétaire qui l'emploie ;
+//   4. logement de l'incident couvert par SES biens affectés ;
+//   5. incident non déjà résolu.
+// L'horodatage est celui du SERVEUR (jamais celui du navigateur).
+// Le propriétaire est notifié ; l'employé voit le nouvel état
+// directement via la réponse de l'API.
+// ============================================================
+router.post('/incidents/:id/resoudre', requireEmploye, async (req, res) => {
+  const sb = serviceClient();
+  const { employe, ownerId, scopedLogementIds } = req.employe;
+
+  try {
+    const { data: incident } = await sb
+      .from('incidents')
+      .select('id, user_id, logement_id, titre, statut')
+      .eq('id', req.params.id)
+      .eq('user_id', ownerId)
+      .maybeSingle();
+
+    if (!incident) {
+      return res.status(404).json({ success: false, message: 'Incident introuvable.' });
+    }
+
+    if (!scopedLogementIds.includes(incident.logement_id)) {
+      return res.status(403).json({ success: false, message: 'Cet incident ne concerne pas un bien qui vous est affecté.' });
+    }
+
+    if (incident.statut === 'resolu') {
+      return res.status(400).json({ success: false, message: 'Cet incident est déjà résolu.' });
+    }
+
+    const { data: updated, error } = await sb
+      .from('incidents')
+      .update({
+        statut: 'resolu',
+        resolved_by: employe.id,
+        resolved_at: new Date().toISOString(),
+      })
+      .eq('id', incident.id)
+      .eq('statut', incident.statut)
+      .select()
+      .maybeSingle();
+
+    if (error) {
+      console.error('[employe/incidents/resoudre]', error.message);
+      return res.status(500).json({ success: false, message: 'Impossible de résoudre l\'incident.' });
+    }
+    if (!updated) {
+      return res.status(409).json({ success: false, message: 'Cet incident a déjà été traité.' });
+    }
+
+    await notify(
+      ownerId,
+      'incident',
+      `Incident résolu — ${employe.nom || 'Votre employé'} a résolu l'incident « ${incident.titre} ».`
+    );
+    gitAutoBackup(`Sauvegarde auto : incident résolu par l'employé ${req.user.id}`);
+
+    res.json({ success: true, data: updated, message: 'Incident résolu. Le propriétaire en a été informé.' });
+  } catch (err) {
+    console.error('[employe/incidents/resoudre]', err.message);
+    res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
   }
 });
 

@@ -61,12 +61,17 @@ export const CHAMPS_MOYEN = {
 };
 
 // Nettoie un corps de moyen de paiement selon son type (champs admis,
-// chaînes tronquées à 200 caractères, valeurs vides ignorées).
+// chaînes tronquées à 200 caractères).
+// Règle : un champ ABSENT (clé non fournie) n'est pas modifié ; un champ
+// présent mais vide ('' ou null) est converti en null (permet d'effacer le
+// lien en édition).
 export function sanitizeMoyenBody(type, body) {
   const clean = {};
   for (const field of CHAMPS_MOYEN[type] || []) {
-    const v = body?.[field];
-    if (v != null && String(v).trim() !== '') clean[field] = String(v).trim().slice(0, 200);
+    if (!body || !(field in body)) continue;
+    const v = body[field];
+    const s = v == null ? '' : String(v).trim();
+    clean[field] = s === '' ? null : s.slice(0, 200);
   }
   if (body?.actif === false || body?.actif === true) clean.actif = Boolean(body.actif);
   clean.updated_at = new Date().toISOString();
