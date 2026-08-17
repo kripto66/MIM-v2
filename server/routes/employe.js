@@ -280,6 +280,7 @@ router.get('/logements', requireEmploye, async (req, res) => {
       success: true,
       data: (logements || []).map((l) => ({
         id: l.id,
+        bien_id: l.bien_id,
         name: l.nom,
         type: l.type || '—',
         tenant_name: nomByLogement.get(l.id) || 'Libre',

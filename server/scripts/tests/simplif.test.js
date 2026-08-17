@@ -190,7 +190,7 @@ export async function runSimplif(runner, ctx) {
     const ejar = newJar();
     const login = await api('/auth/login', {
       method: 'POST',
-      ejar,
+      jar: ejar,
       body: { identifier: username, password },
     });
     if (!expectSuccess(runner, login, S, 'connexion de l\'employé')) return;
@@ -198,7 +198,7 @@ export async function runSimplif(runner, ctx) {
     const logements = await api('/employe/logements', { jar: ejar });
     const lgs = logements.data.data || [];
     const fromA = lgs.filter((l) => String(l.bien_id) === String(owner.bienId));
-    const fromB = lgs.filter((l) => String(l.bien_id) === String(bienB));
+    const fromB = lgs.filter((l) => String(l.bien_id) === String(bienB.id));
     if (lgs.length > 0 && fromB.length === 0 && fromA.length === lgs.length) {
       runner.pass(S, 'logements limités à SES biens (A oui, B exclu)');
     } else {
@@ -226,14 +226,66 @@ export async function runSimplif(runner, ctx) {
     }
 
     // Élargissement : l'employé passe sur le bien B → il voit Gamma.
-    await api(`/employes/${empId}`, { method: 'PUT', jar, body: { biens: [bienB] } });
+    await api(`/employes/${empId}`, { method: 'PUT', jar, body: { biens: [bienB.id] } });
     const logements2 = await api('/employe/logements', { jar: ejar });
     const lgs2 = logements2.data.data || [];
-    const seesB = lgs2.some((l) => String(l.bien_id) === String(bienB));
+    const seesB = lgs2.some((l) => String(l.bien_id) === String(bienB.id));
     if (seesB && lgs2.length === 1) runner.pass(S, 'après réaffectation, il voit uniquement le bien B');
     else runner.fail(S, 'après réaffectation, il voit uniquement le bien B', `total=${lgs2.length} bienB=${seesB}`);
 
     await api(`/employes/${empId}`, { method: 'DELETE', jar });
+  });
+
+  await runner.section('Employé : changement de username à la première connexion', async () => {
+    const created = await api('/employes', {
+      method: 'POST',
+      jar,
+      body: { nom: 'SIMPLIF Employe Renomme', poste: 'Gardien', biens: [owner.bienId] },
+    });
+    if (!expectSuccess(runner, created, S, 'création employé (username auto)')) return;
+    const username = created.data.account.username;
+
+    const ejar = newJar();
+    const login = await api('/auth/login', {
+      method: 'POST',
+      jar: ejar,
+      body: { identifier: username, password: '1234' },
+    });
+    if (!expectSuccess(runner, login, S, 'première connexion (1234)')) return;
+    if (login.data.mustChangePassword === true) runner.pass(S, 'mustChangePassword renvoyé au premier login');
+    else runner.fail(S, 'mustChangePassword renvoyé au premier login', String(login.data.mustChangePassword));
+
+    // Username modifié via /auth/update-username (employé accepté).
+    const upd = await api('/auth/update-username', {
+      method: 'PUT',
+      jar: ejar,
+      body: { username: 'simplif.renomme' },
+    });
+    if (expectSuccess(runner, upd, S, 'username employé modifié (première connexion)')) {
+      const relog = await api('/auth/login', {
+        method: 'POST',
+        jar: newJar(),
+        body: { identifier: 'simplif.renomme', password: '1234' },
+      });
+      if (relog.status === 200) runner.pass(S, 'connexion avec le nouveau username');
+      else runner.fail(S, 'connexion avec le nouveau username', `statut ${relog.status}`);
+    }
+
+    // Un propriétaire ne peut pas modifier le username d'un employé (403).
+    const forbidden = await api('/auth/update-username', {
+      method: 'PUT',
+      jar,
+      body: { username: 'simplif.interdit' },
+    });
+    if (forbidden.status === 403) runner.pass(S, 'propriétaire refusé (403)');
+    else runner.fail(S, 'propriétaire refusé (403)', `statut ${forbidden.status}`);
+
+    const list = await api('/employes', { jar });
+    const emp = (list.data.data || []).find((e) => e.username === 'simplif.renomme');
+    if (emp) runner.pass(S, 'fiche employé mise à jour en base');
+    else runner.fail(S, 'fiche employé mise à jour en base', 'username introuvable');
+
+    await api(`/employes/${created.data.data.id}`, { method: 'DELETE', jar });
   });
 
   await runner.section('Photo de profil (avatar) : upload, lecture, suppression', async () => {
@@ -268,6 +320,29 @@ export async function runSimplif(runner, ctx) {
       if (me2.data.user && me2.data.user.avatar_url === null) runner.pass(S, 'avatar_url remis à null après suppression');
       else runner.fail(S, 'avatar_url remis à null après suppression', String(me2.data?.user?.avatar_url));
     }
+
+    // Remplacement d'extension : upload PNG puis JPG → le JPG survit
+    // (l'ancienne photo est remplacée, jamais le fichier tout juste écrit).
+    const upJpg = await api('/upload/avatar', {
+      method: 'POST',
+      jar,
+      body: {
+        dataUri:
+          'data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/wAALCAABAAEBAREA/8QAFAABAAAAAAAAAAAAAAAAAAAACf/EABQQAQAAAAAAAAAAAAAAAAAAAAD/2gAIAQEAAD8AKp//2Q==',
+      },
+    });
+    if (expectSuccess(runner, upJpg, S, 'upload avatar JPG (remplacement PNG→JPG)')) {
+      const me3 = await api('/auth/me', { jar });
+      const url = me3.data?.user?.avatar_url || '';
+      if (url.includes('.jpg') && url !== upJpg.data.avatar_url) {
+        runner.fail(S, 'avatar JPG conservé (URL à jour)', String(url));
+      } else if (url === upJpg.data.avatar_url) {
+        runner.pass(S, 'avatar JPG conservé (URL à jour)');
+      } else {
+        runner.fail(S, 'avatar JPG conservé (URL à jour)', String(url));
+      }
+    }
+    await api('/upload/avatar', { method: 'DELETE', jar });
   });
 
   await runner.section('Import par lots : progression réelle + bien des employés', async () => {
