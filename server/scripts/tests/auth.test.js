@@ -3,7 +3,7 @@
 // username, 2FA (TOTP réel), reset de mot de passe
 // ============================================================
 
-import { api, newJar, expectSuccess } from './lib.js';
+import { api, newJar, expectSuccess, BASE } from './lib.js';
 import { totpForSecret, totpWindowForSecret } from './totp.js';
 
 const PW = 'Test1234!';
@@ -99,11 +99,50 @@ export async function runAuth(r, ctx) {
     if (badToken.status === 401) r.pass(S, 'cookie forgé → 401');
     else r.fail(S, 'cookie forgé → 401', `statut ${badToken.status}`);
 
+    // Pages protégées : servies AVEC session (Cache-Control: no-store),
+    // redirigées vers la connexion SANS session ou après logout (le
+    // bouton « retour » du navigateur ne peut pas ressusciter la page).
+    const pageOrigin = BASE.replace(/\/api$/, '');
+    const page = async (path, jar) => {
+      const h = {};
+      const cookie = jar ? jar.cookies.map((c) => `${c.name}=${c.value}`).join('; ') : '';
+      if (cookie) h.Cookie = cookie;
+      const res = await fetch(pageOrigin + path, { headers: h, redirect: 'manual' });
+      return {
+        status: res.status,
+        location: res.headers.get('location') || '',
+        cacheControl: res.headers.get('cache-control') || '',
+      };
+    };
+
+    const withSession = await page('/PartProprietaires/dashboard.html', jar);
+    if (withSession.status === 200) {
+      r.pass(S, 'page protégée servie avec session (200)');
+      if (withSession.cacheControl.includes('no-store')) {
+        r.pass(S, 'page protégée : Cache-Control no-store (pas de bfcache après logout)');
+      } else {
+        r.fail(S, 'page protégée : Cache-Control no-store (pas de bfcache après logout)', withSession.cacheControl);
+      }
+    } else {
+      r.fail(S, 'page protégée servie avec session (200)', `statut ${withSession.status}`);
+    }
+
+    const anon = await page('/PartProprietaires/dashboard.html');
+    if (anon.status === 302 && anon.location.includes('connexion')) r.pass(S, 'page protégée sans session → redirection connexion (302)');
+    else r.fail(S, 'page protégée sans session → redirection connexion (302)', `statut ${anon.status} loc=${anon.location}`);
+
     const out = await api('/auth/logout', { method: 'POST', jar });
     if (expectSuccess(r, out, S, r)) {
       const after = await api('/auth/me', { jar });
       if (after.status === 401) r.pass(S, 'logout → session invalide');
       else r.fail(S, 'logout → session invalide', `statut ${after.status}`);
+    }
+
+    const afterLogout = await page('/PartProprietaires/dashboard.html', jar);
+    if (afterLogout.status === 302 && afterLogout.location.includes('connexion')) {
+      r.pass(S, 'après logout : page protégée inaccessible (302 vers connexion)');
+    } else {
+      r.fail(S, 'après logout : page protégée inaccessible (302 vers connexion)', `statut ${afterLogout.status} loc=${afterLogout.location}`);
     }
 
     // Connexion par username (locataire seed) : propre compte, non modifié.

@@ -76,6 +76,12 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  // Les pages ne doivent jamais être servies depuis le cache du navigateur
+  // (bouton « retour » / bfcache) : après une déconnexion, une page de zone
+  // protégée ne doit pas rester visible avec une session invalide.
+  if (req.path.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-store');
+  }
   next();
 });
 

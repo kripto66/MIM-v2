@@ -554,6 +554,127 @@ export async function runSimplif(runner, ctx) {
     await api(`/biens/${bienB.id}`, { method: 'DELETE', jar });
   });
 
+  await runner.section('Flux complet : incident signalé par le locataire → visible propriétaire + employé → résolu', async () => {
+    const bien = (
+      await api('/biens', {
+        method: 'POST',
+        jar,
+        body: { nom: 'SIMPLIF Résidence Flux', type: 'immeuble', adresse: 'Rue Flux 1', ville: 'Dakar', pays: 'Sénégal' },
+      })
+    ).data.data;
+    const log = (
+      await api('/logements', {
+        method: 'POST',
+        jar,
+        body: { bien_id: bien.id, nom: 'SIMPLIF Log Flux', type: 'appartement', loyer_mensuel: 90000, statut: 'occupe' },
+      })
+    ).data.data;
+    const loc = await api('/locataires', {
+      method: 'POST',
+      jar,
+      body: {
+        logement_id: log.id,
+        nom: 'SIMPLIF Locataire Flux',
+        username: 'simplif.flux',
+        password: OWNER_PASSWORD,
+        statut: 'actif',
+      },
+    });
+    if (!expectSuccess(runner, loc, S, 'création locataire avec compte (flux incident)', [201])) return;
+
+    const tjar = newJar();
+    const tlogin = await api('/auth/login', {
+      method: 'POST',
+      jar: tjar,
+      body: { identifier: 'simplif.flux', password: OWNER_PASSWORD },
+    });
+    if (!expectSuccess(runner, tlogin, S, 'connexion du locataire (flux incident)')) return;
+
+    // L'id de logement envoyé (logement d'un AUTRE propriétaire) est ignoré.
+    const foreignLogId = ctx.seed.owners[1].logements[0].id;
+    const report = await api('/locataire/incidents', {
+      method: 'POST',
+      jar: tjar,
+      body: { logement_id: foreignLogId, titre: 'SIMPLIF Incident Flux', description: 'Dégât des eaux' },
+    });
+    if (!expectSuccess(runner, report, S, 'signalement par le locataire (201)', [201])) return;
+    const incidentId = report.data.data.id;
+    if (
+      String(report.data.data.logement_id) === String(log.id) &&
+      String(report.data.data.user_id) === String(owner.id)
+    ) {
+      runner.pass(S, 'incident rattaché au logement du locataire et au propriétaire');
+    } else {
+      runner.fail(S, 'incident rattaché au logement du locataire et au propriétaire', JSON.stringify(report.data.data));
+    }
+
+    // Le propriétaire le VOIT dans sa liste.
+    const ownerList = await api('/incidents', { jar });
+    const seenByOwner = (ownerList.data.data || []).find((x) => String(x.id) === String(incidentId));
+    if (seenByOwner) runner.pass(S, 'propriétaire : incident signalé visible (GET /incidents)');
+    else runner.fail(S, 'propriétaire : incident signalé visible (GET /incidents)', 'absent');
+
+    // Un AUTRE propriétaire ne le voit pas.
+    const o2List = await api('/incidents', { jar: ctx.seed.owners[1].jar });
+    const seenByOther = (o2List.data.data || []).find((x) => String(x.id) === String(incidentId));
+    if (seenByOther) runner.fail(S, 'autre propriétaire : incident invisible', 'vu');
+    else runner.pass(S, 'autre propriétaire : incident invisible');
+
+    // Employé affecté au bien : voit l'incident avec logement + locataire.
+    const created = await api('/employes', {
+      method: 'POST',
+      jar,
+      body: { nom: 'SIMPLIF Employe Flux', poste: 'Agent', biens: [bien.id] },
+    });
+    if (!expectSuccess(runner, created, S, 'création employé (bien du flux)', [201])) return;
+    const ejar = newJar();
+    const elogin = await api('/auth/login', {
+      method: 'POST',
+      jar: ejar,
+      body: { identifier: created.data.account.username, password: '1234' },
+    });
+    if (!expectSuccess(runner, elogin, S, 'connexion de l\'employé (flux incident)')) return;
+
+    const elist = await api('/employe/incidents', { jar: ejar });
+    const seenByEmp = (elist.data.data || []).find((x) => String(x.id) === String(incidentId));
+    if (seenByEmp) {
+      runner.pass(S, 'employé affecté : voit l\'incident signalé');
+      if (seenByEmp.logement === 'SIMPLIF Log Flux') runner.pass(S, 'employé : nom du logement présent');
+      else runner.fail(S, 'employé : nom du logement présent', String(seenByEmp.logement));
+      if (seenByEmp.tenant === 'SIMPLIF Locataire Flux') runner.pass(S, 'employé : locataire signalant présent');
+      else runner.fail(S, 'employé : locataire signalant présent', String(seenByEmp.tenant));
+    } else {
+      runner.fail(S, 'employé affecté : voit l\'incident signalé', 'absent');
+    }
+
+    // L'employé résout l'incident ; le propriétaire est notifié.
+    const resolve = await api(`/employe/incidents/${incidentId}/resoudre`, { method: 'POST', jar: ejar, body: {} });
+    if (expectSuccess(runner, resolve, S, 'résolution par l\'employé (200)')) {
+      if (resolve.data.data.statut === 'resolu') runner.pass(S, 'statut resolu après résolution');
+      else runner.fail(S, 'statut resolu après résolution', resolve.data.data.statut);
+    }
+
+    const { data: notifs } = await service
+      .from('notifications')
+      .select('*')
+      .eq('user_id', owner.id)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    const notifSignal = (notifs || []).find((n) => n.message && n.message.includes('SIMPLIF Incident Flux'));
+    if (notifSignal && notifSignal.message.includes('résolu')) {
+      runner.pass(S, 'propriétaire notifié du signalement ET de la résolution');
+    } else {
+      runner.fail(S, 'propriétaire notifié du signalement ET de la résolution', notifSignal ? notifSignal.message : 'aucune');
+    }
+
+    // Nettoyage.
+    await api(`/employes/${created.data.data.id}`, { method: 'DELETE', jar });
+    await api(`/incidents/${incidentId}`, { method: 'DELETE', jar });
+    await api(`/locataires/${loc.data.data.id}`, { method: 'DELETE', jar });
+    await api(`/logements/${log.id}`, { method: 'DELETE', jar });
+    await api(`/biens/${bien.id}`, { method: 'DELETE', jar });
+  });
+
   await runner.section('Import par lots : progression réelle + bien des employés', async () => {
     const csv = (cat) => {
       const files = {
