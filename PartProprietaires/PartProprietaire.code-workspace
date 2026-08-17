@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "../../../../../Users/EsNova/Desktop/PartProprietaire"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "PartProprietaires",
+		"liveServer.settings.port": 5502
+	}
+}
