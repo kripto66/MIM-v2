@@ -452,7 +452,7 @@ async function loadAll() {
             el("bien_id").value = lg?.bien_id || "";
             el("logement_id").innerHTML = renderLogementOptions(currentId, lg?.bien_id || null);
             el("logement_id").value = currentId || "__new__";
-            el("logementFields").style.display = "none";
+            onLogementSelectChange();
             el("loyer_mensuel").value = lg?.loyer_mensuel ?? "";
             el("loyer_mensuel").disabled = false;
             el("loyerHint").textContent = currentId
