@@ -512,6 +512,11 @@ a:hover {
     display: block;
 }
 
+.form-group.has-error .form-label,
+.form-group.has-error label {
+    color: #c0392b;
+}
+
 .input-error {
     border-color: #e74c3c !important;
 
@@ -631,7 +636,7 @@ input.pw-strong {
 
 
 /* ========================================
-   CHANGEMENT D'IDENTIFIANTS (première connexion)
+   CHANGEMENT D'IDENTIFIANTS (premiï¿½re connexion)
 ======================================== */
 
 .username-status {

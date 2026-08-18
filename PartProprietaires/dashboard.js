@@ -36,6 +36,9 @@ const STATUS = {
     paye: ["Payé", "status-success"],
     attente: ["En attente", "status-warning"],
     retard: ["En retard", "status-danger"],
+    a_confirmer: ["À confirmer", "status-info"],
+    en_validation: ["En validation", "status-warning"],
+    refuse: ["Refusé", "status-danger"],
   },
   incident: {
     nouveau: ["Nouveau", "status-danger"],

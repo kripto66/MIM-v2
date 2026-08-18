@@ -233,6 +233,11 @@ button:hover {
     box-shadow: 0 0 0 4px rgba(231, 76, 60, 0.12) !important;
 }
 
+.form-group.has-error .form-label,
+.form-group.has-error label {
+    color: #c0392b;
+}
+
 .field-error-msg {
     display: block;
 

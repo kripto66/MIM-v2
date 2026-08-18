@@ -57,9 +57,14 @@ const LABELS = {
   paye: "Payé",
   attente: "En attente",
   retard: "En retard",
+  a_confirmer: "À confirmer",
+  en_validation: "En validation",
+  refuse: "Refusé",
+  expire: "Expiré",
   nouveau: "Nouveau",
   en_cours: "En cours",
   resolu: "Résolu",
+  intervention: "Intervention",
   actif: "Actif",
   inactif: "Inactif",
   libre: "Libre",
@@ -77,8 +82,9 @@ function label(value) {
 function badge(value) {
   const v = label(value).toLowerCase();
   let cls = v.includes("payé") || v.includes("actif") || v.includes("jour") || v.includes("résolu") || v.includes("terminée") ? "success"
-          : v.includes("retard") || v.includes("suspend") || v.includes("attente") || v.includes("maintenance") || v.includes("planifiée") ? "warning"
-          : v.includes("incident") || v.includes("nouveau") || v.includes("en cours") || v.includes("inactif") ? "danger" : "info";
+          : v.includes("retard") || v.includes("suspend") || v.includes("attente") || v.includes("validation") || v.includes("maintenance") || v.includes("planifiée") || v.includes("expiré") ? "warning"
+          : v.includes("incident") || v.includes("nouveau") || v.includes("en cours") || v.includes("inactif") || v.includes("refusé") ? "danger"
+          : v.includes("confirmer") ? "info" : "info";
   return `<span class="badge ${cls}">${label(value)}</span>`;
 }
 
@@ -680,12 +686,6 @@ async function init() {
     navigate(active);
     showToast("Actualisé");
   });
-  document.getElementById("logoutBtn").addEventListener("click", async () => {
-    try {
-      await apiRequest("/auth/logout", { method: "POST" });
-    } catch {}
-    window.location.href = "../PartPublic/connexion.html";
-  });
 
   const subModal = document.getElementById("subModal");
   if (subModal) {
@@ -718,9 +718,6 @@ async function init() {
         if (d.payment_url) {
           html += `<p class="ok">Lien de paiement généré (l'abonnement sera activé après confirmation) :</p>
             <a href="${d.payment_url}" target="_blank" rel="noopener">${escapeHtml(d.payment_url)}</a>`;
-        }
-        if (d.qr_code) {
-          html += `<img class="unitech-qr" src="${d.qr_code}" alt="QR Code" style="max-width:160px;display:block;margin-top:8px;">`;
         }
         if (d.reference) {
           html += `<p class="ref">Réf. UnitechPay : ${escapeHtml(d.reference)}</p>`;

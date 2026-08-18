@@ -72,29 +72,3 @@ function bindAutoClear(form, names) {
     if (input) input.addEventListener('input', () => clearFieldError(form, name));
   });
 }
-
-// Vérifie la disponibilité d'un username côté frontend (le backend vérifie aussi).
-async function checkUsernameAvailability(form, fieldName, { onTaken } = {}) {
-  const input = mimFieldEl(form, fieldName);
-  if (!input) return true;
-
-  const username = String(input.value || '').trim().toLowerCase();
-  if (!username) return true;
-
-  try {
-    const res = await fetch(`${mimApiBase()}/auth/username-available?username=${encodeURIComponent(username)}`, {
-      credentials: 'include',
-    });
-    const data = await res.json();
-
-    if (data && data.available === false) {
-      formFieldError(form, fieldName, 'Ce nom d\'utilisateur est déjà utilisé.');
-      if (typeof onTaken === 'function') onTaken();
-      return false;
-    }
-    clearFieldError(form, fieldName);
-    return true;
-  } catch (err) {
-    return true;
-  }
-}

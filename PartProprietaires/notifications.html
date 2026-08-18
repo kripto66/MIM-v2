@@ -163,13 +163,6 @@
             });
 
 document.getElementById("markAllBtn").addEventListener("click", markAll);
-
-            const logoutBtn = document.getElementById("logoutBtn");
-
-            logoutBtn.addEventListener("click", async () => {
-                try { await apiRequest("/auth/logout", { method: "POST" }); } catch (err) {}
-                window.location.href = "../PartPublic/connexion.html";
-            });
         });
     </script>
 

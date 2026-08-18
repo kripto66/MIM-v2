@@ -306,10 +306,12 @@ router.post('/login', async (req, res) => {
   }
 
   if (!account) {
+    // Même réponse que pour un mauvais mot de passe (anti-énumération) :
+    // on ne révèle pas l'existence du compte.
     return res.status(401).json({
       success: false,
-      code: 'ACCOUNT_NOT_FOUND',
-      message: 'Aucun compte associé à cet identifiant.',
+      code: 'INVALID_CREDENTIALS',
+      message: 'Email ou mot de passe incorrect.',
     });
   }
 
@@ -976,13 +978,15 @@ router.post('/reset-password', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Les mots de passe ne correspondent pas.' });
   }
 
-  let supabaseToken = req.user?.supabase_token;
+  // Le jeton du lien de récupération PRIME sur toute session existante :
+  // un utilisateur connecté qui clique un lien de réinitialisation émis pour
+  // un autre compte ne doit pas modifier SON mot de passe (audit m16).
+  let supabaseToken = null;
   let session = null;
 
-  // Flow implicite : le lien de récupération contient access_token (+ refresh_token)
-  // dans le fragment d'URL. On restaure la session de récupération pour pouvoir
-  // modifier le mot de passe.
-  if (!supabaseToken && access_token) {
+  // 1) Flow implicite : le lien de récupération contient access_token
+  // (+ refresh_token) dans le fragment d'URL.
+  if (access_token) {
     try {
       const sbTemp = authedClient(access_token);
       await sbTemp.auth.setSession({
@@ -999,39 +1003,44 @@ router.post('/reset-password', async (req, res) => {
     }
   }
 
+  // 2) Flow classique : token_hash (lien email) ou code PKCE.
   if (!supabaseToken) {
     const candidate = token_hash || code;
 
-    if (!candidate) {
-      return res.status(401).json({ success: false, message: 'Jeton de réinitialisation manquant.' });
-    }
+    if (candidate) {
+      const { data: otpData, error: otpError } = await supabase.auth.verifyOtp({
+        type: 'recovery',
+        token_hash: candidate,
+      });
 
-    const { data: otpData, error: otpError } = await supabase.auth.verifyOtp({
-      type: 'recovery',
-      token_hash: candidate,
-    });
+      if (!otpError && otpData?.session) {
+        session = otpData.session;
+      }
 
-    if (!otpError && otpData?.session) {
-      session = otpData.session;
-    }
-
-    if (!session && code) {
-      try {
-        const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-        if (!exchangeError && exchangeData?.session) {
-          session = exchangeData.session;
+      if (!session && code) {
+        try {
+          const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+          if (!exchangeError && exchangeData?.session) {
+            session = exchangeData.session;
+          }
+        } catch (err) {
+          console.warn('[reset-password] échange PKCE impossible :', err.message);
         }
-      } catch (err) {
-        console.warn('[reset-password] échange PKCE impossible :', err.message);
       }
     }
 
-    if (!session) {
-      console.error('[reset-password]', otpError?.message || 'verifyOtp échec');
+    if (session) {
+      supabaseToken = session.access_token;
+    } else if (candidate) {
+      console.error('[reset-password]', 'verifyOtp échec pour le lien fourni');
+    }
+  }
+
+  if (!supabaseToken) {
+    if (code || token_hash || access_token) {
       return res.status(400).json({ success: false, message: 'Lien de réinitialisation invalide ou expiré.' });
     }
-
-    supabaseToken = session.access_token;
+    return res.status(401).json({ success: false, message: 'Jeton de réinitialisation manquant.' });
   }
 
   const sb = authedClient(supabaseToken);
@@ -1040,11 +1049,6 @@ router.post('/reset-password', async (req, res) => {
     await sb.auth.setSession({
       access_token: session.access_token,
       refresh_token: session.refresh_token,
-    });
-  } else if (req.user?.refresh_token) {
-    await sb.auth.setSession({
-      access_token: supabaseToken,
-      refresh_token: req.user.refresh_token,
     });
   }
 
