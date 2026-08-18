@@ -637,8 +637,9 @@ const editing = employeeEditId != null;
                 el("payHistory").innerHTML = list.length
                     ? list.map((p) => {
                         const cls = p.statut === "paye" ? "status-success" : "status-warning";
-                        const lab = p.statut === "paye" ? "Payé" : "En attente";
-                        return `<div class="pay-row"><span>${escapeHtml(p.mois)}</span><strong>${formatFCFA(p.montant)}</strong><span class="status ${cls}">${lab}</span>${p.date_paiement ? "<small>" + escapeHtml(p.date_paiement) + "</small>" : ""}${p.methode_paiement ? "<small>" + escapeHtml(METHODE_LABELS[p.methode_paiement] || p.methode_paiement) + (p.reference ? " — " + escapeHtml(p.reference) : "") + "</small>" : ""}</div>`;
+const lab = p.statut === "paye" ? "Payé" : "En attente";
+                        const dateLisible = p.date_paiement ? new Date(p.date_paiement).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "";
+                        return `<div class="pay-row"><span>${escapeHtml(p.mois)}</span><strong>${formatFCFA(p.montant)}</strong><span class="status ${cls}">${lab}</span>${dateLisible ? "<small>" + escapeHtml(dateLisible) + "</small>" : ""}${p.methode_paiement ? "<small>" + escapeHtml(METHODE_LABELS[p.methode_paiement] || p.methode_paiement) + (p.reference ? " — " + escapeHtml(p.reference) : "") + "</small>" : ""}</div>`;
                     }).join("")
                     : '<div class="empty-state">Aucun paiement enregistré.</div>';
             } catch (err) {
@@ -879,15 +880,6 @@ const editing = employeeEditId != null;
                     if (item) openTaskEdit(item);
                 }
 if (delBtn) deleteTask(delBtn.dataset.deleteTask);
-            });
-
-            el("logoutBtn").addEventListener("click", async () => {
-                try {
-                    await apiRequest("/auth/logout", { method: "POST" });
-                } catch (err) {
-                    /* on déconnecte quand même */
-                }
-                window.location.href = "../PartPublic/connexion.html";
             });
 
             el("closeEmpResultModal").addEventListener("click", () => (el("empResultModal").style.display = "none"));

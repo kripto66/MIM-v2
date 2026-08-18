@@ -15,6 +15,22 @@
     sidebar.insertAdjacentElement('afterend', overlay);
   }
 
+  // Déconnexion : câblage centralisé du bouton #logoutBtn (toutes les pages
+  // propriétaire + admin l'ont dans la sidebar ; plusieurs pages ne le
+  // câblaient pas du tout). La garde data-mim-logout évite un doublon avec
+  // un éventuel handler déjà attaché par la page.
+  var logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn && !logoutBtn.dataset.mimLogout) {
+    logoutBtn.dataset.mimLogout = '1';
+    logoutBtn.addEventListener('click', function () {
+      fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+        .catch(function () {})
+        .finally(function () {
+          window.location.href = '../PartPublic/connexion.html';
+        });
+    });
+  }
+
   var TOGGLE_SELECTOR = '[data-sidebar-toggle], [data-sidebar-toggle-logo]';
 
   function isOpen() {

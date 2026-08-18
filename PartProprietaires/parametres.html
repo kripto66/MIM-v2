@@ -525,15 +525,8 @@ document.getElementById("profileForm").addEventListener("submit", async (e) => {
                         loadMoyens();
                     } catch (err) {
                         showToast(err.message, "error");
-                    }
+}
                 }
-            });
-
-const logoutBtn = document.getElementById("logoutBtn");
-
-            logoutBtn.addEventListener("click", async () => {
-                try { await apiRequest("/auth/logout", { method: "POST" }); } catch (err) {}
-                window.location.href = "../PartPublic/connexion.html";
             });
         });
     </script>

@@ -648,15 +648,6 @@ async function deleteTenant(id) {
                 if (delBtn) deleteTenant(delBtn.dataset.deleteT);
             });
 
-            el("logoutBtn").addEventListener("click", async () => {
-                try {
-                    await apiRequest("/auth/logout", { method: "POST" });
-                } catch (err) {
-                    /* on déconnecte quand même */
-                }
-                window.location.href = "../PartPublic/connexion.html";
-            });
-
             loadAll();
         });
     </script>

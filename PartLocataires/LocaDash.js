@@ -103,17 +103,16 @@ async function loadTenantIdentity() {
   try {
     const { user } = await tenantRequest("/auth/me");
     const name = user.name || "Locataire";
-    for (const id of ["userName", "welcomeName", "profileName", "profilePhone"]) {
+    // Le profil est rempli par profil.html lui-même (profileNameInput /
+    // profilePhoneInput) : on ne touche ici qu'aux éléments partagés.
+    for (const id of ["userName", "welcomeName"]) {
       const el = document.getElementById(id);
-      if (!el) continue;
-      if (id === "profilePhone") {
-        el.value = user.phone || "";
-      } else {
-        el.textContent = name;
-      }
+      if (el) el.textContent = name;
     }
     const unlinkedEmail = document.getElementById("unlinkedEmail");
-    if (unlinkedEmail && user.email) unlinkedEmail.textContent = user.email;
+    const unlinkedEmailWrap = document.getElementById("unlinkedEmailWrap");
+    if (unlinkedEmailWrap && !user.email) unlinkedEmailWrap.style.display = "none";
+    else if (unlinkedEmail && user.email) unlinkedEmail.textContent = user.email;
     return user;
   } catch (err) {
     return null;

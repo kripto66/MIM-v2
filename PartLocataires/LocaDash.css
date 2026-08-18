@@ -1253,6 +1253,11 @@ body {
     box-shadow: 0 0 0 4px rgba(231, 76, 60, 0.12) !important;
 }
 
+.form-group.has-error .form-label,
+.form-group.has-error label {
+    color: #c0392b;
+}
+
 .field-error-msg {
     display: block;
 
@@ -1438,7 +1443,7 @@ input.pw-strong {
 }
 
 /* ============================================================
-   Flux « Payer mon loyer » — déclaration + validation propriétaire
+   Flux ï¿½ Payer mon loyer ï¿½ ï¿½ dï¿½claration + validation propriï¿½taire
    ============================================================ */
 
 .payer-card {
