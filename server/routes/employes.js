@@ -461,7 +461,8 @@ router.get('/:id/paiements', async (req, res) => {
 // « attente ») ; l'employé confirme la réception (statut « paye »).
 // Le propriétaire ne peut PAS passer seul un paiement à « paye » :
 // seul l'employé confirme. Compatibilité conservée : statut « paye »
-// reste accepté pour les versements vérifiés hors flux (ex. UnitechPay).
+// reste accepté pour les versements vérifiés hors flux (ex. PayDunya :
+// le salaire est marqué payé par l'IPN après encaissement).
 // ============================================================
 router.post('/:id/paiements', async (req, res) => {
   const sb = serviceClient();

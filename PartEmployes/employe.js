@@ -89,6 +89,7 @@ const MOYEN_TYPE_LABELS = {
   orange_money: "Orange Money",
   virement: "Virement bancaire",
   especes: "Espèces",
+  paydunya: "PayDunya",
 };
 
 const MOYEN_TYPE_ICONS = { wave: "🟣", orange_money: "🟠", virement: "🏦", especes: "💵" };

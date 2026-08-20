@@ -115,10 +115,11 @@ router.post('/incidents', async (req, res) => {
 // ============================================================
 // Confirmation d'un paiement par le locataire.
 //
-// Le webhook UnitechPay a confirmé techniquement le paiement
-// (statut « a_confirmer »). Le locataire confirme ici qu'il est bien
-// l'auteur de ce paiement : statut « en_validation » + notification
-// au propriétaire, qui réalise la validation métier (/unitech/valider).
+// Flux « déclaration + validation propriétaire » : le locataire paie
+// directement le propriétaire (hors MIM), déclare son paiement et le
+// confirme ici (« en_validation ») ; le propriétaire réalise la
+// validation métier. Le flux PayDunya (paiement en ligne MIM) passe
+// directement à « paye » via l'IPN et n'utilise pas cette route.
 // La fiche locataire est DÉDUITE de account_uid : on ne fait jamais
 // confiance à un id envoyé par le frontend, et un locataire ne peut
 // confirmer qu'un paiement rattaché à SA fiche. La mise à jour est

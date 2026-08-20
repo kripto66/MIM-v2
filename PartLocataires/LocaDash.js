@@ -200,6 +200,30 @@ document.addEventListener("click", async (e) => {
   }
 });
 
+document.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-paydunya-pay]");
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  const original = btn.textContent;
+  btn.textContent = "Génération du lien de paiement...";
+  try {
+    const res = await tenantRequest("/paydunya/initiate", {
+      method: "POST",
+      body: JSON.stringify({ source: "loyer", paiement_id: Number(btn.dataset.paydunyaPay) }),
+    });
+    const url = res.data?.payment_url;
+    if (!url) throw new Error(res.message || "Aucun lien de paiement reçu.");
+    window.open(url, "_blank", "noopener");
+    showTenantError("Lien de paiement ouvert : finalisez le paiement dans le nouvel onglet.", true);
+    const data = await tenantRequest("/locataire/dashboard");
+    renderDashboard(data);
+  } catch (err) {
+    btn.disabled = false;
+    btn.textContent = original;
+    showTenantError(err.message);
+  }
+});
+
 function renderDashboard(data) {
   const unlinked = document.getElementById("unlinkedMessage");
   const content = document.getElementById("dashboardContent");
@@ -299,9 +323,14 @@ function renderConfirmPayment(data) {
   }
 
   zone.innerHTML = `
-    <a href="paiements.html" class="primary-button" type="button">
-      Payer mon loyer (${formatMois(pending.mois)})
-    </a>`;
+    <div class="confirm-payment-info">
+      <strong>💰 Loyer à payer</strong>
+      <p>Payez votre loyer de ${formatMois(pending.mois)} (${fmtFCFA(pending.montant)}) en ligne ou directement auprès de votre propriétaire.</p>
+      <button type="button" class="primary-button" data-paydunya-pay="${pending.id}">💳 Payer en ligne (PayDunya)</button>
+      <a href="paiements.html" class="primary-button" type="button" style="margin-top:8px;display:inline-block;">
+        Voir mes paiements
+      </a>
+    </div>`;
 }
 
 function renderIncidentPreview(incidents) {

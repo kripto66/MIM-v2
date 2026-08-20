@@ -16,7 +16,7 @@ import subscriptionRoutes from './routes/subscription.js';
 import employesRoutes from './routes/employes.js';
 import tasksRoutes from './routes/tasks.js';
 import employeRoutes from './routes/employe.js';
-import unitechRoutes, { webhookRouter } from './routes/unitech.js';
+import paydunyaRoutes, { webhookRouter } from './routes/paydunya.js';
 import validationsRoutes from './routes/validations.js';
 import moyensPaiementRoutes from './routes/moyensPaiement.js';
 import importRoutes from './routes/import.js';
@@ -85,9 +85,9 @@ app.use((req, res, next) => {
   next();
 });
 
-// Le webhook UnitechPay est monté AVANT express.json : il doit recevoir le
-// corps brut (Buffer) pour vérifier la signature HMAC-SHA256.
-app.use('/api/unitech/webhook', webhookRouter);
+// Le webhook PayDunya est monté AVANT express.json : il doit recevoir
+// le corps urlencoded brut des notifications IPN PayDunya.
+app.use('/api/paydunya/webhook', webhookRouter);
 
 app.use(express.json({ limit: '4mb' }));
 app.use(cookieParser());
@@ -122,7 +122,7 @@ app.use('/api/subscription', authenticate, requireRole('proprietaire', 'agence',
 app.use('/api/employes', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), employesRoutes);
 app.use('/api/tasks', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), tasksRoutes);
 app.use('/api/employe', authenticate, requireActive, requireRole('employe'), employeRoutes);
-app.use('/api/unitech', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), unitechRoutes);
+app.use('/api/paydunya', authenticate, requireActive, paydunyaRoutes);
 app.use('/api/paiements-validation', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), validationsRoutes);
 app.use('/api/moyens-paiement', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), moyensPaiementRoutes);
 app.use('/api/import', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), importRoutes);

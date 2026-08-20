@@ -56,6 +56,17 @@ export async function wipeTestData(service) {
     }
   }
 
+  // Purge complète des artefacts de paiement en ligne (sessions, journal IPN,
+  // redistributions) : sans user_id fiable, elles ne sont pas rattrapées par
+  // la suppression des comptes et pollueraient les tests suivants (dédup).
+  for (const t of ['paydunya_invoices', 'paydunya_webhooks', 'paydunya_redistributions', 'unitech_checkouts', 'unitech_webhooks']) {
+    try {
+      await service.from(t).delete().gte('id', 0);
+    } catch {
+      /* table absente */
+    }
+  }
+
   // Suppression explicite des lignes enfants (les FK peuvent être en SET NULL).
   if (allIds.length) {
     for (const t of CHILD_TABLES) {

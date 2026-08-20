@@ -1,4 +1,4 @@
-const API = (() => {
+﻿const API = (() => {
   const origin = window.location.origin || "http://localhost:3000";
   const isLocal = origin.includes("localhost") || origin.includes("127.0.0.1");
   return (isLocal ? "http://localhost:3000" : origin) + "/api";
@@ -44,34 +44,34 @@ const app = document.getElementById("app");
 
 const sections = {
   dashboard: ["Dashboard", "Vue globale de la plateforme."],
-  proprietaires: ["Propriétaires", "Gestion des comptes propriétaires."],
+  proprietaires: ["PropriÃ©taires", "Gestion des comptes propriÃ©taires."],
   locataires: ["Locataires", "Vue globale des locataires de MIM."],
   biens: ["Biens & logements", "Suivi du parc immobilier."],
   paiements: ["Paiements", "Suivi global des paiements."],
-  abonnements: ["Abonnements", "Suivi des abonnements MIM des propriétaires."],
+  abonnements: ["Abonnements", "Suivi des abonnements MIM des propriÃ©taires."],
   incidents: ["Incidents", "Incidents et interventions."],
-  activite: ["Activité", "Historique des événements de la plateforme."],
+  activite: ["ActivitÃ©", "Historique des Ã©vÃ©nements de la plateforme."],
 };
 
 const LABELS = {
-  paye: "Payé",
+  paye: "PayÃ©",
   attente: "En attente",
   retard: "En retard",
-  a_confirmer: "À confirmer",
+  a_confirmer: "Ã€ confirmer",
   en_validation: "En validation",
-  refuse: "Refusé",
-  expire: "Expiré",
+  refuse: "RefusÃ©",
+  expire: "ExpirÃ©",
   nouveau: "Nouveau",
   en_cours: "En cours",
-  resolu: "Résolu",
+  resolu: "RÃ©solu",
   intervention: "Intervention",
   actif: "Actif",
   inactif: "Inactif",
   libre: "Libre",
-  occupe: "Occupé",
+  occupe: "OccupÃ©",
   maintenance: "Maintenance",
-  planifie: "Planifiée",
-  termine: "Terminée",
+  planifie: "PlanifiÃ©e",
+  termine: "TerminÃ©e",
   suspendu: "Suspendu",
 };
 
@@ -81,9 +81,9 @@ function label(value) {
 
 function badge(value) {
   const v = label(value).toLowerCase();
-  let cls = v.includes("payé") || v.includes("actif") || v.includes("jour") || v.includes("résolu") || v.includes("terminée") ? "success"
-          : v.includes("retard") || v.includes("suspend") || v.includes("attente") || v.includes("validation") || v.includes("maintenance") || v.includes("planifiée") || v.includes("expiré") ? "warning"
-          : v.includes("incident") || v.includes("nouveau") || v.includes("en cours") || v.includes("inactif") || v.includes("refusé") ? "danger"
+  let cls = v.includes("payÃ©") || v.includes("actif") || v.includes("jour") || v.includes("rÃ©solu") || v.includes("terminÃ©e") ? "success"
+          : v.includes("retard") || v.includes("suspend") || v.includes("attente") || v.includes("validation") || v.includes("maintenance") || v.includes("planifiÃ©e") || v.includes("expirÃ©") ? "warning"
+          : v.includes("incident") || v.includes("nouveau") || v.includes("en cours") || v.includes("inactif") || v.includes("refusÃ©") ? "danger"
           : v.includes("confirmer") ? "info" : "info";
   return `<span class="badge ${cls}">${label(value)}</span>`;
 }
@@ -93,16 +93,16 @@ function money(n) {
 }
 
 function fmtDate(value) {
-  if (!value) return "—";
+  if (!value) return "â€”";
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "â€”";
   return d.toLocaleDateString("fr-FR");
 }
 
 function fmtDateTime(value) {
-  if (!value) return "—";
+  if (!value) return "â€”";
   const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "â€”";
   return d.toLocaleDateString("fr-FR") + ", " + d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
 }
 
@@ -121,7 +121,7 @@ function monthLetter(ym) {
 }
 
 // ============================================================
-// Composants néon (données réelles uniquement)
+// Composants nÃ©on (donnÃ©es rÃ©elles uniquement)
 // ============================================================
 
 function statCard(cfg) {
@@ -133,8 +133,8 @@ function statCard(cfg) {
   </div>`;
 }
 
-// Aucune animation décorative : les compteurs affichent directement les
-// valeurs réelles renvoyées par l'API (pas de nombre intermédiaire fictif).
+// Aucune animation dÃ©corative : les compteurs affichent directement les
+// valeurs rÃ©elles renvoyÃ©es par l'API (pas de nombre intermÃ©diaire fictif).
 function animateCounts() {
   document.querySelectorAll("[data-count]").forEach((el) => {
     const target = parseFloat(el.dataset.count || "0");
@@ -164,7 +164,7 @@ function revenueChart(revenue12) {
   const sum = data.reduce((s, d) => s + d.value, 0);
 
   if (!data.length || sum === 0) {
-    return `<div class="chart chart-empty"><div class="empty">Aucune donnée disponible</div></div>`;
+    return `<div class="chart chart-empty"><div class="empty">Aucune donnÃ©e disponible</div></div>`;
   }
 
   const max = niceMax(Math.max(...data.map((d) => d.value)));
@@ -183,7 +183,7 @@ function revenueChart(revenue12) {
 
   const dots = data
     .map((d, i) => {
-      const tip = `${d.label} — ${money(d.value)}`;
+      const tip = `${d.label} â€” ${money(d.value)}`;
       const left = ((X(i) / W) * 100).toFixed(2);
       const bottom = ((Y(d.value) / H) * 100).toFixed(2);
       return `<button type="button" class="chart-dot" aria-label="${tip}" data-tip="${tip}" style="left:${left}%;bottom:${bottom}%"></button>`;
@@ -270,7 +270,7 @@ function skeleton() {
 }
 
 // ============================================================
-// Fond animé (particules légères, respecte reduced-motion)
+// Fond animÃ© (particules lÃ©gÃ¨res, respecte reduced-motion)
 // ============================================================
 
 function initBackground() {
@@ -347,7 +347,7 @@ function initBackground() {
 }
 
 // ============================================================
-// Statut système (vérification réelle du backend)
+// Statut systÃ¨me (vÃ©rification rÃ©elle du backend)
 // ============================================================
 
 async function initSystemStatus() {
@@ -358,7 +358,7 @@ async function initSystemStatus() {
     el.dataset.state = state;
     text.textContent = msg;
   };
-  set("checking", "CONNEXION AU SERVEUR…");
+  set("checking", "CONNEXION AU SERVEURâ€¦");
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 6000);
   try {
@@ -391,9 +391,9 @@ function tablePage(title, data, columns, headers, actions, onAction) {
 }
 
 function rows(data, columns, actions, onAction) {
-  if (!data || !data.length) return `<tr><td colspan="99" class="empty">Aucune donnée.</td></tr>`;
+  if (!data || !data.length) return `<tr><td colspan="99" class="empty">Aucune donnÃ©e.</td></tr>`;
   const badgeCells = new Set(["statut", "status"]);
-  return data.map((r) => `<tr>${columns.map((k) => `<td class="${k === "montant" ? "num" : ""}">${badgeCells.has(k) ? badge(r[k]) : (r[k] ?? "—")}</td>`).join("")}${actions && onAction ? `<td>${onAction(r)}</td>` : ""}</tr>`).join("");
+  return data.map((r) => `<tr>${columns.map((k) => `<td class="${k === "montant" ? "num" : ""}">${badgeCells.has(k) ? badge(r[k]) : (r[k] ?? "â€”")}</td>`).join("")}${actions && onAction ? `<td>${onAction(r)}</td>` : ""}</tr>`).join("");
 }
 
 function bindSearch() {
@@ -409,7 +409,7 @@ function bindSearch() {
 
 function exportCSV() {
   const table = document.querySelector(".table");
-  if (!table) return showToast("Aucune donnée à exporter.");
+  if (!table) return showToast("Aucune donnÃ©e Ã  exporter.");
   const text = [...table.querySelectorAll("tr")]
     .map((tr) =>
       [...tr.querySelectorAll("th, td")]
@@ -424,7 +424,7 @@ function exportCSV() {
   a.download = `mim-admin-${new Date().toISOString().slice(0, 10)}.csv`;
   a.click();
   URL.revokeObjectURL(a.href);
-  showToast("Export CSV téléchargé.");
+  showToast("Export CSV tÃ©lÃ©chargÃ©.");
 }
 
 // ============================================================
@@ -439,8 +439,8 @@ async function dashboard() {
 
   app.innerHTML = `
   <div class="cards">
-    ${statCard({ label: "Propriétaires", icon: "users", raw: stats.proprietaires, sub: `${stats.biens} biens enregistrés`, d: 0 })}
-    ${statCard({ label: "Locataires", icon: "user", raw: stats.locataires, sub: `${stats.logementsOccupes} logements occupés`, d: 0.04 })}
+    ${statCard({ label: "PropriÃ©taires", icon: "users", raw: stats.proprietaires, sub: `${stats.biens} biens enregistrÃ©s`, d: 0 })}
+    ${statCard({ label: "Locataires", icon: "user", raw: stats.locataires, sub: `${stats.logementsOccupes} logements occupÃ©s`, d: 0.04 })}
     ${statCard({ label: "Biens", icon: "building", raw: stats.biens, sub: `${stats.logements} logements au total`, d: 0.08 })}
     ${statCard({ label: "Revenus du mois", icon: "wallet", raw: stats.revenusMois, money: 1, sub: `${money(stats.lateRent)} en retard`, d: 0.12 })}
     ${statCard({ label: "Paiements", icon: "card", raw: stats.paiements, sub: `${stats.paiementsEnAttente} en attente`, d: 0.16 })}
@@ -449,22 +449,22 @@ async function dashboard() {
     ${statCard({ label: "Interventions", icon: "tool", raw: stats.interventionsActives, sub: "", d: 0.28 })}
   </div>
   <div class="grid-2">
-    <div class="panel"><div class="panel-header"><h2>Revenus — 12 derniers mois</h2><span class="panel-tag">FCFA</span></div>
+    <div class="panel"><div class="panel-header"><h2>Revenus â€” 12 derniers mois</h2><span class="panel-tag">FCFA</span></div>
       ${revenueChart(stats.revenue12)}
     </div>
-    <div class="panel"><div class="panel-header"><h2>Activité récente</h2><span class="panel-tag">plateforme</span></div>
+    <div class="panel"><div class="panel-header"><h2>ActivitÃ© rÃ©cente</h2><span class="panel-tag">plateforme</span></div>
       <div class="activity">
-        ${(stats.activiteRecent || []).map((a) => activity(a.title, a.detail, fmtDateTime(a.time))).join("") || `<div class="empty">Aucune activité.</div>`}
+        ${(stats.activiteRecent || []).map((a) => activity(a.title, a.detail, fmtDateTime(a.time))).join("") || `<div class="empty">Aucune activitÃ©.</div>`}
       </div>
     </div>
   </div>
   <div class="grid-2">
-    <div class="panel"><div class="panel-header"><h2>Paiements récents</h2><button class="btn secondary" onclick="navigate('paiements')">Voir tout</button></div>
-      <div class="table-wrap"><table class="table"><thead><tr><th>Locataire</th><th>Période</th><th>Montant</th><th>Statut</th></tr></thead>
+    <div class="panel"><div class="panel-header"><h2>Paiements rÃ©cents</h2><button class="btn secondary" onclick="navigate('paiements')">Voir tout</button></div>
+      <div class="table-wrap"><table class="table"><thead><tr><th>Locataire</th><th>PÃ©riode</th><th>Montant</th><th>Statut</th></tr></thead>
       <tbody>${recentPayments.map((r) => `<tr><td>${r.locataire}</td><td>${r.periode}</td><td class="num">${money(r.montant)}</td><td>${badge(r.statut)}</td></tr>`).join("")}</tbody></table></div>
     </div>
     <div class="panel"><div class="panel-header"><h2>Incidents</h2><button class="btn secondary" onclick="navigate('incidents')">Voir tout</button></div>
-      <div class="activity">${recentIncidents.map((r) => activity(r.titre, `${r.logement} — ${r.locataire}`, badge(r.statut))).join("") || `<div class="empty">Aucun incident.</div>`}</div>
+      <div class="activity">${recentIncidents.map((r) => activity(r.titre, `${r.logement} â€” ${r.locataire}`, badge(r.statut))).join("") || `<div class="empty">Aucun incident.</div>`}</div>
     </div>
   </div>`;
 
@@ -476,8 +476,8 @@ async function dashboard() {
 function subBadge(subscription) {
   if (!subscription) return `<span class="badge info">Aucun</span>`;
   return subscription.statut === "actif"
-    ? `<span class="badge success" title="Expire le ${fmtDate(subscription.date_expiration)}">Abonné · ${subscription.joursRestants} j</span>`
-    : `<span class="badge warning" title="Expiré le ${fmtDate(subscription.date_expiration)}">Expiré</span>`;
+    ? `<span class="badge success" title="Expire le ${fmtDate(subscription.date_expiration)}">AbonnÃ© Â· ${subscription.joursRestants} j</span>`
+    : `<span class="badge warning" title="ExpirÃ© le ${fmtDate(subscription.date_expiration)}">ExpirÃ©</span>`;
 }
 
 async function proprietaires() {
@@ -489,13 +489,13 @@ async function proprietaires() {
     sub: subBadge(r.subscription),
   }));
   app.innerHTML = tablePage(
-    "propriétaires",
+    "propriÃ©taires",
     rowsData,
     ["id", "nom", "email", "biens", "statut", "sub", "last_login"],
-    ["ID", "Nom", "Email", "Biens", "Statut", "Abonnement", "Dernière connexion"],
+    ["ID", "Nom", "Email", "Biens", "Statut", "Abonnement", "DerniÃ¨re connexion"],
     true,
     (r) =>
-      `<button class="btn ${r.statut === "suspendu" ? "secondary" : "danger"}" onclick="setStatut('${r.id}','${r.statut}')">${r.statut === "suspendu" ? "Réactiver" : "Suspendre"}</button>`
+      `<button class="btn ${r.statut === "suspendu" ? "secondary" : "danger"}" onclick="setStatut('${r.id}','${r.statut}')">${r.statut === "suspendu" ? "RÃ©activer" : "Suspendre"}</button>`
   );
   bindSearch();
 }
@@ -505,7 +505,7 @@ function rowCells(r, columns) {
     .map((k) => {
       if (k === "statut") return `<td>${badge(r[k])}</td>`;
       if (k === "montant") return `<td class="num">${money(r[k])}</td>`;
-      return `<td>${r[k] ?? "—"}</td>`;
+      return `<td>${r[k] ?? "â€”"}</td>`;
     })
     .join("");
 }
@@ -515,9 +515,9 @@ async function abonnements() {
   const { data } = await apiRequest("/admin/subscriptions");
   const rowsData = (data || []).map((r) => ({
     ...r,
-    date_paiement: r.date_paiement ? fmtDate(r.date_paiement) : "—",
-    date_debut: r.date_debut ? fmtDate(r.date_debut) : "—",
-    date_expiration: r.date_expiration ? fmtDate(r.date_expiration) : "—",
+    date_paiement: r.date_paiement ? fmtDate(r.date_paiement) : "â€”",
+    date_debut: r.date_debut ? fmtDate(r.date_debut) : "â€”",
+    date_expiration: r.date_expiration ? fmtDate(r.date_expiration) : "â€”",
     joursRestants: r.joursRestants,
   }));
   app.innerHTML = `<div class="panel">
@@ -527,12 +527,12 @@ async function abonnements() {
       <button class="btn primary" onclick="openSubModal()">+ Enregistrer un paiement</button>
     </div>
     <div class="table-wrap"><table class="table"><thead><tr>
-      <th>Propriétaire</th><th>Plan</th><th>Montant</th><th>Paiement</th><th>Début</th><th>Expiration</th><th>Jours restants</th><th>Statut</th><th>Actions</th>
+      <th>PropriÃ©taire</th><th>Plan</th><th>Montant</th><th>Paiement</th><th>DÃ©but</th><th>Expiration</th><th>Jours restants</th><th>Statut</th><th>Actions</th>
     </tr></thead>
     <tbody id="tableBody">${
       rowsData.length
         ? rowsData.map((r) => `<tr>${rowCells(r, ["proprietaire", "plan", "montant", "date_paiement", "date_debut", "date_expiration", "joursRestants", "statut"])}<td><button class="btn primary" onclick="openSubModal('${r.user_id}')">Encaisser</button></td></tr>`).join("")
-        : `<tr><td colspan="99" class="empty">Aucun abonnement enregistré.</td></tr>`
+        : `<tr><td colspan="99" class="empty">Aucun abonnement enregistrÃ©.</td></tr>`
     }</tbody></table></div>
   </div>`;
   bindSearch();
@@ -542,7 +542,7 @@ function openSubModal(userId) {
   const modal = document.getElementById("subModal");
   const select = document.getElementById("subOwner");
   select.innerHTML = "";
-  select.appendChild(new Option("Chargement…", ""));
+  select.appendChild(new Option("Chargementâ€¦", ""));
   apiRequest("/admin/proprietaires")
     .then(({ data }) => {
       select.innerHTML = "";
@@ -567,14 +567,14 @@ function closeSubModal() {
 async function locataires() {
   app.innerHTML = skeleton();
   const { data } = await apiRequest("/admin/locataires");
-  app.innerHTML = tablePage("locataires", data, ["id", "nom", "proprietaire", "logement", "statut"], ["ID", "Nom", "Propriétaire", "Logement", "Statut"]);
+  app.innerHTML = tablePage("locataires", data, ["id", "nom", "proprietaire", "logement", "statut"], ["ID", "Nom", "PropriÃ©taire", "Logement", "Statut"]);
   bindSearch();
 }
 
 async function biens() {
   app.innerHTML = skeleton();
   const { data } = await apiRequest("/admin/biens");
-  app.innerHTML = tablePage("biens", data, ["id", "nom", "logements", "occupes", "proprietaire"], ["ID", "Bien", "Logements", "Occupés", "Propriétaire"]);
+  app.innerHTML = tablePage("biens", data, ["id", "nom", "logements", "occupes", "proprietaire"], ["ID", "Bien", "Logements", "OccupÃ©s", "PropriÃ©taire"]);
   bindSearch();
 }
 
@@ -589,9 +589,9 @@ async function paiements() {
     montant: money(r.montant),
     statut: r.statut,
     methode: r.methode,
-    reference: r.reference || "—",
+    reference: r.reference || "â€”",
   }));
-  app.innerHTML = tablePage("paiements", rowsData, ["id", "locataire", "logement", "periode", "montant", "statut", "methode", "reference"], ["ID", "Locataire", "Logement", "Période", "Montant", "Statut", "Méthode", "Référence"]);
+  app.innerHTML = tablePage("paiements", rowsData, ["id", "locataire", "logement", "periode", "montant", "statut", "methode", "reference"], ["ID", "Locataire", "Logement", "PÃ©riode", "Montant", "Statut", "MÃ©thode", "RÃ©fÃ©rence"]);
   bindSearch();
 }
 
@@ -606,8 +606,8 @@ async function incidents() {
 async function activite() {
   app.innerHTML = skeleton();
   const { data } = await apiRequest("/admin/activite");
-  app.innerHTML = `<div class="panel"><div class="panel-header"><h2>Journal d'activité</h2><span class="panel-tag">100 derniers événements</span></div>
-    <div class="activity">${(data || []).map((a) => activity(a.action, `${a.user} — ${a.detail}`, a.date)).join("") || `<div class="empty">Aucune activité.</div>`}</div></div>`;
+  app.innerHTML = `<div class="panel"><div class="panel-header"><h2>Journal d'activitÃ©</h2><span class="panel-tag">100 derniers Ã©vÃ©nements</span></div>
+    <div class="activity">${(data || []).map((a) => activity(a.action, `${a.user} â€” ${a.detail}`, a.date)).join("") || `<div class="empty">Aucune activitÃ©.</div>`}</div></div>`;
 }
 
 const RENDERERS = { dashboard, proprietaires, locataires, biens, paiements, abonnements, incidents, activite };
@@ -684,7 +684,7 @@ async function init() {
   document.getElementById("refreshBtn").addEventListener("click", () => {
     const active = document.querySelector(".nav-item.active").dataset.section;
     navigate(active);
-    showToast("Actualisé");
+    showToast("ActualisÃ©");
   });
 
   const subModal = document.getElementById("subModal");
@@ -695,11 +695,11 @@ async function init() {
     document.getElementById("subForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const submit = e.target.querySelector("button[type=submit]");
-      const resultEl = document.getElementById("subUnitechResult");
+      const resultEl = document.getElementById("paydunyaResult");
       if (resultEl) resultEl.innerHTML = "";
       submit.disabled = true;
       const original = submit.textContent;
-      submit.textContent = "Génération du lien...";
+      submit.textContent = "GÃ©nÃ©ration du lien...";
       try {
         const r = await apiRequest("/admin/subscriptions/register", {
           method: "POST",
@@ -708,19 +708,17 @@ async function init() {
             plan: document.getElementById("subPlan").value,
             montant: document.getElementById("subMontant").value,
             dureeMois: document.getElementById("subDuree").value,
-            operator: document.getElementById("subOperator").value,
-            orangeMode: document.getElementById("subOrangeMode").value,
           }),
         });
         showToast(r.message);
         const d = r.data || {};
         let html = "";
         if (d.payment_url) {
-          html += `<p class="ok">Lien de paiement généré (l'abonnement sera activé après confirmation) :</p>
+          html += `<p class="ok">Lien de paiement PayDunya gÃ©nÃ©rÃ© (l'abonnement sera activÃ© aprÃ¨s confirmation) :</p>
             <a href="${d.payment_url}" target="_blank" rel="noopener">${escapeHtml(d.payment_url)}</a>`;
         }
         if (d.reference) {
-          html += `<p class="ref">Réf. UnitechPay : ${escapeHtml(d.reference)}</p>`;
+          html += `<p class="ref">RÃ©f. PayDunya : ${escapeHtml(d.reference)}</p>`;
         }
         if (resultEl) resultEl.innerHTML = html;
       } catch (err) {

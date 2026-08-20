@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 
 <head>
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIM — Mes employés</title>
+    <title>MIM â€” Mes employÃ©s</title>
     <link rel="stylesheet" href="/mim-errors.css">
     <script src="/mim-errors.js"></script>
 
@@ -29,7 +29,7 @@
                 <a href="dashboard.html">Tableau de bord</a>
                 <a href="biens.html">Mes biens</a>
                 <a href="locataires.html">Locataires & Logements</a>
-                <a href="employes.html" class="active">Mes employés</a>
+                <a href="employes.html" class="active">Mes employÃ©s</a>
                 <div class="nav-category">Finances</div>
                 <a href="paiements.html">Paiements</a>
                 <div class="nav-category">Suivi</div>
@@ -38,13 +38,13 @@
                 <a href="interventions.html">Interventions</a>
                 <a href="notifications.html">Notifications</a>
                 <div class="nav-category">Configuration</div>
-                <a href="parametres.html">Paramètres</a>
+                <a href="parametres.html">ParamÃ¨tres</a>
                 <a href="import.html">Importer / Configurer</a>
             </nav>
 
             <div class="sidebar-footer">
 
-                <button id="logoutBtn" type="button">Déconnexion</button>
+                <button id="logoutBtn" type="button">DÃ©connexion</button>
 
             </div>
 
@@ -60,27 +60,27 @@
                     aria-label="Ouvrir le menu"
                     aria-expanded="false"
                 >
-                    ☰
+                    â˜°
                 </button>
 
                 <div class="welcome">
-                    <h1>Mes employés</h1>
-                    <p>Créez les comptes de vos employés, fixez leur salaire et suivez leurs tâches.</p>
+                    <h1>Mes employÃ©s</h1>
+                    <p>CrÃ©ez les comptes de vos employÃ©s, fixez leur salaire et suivez leurs tÃ¢ches.</p>
                 </div>
 
-                <button class="btn btn-primary" id="addBtn">+ Ajouter un employé</button>
+                <button class="btn btn-primary" id="addBtn">+ Ajouter un employÃ©</button>
 
             </header>
 
             <div class="tabs">
-                <button type="button" class="tab active" data-tab="employes">Employés</button>
-                <button type="button" class="tab" data-tab="taches">Tâches</button>
+                <button type="button" class="tab active" data-tab="employes">EmployÃ©s</button>
+                <button type="button" class="tab" data-tab="taches">TÃ¢ches</button>
             </div>
 
             <section class="dashboard-section" id="employesSection">
 
                 <div class="section-header">
-                    <h2>Liste des employés</h2>
+                    <h2>Liste des employÃ©s</h2>
                 </div>
 
                 <div id="employesList">
@@ -92,7 +92,7 @@
             <section class="dashboard-section" id="tachesSection" style="display:none;">
 
                 <div class="section-header">
-                    <h2>Liste des tâches</h2>
+                    <h2>Liste des tÃ¢ches</h2>
                 </div>
 
                 <div id="tachesList">
@@ -105,12 +105,12 @@
 
     </div>
 
-    <!-- ====================== MODAL EMPLOYÉ ====================== -->
+    <!-- ====================== MODAL EMPLOYÃ‰ ====================== -->
 
     <div class="modal-overlay" id="employeeModal" style="display:none;">
         <div class="modal">
 
-            <h2 id="employeeModalTitle">Ajouter un employé</h2>
+            <h2 id="employeeModalTitle">Ajouter un employÃ©</h2>
 
             <form id="employeeForm">
 
@@ -123,25 +123,25 @@
 
 <div class="form-row">
                     <div class="form-group">
-                        <label for="emp_username">Username (connexion employé)</label>
+                        <label for="emp_username">Username (connexion employÃ©)</label>
                         <input type="text" id="emp_username" name="emp_username" placeholder="ex : amadou.diallo" autocomplete="off">
                         <small class="username-status" id="empUsernameStatus"></small>
                     </div>
                     <div class="form-group">
                         <label for="emp_password">Mot de passe temporaire</label>
-                        <input type="password" id="emp_password" name="emp_password" placeholder="Minimum 8 caractères" autocomplete="new-password" minlength="8" data-strength>
+                        <input type="password" id="emp_password" name="emp_password" placeholder="Minimum 8 caractÃ¨res" autocomplete="new-password" minlength="8" data-strength>
                     </div>
                 </div>
                 <div class="form-hint" id="empAutoHint">
-                    Laissez ces deux champs vides : MIM générera automatiquement le username
-                    (ex : prenom.nom) et un mot de passe initial temporaire (1234) à changer
-                    à la première connexion.
+                    Laissez ces deux champs vides : MIM gÃ©nÃ©rera automatiquement le username
+                    (ex : prenom.nom) et un mot de passe initial temporaire (1234) Ã  changer
+                    Ã  la premiÃ¨re connexion.
                 </div>
 
 <div class="form-row">
                     <div class="form-group">
                         <label for="emp_poste">Poste / fonction</label>
-                        <input type="text" id="emp_poste" name="emp_poste" placeholder="Ex : Gardien, Gérant, Agent d'entretien">
+                        <input type="text" id="emp_poste" name="emp_poste" placeholder="Ex : Gardien, GÃ©rant, Agent d'entretien">
                     </div>
                     <div class="form-group">
                         <label for="emp_salaire">Salaire mensuel (FCFA)</label>
@@ -150,11 +150,11 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="emp_biens">Biens affectés (l'employé ne voit que ces biens)</label>
+                    <label for="emp_biens">Biens affectÃ©s (l'employÃ© ne voit que ces biens)</label>
                     <select id="emp_biens" name="emp_biens" multiple size="4">
                         <option value="" disabled>Chargement...</option>
                     </select>
-                    <small class="form-hint">Maintenez Ctrl (ou ⌘) pour sélectionner plusieurs biens.</small>
+                    <small class="form-hint">Maintenez Ctrl (ou âŒ˜) pour sÃ©lectionner plusieurs biens.</small>
                 </div>
 
                 <div class="form-row">
@@ -163,7 +163,7 @@
                         <input type="email" id="emp_email" name="emp_email">
                     </div>
                     <div class="form-group">
-                        <label for="emp_phone">Téléphone</label>
+                        <label for="emp_phone">TÃ©lÃ©phone</label>
                         <input type="tel" id="emp_phone" name="emp_phone">
                     </div>
                 </div>
@@ -192,18 +192,18 @@
         </div>
     </div>
 
-    <!-- ====================== MODAL IDENTIFIANTS (CRÉATION AUTO) ====================== -->
+    <!-- ====================== MODAL IDENTIFIANTS (CRÃ‰ATION AUTO) ====================== -->
 
     <div class="modal-overlay" id="empResultModal" style="display:none;">
         <div class="modal">
 
-            <h2>✅ Compte employé créé avec succès</h2>
+            <h2>âœ… Compte employÃ© crÃ©Ã© avec succÃ¨s</h2>
 
             <div class="result-summary" id="empResultSummary"></div>
 
             <div class="account-credentials" id="empAccountCredentials" style="display:none;">
                 <p class="result-note">
-                    L'employé devra modifier son mot de passe lors de sa première connexion.
+                    L'employÃ© devra modifier son mot de passe lors de sa premiÃ¨re connexion.
                 </p>
                 <button type="button" class="btn btn-primary" id="empCopyCredentialsBtn">Copier les identifiants</button>
             </div>
@@ -246,25 +246,27 @@
                             <option value="wave">Wave</option>
                             <option value="orange_money">Orange Money</option>
                             <option value="virement">Virement bancaire</option>
-                            <option value="especes">Espèces</option>
+                            <option value="especes">EspÃ¨ces</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="pay_date">Date du versement (déclarée)</label>
+                        <label for="pay_date">Date du versement (dÃ©clarÃ©e)</label>
                         <input type="date" id="pay_date" name="pay_date">
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label for="pay_reference">Référence (n° transaction, optionnel)</label>
-                    <input type="text" id="pay_reference" name="pay_reference" maxlength="80" placeholder="Référence déclarée par vous">
+                    <label for="pay_reference">RÃ©fÃ©rence (nÂ° transaction, optionnel)</label>
+                    <input type="text" id="pay_reference" name="pay_reference" maxlength="80" placeholder="RÃ©fÃ©rence dÃ©clarÃ©e par vous">
                 </div>
 
                 <input type="hidden" id="pay_statut" name="pay_statut" value="paye">
 
-                <p class="unitech-ok" id="payFlowNote">Vous versez le salaire directement à l'employé (hors MIM), puis vous enregistrez le versement : MIM ne transfère pas l'argent.</p>
+<p class="paydunya-ok" id="payFlowNote">Paiement en ligne : MIM encaisse via PayDunya puis redistribue le salaire Ã  l'employÃ©. Vous pouvez aussi verser directement Ã  l'employÃ© (hors MIM) et enregistrer le versement ci-dessous.</p>
 
-                <div id="payUnitechResult" class="unitech-block" style="display:none;"></div>
+                <button type="button" class="btn btn-primary" id="payPaydunyaBtn" style="margin-bottom:12px;">ðŸ’³ Payer en ligne (PayDunya)</button>
+
+                <div id="paydunyaResult" class="paydunya-block" style="display:none;"></div>
 
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="cancelPayModal">Fermer</button>
@@ -276,12 +278,12 @@
         </div>
     </div>
 
-    <!-- ====================== MODAL TÂCHE ====================== -->
+    <!-- ====================== MODAL TÃ‚CHE ====================== -->
 
     <div class="modal-overlay" id="taskModal" style="display:none;">
         <div class="modal">
 
-            <h2 id="taskModalTitle">Ajouter une tâche</h2>
+            <h2 id="taskModalTitle">Ajouter une tÃ¢che</h2>
 
             <form id="taskForm">
 
@@ -299,23 +301,23 @@
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="task_employe">Employé assigné</label>
+                        <label for="task_employe">EmployÃ© assignÃ©</label>
                         <select id="task_employe" name="task_employe">
-                            <option value="">— Aucun —</option>
+                            <option value="">â€” Aucun â€”</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="task_statut">Statut</label>
                         <select id="task_statut" name="task_statut">
-                            <option value="a_faire">À faire</option>
+                            <option value="a_faire">Ã€ faire</option>
                             <option value="en_cours">En cours</option>
-                            <option value="termine">Terminée</option>
+                            <option value="termine">TerminÃ©e</option>
                         </select>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label for="task_echeance">Échéance</label>
+                    <label for="task_echeance">Ã‰chÃ©ance</label>
                     <input type="date" id="task_echeance" name="task_echeance">
                 </div>
 
@@ -340,9 +342,9 @@
             inactif: ["Inactif", "status-danger"],
         };
         const TACHE_STATUS = {
-            a_faire: ["À faire", "status-info"],
+            a_faire: ["Ã€ faire", "status-info"],
             en_cours: ["En cours", "status-warning"],
-            termine: ["Terminée", "status-success"],
+            termine: ["TerminÃ©e", "status-success"],
         };
 
         const state = { employes: [], taches: [], biens: [], tab: "employes" };
@@ -360,7 +362,7 @@
             return n.toLocaleString("fr-FR") + " FCFA";
         }
 
-        // Mois suivant (format YYYY-MM) pour pré-remplir un salaire mensuel.
+        // Mois suivant (format YYYY-MM) pour prÃ©-remplir un salaire mensuel.
         function nextMonthOf(mois) {
             if (!mois) return "";
             const [y, m] = String(mois).split("-").map(Number);
@@ -394,17 +396,17 @@ async function loadAll() {
         function renderBienOptions(selectedIds) {
             const selected = new Set((selectedIds || []).map((id) => String(id)));
             if (!state.biens.length) {
-                return '<option value="" disabled>Aucun bien créé — créez d\'abord un bien.</option>';
+                return '<option value="" disabled>Aucun bien crÃ©Ã© â€” crÃ©ez d\'abord un bien.</option>';
             }
             return state.biens.map(
-                (b) => `<option value="${b.id}"${selected.has(String(b.id)) ? " selected" : ""}>${escapeHtml(b.nom)}${b.adresse ? " — " + escapeHtml(b.adresse) : ""}</option>`
+                (b) => `<option value="${b.id}"${selected.has(String(b.id)) ? " selected" : ""}>${escapeHtml(b.nom)}${b.adresse ? " â€” " + escapeHtml(b.adresse) : ""}</option>`
             ).join("");
         }
 
         function renderEmployes() {
             const list = el("employesList");
             if (!state.employes.length) {
-                list.innerHTML = '<div class="empty-state">Aucun employé pour le moment. Créez le premier compte avec le bouton « + Ajouter un employé ».</div>';
+                list.innerHTML = '<div class="empty-state">Aucun employÃ© pour le moment. CrÃ©ez le premier compte avec le bouton Â« + Ajouter un employÃ© Â».</div>';
                 return;
             }
 list.innerHTML = state.employes.map((e) => {
@@ -414,10 +416,10 @@ list.innerHTML = state.employes.map((e) => {
                     <div class="crud-card">
                         <div>
                             <h3>${escapeHtml(e.nom)}</h3>
-                            <p>${e.poste ? escapeHtml(e.poste) + " · " : ""}${e.account_uid ? "Compte actif" : "Sans compte"}${e.phone ? " · " + escapeHtml(e.phone) : ""}${e.email ? " — " + escapeHtml(e.email) : ""}</p>
+                            <p>${e.poste ? escapeHtml(e.poste) + " Â· " : ""}${e.account_uid ? "Compte actif" : "Sans compte"}${e.phone ? " Â· " + escapeHtml(e.phone) : ""}${e.email ? " â€” " + escapeHtml(e.email) : ""}</p>
                             <p><strong>${formatFCFA(e.salaire)}</strong> / mois</p>
                             <p>${biens ? "<span class=\"logement-chip\">Biens : " + biens + "</span>" : ""}</p>
-                            <p><span class="status ${cls}">${label}</span>${e.paiements_count ? " · " + e.paiements_count + " paiement(s) · " + formatFCFA(e.total_paye) + " versés" : ""}</p>
+                            <p><span class="status ${cls}">${label}</span>${e.paiements_count ? " Â· " + e.paiements_count + " paiement(s) Â· " + formatFCFA(e.total_paye) + " versÃ©s" : ""}</p>
                         </div>
                         <div class="card-actions">
                             <button class="btn btn-edit" data-edit-e="${e.id}">Modifier</button>
@@ -431,7 +433,7 @@ list.innerHTML = state.employes.map((e) => {
         function renderTaches() {
             const list = el("tachesList");
             if (!state.taches.length) {
-                list.innerHTML = '<div class="empty-state">Aucune tâche pour le moment. Créez-en une avec le bouton « + Ajouter une tâche ».</div>';
+                list.innerHTML = '<div class="empty-state">Aucune tÃ¢che pour le moment. CrÃ©ez-en une avec le bouton Â« + Ajouter une tÃ¢che Â».</div>';
                 return;
             }
             list.innerHTML = state.taches.map((t) => {
@@ -441,7 +443,7 @@ list.innerHTML = state.employes.map((e) => {
                         <div>
                             <h3>${escapeHtml(t.titre)}</h3>
                             <p>${escapeHtml(t.description || "")}</p>
-                            <p>Assignée à : <strong>${escapeHtml(t.employe_nom || "Personne")}</strong>${t.echeance ? " · Échéance le " + escapeHtml(t.echeance) : ""}</p>
+                            <p>AssignÃ©e Ã  : <strong>${escapeHtml(t.employe_nom || "Personne")}</strong>${t.echeance ? " Â· Ã‰chÃ©ance le " + escapeHtml(t.echeance) : ""}</p>
                             <p><span class="status ${cls}">${label}</span></p>
                         </div>
                         <div class="card-actions">
@@ -462,11 +464,11 @@ list.innerHTML = state.employes.map((e) => {
             el("employesSection").style.display = tab === "employes" ? "block" : "none";
             el("tachesSection").style.display = tab === "taches" ? "block" : "none";
             const btn = el("addBtn");
-            btn.textContent = tab === "taches" ? "+ Ajouter une tâche" : "+ Ajouter un employé";
+            btn.textContent = tab === "taches" ? "+ Ajouter une tÃ¢che" : "+ Ajouter un employÃ©";
         }
 
         // ============================================================
-        // Modal employé
+        // Modal employÃ©
         // ============================================================
 
 function openEmployeeAdd() {
@@ -475,7 +477,7 @@ function openEmployeeAdd() {
             form.reset();
             clearFormErrors(form);
             el("employeeId").value = "";
-            el("employeeModalTitle").textContent = "Ajouter un employé";
+            el("employeeModalTitle").textContent = "Ajouter un employÃ©";
             form.emp_username.disabled = false;
             form.emp_password.disabled = false;
             el("empUsernameStatus").textContent = "";
@@ -490,7 +492,7 @@ function openEmployeeAdd() {
             form.reset();
             clearFormErrors(form);
             el("employeeId").value = item.id;
-            el("employeeModalTitle").textContent = "Modifier l'employé";
+            el("employeeModalTitle").textContent = "Modifier l'employÃ©";
             form.emp_username.disabled = true;
             form.emp_password.disabled = true;
             el("empUsernameStatus").textContent = "Le username et le mot de passe ne se modifient pas ici.";
@@ -524,7 +526,7 @@ const editing = employeeEditId != null;
                         {
                             name: "emp_username",
                             test: (i) => !usernameValid(i.value.trim()),
-                            message: "Username invalide : lettres minuscules, chiffres, . _ - (3 à 32 caractères).",
+                            message: "Username invalide : lettres minuscules, chiffres, . _ - (3 Ã  32 caractÃ¨res).",
                         },
                         {
                             name: "emp_password",
@@ -536,7 +538,7 @@ const editing = employeeEditId != null;
                 {
                     name: "emp_salaire",
                     test: (i) => i.value !== "" && (Number(i.value) < 0 || Number.isNaN(Number(i.value))),
-                    message: "Le salaire doit être un nombre positif.",
+                    message: "Le salaire doit Ãªtre un nombre positif.",
                 },
             ]);
 
@@ -571,7 +573,7 @@ const editing = employeeEditId != null;
                 } else {
                     created = await apiRequest("/employes", { method: "POST", body: JSON.stringify(payload) });
                 }
-                showToast(editing ? "Employé modifié avec succès." : "Compte employé créé avec succès.");
+                showToast(editing ? "EmployÃ© modifiÃ© avec succÃ¨s." : "Compte employÃ© crÃ©Ã© avec succÃ¨s.");
                 el("employeeModal").style.display = "none";
                 if (created && created.autoAccount && created.account) {
                     form.dataset.created = JSON.stringify(payload);
@@ -591,7 +593,7 @@ const editing = employeeEditId != null;
             const data = JSON.parse(el("employeeForm").dataset.created || "{}");
             const rows = [
                 ["Nom", escapeHtml(data.nom || "")],
-                ["Poste", escapeHtml(data.poste || "—")],
+                ["Poste", escapeHtml(data.poste || "â€”")],
                 ["Compte", escapeHtml(username)],
                 ["Mot de passe initial", escapeHtml(password)],
             ];
@@ -607,7 +609,7 @@ const editing = employeeEditId != null;
         async function deleteEmployee(id) {
             const emp = state.employes.find((e) => String(e.id) === String(id));
             if (!emp) return;
-            if (!confirm(`Voulez-vous vraiment supprimer ${emp.nom} ? Son compte d'accès (login) sera supprimé définitivement.`)) return;
+            if (!confirm(`Voulez-vous vraiment supprimer ${emp.nom} ? Son compte d'accÃ¨s (login) sera supprimÃ© dÃ©finitivement.`)) return;
             try {
                 const res = await apiRequest(`/employes/${id}`, { method: "DELETE" });
                 showToast(res.message);
@@ -622,7 +624,7 @@ const editing = employeeEditId != null;
         // ============================================================
 
         const METHODE_LABELS = {
-            especes: "Espèces",
+            especes: "EspÃ¨ces",
             mobile_money: "Mobile Money",
             virement: "Virement bancaire",
             carte: "Carte bancaire",
@@ -637,11 +639,11 @@ const editing = employeeEditId != null;
                 el("payHistory").innerHTML = list.length
                     ? list.map((p) => {
                         const cls = p.statut === "paye" ? "status-success" : "status-warning";
-const lab = p.statut === "paye" ? "Payé" : "En attente";
+const lab = p.statut === "paye" ? "PayÃ©" : "En attente";
                         const dateLisible = p.date_paiement ? new Date(p.date_paiement).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" }) : "";
-                        return `<div class="pay-row"><span>${escapeHtml(p.mois)}</span><strong>${formatFCFA(p.montant)}</strong><span class="status ${cls}">${lab}</span>${dateLisible ? "<small>" + escapeHtml(dateLisible) + "</small>" : ""}${p.methode_paiement ? "<small>" + escapeHtml(METHODE_LABELS[p.methode_paiement] || p.methode_paiement) + (p.reference ? " — " + escapeHtml(p.reference) : "") + "</small>" : ""}</div>`;
+                        return `<div class="pay-row"><span>${escapeHtml(p.mois)}</span><strong>${formatFCFA(p.montant)}</strong><span class="status ${cls}">${lab}</span>${dateLisible ? "<small>" + escapeHtml(dateLisible) + "</small>" : ""}${p.methode_paiement ? "<small>" + escapeHtml(METHODE_LABELS[p.methode_paiement] || p.methode_paiement) + (p.reference ? " â€” " + escapeHtml(p.reference) : "") + "</small>" : ""}</div>`;
                     }).join("")
-                    : '<div class="empty-state">Aucun paiement enregistré.</div>';
+                    : '<div class="empty-state">Aucun paiement enregistrÃ©.</div>';
             } catch (err) {
                 el("payHistory").innerHTML = `<div class="empty-state">${escapeHtml(err.message)}</div>`;
             }
@@ -661,11 +663,68 @@ const lab = p.statut === "paye" ? "Payé" : "En attente";
             form.pay_montant.value = Number(emp.salaire || 0) || "";
             form.pay_statut.value = "paye";
             form.pay_date.value = now.toISOString().slice(0, 10);
-            el("payUnitechResult").style.display = "none";
-            el("payUnitechResult").innerHTML = "";
+el("paydunyaResult").style.display = "none";
+            el("paydunyaResult").innerHTML = "";
+            const paydunyaBtn = el("payPaydunyaBtn");
+            paydunyaBtn.disabled = false;
+            paydunyaBtn.textContent = "ðŸ’³ Payer en ligne (PayDunya)";
             el("payHistory").innerHTML = '<div class="empty-state">Chargement...</div>';
             el("payModal").style.display = "flex";
             await loadPayHistory(id);
+        }
+
+        async function submitPaydunyaPayment() {
+            const form = el("payForm");
+            const btn = el("payPaydunyaBtn");
+            const resultEl = el("paydunyaResult");
+            if (btn.disabled) return;
+            clearFormErrors(form);
+
+            const errors = validateFields(form, [
+                { name: "pay_montant", test: (i) => i.value === "" || Number(i.value) <= 0, message: "Le montant doit Ãªtre supÃ©rieur Ã  0." },
+                { name: "pay_mois", test: (i) => !i.value, message: "Le mois est obligatoire." },
+            ]);
+            if (Object.keys(errors).length) {
+                applyServerErrors(form, errors);
+                return;
+            }
+
+            const originalLabel = btn.textContent;
+            btn.disabled = true;
+            btn.textContent = "GÃ©nÃ©ration du lien de paiement...";
+            try {
+                // 1) Enregistre le versement (statut Â« attente Â») : le salaire
+                //    ne passera Â« paye Â» qu'aprÃ¨s confirmation du paiement PayDunya.
+                const created = await apiRequest(`/employes/${payEmployeeId}/paiements`, {
+                    method: "POST",
+                    body: JSON.stringify({
+                        montant: form.pay_montant.value,
+                        mois: form.pay_mois.value,
+                        statut: "attente",
+                        date_paiement: null,
+                        methode_paiement: "paydunya",
+                        reference: null,
+                    }),
+                });
+                // 2) Initie la facture PayDunya (MIM encaisse puis redistribue).
+                const res = await apiRequest("/paydunya/initiate", {
+                    method: "POST",
+                    body: JSON.stringify({ source: "salaire", paiement_employe_id: created.data.id }),
+                });
+                const url = res.data?.payment_url;
+                if (!url) throw new Error(res.message || "Aucun lien de paiement reÃ§u.");
+                window.open(url, "_blank", "noopener");
+                resultEl.innerHTML = '<p class="ok">Lien de paiement ouvert : le salaire sera marquÃ© payÃ© aprÃ¨s confirmation du paiement, puis MIM redistribuera Ã  l\'employÃ©.</p>';
+                resultEl.style.display = "block";
+                await loadAll();
+                await loadPayHistory(payEmployeeId);
+            } catch (err) {
+                applyServerErrors(form, err.errors);
+                showToast(err.message, "error");
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalLabel;
+            }
         }
 
         async function submitPayment(e) {
@@ -676,7 +735,7 @@ const lab = p.statut === "paye" ? "Payé" : "En attente";
             clearFormErrors(form);
 
             const errors = validateFields(form, [
-                { name: "pay_montant", test: (i) => i.value === "" || Number(i.value) <= 0, message: "Le montant doit être supérieur à 0." },
+                { name: "pay_montant", test: (i) => i.value === "" || Number(i.value) <= 0, message: "Le montant doit Ãªtre supÃ©rieur Ã  0." },
                 { name: "pay_mois", test: (i) => !i.value, message: "Le mois est obligatoire." },
             ]);
             if (Object.keys(errors).length) {
@@ -692,7 +751,7 @@ const lab = p.statut === "paye" ? "Payé" : "En attente";
                 methode_paiement: form.pay_methode.value || "especes",
                 reference: form.pay_reference.value || null,
             };
-            const resultEl = el("payUnitechResult");
+            const resultEl = el("paydunyaResult");
 
             const originalLabel = btn.textContent;
             btn.disabled = true;
@@ -716,12 +775,12 @@ const lab = p.statut === "paye" ? "Payé" : "En attente";
         }
 
         // ============================================================
-        // Modal tâche
+        // Modal tÃ¢che
         // ============================================================
 
         function renderEmployeOptions(currentUid) {
             const actifs = state.employes.filter((e) => e.account_uid && e.statut === "actif");
-            return '<option value="">— Aucun —</option>' + actifs.map(
+            return '<option value="">â€” Aucun â€”</option>' + actifs.map(
                 (e) => `<option value="${e.account_uid}"${currentUid === e.account_uid ? " selected" : ""}>${escapeHtml(e.nom)}${e.poste ? " (" + escapeHtml(e.poste) + ")" : ""}</option>`
             ).join("");
         }
@@ -732,7 +791,7 @@ const lab = p.statut === "paye" ? "Payé" : "En attente";
             form.reset();
             clearFormErrors(form);
             el("taskId").value = "";
-            el("taskModalTitle").textContent = "Ajouter une tâche";
+            el("taskModalTitle").textContent = "Ajouter une tÃ¢che";
             form.task_statut.value = "a_faire";
             el("task_employe").innerHTML = renderEmployeOptions(null);
             el("taskModal").style.display = "flex";
@@ -744,7 +803,7 @@ const lab = p.statut === "paye" ? "Payé" : "En attente";
             form.reset();
             clearFormErrors(form);
             el("taskId").value = item.id;
-            el("taskModalTitle").textContent = "Modifier la tâche";
+            el("taskModalTitle").textContent = "Modifier la tÃ¢che";
             form.task_titre.value = item.titre || "";
             form.task_description.value = item.description || "";
             form.task_echeance.value = item.echeance || "";
@@ -786,7 +845,7 @@ const lab = p.statut === "paye" ? "Payé" : "En attente";
                 } else {
                     await apiRequest("/tasks", { method: "POST", body: JSON.stringify(payload) });
                 }
-                showToast(taskEditId ? "Tâche modifiée avec succès." : "Tâche créée avec succès.");
+                showToast(taskEditId ? "TÃ¢che modifiÃ©e avec succÃ¨s." : "TÃ¢che crÃ©Ã©e avec succÃ¨s.");
                 el("taskModal").style.display = "none";
                 await loadAll();
             } catch (err) {
@@ -799,7 +858,7 @@ const lab = p.statut === "paye" ? "Payé" : "En attente";
         }
 
         async function deleteTask(id) {
-            if (!confirm("Voulez-vous vraiment supprimer cette tâche ?")) return;
+            if (!confirm("Voulez-vous vraiment supprimer cette tÃ¢che ?")) return;
             try {
                 const res = await apiRequest(`/tasks/${id}`, { method: "DELETE" });
                 showToast(res.message);
@@ -832,8 +891,9 @@ const lab = p.statut === "paye" ? "Payé" : "En attente";
             el("payModal").addEventListener("click", (e) => { if (e.target === el("payModal")) el("payModal").style.display = "none"; });
             el("taskModal").addEventListener("click", (e) => { if (e.target === el("taskModal")) el("taskModal").style.display = "none"; });
 
-            el("employeeForm").addEventListener("submit", submitEmployee);
+el("employeeForm").addEventListener("submit", submitEmployee);
             el("payForm").addEventListener("submit", submitPayment);
+            el("payPaydunyaBtn").addEventListener("click", submitPaydunyaPayment);
             el("taskForm").addEventListener("submit", submitTask);
 
             el("emp_username").addEventListener("blur", async () => {
@@ -842,7 +902,7 @@ const lab = p.statut === "paye" ? "Payé" : "En attente";
                 const value = input.value.trim();
                 if (!value) { status.textContent = ""; status.className = "username-status"; return; }
                 if (!usernameValid(value)) {
-                    status.textContent = "Lettres minuscules, chiffres, . _ - (3 à 30 caractères).";
+                    status.textContent = "Lettres minuscules, chiffres, . _ - (3 Ã  30 caractÃ¨res).";
                     status.className = "username-status username-taken";
                     return;
                 }
@@ -852,7 +912,7 @@ const lab = p.statut === "paye" ? "Payé" : "En attente";
                         status.textContent = "Disponible";
                         status.className = "username-status username-ok";
                     } else {
-                        status.textContent = "Ce nom d'utilisateur est déjà utilisé.";
+                        status.textContent = "Ce nom d'utilisateur est dÃ©jÃ  utilisÃ©.";
                         status.className = "username-status username-taken";
                     }
                 } catch (err) {
@@ -890,7 +950,7 @@ if (delBtn) deleteTask(delBtn.dataset.deleteTask);
                 const creds = el("empAccountCredentials").dataset.credentials || "";
                 try {
                     await navigator.clipboard.writeText(creds);
-                    el("empCopyCredentialsBtn").textContent = "Copié ✓";
+                    el("empCopyCredentialsBtn").textContent = "CopiÃ© âœ“";
                     setTimeout(() => (el("empCopyCredentialsBtn").textContent = "Copier les identifiants"), 2000);
                 } catch {
                     window.prompt("Copiez ces identifiants :", creds);
