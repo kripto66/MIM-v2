@@ -22,17 +22,10 @@ import { serviceClient } from '../app.js';
 import { notify, logementNomOf } from '../utils/notifications.js';
 import { creerEcheanceSuivante, nextMois } from '../utils/echeances.js';
 import { TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
+import { formatMois } from '../utils/mois.js';
 
 const router = Router();
 const sb = () => serviceClient();
-
-const MOIS_FR = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
-
-function formatMois(mois) {
-  if (!mois) return '';
-  const [y, m] = String(mois).split('-');
-  return `${MOIS_FR[Number(m) - 1] || ''} ${y}`.trim();
-}
 
 const REJECTION_MOTIFS = ['Paiement non reçu', 'Montant incorrect', 'Mauvais compte', 'Autre'];
 

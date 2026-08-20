@@ -50,13 +50,6 @@ export const TYPE_MOYEN_LABELS = {
   especes: 'Espèces',
 };
 
-export const TYPE_MOYEN_ICONS = {
-  wave: '🟣',
-  orange_money: '🟠',
-  virement: '🏦',
-  especes: '💵',
-};
-
 // Champs admis par type de moyen de paiement (propriétaire ET employé).
 export const CHAMPS_MOYEN = {
   wave: ['nom_titulaire', 'numero', 'lien_paiement', 'instructions'],

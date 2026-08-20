@@ -1,5 +1,5 @@
-// API, apiRequest, showToast et escapeHtml sont fournis par api.js / crud.js
-// (chargés par dashboard.html avant ce fichier).
+// API, apiRequest, showToast, escapeHtml et formatMois sont fournis
+// par api.js / crud.js (chargés par dashboard.html avant ce fichier).
 
 function fmtFCFA(n) {
   return `${Number(n || 0).toLocaleString("fr-FR")} FCFA`;
@@ -12,14 +12,6 @@ function formatDate(d) {
     month: "short",
     year: "numeric",
   });
-}
-
-const MOIS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
-
-function formatMois(mois) {
-  if (!mois) return "";
-  const [y, m] = mois.split("-");
-  return `${MOIS_FR[Number(m) - 1]} ${y}`;
 }
 
 const STATUS = {
