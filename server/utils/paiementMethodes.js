@@ -71,6 +71,14 @@ export function sanitizeMoyenBody(type, body) {
     const s = v == null ? '' : String(v).trim();
     clean[field] = s === '' ? null : s.slice(0, 200);
   }
+  // Alias PayDunya (compte de réception des redistributions) : accepté
+  // quel que soit le type de moyen, aucune contrainte de format côté
+  // serveur (l'API PayDunya validera l'alias au versement).
+  if (body && 'paydunya_alias' in body) {
+    const v = body.paydunya_alias;
+    const s = v == null ? '' : String(v).trim();
+    clean.paydunya_alias = s === '' ? null : s.slice(0, 200);
+  }
   if (body?.actif === false || body?.actif === true) clean.actif = Boolean(body.actif);
   clean.updated_at = new Date().toISOString();
   return clean;
