@@ -81,7 +81,7 @@ l'application est accessible sur `http://localhost:3000` (l'usage via XAMPP rest
 | GET | `/api/employes` | Liste des employés du propriétaire (avec `en_attente_confirmation`, `dernier_paiement`) |
 | POST | `/api/employes` | Créer un employé + son compte de connexion (si `username`/`password` absents : générés automatiquement, mot de passe initial `1234` à changer à la première connexion) |
 | GET | `/api/employes/:id/paiements` | Historique des salaires d'un employé (avec moyen de réception) |
-| POST | `/api/employes/:id/paiements` | Déclarer un versement de salaire (`attente` → l'employé confirme) ; `paye` direct conservé (UnitechPay) |
+| POST | `/api/employes/:id/paiements` | Déclarer un versement de salaire (`attente` → l'employé confirme) ; `paye` direct conservé |
 | GET | `/api/employes/:id/moyens-paiement` | Moyens de réception **actifs** d'un employé (vue propriétaire) |
 | POST | `/api/employes/:id/moyens-paiement` | Créer un moyen de réception pour un employé |
 | GET | `/api/employe/paiements` | Salaires de l'employé connecté (statut, moyen, confirmations/refus) |
@@ -91,8 +91,14 @@ l'application est accessible sur `http://localhost:3000` (l'usage via XAMPP rest
 | POST | `/api/employe/incidents/:id/resoudre` | Résoudre un incident de SES biens : `resolu` + `resolved_by` + `resolved_at` (heure serveur) + notification propriétaire |
 | GET | `/api/employe/moyens-paiement` | Moyens de réception de l'employé connecté |
 | POST | `/api/employe/moyens-paiement` | Ajouter un moyen de réception (Wave, Orange Money, virement, espèces) |
-| PUT | `/api/employe/moyens-paiement/:id` | Modifier un moyen de réception (ex. `actif`) |
+| PUT | `/api/employe/moyens-paiement/:id` | Modifier un moyen de réception (ex. `actif`, `paydunya_alias`) |
 | DELETE | `/api/employe/moyens-paiement/:id` | Supprimer un moyen de réception |
+| POST | `/api/paydunya/initiate` | Créer une facture PayDunya (`source: loyer` par le locataire, `source: salaire` par le propriétaire — montant/destinataire toujours relus en base) |
+| GET | `/api/paydunya/status/:token` | Statut d'une facture (initiateur seul, confirmé auprès de l'API PayDunya) |
+| POST | `/api/paydunya/webhook` | Webhook IPN PayDunya (hash SHA-512 du Master Key, dédup par fingerprint, pas de passage à « payé » côté client) |
+| GET | `/api/paydunya/checkouts` | Sessions d'encaissement PayDunya (admin uniquement) |
+| GET | `/api/paydunya/redistributions` | Redistributions PER vers les destinataires (admin uniquement, filtre `?status=`) |
+| POST | `/api/paydunya/redistributions/:id/retry` | Relancer une redistribution échouée (admin uniquement) |
 
 ## Import CSV et onboarding propriétaire
 
@@ -211,6 +217,32 @@ existent pas forcément.
 Variables optionnelles : `GIT_BIN` (chemin du binaire git, sinon `git` du PATH),
 `GIT_REPO_PATH` (dépôt), `GIT_BRANCH` (défaut `master`).
 
+## Paiement en ligne PayDunya (loyers, salaires, abonnements)
+
+PayDunya remplace UnitechPay (tables `unitech_*` conservées comme archives) :
+
+- **Loyer** : le locataire initie une facture (`source: loyer`) → paie sur la
+  page PayDunya (Wave, Orange Money, carte…) → l'IPN (hash SHA-512 du Master
+  Key, dédup par fingerprint) marque le loyer `paye` et MIM redistribue au
+  propriétaire (PER `direct-pay/credit-account`).
+- **Salaire** : le propriétaire initie une facture (`source: salaire`) → le
+  salaire passe `paye` et MIM redistribue à l'employé.
+- **Abonnement** : l'admin génère le lien (`PartAdmin` → Abonnements →
+  « Enregistrer un paiement ») → activation/renouvellement après confirmation.
+- **Destinataire de la redistribution** : `paydunya_alias` du moyen de
+  réception (configurable par le propriétaire et l'employé, champ « Compte
+  PayDunya »), sinon téléphone du profil, sinon email du compte auth.
+- **Monitoring admin** : onglet « PayDunya » de `PartAdmin` — sessions
+  d'encaissement et redistributions, avec relance manuelle des versements
+  échoués (`/redistributions/:id/retry`).
+- Le montant, le destinataire et le propriétaire ne viennent **jamais** du
+  client : ils sont relus en base. L'IPN est re-confirmé auprès de l'API
+  (source de vérité) avant tout traitement.
+- Variables `server/.env` : `PAYDUNYA_MODE` (`test`/`production`),
+  `PAYDUNYA_MASTER_KEY`, `PAYDUNYA_PRIVATE_KEY`, `PAYDUNYA_TOKEN`,
+  `PAYDUNYA_STORE_*`, `PAYDUNYA_TEST_MODE` (webhook de test, jamais en
+  production) et `PAYDUNYA_API_URL` (override, utilisé par le mock de tests).
+
 ## Tâche périodique (loyers)
 
 À lancer quotidiennement (cron externe : crontab, GitHub Actions…) :
@@ -249,8 +281,8 @@ La suite `salaires` couvre les paiements de salaire : moyens de réception gér�
 par l'employé (ajout / édition / désactivation / suppression, multiples), vue
 propriétaire (actifs uniquement), déclaration de versement (`attente`),
 confirmation par l'employé (`paye` + notifications des deux côtés), refus
-(`non_recu` + motif), paiement direct `paye` (compat UnitechPay), historique
-enrichi et isolation propriétaire / employé.
+(`non_recu` + motif), paiement direct `paye`, historique enrichi et isolation
+propriétaire / employé.
 La suite `vierge` couvre un **propriétaire totalement nouveau** : dashboard et
 listes 100 % vides (aucune donnée fictive, tous les compteurs à 0), création
 d'un locataire et d'un employé en mode automatique (username généré, mot de

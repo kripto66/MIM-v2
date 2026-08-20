@@ -506,6 +506,112 @@ export async function runPaydunya(r, ctx) {
   });
 
   // ----------------------------------------------------------
+  await r.section('paydunya : alias PayDunya prioritaire pour la redistribution', async () => {
+    const OWNER_ALIAS = `owner.pd.${RUN_ID}@mim.test`;
+    const EMP_ALIAS = `emp.pd.${RUN_ID}@mim.test`;
+
+    const moyen = await api('/moyens-paiement', {
+      method: 'POST',
+      jar: ownerJar,
+      body: { type: 'wave', nom_titulaire: 'Owner PD', numero: '771000000', paydunya_alias: OWNER_ALIAS },
+    });
+    if (!expectSuccess(r, moyen, S, 'moyen du propriétaire avec alias PayDunya', [201])) return;
+    const moyenId = moyen.data.data.id;
+
+    const { data: savedMoyen } = await service
+      .from('moyens_paiement')
+      .select('paydunya_alias')
+      .eq('id', moyenId)
+      .single();
+    if (savedMoyen?.paydunya_alias === OWNER_ALIAS) r.pass(S, 'alias persisté en base (moyens_paiement)');
+    else r.fail(S, 'alias persisté en base (moyens_paiement)', JSON.stringify(savedMoyen));
+
+    // Loyer payé → la redistribution doit viser l'alias, pas le téléphone.
+    const { res: p, loc } = await createPaiement(7, 60000);
+    if (!expectSuccess(r, p, S, 'création du loyer', [201])) return;
+    const pid = p.data.data.id;
+    const { res: init } = await initiateLoyer(loc, pid);
+    if (!expectSuccess(r, init, S, 'initiation de la facture', [201])) return;
+    const token = init.data.data.token;
+    await markMockInvoicePaid(token, 60000);
+    const w = await sendPaydunyaIpn({ token, status: 'completed', amount: 60000 });
+    if (w.data?.result === 'completed') r.pass(S, 'IPN loyer → completed');
+    else r.fail(S, 'IPN loyer → completed', JSON.stringify(w.data));
+
+    const { data: redist } = await service
+      .from('paydunya_redistributions')
+      .select('*')
+      .eq('paiement_id', pid)
+      .maybeSingle();
+    if (redist?.recipient_alias === OWNER_ALIAS) {
+      r.pass(S, `redistribution au propriétaire → alias prioritaire (${OWNER_ALIAS})`);
+    } else {
+      r.fail(S, 'redistribution au propriétaire → alias prioritaire', JSON.stringify(redist));
+    }
+
+    // Salaire payé → même logique pour l'employé (moyen créé par le propriétaire).
+    const username = `payempalias${Date.now() % 1000000000}`;
+    const emp = await api('/employes', {
+      method: 'POST',
+      jar: ownerJar,
+      body: {
+        nom: 'Employé Alias',
+        username,
+        password: 'Test1234!',
+        salaire: 50000,
+        date_embauche: '2026-01-01',
+        phone: '+221770000000',
+      },
+    });
+    if (!expectSuccess(r, emp, S, 'création de l\'employé', [201])) return;
+    const empId = emp.data.data.id;
+
+    const empMoyen = await api(`/employes/${empId}/moyens-paiement`, {
+      method: 'POST',
+      jar: ownerJar,
+      body: { type: 'orange_money', nom_titulaire: 'Employé Alias', numero: '770000001', paydunya_alias: EMP_ALIAS },
+    });
+    if (!expectSuccess(r, empMoyen, S, "moyen de l'employé avec alias PayDunya", [201])) return;
+
+    const pay = await api(`/employes/${empId}/paiements`, {
+      method: 'POST',
+      jar: ownerJar,
+      body: { montant: 50000, mois: ctx.seed.month, statut: 'attente', methode_paiement: 'paydunya' },
+    });
+    if (!expectSuccess(r, pay, S, 'création du paiement de salaire', [201])) return;
+    const payId = pay.data.data.id;
+
+    const initPay = await api('/paydunya/initiate', {
+      method: 'POST',
+      jar: ownerJar,
+      body: { source: 'salaire', paiement_employe_id: payId },
+    });
+    if (!expectSuccess(r, initPay, S, 'initiation de la facture salaire', [201])) return;
+    const payToken = initPay.data.data.token;
+    await markMockInvoicePaid(payToken, 50000);
+    const wPay = await sendPaydunyaIpn({ token: payToken, status: 'completed', amount: 50000 });
+    if (wPay.data?.result === 'completed') r.pass(S, 'IPN salaire → completed');
+    else r.fail(S, 'IPN salaire → completed', JSON.stringify(wPay.data));
+
+    const { data: redistEmp } = await service
+      .from('paydunya_redistributions')
+      .select('*')
+      .eq('paiement_employe_id', payId)
+      .maybeSingle();
+    if (redistEmp?.recipient_alias === EMP_ALIAS) {
+      r.pass(S, `redistribution à l'employé → alias prioritaire (${EMP_ALIAS})`);
+    } else {
+      r.fail(S, "redistribution à l'employé → alias prioritaire", JSON.stringify(redistEmp));
+    }
+
+    // Nettoyage : ces moyens ne doivent pas polluer les suites suivantes
+    // (`declarations` vérifie que le propriétaire n'a aucun moyen).
+    await service.from('moyens_paiement').delete().eq('id', moyenId);
+    await service.from('moyens_paiement_employes').delete().eq('id', empMoyen.data.data.id);
+    r.pass(S, 'nettoyage des moyens créés');
+  });
+
+  // ----------------------------------------------------------
   await r.section('paydunya : accès admin uniquement', async () => {
     const ownerCheckouts = await api('/paydunya/checkouts', { jar: ownerJar });
     if (ownerCheckouts.status === 403) r.pass(S, '/checkouts interdit au propriétaire (403)');
