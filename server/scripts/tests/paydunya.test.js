@@ -48,7 +48,7 @@ export function startPaydunyaMock() {
       };
       const parsed = body ? safeJson(body) : null;
 
-      if (u.pathname === '/checkout-invoice/create') {
+      if (u.pathname === '/sandbox-api/v1/checkout-invoice/create') {
         seq++;
         const token = `mock_${RUN_ID}_${seq}`;
         invoices[token] = {
@@ -63,7 +63,7 @@ export function startPaydunyaMock() {
         });
       }
 
-      const confirmMatch = u.pathname.match(/^\/checkout-invoice\/confirm\/([^/]+)$/);
+      const confirmMatch = u.pathname.match(/^\/sandbox-api\/v1\/checkout-invoice\/confirm\/([^/]+)$/);
       if (confirmMatch) {
         const token = decodeURIComponent(confirmMatch[1]);
         const inv = invoices[token];
@@ -80,7 +80,7 @@ export function startPaydunyaMock() {
         });
       }
 
-      if (u.pathname === '/direct-pay/credit-account') {
+      if (u.pathname === '/sandbox-api/v1/direct-pay/credit-account') {
         seq++;
         creditLog.push({
           account_alias: parsed?.account_alias,

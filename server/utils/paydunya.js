@@ -35,9 +35,12 @@ export function paydunyaConfig() {
 }
 
 // Appel générique : JSON vers l'API PayDunya (authentification par headers).
+// Les chemins sont normalisés (slash initial) pour rester sous la base :
+// un '/checkout-invoice/create' avec une base '.../sandbox-api/v1' doit
+// donner '.../sandbox-api/v1/checkout-invoice/create' et non la racine.
 export async function paydunyaRequest(path, { method = 'POST', body, query = {}, timeout = 30000 } = {}) {
   const cfg = paydunyaConfig();
-  const url = new URL(path, cfg.base + '/');
+  const url = new URL(String(path).replace(/^\/+/, ''), cfg.base.replace(/\/+$/, '') + '/');
   for (const [k, v] of Object.entries(query)) {
     if (v != null && v !== '') url.searchParams.set(k, v);
   }
