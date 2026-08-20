@@ -90,7 +90,7 @@ async function startServer() {
     GIT_BACKUP: 'false',
     NODE_ENV: '',
     TEST_BASE: BASE,
-    PAYDUNYA_API_URL: 'http://127.0.0.1:64330',
+    PAYDUNYA_API_URL: 'http://127.0.0.1:64330/sandbox-api/v1',
   };
   serverProc = spawn(process.execPath, ['server.js'], {
     cwd: SERVER_DIR,
