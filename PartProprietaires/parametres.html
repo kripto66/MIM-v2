@@ -388,6 +388,7 @@ ${m.lien_paiement ? `<p><a href="${escapeAttr(m.lien_paiement)}" target="_blank"
             document.getElementById("moyenBanque").value = moyen?.banque || "";
             document.getElementById("moyenCompte").value = moyen?.num_compte || "";
             document.getElementById("moyenInstructions").value = moyen?.instructions || "";
+            document.getElementById("moyenAlias").value = moyen?.paydunya_alias || "";
             applyTypeVisibility(document.getElementById("moyenType").value);
             document.getElementById("moyenModal").style.display = "flex";
         }
@@ -402,8 +403,9 @@ ${m.lien_paiement ? `<p><a href="${escapeAttr(m.lien_paiement)}" target="_blank"
                 numero: document.getElementById("moyenNumero").value.trim() || null,
                 lien_paiement: document.getElementById("moyenLien").value.trim() || null,
                 banque: document.getElementById("moyenBanque").value.trim() || null,
-                num_compte: document.getElementById("moyenCompte").value.trim() || null,
+num_compte: document.getElementById("moyenCompte").value.trim() || null,
                 instructions: document.getElementById("moyenInstructions").value.trim() || null,
+                paydunya_alias: document.getElementById("moyenAlias").value.trim() || null,
             };
             try {
                 const res = await apiRequest(id ? `/moyens-paiement/${id}` : "/moyens-paiement", {

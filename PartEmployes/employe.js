@@ -103,13 +103,14 @@ const MOYEN_FIELD_LABELS = {
   iban: "IBAN",
   bic: "BIC",
   instructions: "Instructions",
+  paydunya_alias: "Compte PayDunya (email ou n° mobile)",
 };
 
 const MOYEN_FIELDS = {
-  wave: [["nom_titulaire"], ["numero"], ["lien_paiement"], ["instructions"]],
-  orange_money: [["nom_titulaire"], ["numero"], ["lien_paiement"], ["instructions"]],
-  virement: [["banque"], ["nom_titulaire"], ["num_compte"], ["iban"], ["bic"], ["instructions"]],
-  especes: [["instructions"]],
+  wave: [["nom_titulaire"], ["numero"], ["lien_paiement"], ["instructions"], ["paydunya_alias"]],
+  orange_money: [["nom_titulaire"], ["numero"], ["lien_paiement"], ["instructions"], ["paydunya_alias"]],
+  virement: [["banque"], ["nom_titulaire"], ["num_compte"], ["iban"], ["bic"], ["instructions"], ["paydunya_alias"]],
+  especes: [["instructions"], ["paydunya_alias"]],
 };
 
 function empty(id, m = "Aucune donnée.") {
@@ -251,7 +252,7 @@ function renderMoyens(list) {
   }
   el.innerHTML = list
     .map((m) => {
-      const keys = ["nom_titulaire", "numero", "lien_paiement", "banque", "num_compte", "iban", "bic"];
+      const keys = ["nom_titulaire", "numero", "lien_paiement", "banque", "num_compte", "iban", "bic", "paydunya_alias"];
       const details = keys
         .filter((k) => m[k])
         .map((k) => `<span>${MOYEN_FIELD_LABELS[k]} : ${esc(m[k])}</span>`)
