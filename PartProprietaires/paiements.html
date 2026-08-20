@@ -1,11 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 
 <head>
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIM â€” Paiements</title>
+    <title>MIM — Paiements</title>
     <link rel="stylesheet" href="/mim-errors.css">
     <script src="/mim-errors.js"></script>
 
@@ -31,7 +31,7 @@
                 <a href="dashboard.html">Tableau de bord</a>
                 <a href="biens.html">Mes biens</a>
                 <a href="locataires.html">Locataires & Logements</a>
-                <a href="employes.html">Mes employÃ©s</a>
+                <a href="employes.html">Mes employés</a>
 
                 <div class="nav-category">FINANCES</div>
 
@@ -46,14 +46,14 @@
 
                 <div class="nav-category">CONFIGURATION</div>
 
-                <a href="parametres.html">ParamÃ¨tres</a>
+                <a href="parametres.html">Paramètres</a>
                 <a href="import.html" id="setupLink" class="setup-link">Importer / Configurer</a>
 
             </nav>
 
             <div class="sidebar-footer">
 
-                <button id="logoutBtn" type="button">DÃ©connexion</button>
+                <button id="logoutBtn" type="button">Déconnexion</button>
 
             </div>
 
@@ -69,24 +69,24 @@
                     aria-label="Ouvrir le menu"
                     aria-expanded="false"
                 >
-                    â˜°
+                    ☰
                 </button>
 
                 <div class="welcome">
                     <h1>Paiements</h1>
-                    <p>Les loyers de vos locataires et les salaires de vos employÃ©s.</p>
+                    <p>Les loyers de vos locataires et les salaires de vos employés.</p>
                 </div>
 
             </header>
 
             <nav class="pay-tabs" id="payTabs">
                 <button type="button" class="tab-btn active" data-paytab="locataires">
-                    ðŸ‘¤ Paiements des locataires
-                    <span class="tab-sub">Loyers reÃ§us et moyens de rÃ©ception</span>
+                    👤 Paiements des locataires
+                    <span class="tab-sub">Loyers reçus et moyens de réception</span>
                 </button>
                 <button type="button" class="tab-btn" data-paytab="employes">
-                    ðŸ‘· Payer mes employÃ©s
-                    <span class="tab-sub">Salaires versÃ©s</span>
+                    👷 Payer mes employés
+                    <span class="tab-sub">Salaires versés</span>
                 </button>
             </nav>
 
@@ -99,7 +99,7 @@
                 <section class="dashboard-section">
 
                     <div class="section-header">
-                        <h2>Paiements Ã  valider</h2>
+                        <h2>Paiements à valider</h2>
                         <span id="pendingCount" class="status status-warning">0</span>
                     </div>
 
@@ -125,11 +125,11 @@
                 <section class="dashboard-section">
 
                     <div class="section-header">
-                        <h2>Mes moyens de rÃ©ception</h2>
+                        <h2>Mes moyens de réception</h2>
                         <button type="button" class="btn btn-primary" id="addMoyenBtn">+ Ajouter un moyen de paiement</button>
                     </div>
 
-                    <p class="pay-hint">Ces moyens sont affichÃ©s Ã  vos locataires pour payer directement votre loyer. Ajoutez autant de moyens que nÃ©cessaire.</p>
+                    <p class="pay-hint">Ces moyens sont affichés à vos locataires pour payer directement votre loyer. Ajoutez autant de moyens que nécessaire.</p>
 
                     <div id="moyensList">
                         <div class="empty-state">Chargement...</div>
@@ -140,7 +140,7 @@
             </div>
 
             <!-- ============================================================
-                 ESPACE 2 : PAYER MES EMPLOYÃ‰S
+                 ESPACE 2 : PAYER MES EMPLOYÉS
                  ============================================================ -->
 
             <div id="paytab-employes" style="display:none;">
@@ -149,11 +149,11 @@
 
                     <div class="section-header">
                         <h2>Salaires</h2>
-                        <span id="empPayCount" class="status status-info">0 employÃ©(s)</span>
+                        <span id="empPayCount" class="status status-info">0 employé(s)</span>
                     </div>
 
                     <div class="search-bar">
-                        <input type="search" id="employeSearch" placeholder="ðŸ”Ž Rechercher un employÃ© (nom, prÃ©nom, poste)â€¦">
+                        <input type="search" id="employeSearch" placeholder="🔎 Rechercher un employé (nom, prénom, poste)…">
                     </div>
 
                     <div id="employesPayList">
@@ -180,22 +180,22 @@
 
     </div>
 
-    <!-- Modal : refus d'une dÃ©claration de loyer -->
+    <!-- Modal : refus d'une déclaration de loyer -->
     <div class="modal-overlay" id="refusModal" style="display:none;">
         <div class="modal">
-            <h2>Refuser cette dÃ©claration ?</h2>
-            <p class="pay-hint">Le locataire en sera informÃ©. L'Ã©chÃ©ance ne sera pas avancÃ©e.</p>
+            <h2>Refuser cette déclaration ?</h2>
+            <p class="pay-hint">Le locataire en sera informé. L'échéance ne sera pas avancée.</p>
             <div class="form-group">
                 <label for="refusMotif">Motif du refus</label>
                 <select id="refusMotif">
-                    <option value="Paiement non reÃ§u">Paiement non reÃ§u</option>
+                    <option value="Paiement non reçu">Paiement non reçu</option>
                     <option value="Montant incorrect">Montant incorrect</option>
                     <option value="Mauvais compte">Mauvais compte</option>
                     <option value="Autre">Autre</option>
                 </select>
             </div>
             <div class="form-group">
-                <label for="refusMotifAutre">PrÃ©cision (si Â« Autre Â»)</label>
+                <label for="refusMotifAutre">Précision (si « Autre »)</label>
                 <input type="text" id="refusMotifAutre" maxlength="200">
             </div>
             <div class="modal-actions">
@@ -218,7 +218,7 @@
                 <div class="form-group">
                     <label for="locataire_id">Locataire</label>
                     <select id="locataire_id" name="locataire_id" required>
-                        <option value="">â€” Choisir â€”</option>
+                        <option value="">— Choisir —</option>
                     </select>
                 </div>
 
@@ -226,7 +226,7 @@
                     <div class="form-group">
                         <label for="logement_id">Logement</label>
                         <select id="logement_id" name="logement_id">
-                            <option value="">â€” Aucun â€”</option>
+                            <option value="">— Aucun —</option>
                         </select>
                     </div>
                     <div class="form-group">
@@ -240,7 +240,7 @@
                     <input type="month" id="mois" name="mois" required>
                 </div>
 
-                <p class="paydunya-ok" id="flowNote">Le paiement est crÃ©Ã© Â« En attente Â» : votre locataire peut le rÃ©gler en ligne via PayDunya (le loyer vous est redistribuÃ©) ou directement (hors MIM) avec le moyen indiquÃ©, puis dÃ©clarer son paiement que vous validez aprÃ¨s vÃ©rification de votre compte.</p>
+                <p class="paydunya-ok" id="flowNote">Le paiement est créé « En attente » : votre locataire peut le régler en ligne via PayDunya (le loyer vous est redistribué) ou directement (hors MIM) avec le moyen indiqué, puis déclarer son paiement que vous validez après vérification de votre compte.</p>
 
                 <div class="form-row">
                     <div class="form-group">
@@ -249,12 +249,12 @@
                             <option value="wave">Wave</option>
                             <option value="orange_money">Orange Money</option>
                             <option value="virement">Virement bancaire</option>
-                            <option value="especes">EspÃ¨ces</option>
+                            <option value="especes">Espèces</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="reference">RÃ©fÃ©rence (nÂ° transaction, optionnel)</label>
-                        <input type="text" id="reference" name="reference" maxlength="80" placeholder="RenseignÃ©e par le locataire ou vous-mÃªme">
+                        <label for="reference">Référence (n° transaction, optionnel)</label>
+                        <input type="text" id="reference" name="reference" maxlength="80" placeholder="Renseignée par le locataire ou vous-même">
                     </div>
                 </div>
 
@@ -268,7 +268,7 @@
         </div>
     </div>
 
-    <!-- Modal : moyen de rÃ©ception du propriÃ©taire -->
+    <!-- Modal : moyen de réception du propriétaire -->
     <div class="modal-overlay" id="moyenModal" style="display:none;">
         <div class="modal">
 
@@ -284,7 +284,7 @@
                         <option value="wave">Wave</option>
                         <option value="orange_money">Orange Money</option>
                         <option value="virement">Virement bancaire</option>
-                        <option value="especes">EspÃ¨ces</option>
+                        <option value="especes">Espèces</option>
                     </select>
                 </div>
 
@@ -294,7 +294,7 @@
                 </div>
 
                 <div class="form-group" data-mfield="numero">
-                    <label for="moyen_numero">NumÃ©ro</label>
+                    <label for="moyen_numero">Numéro</label>
                     <input type="text" id="moyen_numero" name="numero" maxlength="200" placeholder="ex : 77 123 45 67">
                 </div>
 
@@ -304,7 +304,7 @@
                 </div>
 
                 <div class="form-group" data-mfield="num_compte">
-                    <label for="moyen_compte">NumÃ©ro de compte</label>
+                    <label for="moyen_compte">Numéro de compte</label>
                     <input type="text" id="moyen_compte" name="num_compte" maxlength="200">
                 </div>
 
@@ -315,7 +315,7 @@
 
                 <div class="form-group" data-mfield="instructions">
                     <label for="moyen_instructions">Instructions (optionnel)</label>
-                    <textarea id="moyen_instructions" name="instructions" maxlength="200" rows="2" placeholder="PrÃ©cisions utiles pour le paiementâ€¦"></textarea>
+                    <textarea id="moyen_instructions" name="instructions" maxlength="200" rows="2" placeholder="Précisions utiles pour le paiement…"></textarea>
                 </div>
 
                 <div class="modal-actions">
@@ -328,7 +328,7 @@
         </div>
     </div>
 
-    <!-- Modal : payer un salariÃ© -->
+    <!-- Modal : payer un salarié -->
     <div class="modal-overlay" id="payEmpModal" style="display:none;">
         <div class="modal">
 
@@ -339,7 +339,7 @@
         </div>
     </div>
 
-    <!-- Modal : historique d'un employÃ© -->
+    <!-- Modal : historique d'un employé -->
     <div class="modal-overlay" id="histModal" style="display:none;">
         <div class="modal">
 
@@ -359,24 +359,22 @@
     <script src="crud.js"></script>
     <script>
         const PAIEMENT_STATUS = {
-            paye: ["PayÃ©", "status-success"],
+            paye: ["Payé", "status-success"],
             attente: ["En attente", "status-warning"],
             retard: ["En retard", "status-danger"],
-            a_confirmer: ["Ã€ confirmer", "status-info"],
+            a_confirmer: ["À confirmer", "status-info"],
             en_validation: ["En attente de validation", "status-warning"],
-            refuse: ["RefusÃ©", "status-danger"],
+            refuse: ["Refusé", "status-danger"],
         };
 
         const SALAIRE_STATUS = {
-            paye: ["ðŸŸ¢ ConfirmÃ©", "status-success"],
-            attente: ["ðŸŸ¡ En attente de confirmation", "status-warning"],
-            non_recu: ["ðŸ”´ Non reÃ§u", "status-danger"],
+            paye: ["🟢 Confirmé", "status-success"],
+            attente: ["🟡 En attente de confirmation", "status-warning"],
+            non_recu: ["🔴 Non reçu", "status-danger"],
         };
 
-        const MOIS_FR = ["janv.", "fÃ©vr.", "mars", "avr.", "mai", "juin", "juil.", "aoÃ»t", "sept.", "oct.", "nov.", "dÃ©c."];
-
         const METHODE_LABELS = {
-            especes: "EspÃ¨ces",
+            especes: "Espèces",
             mobile_money: "Mobile Money",
             virement: "Virement bancaire",
             carte: "Carte bancaire",
@@ -384,8 +382,8 @@
             orange_money: "Orange Money",
         };
 
-        const TYPE_ICONS = { wave: "ðŸŸ£", orange_money: "ðŸŸ ", virement: "ðŸ¦", especes: "ðŸ’µ" };
-        const TYPE_LABELS = { wave: "Wave", orange_money: "Orange Money", virement: "Virement bancaire", especes: "EspÃ¨ces" };
+        const TYPE_ICONS = { wave: "🟣", orange_money: "🟠", virement: "🏦", especes: "💵" };
+        const TYPE_LABELS = { wave: "Wave", orange_money: "Orange Money", virement: "Virement bancaire", especes: "Espèces" };
 
         const TYPE_FIELDS = {
             wave: ["nom_titulaire", "numero", "lien_paiement", "instructions"],
@@ -403,12 +401,6 @@
         function currentMonth() {
             const d = new Date();
             return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-        }
-
-        function formatMois(mois) {
-            if (!mois) return "";
-            const [y, m] = mois.split("-");
-            return `${MOIS_FR[Number(m) - 1]} ${y}`;
         }
 
         function formatDate(iso) {
@@ -447,7 +439,7 @@
         });
 
         // ============================================================
-        // Paiements locataires : dÃ©clarations Ã  valider
+        // Paiements locataires : déclarations à valider
         // ============================================================
 
         async function loadData() {
@@ -460,12 +452,12 @@
                 logementsCache = log.data;
 
                 document.getElementById("locataire_id").innerHTML =
-                    '<option value="">â€” Choisir â€”</option>' + loc.data.map(
+                    '<option value="">— Choisir —</option>' + loc.data.map(
                         (t) => `<option value="${t.id}">${escapeHtml(t.nom)}</option>`
                     ).join("");
 
                 document.getElementById("logement_id").innerHTML =
-                    '<option value="">â€” Aucun â€”</option>' + log.data.map(
+                    '<option value="">— Aucun —</option>' + log.data.map(
                         (l) => `<option value="${l.id}">${escapeHtml(l.nom)}</option>`
                     ).join("");
             } catch (err) {
@@ -482,7 +474,7 @@
                 countEl.textContent = String(items.length);
 
                 if (!items.length) {
-                    listEl.innerHTML = '<div class="empty-state">Aucune dÃ©claration en attente de validation.</div>';
+                    listEl.innerHTML = '<div class="empty-state">Aucune déclaration en attente de validation.</div>';
                     return;
                 }
 
@@ -490,11 +482,11 @@
                     <div class="crud-card pending-card">
                         <div>
                             <h3>${escapeHtml(p.locataire_nom || "Locataire")}</h3>
-                            <p>${formatMois(p.mois)} â€” ${escapeHtml(p.logement_nom || "")}</p>
+                            <p>${formatMois(p.mois)} — ${escapeHtml(p.logement_nom || "")}</p>
                             <p><span class="status status-warning">En attente de validation</span></p>
-                            <p class="pay-methode">${METHODE_LABELS[p.methode_paiement] || p.methode_paiement || "â€”"}${p.reference ? ` â€” rÃ©f. dÃ©clarÃ©e : ${escapeHtml(p.reference)}` : ""}</p>
-                            <p class="pay-hint">Demande de validation reÃ§ue : ${formatDateTime(p.validation_requested_at)}</p>
-                            <p class="pay-hint">âš ï¸ VÃ©rifiez la rÃ©ception du paiement sur votre compte avant de valider.</p>
+                            <p class="pay-methode">${METHODE_LABELS[p.methode_paiement] || p.methode_paiement || "—"}${p.reference ? ` — réf. déclarée : ${escapeHtml(p.reference)}` : ""}</p>
+                            <p class="pay-hint">Demande de validation reçue : ${formatDateTime(p.validation_requested_at)}</p>
+                            <p class="pay-hint">⚠️ Vérifiez la réception du paiement sur votre compte avant de valider.</p>
                         </div>
                         <div class="card-amount">
                             <strong>${fmtFCFA(p.montant)}</strong>
@@ -519,7 +511,7 @@
                 validateBtn.disabled = true;
                 try {
                     const res = await apiRequest(`/paiements-validation/${id}/valider`, { method: "POST" });
-                    alert(res.message || "Paiement validÃ©.");
+                    alert(res.message || "Paiement validé.");
                     await Promise.all([loadPending(), CrudPage.load()]);
                 } catch (err) {
                     validateBtn.disabled = false;
@@ -531,7 +523,7 @@
             if (refuseBtn) {
                 refusTargetId = refuseBtn.dataset.prefuse;
                 document.getElementById("refusMotifAutre").value = "";
-                document.getElementById("refusMotif").value = "Paiement non reÃ§u";
+                document.getElementById("refusMotif").value = "Paiement non reçu";
                 document.getElementById("refusModal").style.display = "flex";
             }
         }
@@ -554,7 +546,7 @@
                     body: JSON.stringify({ motif }),
                 });
                 document.getElementById("refusModal").style.display = "none";
-                alert(res.message || "DÃ©claration refusÃ©e.");
+                alert(res.message || "Déclaration refusée.");
                 refusTargetId = null;
                 await Promise.all([loadPending(), CrudPage.load()]);
             } catch (err) {
@@ -603,7 +595,7 @@
                 {
                     name: "mois",
                     test: (i) => !i.value,
-                    message: "Indiquez le mois concernÃ©.",
+                    message: "Indiquez le mois concerné.",
                 },
                 {
                     name: "montant",
@@ -616,9 +608,9 @@
                 document.getElementById("reference").value = "";
             },
             onOpenEdit: () => {
-                // La mÃ©thode de paiement est dÃ©jÃ  prÃ©-remplie par
+                // La méthode de paiement est déjà pré-remplie par
                 // CrudPage.openEdit (crud.js) depuis l'enregistrement :
-                // on ne doit PAS l'Ã©craser (perte de donnÃ©e silencieuse).
+                // on ne doit PAS l'écraser (perte de donnée silencieuse).
             },
             renderItem: (p) => {
                 const [label, cls] = PAIEMENT_STATUS[p.statut] || [p.statut, "status-info"];
@@ -630,10 +622,10 @@
                     <div class="crud-card">
                         <div>
                             <h3>${locataire ? escapeHtml(locataire.nom) : "Locataire inconnu"}</h3>
-                            <p>${formatMois(p.mois)} â€” ${logement ? escapeHtml(logement.nom) : ""}</p>
+                            <p>${formatMois(p.mois)} — ${logement ? escapeHtml(logement.nom) : ""}</p>
                             <p><span class="status ${cls}">${label}</span></p>
-                            ${methode ? `<p class="pay-methode">${methode}${p.reference ? ` â€” ${escapeHtml(p.reference)}` : ""}</p>` : ""}
-                            ${p.statut === "en_validation" ? '<p class="pay-hint">Le locataire dÃ©clare avoir payÃ© â€” vÃ©rifiez votre compte puis validez.</p>' : ""}
+                            ${methode ? `<p class="pay-methode">${methode}${p.reference ? ` — ${escapeHtml(p.reference)}` : ""}</p>` : ""}
+                            ${p.statut === "en_validation" ? '<p class="pay-hint">Le locataire déclare avoir payé — vérifiez votre compte puis validez.</p>' : ""}
                         </div>
                         <div class="card-amount">
                             <strong>${fmtFCFA(p.montant)}</strong>
@@ -650,11 +642,11 @@
             }
         });
 
-        // Validation / refus d'une dÃ©claration (historique aussi).
+        // Validation / refus d'une déclaration (historique aussi).
         document.getElementById("paiementsList").addEventListener("click", handlePendingAction);
 
         // ============================================================
-        // Moyens de rÃ©ception du propriÃ©taire
+        // Moyens de réception du propriétaire
         // ============================================================
 
         function moyenFields(type) {
@@ -681,13 +673,13 @@
                 const res = await apiRequest("/moyens-paiement");
                 const items = res.data || [];
                 if (!items.length) {
-                    listEl.innerHTML = '<div class="empty-state">Aucun moyen de rÃ©ception. Ajoutez-en pour que vos locataires sachent oÃ¹ payer.</div>';
+                    listEl.innerHTML = '<div class="empty-state">Aucun moyen de réception. Ajoutez-en pour que vos locataires sachent où payer.</div>';
                     return;
                 }
                 listEl.innerHTML = items.map((m) => {
                     const lines = [];
                     if (m.nom_titulaire) lines.push(`<p><span>Nom complet :</span> <strong>${escapeHtml(m.nom_titulaire)}</strong></p>`);
-                    if (m.numero) lines.push(`<p><span>NumÃ©ro :</span> <strong>${escapeHtml(m.numero)}</strong></p>`);
+                    if (m.numero) lines.push(`<p><span>Numéro :</span> <strong>${escapeHtml(m.numero)}</strong></p>`);
                     if (m.banque) lines.push(`<p><span>Banque :</span> <strong>${escapeHtml(m.banque)}</strong></p>`);
                     if (m.num_compte) lines.push(`<p><span>Compte :</span> <strong>${escapeHtml(m.num_compte)}</strong></p>`);
                     if (m.lien_paiement) lines.push(`<p><span>Lien :</span> <a href="${escapeAttr(m.lien_paiement)}" target="_blank" rel="noopener">ouvrir</a></p>`);
@@ -695,13 +687,13 @@
                     return `
                         <div class="moyen-card ${m.actif ? "" : "moyen-inactif"}">
                             <div class="moyen-head">
-                                <span>${TYPE_ICONS[m.type] || "ðŸ’°"} ${TYPE_LABELS[m.type] || m.type}</span>
+                                <span>${TYPE_ICONS[m.type] || "💰"} ${TYPE_LABELS[m.type] || m.type}</span>
                                 ${m.actif ? '<span class="status status-success">Actif</span>' : '<span class="status status-info">Inactif</span>'}
                             </div>
-                            <div class="moyen-body">${lines.join("") || '<p class="pay-hint">Aucun dÃ©tail renseignÃ©.</p>'}</div>
+                            <div class="moyen-body">${lines.join("") || '<p class="pay-hint">Aucun détail renseigné.</p>'}</div>
                             <div class="moyen-actions">
                                 <button type="button" class="btn btn-edit" data-medit="${m.id}">Modifier</button>
-                                <button type="button" class="btn btn-secondary" data-mtoggle="${m.id}">${m.actif ? "DÃ©sactiver" : "Activer"}</button>
+                                <button type="button" class="btn btn-secondary" data-mtoggle="${m.id}">${m.actif ? "Désactiver" : "Activer"}</button>
                                 <button type="button" class="btn btn-delete" data-mdelete="${m.id}">Supprimer</button>
                             </div>
                         </div>`;
@@ -808,7 +800,7 @@
         document.getElementById("moyen_type").addEventListener("change", (e) => moyenFields(e.target.value));
 
         // ============================================================
-        // Payer mes employÃ©s
+        // Payer mes employés
         // ============================================================
 
         async function loadEmployes() {
@@ -817,7 +809,7 @@
             try {
                 const res = await apiRequest("/employes");
                 employesCache = res.data || [];
-                countEl.textContent = `${employesCache.length} employÃ©(s)`;
+                countEl.textContent = `${employesCache.length} employé(s)`;
                 renderEmployes("");
                 await loadSalairesHistory();
             } catch (err) {
@@ -836,8 +828,8 @@
 
             if (!filtered.length) {
                 listEl.innerHTML = employesCache.length
-                    ? '<div class="empty-state">Aucun employÃ© ne correspond Ã  cette recherche.</div>'
-                    : '<div class="empty-state">Vous n\'avez encore aucun employÃ©. Ajoutez-en depuis la page Â« Mes employÃ©s Â».</div>';
+                    ? '<div class="empty-state">Aucun employé ne correspond à cette recherche.</div>'
+                    : '<div class="empty-state">Vous n\'avez encore aucun employé. Ajoutez-en depuis la page « Mes employés ».</div>';
                 return;
             }
 
@@ -850,9 +842,9 @@
                     <div class="crud-card pay-emp-card">
                         <div>
                             <h3>${escapeHtml(e.nom)}</h3>
-                            <p>${escapeHtml(e.poste || "EmployÃ©")} â€” <strong>${fmtFCFA(e.salaire)}</strong> / mois</p>
+                            <p>${escapeHtml(e.poste || "Employé")} — <strong>${fmtFCFA(e.salaire)}</strong> / mois</p>
                             <p><span class="status ${sCls}">${sLabel}</span>${dernier ? ` <span class="pay-hint">(${formatMois(dernier.mois)})</span>` : ""}</p>
-                            ${e.en_attente_confirmation ? `<p class="pay-hint">ðŸŸ¡ ${e.en_attente_confirmation} versement(s) en attente de confirmation de l'employÃ©.</p>` : ""}
+                            ${e.en_attente_confirmation ? `<p class="pay-hint">🟡 ${e.en_attente_confirmation} versement(s) en attente de confirmation de l'employé.</p>` : ""}
                         </div>
                         <div class="card-amount">
                             <div class="card-actions">
@@ -879,21 +871,21 @@
 
             const moyensOptions = moyens.length
                 ? moyens.map((m) => {
-                    const detail = [m.nom_titulaire, m.numero, m.banque, m.num_compte].filter(Boolean).join(" â€” ");
-                    return `<option value="${m.id}">${TYPE_LABELS[m.type] || m.type}${detail ? ` â€” ${escapeHtml(detail)}` : ""}</option>`;
+                    const detail = [m.nom_titulaire, m.numero, m.banque, m.num_compte].filter(Boolean).join(" — ");
+                    return `<option value="${m.id}">${TYPE_LABELS[m.type] || m.type}${detail ? ` — ${escapeHtml(detail)}` : ""}</option>`;
                 }).join("")
-                : '<option value="">â€” Aucun moyen configurÃ© â€”</option>';
+                : '<option value="">— Aucun moyen configuré —</option>';
 
             document.getElementById("payEmpTitle").textContent = `Payer ${emp.nom}`;
             document.getElementById("payEmpBody").innerHTML = `
                 <div class="pay-emp-summary">
-                    <p>${escapeHtml(emp.poste || "EmployÃ©")} Â· Salaire : <strong>${fmtFCFA(emp.salaire)}</strong> / mois</p>
+                    <p>${escapeHtml(emp.poste || "Employé")} · Salaire : <strong>${fmtFCFA(emp.salaire)}</strong> / mois</p>
                 </div>
                 ${moyens.length
                     ? `
                     <form id="payEmpForm">
                         <div class="form-group">
-                            <label for="payemp_moyen">Moyen de paiement de l'employÃ©</label>
+                            <label for="payemp_moyen">Moyen de paiement de l'employé</label>
                             <select id="payemp_moyen" required>${moyensOptions}</select>
                         </div>
                         <div class="form-row">
@@ -907,19 +899,19 @@
                             </div>
                         </div>
                         <div class="form-group">
-                            <label for="payemp_ref">RÃ©fÃ©rence (optionnel)</label>
-                            <input type="text" id="payemp_ref" maxlength="80" placeholder="NÂ° de transactionâ€¦">
+                            <label for="payemp_ref">Référence (optionnel)</label>
+                            <input type="text" id="payemp_ref" maxlength="80" placeholder="N° de transaction…">
                         </div>
-                        <p class="paydunya-ok">Vous indiquez avoir effectuÃ© ce paiement directement Ã  l'employÃ© (hors MIM). L'employÃ© recevra une notification et devra <strong>confirmer la rÃ©ception</strong>. Astuce : depuis la page EmployÃ©s, le paiement en ligne via PayDunya est plus rapide (redistribution automatique).</p>
+                        <p class="paydunya-ok">Vous indiquez avoir effectué ce paiement directement à l'employé (hors MIM). L'employé recevra une notification et devra <strong>confirmer la réception</strong>. Astuce : depuis la page Employés, le paiement en ligne via PayDunya est plus rapide (redistribution automatique).</p>
                         <div class="modal-actions">
                             <button type="button" class="btn btn-secondary" id="payEmpCancel">Annuler</button>
-                            <button type="submit" class="btn btn-primary">Paiement versÃ©</button>
+                            <button type="submit" class="btn btn-primary">Paiement versé</button>
                         </div>
                     </form>`
                     : `
                     <div class="empty-state">
-                        <p>Cet employÃ© n'a pas encore configurÃ© de moyen de paiement.</p>
-                        <p class="pay-hint">Demandez-lui d'ajouter son moyen depuis son espace employÃ© (Wave, Orange Money, virementâ€¦).</p>
+                        <p>Cet employé n'a pas encore configuré de moyen de paiement.</p>
+                        <p class="pay-hint">Demandez-lui d'ajouter son moyen depuis son espace employé (Wave, Orange Money, virement…).</p>
                     </div>
                     <div class="modal-actions">
                         <button type="button" class="btn btn-secondary" id="payEmpCancel">Fermer</button>
@@ -954,7 +946,7 @@
                     }),
                 });
                 document.getElementById("payEmpModal").style.display = "none";
-                alert(res.message || "Versement dÃ©clarÃ©.");
+                alert(res.message || "Versement déclaré.");
                 await Promise.all([loadEmployes()]);
             } catch (err) {
                 alert(err.message);
@@ -978,15 +970,15 @@
                 listEl.innerHTML = rows.slice(0, 20).map((p) => {
                     const [sLabel, sCls] = SALAIRE_STATUS[p.statut] || [p.statut, "status-info"];
                     const confirmInfo = p.confirmed_at
-                        ? ` Â· ConfirmÃ© le ${formatDate(p.confirmed_at)}`
+                        ? ` · Confirmé le ${formatDate(p.confirmed_at)}`
                         : p.rejected_at
-                            ? ` Â· RefusÃ© le ${formatDate(p.rejected_at)}`
+                            ? ` · Refusé le ${formatDate(p.rejected_at)}`
                             : "";
                     return `
                         <div class="crud-card">
                             <div>
                                 <h3>${escapeHtml(p.emp_nom)} <span class="pay-hint">${escapeHtml(p.emp_poste)}</span></h3>
-                                <p>${formatMois(p.mois)} Â· ${p.moyen ? escapeHtml(p.moyen.label) : p.methode_paiement ? METHODE_LABELS[p.methode_paiement] : "â€”"}${p.reference ? ` â€” rÃ©f. ${escapeHtml(p.reference)}` : ""}</p>
+                                <p>${formatMois(p.mois)} · ${p.moyen ? escapeHtml(p.moyen.label) : p.methode_paiement ? METHODE_LABELS[p.methode_paiement] : "—"}${p.reference ? ` — réf. ${escapeHtml(p.reference)}` : ""}</p>
                                 <p><span class="status ${sCls}">${sLabel}</span>${confirmInfo}</p>
                                 ${p.rejection_reason ? `<p class="pay-hint">Motif : ${escapeHtml(p.rejection_reason)}</p>` : ""}
                             </div>
@@ -1004,21 +996,21 @@
             try {
                 const res = await apiRequest(`/employes/${id}/paiements`);
                 const rows = res.data || [];
-                document.getElementById("histTitle").textContent = `Historique â€” ${nom}`;
+                document.getElementById("histTitle").textContent = `Historique — ${nom}`;
                 document.getElementById("histBody").innerHTML = rows.length
                     ? rows.map((p) => {
                         const [sLabel, sCls] = SALAIRE_STATUS[p.statut] || [p.statut, "status-info"];
                         return `
                             <div class="crud-card">
                                 <div>
-                                    <p><strong>${formatMois(p.mois)}</strong> Â· ${p.moyen ? escapeHtml(p.moyen.label) : p.methode_paiement ? METHODE_LABELS[p.methode_paiement] : "â€”"}</p>
-                                    <p><span class="status ${sCls}">${sLabel}</span>${p.confirmed_at ? ` <span class="pay-hint">ConfirmÃ© le ${formatDate(p.confirmed_at)}</span>` : ""}${p.rejected_at ? ` <span class="pay-hint">RefusÃ© le ${formatDate(p.rejected_at)}</span>` : ""}</p>
+                                    <p><strong>${formatMois(p.mois)}</strong> · ${p.moyen ? escapeHtml(p.moyen.label) : p.methode_paiement ? METHODE_LABELS[p.methode_paiement] : "—"}</p>
+                                    <p><span class="status ${sCls}">${sLabel}</span>${p.confirmed_at ? ` <span class="pay-hint">Confirmé le ${formatDate(p.confirmed_at)}</span>` : ""}${p.rejected_at ? ` <span class="pay-hint">Refusé le ${formatDate(p.rejected_at)}</span>` : ""}</p>
                                     ${p.rejection_reason ? `<p class="pay-hint">Motif : ${escapeHtml(p.rejection_reason)}</p>` : ""}
                                 </div>
                                 <div class="card-amount"><strong>${fmtFCFA(p.montant)}</strong></div>
                             </div>`;
                     }).join("")
-                    : '<div class="empty-state">Aucun versement pour cet employÃ©.</div>';
+                    : '<div class="empty-state">Aucun versement pour cet employé.</div>';
                 document.getElementById("histModal").style.display = "flex";
             } catch (err) {
                 alert(err.message);

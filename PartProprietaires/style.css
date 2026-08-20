@@ -1778,7 +1778,7 @@ input.pw-strong {
 
 
 
-/* Paiements � valider � flux d�claration propri�taire */
+/* Paiements à valider — flux déclaration propriétaire */
 .pending-card {
     border-left: 4px solid #f9a825;
 }
@@ -1801,7 +1801,7 @@ input.pw-strong {
 }
 
 /* ============================================================
-   MIM - Assistant de premi�re configuration (onboarding)
+   MIM - Assistant de première configuration (onboarding)
    ============================================================ */
 
 .onboarding-overlay {
@@ -1908,7 +1908,7 @@ input.pw-strong {
 }
 
 /* ============================================================
-   MIM - Param�tres : actions d'importation
+   MIM - Paramètres : actions d'importation
    ============================================================ */
 
 .param-actions {
@@ -1919,7 +1919,7 @@ input.pw-strong {
 }
 
 /* =========================================================
-   FORMULAIRE LOCATAIRE UNIQUE + R�SUM� CR�ATION
+   FORMULAIRE LOCATAIRE UNIQUE + RÉSUMÉ CRÉATION
    ========================================================= */
 
 .form-separator {

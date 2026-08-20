@@ -33,3 +33,11 @@ function showToast(message, type = "success") {
   clearTimeout(toast._timer);
   toast._timer = setTimeout(() => (toast.className = "toast"), 3000);
 }
+
+const MOIS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+
+function formatMois(mois) {
+  if (!mois) return "";
+  const [y, m] = mois.split("-");
+  return `${MOIS_FR[Number(m) - 1]} ${y}`;
+}

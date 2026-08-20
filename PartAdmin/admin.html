@@ -1,10 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#080312">
-  <title>MIM â€” Control Center</title>
+  <title>MIM — Control Center</title>
   <link rel="stylesheet" href="/mim-errors.css">
   <script src="/mim-errors.js"></script>
   <link rel="stylesheet" href="admin.css">
@@ -35,7 +35,7 @@
       </button>
       <button class="nav-item" data-section="proprietaires">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        <span>PropriÃ©taires</span>
+        <span>Propriétaires</span>
       </button>
       <button class="nav-item" data-section="locataires">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -59,7 +59,7 @@
       </button>
       <button class="nav-item" data-section="activite">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-        <span>ActivitÃ©</span>
+        <span>Activité</span>
       </button>
     </nav>
 
@@ -73,7 +73,7 @@
       </div>
       <button id="logoutBtn" class="logout">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-        <span>DÃ©connexion</span>
+        <span>Déconnexion</span>
       </button>
     </div>
   </aside>
@@ -92,7 +92,7 @@
       <div class="topbar-right">
         <div class="sys-status" id="sysStatus" role="status" data-state="checking">
           <span class="sys-dot" aria-hidden="true"></span>
-          <span id="sysStatusText">CONNEXION AU SERVEURâ€¦</span>
+          <span id="sysStatusText">CONNEXION AU SERVEUR…</span>
         </div>
         <button class="icon-btn" id="refreshBtn" title="Actualiser" aria-label="Actualiser">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
@@ -117,10 +117,10 @@
     <div class="modal-panel">
       <div class="modal-header">
         <h3 id="subModalTitle">Enregistrer un paiement d'abonnement</h3>
-        <button type="button" class="icon-btn" data-sub-close aria-label="Fermer">âœ•</button>
+        <button type="button" class="icon-btn" data-sub-close aria-label="Fermer">✕</button>
       </div>
       <form id="subForm">
-        <label class="field"><span>PropriÃ©taire</span>
+        <label class="field"><span>Propriétaire</span>
           <select id="subOwner" required></select>
         </label>
         <label class="field"><span>Plan</span>
@@ -133,7 +133,7 @@
           <label class="field"><span>Montant (FCFA)</span>
             <input id="subMontant" type="number" min="0" step="0.01" required placeholder="Ex. 25000">
           </label>
-          <label class="field"><span>DurÃ©e</span>
+          <label class="field"><span>Durée</span>
             <select id="subDuree">
               <option value="1">1 mois</option>
               <option value="3">3 mois</option>
@@ -142,11 +142,11 @@
             </select>
           </label>
         </div>
-        <p class="field-note">Une facture PayDunya est gÃ©nÃ©rÃ©e : le propriÃ©taire paie en ligne (Wave, Orange Money, carteâ€¦). L'abonnement sera activÃ© aprÃ¨s confirmation du paiement.</p>
+        <p class="field-note">Une facture PayDunya est générée : le propriétaire paie en ligne (Wave, Orange Money, carte…). L'abonnement sera activé après confirmation du paiement.</p>
         <div id="paydunyaResult"></div>
         <div class="modal-actions">
           <button type="button" class="btn secondary" data-sub-close>Fermer</button>
-          <button type="submit" class="btn primary">GÃ©nÃ©rer le lien de paiement</button>
+          <button type="submit" class="btn primary">Générer le lien de paiement</button>
         </div>
       </form>
     </div>

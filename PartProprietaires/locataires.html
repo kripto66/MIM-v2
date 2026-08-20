@@ -323,12 +323,7 @@ function toggleChambresLg() {
             return state.logements.find((l) => String(l.id) === String(val)) || null;
         }
 
-        function selectedBien() {
-            const val = el("bien_id").value;
-            return state.biens.find((b) => String(b.id) === String(val)) || null;
-        }
-
-        function onBienChange() {
+function onBienChange() {
             const val = el("bien_id").value;
             el("newBienFields").style.display = val === "__new_bien__" ? "block" : "none";
             el("logement_id").innerHTML = renderLogementOptions(null, val === "__new_bien__" ? null : val);

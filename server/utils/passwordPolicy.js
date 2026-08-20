@@ -38,14 +38,6 @@ export function scorePassword(pw) {
   return Math.max(0, Math.min(6, score));
 }
 
-// Niveau : faible / moyen / fort
-export function strengthOf(pw) {
-  const score = scorePassword(pw);
-  if (score >= 5) return 'fort';
-  if (score >= 3) return 'moyen';
-  return 'faible';
-}
-
 // Première erreur de règle minimale rencontrée (null si conforme).
 export function passwordRuleError(pw) {
   const value = String(pw || '');

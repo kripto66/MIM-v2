@@ -359,10 +359,10 @@ const text = await res.text();
     }
   });
   // ----------------------------------------------------------
-  await r.section('import employ�s + comptes', async () => {
+  await r.section('import employés + comptes', async () => {
     const content = csv(EMP_HEADERS, [
       [empNom, empPrenom, `imp${SUFFIX}e@exemple.com`, '+22176123456', 'Gardien', '', '150000', '2026-09-01', 'actif'],
-      ['Ba', 'Fatou', '', '+22175111111', 'Femme de m�nage', '', '35000', '', 'actif'],
+      ['Ba', 'Fatou', '', '+22175111111', 'Femme de ménage', '', '35000', '', 'actif'],
     ]);
     const prev = await api('/import/preview', {
       method: 'POST',
@@ -370,9 +370,9 @@ const text = await res.text();
       body: { categories: ['employes'], files: { employes: { filename: 'e.csv', content } } },
     });
     if (expectSuccess(r, prev, S, r) && prev.data.totals.ok === 2 && prev.data.categories[0].accounts.length === 2) {
-      r.pass(S, 'aper�u 2 employ�s + 2 usernames g�n�r�s');
+      r.pass(S, 'aperçu 2 employés + 2 usernames générés');
     } else {
-      r.fail(S, 'aper�u 2 employ�s + 2 usernames g�n�r�s', JSON.stringify(prev.data));
+      r.fail(S, 'aperçu 2 employés + 2 usernames générés', JSON.stringify(prev.data));
     }
 
     const exe = await api('/import/execute', {
@@ -381,14 +381,14 @@ const text = await res.text();
       body: { categories: ['employes'], files: { employes: { filename: 'e.csv', content } } },
     });
     if (!expectSuccess(r, exe, S, r, [201])) {
-      r.fail(S, 'ex�cution employ�s', JSON.stringify(exe.data));
+      r.fail(S, 'exécution employés', JSON.stringify(exe.data));
       return;
     }
     const cat = exe.data.report.categories[0];
     if (cat.created === 2 && cat.accounts.length === 2) {
-      r.pass(S, 'ex�cution : 2 employ�s + 2 comptes cr��s');
+      r.pass(S, 'exécution : 2 employés + 2 comptes créés');
     } else {
-      r.fail(S, 'ex�cution : 2 employ�s + 2 comptes cr��s', JSON.stringify(cat));
+      r.fail(S, 'exécution : 2 employés + 2 comptes créés', JSON.stringify(cat));
       return;
     }
 
@@ -399,9 +399,9 @@ const text = await res.text();
       .ilike('nom', empNom)
       .maybeSingle();
     if (fiche?.account_uid && fiche?.username && Number(fiche.salaire) === 150000) {
-      r.pass(S, 'fiche employ� cr��e avec compte + salaire');
+      r.pass(S, 'fiche employé créée avec compte + salaire');
     } else {
-      r.fail(S, 'fiche employ� cr��e avec compte + salaire', JSON.stringify(fiche));
+      r.fail(S, 'fiche employé créée avec compte + salaire', JSON.stringify(fiche));
     }
 
     if (fiche?.account_uid) {
@@ -411,12 +411,12 @@ const text = await res.text();
         .eq('id', fiche.account_uid)
         .maybeSingle();
       if (profile?.must_change_password === true && profile.account_type === 'employe') {
-        r.pass(S, 'profil employ� : must_change_password=true + type employe');
+        r.pass(S, 'profil employé : must_change_password=true + type employe');
       } else {
-        r.fail(S, 'profil employ� : must_change_password=true + type employe', JSON.stringify(profile));
+        r.fail(S, 'profil employé : must_change_password=true + type employe', JSON.stringify(profile));
       }
 
-      // Login employ� avec 1234 ? changement forc� demand� (exigence mission).
+      // Login employé avec 1234 ? changement forcé demandé (exigence mission).
       const jarE = newJar();
       const login = await api('/auth/login', {
         method: 'POST',
@@ -424,28 +424,28 @@ const text = await res.text();
         body: { identifier: fiche.username, password: '1234' },
       });
       if (expectSuccess(r, login, S, r) && login.data.mustChangePassword === true) {
-        r.pass(S, 'login employ� avec 1234 ? mustChangePassword');
+        r.pass(S, 'login employé avec 1234 ? mustChangePassword');
       } else {
-        r.fail(S, 'login employ� avec 1234 ? mustChangePassword', JSON.stringify(login.data));
+        r.fail(S, 'login employé avec 1234 ? mustChangePassword', JSON.stringify(login.data));
       }
     }
 
-    // Doublon employ� (m�me nom) ? d�tect�.
+    // Doublon employé (même nom) ? détecté.
     const dupP = await api('/import/preview', {
       method: 'POST',
       jar,
       body: { categories: ['employes'], files: { employes: { filename: 'd.csv', content: csv(EMP_HEADERS, [[empNom, empPrenom, '', '', 'Gardien', '', '50000', '', 'actif']]) } } },
     });
     if (expectSuccess(r, dupP, S, r) && dupP.data.categories[0].duplicates.length === 1) {
-      r.pass(S, 'doublon employ� d�tect�');
+      r.pass(S, 'doublon employé détecté');
     } else {
-      r.fail(S, 'doublon employ� d�tect�', JSON.stringify(dupP.data));
+      r.fail(S, 'doublon employé détecté', JSON.stringify(dupP.data));
     }
   });
 
   // ----------------------------------------------------------
-  await r.section('s�curit� : isolation entre propri�taires', async () => {
-    // Un second propri�taire ne peut PAS r�f�rencer les biens/logements du premier.
+  await r.section('sécurité : isolation entre propriétaires', async () => {
+    // Un second propriétaire ne peut PAS référencer les biens/logements du premier.
     const otherEmail = `importother${SUFFIX}@mimtest.com`;
     const jar2 = newJar();
     const reg2 = await api('/auth/register', {
@@ -454,12 +454,12 @@ const text = await res.text();
       body: { account_type: 'proprietaire', name: 'Autre Import', email: otherEmail, phone: '+221760000002', password: 'Test1234!', password_confirm: 'Test1234!' },
     });
     if (reg2.status !== 201) {
-      r.blocked(S, 'second propri�taire cr��', JSON.stringify(reg2.data).slice(0, 200));
+      r.blocked(S, 'second propriétaire créé', JSON.stringify(reg2.data).slice(0, 200));
       return;
     }
 
-    // Le bien du premier propri�taire n'existe pas pour le second.
-    const stealLogement = csv(L_HEADERS, [[bien1, 'Appartement Vol�', 'appartement', '100000', '2', '', 'libre', '']]);
+    // Le bien du premier propriétaire n'existe pas pour le second.
+    const stealLogement = csv(L_HEADERS, [[bien1, 'Appartement Volé', 'appartement', '100000', '2', '', 'libre', '']]);
     const stealP = await api('/import/preview', {
       method: 'POST',
       jar: jar2,
@@ -467,12 +467,12 @@ const text = await res.text();
     });
     const err = stealP.data?.categories?.[0]?.errors || [];
     if (expectSuccess(r, stealP, S, r) && err.some((e) => /n'existe pas/.test(e.message))) {
-      r.pass(S, 'bien d�un autre propri�taire ? introuvable (pas de fuite)');
+      r.pass(S, 'bien d’un autre propriétaire ? introuvable (pas de fuite)');
     } else {
-      r.fail(S, 'bien d�un autre propri�taire ? introuvable (pas de fuite)', JSON.stringify(stealP.data));
+      r.fail(S, 'bien d’un autre propriétaire ? introuvable (pas de fuite)', JSON.stringify(stealP.data));
     }
 
-    // Le bien du premier n'appara�t pas comme doublon chez le second (pas de fuite).
+    // Le bien du premier n'apparaît pas comme doublon chez le second (pas de fuite).
     const dupBien = csv(B_HEADERS, [[bien1, 'immeuble', '', '', '', '']]);
     const dupP2 = await api('/import/preview', {
       method: 'POST',
@@ -480,37 +480,37 @@ const text = await res.text();
       body: { categories: ['biens'], files: { biens: { filename: 'b.csv', content: dupBien } } },
     });
     if (expectSuccess(r, dupP2, S, r) && dupP2.data.categories[0].duplicates.length === 0) {
-      r.pass(S, 'bien de A non signal� comme doublon chez B');
+      r.pass(S, 'bien de A non signalé comme doublon chez B');
     } else {
-      r.fail(S, 'bien de A non signal� comme doublon chez B', JSON.stringify(dupP2.data));
+      r.fail(S, 'bien de A non signalé comme doublon chez B', JSON.stringify(dupP2.data));
     }
 
-    // Le second ne peut PAS cr�er un logement sur le bien du premier.
+    // Le second ne peut PAS créer un logement sur le bien du premier.
     const exe2 = await api('/import/execute', {
       method: 'POST',
       jar: jar2,
       body: { categories: ['logements'], files: { logements: { filename: 's.csv', content: stealLogement } } },
     });
     if (exe2.status === 409 && exe2.data.prepared) {
-      r.pass(S, 'ex�cution bloqu�e sur bien d�un autre propri�taire');
+      r.pass(S, 'exécution bloquée sur bien d’un autre propriétaire');
     } else {
-      r.fail(S, 'ex�cution bloqu�e sur bien d�un autre propri�taire', `statut ${exe2.status} ${JSON.stringify(exe2.data).slice(0, 200)}`);
+      r.fail(S, 'exécution bloquée sur bien d’un autre propriétaire', `statut ${exe2.status} ${JSON.stringify(exe2.data).slice(0, 200)}`);
     }
   });
 
   // ----------------------------------------------------------
-  await r.section('r�importation (doublons)', async () => {
-    // Le m�me fichier de biens ? doublons d�tect�s, politique ignore.
-    const content = csv(B_HEADERS, [[bien1, 'immeuble', '12 Av', 'Dakar', 'S�n�gal', 'B1']]);
+  await r.section('réimportation (doublons)', async () => {
+    // Le même fichier de biens ? doublons détectés, politique ignore.
+    const content = csv(B_HEADERS, [[bien1, 'immeuble', '12 Av', 'Dakar', 'Sénégal', 'B1']]);
     const prev = await api('/import/preview', {
       method: 'POST',
       jar,
       body: { categories: ['biens'], files: { biens: { filename: 'b.csv', content } } },
     });
     if (expectSuccess(r, prev, S, r) && prev.data.categories[0].duplicates.length === 1) {
-      r.pass(S, 'r�import : doublon d�tect� � l�aper�u');
+      r.pass(S, 'réimport : doublon détecté à l’aperçu');
     } else {
-      r.fail(S, 'r�import : doublon d�tect� � l�aper�u', JSON.stringify(prev.data));
+      r.fail(S, 'réimport : doublon détecté à l’aperçu', JSON.stringify(prev.data));
     }
 
     // Politique abort ? refus global.
@@ -520,21 +520,21 @@ const text = await res.text();
       body: { categories: ['biens'], files: { biens: { filename: 'b.csv', content } }, duplicatePolicy: 'abort' },
     });
     if (abort.status === 409 && /doublon/.test(String(abort.data?.message || ''))) {
-      r.pass(S, 'r�import : politique abort ? import annul�');
+      r.pass(S, 'réimport : politique abort ? import annulé');
     } else {
-      r.fail(S, 'r�import : politique abort ? import annul�', `statut ${abort.status} ${JSON.stringify(abort.data).slice(0, 200)}`);
+      r.fail(S, 'réimport : politique abort ? import annulé', `statut ${abort.status} ${JSON.stringify(abort.data).slice(0, 200)}`);
     }
 
-    // Politique update ? mise � jour des champs fournis.
+    // Politique update ? mise à jour des champs fournis.
     const upd = await api('/import/execute', {
       method: 'POST',
       jar,
-      body: { categories: ['biens'], files: { biens: { filename: 'b.csv', content: csv(B_HEADERS, [[bien1, 'immeuble', '999 Route Modifi�e', '', '', '']]) } }, duplicatePolicy: 'update' },
+      body: { categories: ['biens'], files: { biens: { filename: 'b.csv', content: csv(B_HEADERS, [[bien1, 'immeuble', '999 Route Modifiée', '', '', '']]) } }, duplicatePolicy: 'update' },
     });
     if (expectSuccess(r, upd, S, r, [201]) && upd.data.report.categories[0].updated === 1) {
-      r.pass(S, 'r�import : politique update ? 1 bien mis � jour');
+      r.pass(S, 'réimport : politique update ? 1 bien mis à jour');
     } else {
-      r.fail(S, 'r�import : politique update ? 1 bien mis � jour', JSON.stringify(upd.data));
+      r.fail(S, 'réimport : politique update ? 1 bien mis à jour', JSON.stringify(upd.data));
     }
     const { data: updatedBien } = await service
       .from('biens')
@@ -542,20 +542,20 @@ const text = await res.text();
       .eq('user_id', ownerId)
       .ilike('nom', bien1)
       .maybeSingle();
-    if (updatedBien?.adresse === '999 Route Modifi�e') {
-      r.pass(S, 'adresse effectivement mise � jour en base');
+    if (updatedBien?.adresse === '999 Route Modifiée') {
+      r.pass(S, 'adresse effectivement mise à jour en base');
     } else {
-      r.fail(S, 'adresse effectivement mise � jour en base', JSON.stringify(updatedBien));
+      r.fail(S, 'adresse effectivement mise à jour en base', JSON.stringify(updatedBien));
     }
   });
 
   // ----------------------------------------------------------
-  await r.section('onboarding / status (apr�s import)', async () => {
+  await r.section('onboarding / status (après import)', async () => {
     const st = await api('/onboarding/status', { jar });
     if (expectSuccess(r, st, S, r) && st.data.needsOnboarding === false) {
-      r.pass(S, 'espace configur� ? needsOnboarding=false');
+      r.pass(S, 'espace configuré ? needsOnboarding=false');
     } else {
-      r.fail(S, 'espace configur� ? needsOnboarding=false', JSON.stringify(st.data));
+      r.fail(S, 'espace configuré ? needsOnboarding=false', JSON.stringify(st.data));
     }
   });
 }
