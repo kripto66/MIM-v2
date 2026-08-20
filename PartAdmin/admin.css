@@ -1289,7 +1289,7 @@ svg {
   min-width: 110px;
 }
 
-/* Résultat de la génération du lien UnitechPay dans la modale. */
+/* Résultat de la génération du lien de paiement PayDunya dans la modale. */
 .modal .ok {
   color: #34d399;
   font-weight: 600;
@@ -1316,7 +1316,7 @@ svg {
   font-weight: 600;
 }
 
-.modal .unitech-qr {
+.modal .paydunya-qr {
   border: 1px solid var(--border, #26324d);
   border-radius: 8px;
 }

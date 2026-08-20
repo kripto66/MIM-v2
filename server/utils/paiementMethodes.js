@@ -3,18 +3,22 @@
 // Utilisé par : loyers (paiements), salaires (paiements_employes),
 // abonnement MIM (abonnement_paiements).
 //
-// Depuis le système « Déclaration + validation propriétaire », le
-// propriétaire configure ses propres moyens de paiement (table
-// moyens_paiement) et le locataire paie DIRECTEMENT le propriétaire.
-// MIM n'encaisse rien : il enregistre la déclaration et la
-// validation métier du propriétaire.
+// Deux systèmes coexistent :
+//   - « Déclaration + validation propriétaire » : le propriétaire
+//     configure ses propres moyens de paiement (table moyens_paiement)
+//     et le locataire paie DIRECTEMENT le propriétaire. MIM n'encaisse
+//     rien : il enregistre la déclaration et la validation.
+//   - « PayDunya (encaissement MIM) » : le locataire / propriétaire /
+//     admin paie via une facture PayDunya, MIM encaisse puis
+//     redistribue (méthode 'paydunya').
 //
 // Référentiel :
 //   especes | mobile_money | virement | carte   (historique, conservé)
 //   wave    | orange_money                     (moyens configurés)
+//   paydunya                                    (paiement en ligne MIM)
 // ============================================================
 
-export const METHODES_PAIEMENT = ['especes', 'mobile_money', 'virement', 'carte', 'wave', 'orange_money'];
+export const METHODES_PAIEMENT = ['especes', 'mobile_money', 'virement', 'carte', 'wave', 'orange_money', 'paydunya'];
 
 export const METHODE_LABELS = {
   especes: 'Espèces',
@@ -23,6 +27,7 @@ export const METHODE_LABELS = {
   carte: 'Carte bancaire',
   wave: 'Wave',
   orange_money: 'Orange Money',
+  paydunya: 'PayDunya',
 };
 
 // Renvoie null si valide (ou vide), sinon un message d'erreur.

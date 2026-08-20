@@ -416,9 +416,13 @@
                     </div>
                     <div class="payer-amount">${fmtFCFA(pending.montant)}</div>
                     <p class="payer-meta">Échéance : ${formatDate(new Date(Number(String(pending.mois).split("-")[0]), Number(String(pending.mois).split("-")[1]) - 1, jourEcheance))}</p>
+                    <button type="button" class="primary-button paydunya-btn" data-paydunya-pay="${pending.id}">
+                        💳 Payer en ligne (PayDunya)
+                    </button>
+                    <p class="payer-note">Payez en ligne (Wave, Orange Money, carte…) : votre loyer sera marqué payé automatiquement.</p>
                     <div class="payer-methods">
-                        <h4>Choisissez votre moyen de paiement</h4>
-                        <p class="payer-note">Payez directement votre propriétaire avec le moyen de son choix, puis revenez déclarer ici. MIM ne reçoit pas l'argent.</p>
+                        <h4>Ou payez directement votre propriétaire</h4>
+                        <p class="payer-note">Utilisez l'un des moyens ci-dessous, puis revenez déclarer votre paiement ici.</p>
                         ${moyensHtml}
                     </div>
                 </div>`;
@@ -508,6 +512,29 @@
                 await reloadPage();
 
                 document.getElementById("payerContent").addEventListener("click", (e) => {
+                    const paydunyaBtn = e.target.closest("[data-paydunya-pay]");
+                    if (paydunyaBtn) {
+                        if (paydunyaBtn.disabled) return;
+                        paydunyaBtn.disabled = true;
+                        paydunyaBtn.textContent = "Génération du lien de paiement...";
+                        tenantRequest("/paydunya/initiate", {
+                            method: "POST",
+                            body: JSON.stringify({ source: "loyer", paiement_id: Number(paydunyaBtn.dataset.paydunyaPay) }),
+                        })
+                            .then((res) => {
+                                const url = res.data?.payment_url;
+                                if (!url) throw new Error(res.message || "Aucun lien de paiement reçu.");
+                                window.open(url, "_blank", "noopener");
+                                showTenantError("Lien de paiement ouvert : finalisez le paiement dans le nouvel onglet.", true);
+                                reloadPage();
+                            })
+                            .catch((err) => {
+                                paydunyaBtn.disabled = false;
+                                paydunyaBtn.textContent = "💳 Payer en ligne (PayDunya)";
+                                showTenantError(err.message);
+                            });
+                        return;
+                    }
                     const confirmBtn = e.target.closest("[data-confirm-payment]");
                     if (confirmBtn) {
                         if (confirmBtn.disabled) return;

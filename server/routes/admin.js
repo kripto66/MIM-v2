@@ -9,7 +9,7 @@ import { notify } from '../utils/notifications.js';
 import { invalidateSubscriptionCache } from '../utils/subscription.js';
 import { isBannedValue } from '../middleware/auth.js';
 import { methodeLabel } from '../utils/paiementMethodes.js';
-import { initiateUnitechCheckout } from '../utils/unitechCheckouts.js';
+import { initiatePaydunyaInvoice } from '../utils/paydunyaCheckouts.js';
 
 const router = Router();
 
@@ -309,12 +309,12 @@ router.get('/subscriptions', async (req, res) => {
 });
 
 // Enregistrement d'un paiement d'abonnement MIM par l'admin.
-// Depuis UnitechPay, la SEULE méthode est le mobile money : l'admin
-// choisit l'opérateur (Wave/Orange), MIM initie une session, et
-// l'abonnement n'est activé QUE par le webhook vérifié (payé).
+// Via PayDunya, l'admin crée une facture ; le propriétaire paie sur la
+// page PayDunya (Wave, Orange Money, carte…). L'abonnement n'est activé
+// QUE par l'IPN vérifié (hash SHA-512) + confirmation de la facture.
 // La nouvelle échéance est TOUJOURS calculée côté serveur.
 router.post('/subscriptions/register', async (req, res) => {
-  const { userId, plan, montant, dureeMois, operator = 'wave', orangeMode = 'om' } = req.body || {};
+  const { userId, plan, montant, dureeMois } = req.body || {};
 
   if (!userId || typeof userId !== 'string') {
     return res.status(400).json({ success: false, message: 'Propriétaire requis.' });
@@ -325,12 +325,6 @@ router.post('/subscriptions/register', async (req, res) => {
   const duree = Number(dureeMois);
   if (!Number.isInteger(duree) || duree < 1 || duree > 36) {
     return res.status(400).json({ success: false, message: 'La durée doit être un nombre de mois entre 1 et 36.' });
-  }
-  if (!['wave', 'orange'].includes(operator)) {
-    return res.status(400).json({ success: false, message: 'Opérateur invalide (wave ou orange).' });
-  }
-  if (!['qr', 'maxit', 'om'].includes(orangeMode)) {
-    return res.status(400).json({ success: false, message: 'Mode Orange Money invalide.' });
   }
 
   const sb = serviceClient();
@@ -345,12 +339,6 @@ router.post('/subscriptions/register', async (req, res) => {
     if (!profile || !OWNER_TYPES.includes(profile.account_type)) {
       return res.status(404).json({ success: false, message: 'Propriétaire introuvable.' });
     }
-    if (!profile.phone) {
-      return res.status(400).json({
-        success: false,
-        message: 'Ce propriétaire n\'a pas de numéro de téléphone : requis pour le paiement mobile money.',
-      });
-    }
 
     const now = new Date();
     const existing = await sb.from('subscriptions').select('*').eq('user_id', userId).maybeSingle();
@@ -363,8 +351,8 @@ router.post('/subscriptions/register', async (req, res) => {
     const newExpiration = addMonths(base, duree);
     const dateDebut = existing?.data?.date_debut || now.toISOString();
 
-    // Paiement d'abonnement en ATTENTE (il ne devient payé que via le
-    // webhook vérifié). L'échéance est déjà calculée : elle prend effet
+    // Paiement d'abonnement en ATTENTE (il ne devient payé que via
+    // l'IPN vérifié). L'échéance est déjà calculée : elle prend effet
     // uniquement à la confirmation.
     const { data: hist, error: histErr } = await sb
       .from('abonnement_paiements')
@@ -373,7 +361,7 @@ router.post('/subscriptions/register', async (req, res) => {
         plan: String(plan || 'standard').trim() || 'standard',
         montant: Number(montant),
         date_paiement: null,
-        methode_paiement: 'mobile_money',
+        methode_paiement: 'paydunya',
         reference: null,
         date_debut: dateDebut,
         date_expiration: newExpiration.toISOString(),
@@ -382,30 +370,35 @@ router.post('/subscriptions/register', async (req, res) => {
       .single();
     if (histErr) throw histErr;
 
-    // Initiation de la session UnitechPay (le propriétaire est le payeur).
-    const checkout = await initiateUnitechCheckout({
+    // Initiation de la facture PayDunya (le propriétaire est le payeur).
+    const invoice = await initiatePaydunyaInvoice({
       source: 'abonnement',
       userId,
       amount: Number(montant),
       description: `MIM-ABONNEMENT-${hist.id}`,
-      operator,
-      orangeMode,
-      customerNumber: String(profile.phone),
-      payout: false,
+      items: [
+        {
+          name: `Abonnement MIM ${hist.plan} — ${duree} mois`,
+          quantity: 1,
+          unit_price: Number(montant),
+          total_price: Number(montant),
+        },
+      ],
+      customData: { source: 'abonnement', abonnement_paiement_id: hist.id },
       abonnementPaiementId: hist.id,
     });
 
-    // Référence UnitechPay enregistrée dès l'initiation (audit).
-    await sb.from('abonnement_paiements').update({ reference: checkout.unitech_reference }).eq('id', hist.id);
+    // Token PayDunya enregistré dès l'initiation (audit).
+    await sb.from('abonnement_paiements').update({ reference: invoice.token }).eq('id', hist.id);
 
     res.status(201).json({
       success: true,
-      message: 'Session de paiement créée. L\'abonnement sera activé dès le paiement confirmé.',
+      message: 'Facture de paiement créée. L\'abonnement sera activé dès le paiement confirmé.',
       data: {
         abonnementPaiementId: hist.id,
-        checkout,
-        payment_url: checkout.payment_url,
-        reference: checkout.unitech_reference,
+        checkout: invoice,
+        payment_url: invoice.payment_url,
+        reference: invoice.token,
         subscription: {
           plan: hist.plan,
           statut: 'attente',
@@ -413,7 +406,7 @@ router.post('/subscriptions/register', async (req, res) => {
           date_expiration: newExpiration.toISOString(),
           date_paiement: null,
           montant: Number(montant),
-          methode_paiement: 'mobile_money',
+          methode_paiement: 'paydunya',
           reference: null,
           joursRestants: Math.max(0, Math.ceil((newExpiration.getTime() - Date.now()) / 86400000)),
         },

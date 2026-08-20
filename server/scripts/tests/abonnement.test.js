@@ -8,8 +8,8 @@
 // puis ses locataires/employés.
 // ============================================================
 
-import crypto from 'node:crypto';
-import { api, newJar, expectSuccess, BASE } from './lib.js';
+import { api, newJar, expectSuccess } from './lib.js';
+import { sendPaydunyaIpn, markMockInvoicePaid } from './paydunya.test.js';
 
 const S = 'abonnement';
 const ADMIN_PASSWORD = 'Admin1234!';
@@ -20,20 +20,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 // DIRECTE en base (service role), on attend un peu pour que le serveur
 // de test recalcule l'état.
 const CACHE_SLEEP_MS = 2600;
-
-// Webhook UnitechPay signé HMAC-SHA256 (comme le ferait UnitechPay).
-async function sendWebhook(payloadObj) {
-  const raw = JSON.stringify(payloadObj);
-  const sig = crypto.createHmac('sha256', process.env.UNITECH_API_KEY || '').update(raw).digest('hex');
-  const res = await fetch(BASE + '/unitech/webhook', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-UNITECHPAY-SIGNATURE': sig },
-    body: raw,
-  });
-  let data = null;
-  try { data = await res.json(); } catch { /* corps non JSON */ }
-  return { status: res.status, data };
-}
 
 export async function runAbonnement(r, ctx) {
   const service = ctx.service;
@@ -85,10 +71,10 @@ export async function runAbonnement(r, ctx) {
   });
 
   // ----------------------------------------------------------
-  // 2. L'admin crée une session UnitechPay : abonnement en attente,
-  //    activé UNIQUEMENT par le webhook vérifié (HMAC).
+  // 2. L'admin crée une session PayDunya : abonnement en attente,
+  //    activé UNIQUEMENT par l'IPN vérifié (hash SHA-512) + confirmation.
   // ----------------------------------------------------------
-  await r.section('abonnement : paiement UnitechPay + activation', async () => {
+  await r.section('abonnement : paiement PayDunya + activation', async () => {
     const res = await api('/admin/subscriptions/register', {
       method: 'POST',
       jar: adminJar,
@@ -97,28 +83,28 @@ export async function runAbonnement(r, ctx) {
         plan: 'standard',
         montant: 100000,
         dureeMois: 12,
-        operator: 'wave',
       },
     });
     if (!expectSuccess(r, res, S, 'création de la session de paiement (register)')) return;
 
     const d = res.data.data;
     if (d.payment_url && d.reference && d.abonnementPaiementId) {
-      r.pass(S, 'session UnitechPay créée : lien + référence + paiement d\'abonnement');
+      r.pass(S, 'session PayDunya créée : lien + référence + paiement d\'abonnement');
     } else {
-      r.fail(S, 'session UnitechPay créée : lien + référence + paiement d\'abonnement', JSON.stringify(d));
+      r.fail(S, 'session PayDunya créée : lien + référence + paiement d\'abonnement', JSON.stringify(d));
     }
     if (d.subscription?.statut === 'attente') r.pass(S, 'abonnement affiché « en attente »');
     else r.fail(S, 'abonnement affiché « en attente »', JSON.stringify(d.subscription));
 
     const me = await api('/subscription/me', { jar: ownerJar });
-    if (me.data?.subscription === null) r.pass(S, 'pas encore actif avant le webhook');
-    else r.fail(S, 'pas encore actif avant le webhook', JSON.stringify(me.data));
+    if (me.data?.subscription === null) r.pass(S, 'pas encore actif avant l\'IPN');
+    else r.fail(S, 'pas encore actif avant l\'IPN', JSON.stringify(me.data));
 
-    // Webhook vérifié (HMAC) -> activation.
-    const w = await sendWebhook({ event: 'payment_completed', reference: d.reference, amount: 100000, status: 'completed' });
-    if (w.status === 200 && w.data?.result === 'completed') r.pass(S, 'webhook validé par MIM');
-    else r.fail(S, 'webhook validé par MIM', `statut ${w.status} ${JSON.stringify(w.data)}`);
+    // IPN PayDunya vérifié (hash SHA-512) -> activation.
+    await markMockInvoicePaid(d.reference, 100000);
+    const w = await sendPaydunyaIpn({ token: d.reference, status: 'completed', amount: 100000 });
+    if (w.status === 200 && w.data?.result === 'completed') r.pass(S, 'IPN validé par MIM');
+    else r.fail(S, 'IPN validé par MIM', `statut ${w.status} ${JSON.stringify(w.data)}`);
 
     const me2 = await api('/subscription/me', { jar: ownerJar });
     if (me2.data?.subscription?.statut === 'actif' && Number(me2.data.subscription.montant) === 100000) {
@@ -129,10 +115,10 @@ export async function runAbonnement(r, ctx) {
 
     const hist = await service.from('abonnement_paiements').select('*').eq('user_id', owner.id);
     const row = (hist.data || []).find((h) => h.reference === d.reference);
-    if (row?.date_paiement && row?.methode_paiement === 'mobile_money') {
-      r.pass(S, 'paiement d\'abonnement horodaté + méthode mobile money + référence');
+    if (row?.date_paiement && row?.methode_paiement === 'paydunya') {
+      r.pass(S, 'paiement d\'abonnement horodaté + méthode paydunya + référence');
     } else {
-      r.fail(S, 'paiement d\'abonnement horodaté + méthode mobile money + référence', JSON.stringify(row));
+      r.fail(S, 'paiement d\'abonnement horodaté + méthode paydunya + référence', JSON.stringify(row));
     }
   });
 
@@ -168,7 +154,7 @@ export async function runAbonnement(r, ctx) {
     const res = await api('/admin/subscriptions/register', {
       method: 'POST',
       jar: adminJar,
-      body: { userId: owner.id, montant: 10000, dureeMois: 1, operator: 'wave' },
+      body: { userId: owner.id, montant: 10000, dureeMois: 1 },
     });
     if (!expectSuccess(r, res, S, 'renouvellement d\'un mois')) return;
 
@@ -178,7 +164,8 @@ export async function runAbonnement(r, ctx) {
     if (pendingDelta >= 27 && pendingDelta <= 32) r.pass(S, 'échéance calculée côté serveur dès la session (~1 mois)');
     else r.fail(S, 'échéance calculée côté serveur dès la session (~1 mois)', `delta ${pendingDelta.toFixed(1)} j`);
 
-    await sendWebhook({ event: 'payment_completed', reference: res.data.data?.reference, amount: 10000, status: 'completed' });
+    await markMockInvoicePaid(res.data.data?.reference, 10000);
+    await sendPaydunyaIpn({ token: res.data.data?.reference, status: 'completed', amount: 10000 });
 
     const after = await api('/subscription/me', { jar: ownerJar });
     const exp2 = new Date(after.data?.subscription?.date_expiration).getTime();
@@ -253,10 +240,11 @@ export async function runAbonnement(r, ctx) {
     const res = await api('/admin/subscriptions/register', {
       method: 'POST',
       jar: adminJar,
-      body: { userId: owner.id, montant: 150000, dureeMois: 12, operator: 'wave' },
+      body: { userId: owner.id, montant: 150000, dureeMois: 12 },
     });
     if (!expectSuccess(r, res, S, 'réenregistrement (réactivation)')) return;
-    await sendWebhook({ event: 'payment_completed', reference: res.data.data?.reference, amount: 150000, status: 'completed' });
+    await markMockInvoicePaid(res.data.data?.reference, 150000);
+    await sendPaydunyaIpn({ token: res.data.data?.reference, status: 'completed', amount: 150000 });
 
     const login = await api('/auth/login', {
       method: 'POST',
@@ -351,5 +339,28 @@ export async function runAbonnement(r, ctx) {
     } else {
       r.fail(S, 'connexion locataire pour la vérification de rôle', `statut ${tenantLogin.status} ${JSON.stringify(tenantLogin.data)}`);
     }
+  });
+
+  // ----------------------------------------------------------
+  // 13. Nettoyage de fin : on réactive owner (la section 10 l'a laissé
+  //     expiré). Les suites suivantes de la campagne complète l'utilisent.
+  // ----------------------------------------------------------
+  await r.section('abonnement : réactivation de fin (nettoyage)', async () => {
+    const res = await api('/admin/subscriptions/register', {
+      method: 'POST',
+      jar: adminJar,
+      body: { userId: owner.id, montant: 150000, dureeMois: 12 },
+    });
+    if (!expectSuccess(r, res, S, 'réactivation de fin')) return;
+    await markMockInvoicePaid(res.data.data?.reference, 150000);
+    await sendPaydunyaIpn({ token: res.data.data?.reference, status: 'completed', amount: 150000 });
+
+    const login = await api('/auth/login', {
+      method: 'POST',
+      jar: newJar(),
+      body: { identifier: owner.email, password: owner.password },
+    });
+    if (login.status === 200) r.pass(S, 'owner réactivé pour les suites suivantes');
+    else r.fail(S, 'owner réactivé pour les suites suivantes', `statut ${login.status}`);
   });
 }

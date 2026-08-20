@@ -324,7 +324,7 @@ export async function runSalaires(r, ctx) {
   });
 
   // ----------------------------------------------------------
-  await r.section('paiement direct « paye » (compat UnitechPay)', async () => {
+  await r.section('paiement direct « paye » (versement vérifié hors flux)', async () => {
     const res = await api(`/employes/${emp.B.id}/paiements`, {
       method: 'POST',
       jar,
@@ -333,12 +333,12 @@ export async function runSalaires(r, ctx) {
         mois: moisCourant,
         statut: 'paye',
         date_paiement: '2026-08-02',
-        reference: 'UNITECH-1',
+        reference: 'HORS-FLUX-1',
       },
     });
     if (expectSuccess(r, res, S, r, [201]) && res.data.data.statut === 'paye') {
       paie.B2 = res.data.data;
-      r.pass(S, 'paiement direct paye accepté (compat UnitechPay)');
+      r.pass(S, 'paiement direct paye accepté (versement vérifié hors flux)');
     } else {
       r.fail(S, 'paiement direct paye accepté', JSON.stringify(res.data));
     }

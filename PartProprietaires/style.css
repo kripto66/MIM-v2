@@ -1207,10 +1207,10 @@ tr:last-child td {
 }
 
 /* =========================================================
-   UNITECHPay (lien de paiement mobile money)
+   PayDunya (paiement en ligne / encaissement MIM)
    ========================================================= */
 
-.unitech-block {
+.paydunya-block {
     margin-top: 18px;
     padding: 14px;
 
@@ -1221,11 +1221,11 @@ tr:last-child td {
     background: #f6f9fc;
 }
 
-.unitech-block .modal-actions {
+.paydunya-block .modal-actions {
     margin-top: 12px;
 }
 
-.unitech-ok {
+.paydunya-ok {
     margin: 8px 0 4px;
 
     color: #168447;
@@ -1233,7 +1233,7 @@ tr:last-child td {
     font-weight: 600;
 }
 
-.unitech-ref {
+.paydunya-ref {
     margin-top: 6px;
 
     color: #5b6b7b;
@@ -1241,7 +1241,7 @@ tr:last-child td {
     font-size: 0.85rem;
 }
 
-.unitech-block a {
+.paydunya-block a {
     display: inline-block;
 
     max-width: 100%;
@@ -1253,7 +1253,7 @@ tr:last-child td {
     font-weight: 600;
 }
 
-.unitech-qr {
+.paydunya-qr {
     border: 1px solid #d9e2ec;
 
     border-radius: 8px;
