@@ -221,9 +221,14 @@
                     <label for="moyenCompte">N° de compte</label>
                     <input type="text" id="moyenCompte" maxlength="40">
                 </div>
-                <div class="form-group">
+<div class="form-group">
                     <label for="moyenInstructions">Instructions (affichées au locataire)</label>
                     <textarea id="moyenInstructions" rows="2" maxlength="500" placeholder="Ex : payez en espèces le 5 de chaque mois…"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="moyenAlias">Compte PayDunya (optionnel)</label>
+                    <input type="text" id="moyenAlias" maxlength="200" placeholder="Email ou n° mobile du compte PayDunya">
+                    <p class="muted">Utilisé pour recevoir vos loyers payés en ligne via PayDunya. Vide = téléphone/email de votre profil.</p>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="moyenCancel">Annuler</button>
@@ -341,7 +346,8 @@ async function loadProfile() {
                             ${m.nom_titulaire ? `<p>${escapeHtml(m.nom_titulaire)}</p>` : ""}
                             ${m.numero ? `<p class="pay-methode">${escapeHtml(m.numero)}</p>` : ""}
                             ${m.banque ? `<p class="pay-methode">${escapeHtml(m.banque)}${m.num_compte ? " — " + escapeHtml(m.num_compte) : ""}</p>` : ""}
-                            ${m.lien_paiement ? `<p><a href="${escapeAttr(m.lien_paiement)}" target="_blank" rel="noopener">${escapeHtml(m.lien_paiement)}</a></p>` : ""}
+${m.lien_paiement ? `<p><a href="${escapeAttr(m.lien_paiement)}" target="_blank" rel="noopener">${escapeHtml(m.lien_paiement)}</a></p>` : ""}
+                            ${m.paydunya_alias ? `<p class="pay-methode">PayDunya : ${escapeHtml(m.paydunya_alias)}</p>` : ""}
                             ${m.instructions ? `<p class="pay-hint">${escapeHtml(m.instructions)}</p>` : ""}
                             <p class="pay-hint">${m.actif ? "Actif" : "Inactif"}</p>
                         </div>
