@@ -186,21 +186,6 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 document.addEventListener("click", async (e) => {
-  const btn = e.target.closest("[data-confirm-payment]");
-  if (!btn || btn.disabled) return;
-  btn.disabled = true;
-  try {
-    const res = await tenantRequest(`/locataire/paiements/${btn.dataset.confirmPayment}/confirmer`, { method: "POST" });
-    showTenantError(res.message || "Paiement confirmé.", true);
-    const data = await tenantRequest("/locataire/dashboard");
-    renderDashboard(data);
-  } catch (err) {
-    btn.disabled = false;
-    showTenantError(err.message);
-  }
-});
-
-document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-paydunya-pay]");
   if (!btn || btn.disabled) return;
   btn.disabled = true;
@@ -308,9 +293,8 @@ function renderConfirmPayment(data) {
   if (pending.statut === "a_confirmer") {
     zone.innerHTML = `
       <div class="confirm-payment-info">
-        <strong>✅ Paiement reçu — à confirmer</strong>
-        <p>Votre paiement de ${fmtFCFA(pending.montant)} (${formatMois(pending.mois)}) a été reçu. Confirmez-le pour qu'il soit validé par votre propriétaire.</p>
-        <button type="button" class="primary-button" data-confirm-payment="${pending.id}">Confirmer le paiement</button>
+        <strong>✅ Paiement reçu — en attente de validation</strong>
+        <p>Votre paiement de ${fmtFCFA(pending.montant)} (${formatMois(pending.mois)}) a bien été reçu. Il attend la validation de votre propriétaire.</p>
       </div>`;
     return;
   }
