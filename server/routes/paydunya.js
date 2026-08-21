@@ -19,21 +19,23 @@
 //  - L'IPN est authentifié par hash SHA-512(Master Key) (401 sinon) et
 //    recoupé par une confirmation de la facture auprès de l'API.
 //  - Dédup par fingerprint : un même payload n'est traité qu'une fois.
+//  - Toute la logique de confirmation + effets métier vit dans
+//    utils/paydunyaReconcile.js (partagée avec GET /status) : une
+//    notification perdue est rattrapée par le polling du client.
+//  - Un échec transitoire laisse le journal IPN « non traité »
+//    (réponse 503 : PayDunya renverra la notification).
+//  - Deux initiations simultanées ne peuvent pas créer deux factures
+//    en attente (index unique partiel en base + rattrapage applicatif).
 //  - Aucun passage à « payé » depuis le frontend.
 // ============================================================
 
 import express, { Router } from 'express';
 import crypto from 'node:crypto';
-import { confirmPaydunyaInvoice, verifyIpnHash, paydunyaConfig } from '../utils/paydunya.js';
+import { verifyIpnHash, paydunyaConfig } from '../utils/paydunya.js';
 import { initiatePaydunyaInvoice, findPendingPaydunyaInvoice } from '../utils/paydunyaCheckouts.js';
-import {
-  createAndAttemptRedistribution,
-  retryRedistribution,
-  recipientAliasOfOwner,
-  recipientAliasOfEmploye,
-} from '../utils/paydunyaRedistributions.js';
+import { retryRedistribution } from '../utils/paydunyaRedistributions.js';
+import { reconcilePaydunyaInvoice } from '../utils/paydunyaReconcile.js';
 import { serviceClient } from '../app.js';
-import { creerEcheanceSuivante } from '../utils/echeances.js';
 
 const router = Router();
 const sb = () => serviceClient();
@@ -72,6 +74,20 @@ router.post('/initiate', async (req, res) => {
   }
 });
 
+// Course concurrente : deux clics simultanés ne doivent créer qu'une
+// facture en attente (index unique partiel en base). Si l'insertion
+// perd la course (code 23505), on reprend la facture gagnante.
+async function resumeOnRace(refetch) {
+  try {
+    return { created: await initiatePaydunyaInvoice(refetch.params()) };
+  } catch (err) {
+    if (err?.code !== '23505') throw err;
+    const pending = await findPendingPaydunyaInvoice(refetch.criteria());
+    if (!pending) throw err;
+    return { created: null, resumed: pending };
+  }
+}
+
 // ---- Salaire : le propriétaire paie via PayDunya (MIM encaisse) ----
 async function initiateSalaire(req, res) {
   const { paiement_employe_id } = req.body || {};
@@ -93,11 +109,12 @@ async function initiateSalaire(req, res) {
   }
 
   // Reprendre une facture en attente existante au lieu d'en créer une autre.
-  const pending = await findPendingPaydunyaInvoice({
+  const criteria = () => ({
     source: 'salaire',
     userId: req.user.id,
     paiementEmployeId: Number(paiement_employe_id),
   });
+  const pending = await findPendingPaydunyaInvoice(criteria());
   if (pending) {
     return res.json({
       success: true,
@@ -112,7 +129,7 @@ async function initiateSalaire(req, res) {
     .eq('id', pay.employe_id)
     .maybeSingle();
 
-  const invoice = await initiatePaydunyaInvoice({
+  const params = () => ({
     source: 'salaire',
     userId: req.user.id,
     amount: Number(pay.montant),
@@ -129,9 +146,18 @@ async function initiateSalaire(req, res) {
     paiementEmployeId: Number(paiement_employe_id),
   });
 
+  const { created, resumed } = await resumeOnRace({ params, criteria });
+  if (resumed) {
+    return res.json({
+      success: true,
+      data: { invoice: resumed, payment_url: resumed.payment_url, token: resumed.token, resumed: true },
+      message: 'Facture de paiement déjà en cours.',
+    });
+  }
+
   res.status(201).json({
     success: true,
-    data: { invoice, payment_url: invoice.payment_url, token: invoice.token },
+    data: { invoice: created, payment_url: created.payment_url, token: created.token },
     message: 'Facture de paiement créée. Le salaire sera marqué payé dès le paiement confirmé.',
   });
 }
@@ -171,11 +197,12 @@ async function initiateLoyer(req, res) {
   }
 
   // Reprendre une facture en attente existante au lieu d'en créer une autre.
-  const pending = await findPendingPaydunyaInvoice({
+  const criteria = () => ({
     source: 'loyer',
     userId: req.user.id,
     paiementId: Number(paiement_id),
   });
+  const pending = await findPendingPaydunyaInvoice(criteria());
   if (pending) {
     return res.json({
       success: true,
@@ -186,7 +213,7 @@ async function initiateLoyer(req, res) {
 
   const { data: profile } = await sb().from('profiles').select('name, phone').eq('id', req.user.id).maybeSingle();
 
-  const invoice = await initiatePaydunyaInvoice({
+  const params = () => ({
     source: 'loyer',
     userId: req.user.id,
     amount: Number(paiement.montant),
@@ -204,17 +231,28 @@ async function initiateLoyer(req, res) {
     paiementId: Number(paiement_id),
   });
 
+  const { created, resumed } = await resumeOnRace({ params, criteria });
+  if (resumed) {
+    return res.json({
+      success: true,
+      data: { invoice: resumed, payment_url: resumed.payment_url, token: resumed.token, resumed: true },
+      message: 'Facture de paiement déjà en cours.',
+    });
+  }
+
   res.status(201).json({
     success: true,
-    data: { invoice, payment_url: invoice.payment_url, token: invoice.token },
+    data: { invoice: created, payment_url: created.payment_url, token: created.token },
     message: 'Facture de paiement créée. Votre loyer sera marqué payé dès le paiement confirmé.',
   });
 }
 
 // ------------------------------------------------------------
 // Statut d'une facture (l'initiateur seul y a accès).
-// Le statut est confirmé auprès de l'API PayDunya (source de vérité)
-// puis reflété dans la session en base.
+// La consultation CONFIRME auprès de l'API PayDunya puis applique la
+// même logique métier que l'IPN (utils/paydunyaReconcile.js) : si une
+// notification a été perdue, le simple fait de consulter la page de
+// retour rattrape la mise à jour (self-healing).
 // ------------------------------------------------------------
 router.get('/status/:token', async (req, res) => {
   try {
@@ -229,28 +267,18 @@ router.get('/status/:token', async (req, res) => {
       .maybeSingle();
     if (!invoice) return res.status(404).json({ success: false, message: 'Facture introuvable.' });
 
-    // Confirmation auprès de PayDunya : l'IPN reste l'événement déclencheur
-    // du traitement métier, mais on rafraîchit l'état côté client.
-    let confirmed = null;
+    let reconciliation = null;
     try {
-      confirmed = await confirmPaydunyaInvoice(token);
-      if (confirmed.status !== invoice.status && ['completed', 'cancelled'].includes(confirmed.status)) {
-        await sb()
-          .from('paydunya_invoices')
-          .update({ status: confirmed.status, receipt_url: confirmed.receiptUrl || invoice.receipt_url })
-          .eq('id', invoice.id);
-      }
-    } catch {
-      /* API momentanément indisponible : on renvoie l'état en base */
+      reconciliation = await reconcilePaydunyaInvoice(invoice);
+    } catch (err) {
+      console.warn('[paydunya/status] réconciliation différée:', err.message);
     }
+
+    const { data: fresh } = await sb().from('paydunya_invoices').select('*').eq('id', invoice.id).maybeSingle();
 
     res.json({
       success: true,
-      data: {
-        ...invoice,
-        status: confirmed?.status || invoice.status,
-        receipt_url: confirmed?.receiptUrl || invoice.receipt_url,
-      },
+      data: { ...(fresh || invoice), reconciliation },
     });
   } catch (err) {
     console.error('[paydunya/status]', err.message);
@@ -394,6 +422,12 @@ router.post('/test-ipn', async (req, res) => {
 // Webhook IPN PayDunya (hash SHA-512(Master Key) obligatoire)
 // PayDunya envoie un POST application/x-www-form-urlencoded dont la
 // clé « data » contient les informations de la transaction.
+//
+// La confirmation + les effets métier sont délégués à
+// reconcilePaydunyaInvoice (idempotent). En cas d'échec transitoire
+// (API PayDunya injoignable, panne DB), le journal reste « non
+// traité » et la réponse est 503 : PayDunya renverra la notification,
+// ou bien le poll de statut / un rattrapage refera le travail.
 // ------------------------------------------------------------
 export const webhookRouter = Router();
 
@@ -423,16 +457,17 @@ webhookRouter.post('/', express.urlencoded({ extended: true }), async (req, res)
     const ipnStatus = String(data.status || '').toLowerCase();
 
     // 2) Dédup : un payload déjà TRAITÉ est ignoré (200). Si un traitement
-    // précédent a échoué (handled=false), on retente au lieu de sauter.
+    //    précédent a été différé (handled=false), on retente au lieu de sauter.
     const { data: dup } = await sb().from('paydunya_webhooks').select('id, handled').eq('fingerprint', fingerprint).maybeSingle();
     if (dup?.handled) {
       return res.json({ success: true, duplicated: true });
     }
 
-    // Journal (audit) enregistré AVANT le traitement : si le traitement
-    // échoue, PayDunya renverra le même payload -> on retentera.
-    // Insert ATOMIQUE (contrainte unique fingerprint) : en cas de course
-    // entre deux IPN identiques envoyés en parallèle, un seul gagne.
+    // Journal (audit) enregistré AVANT le traitement : tant qu'il n'est
+    // pas marqué « traité », la notification sera rejouée (par PayDunya,
+    // le poll de statut ou un rattrapage admin). Insert ATOMIQUE
+    // (contrainte unique fingerprint) : en cas de course entre deux IPN
+    // identiques envoyés en parallèle, un seul gagne.
     if (!dup) {
       const { data: inserted } = await sb()
         .from('paydunya_webhooks')
@@ -455,245 +490,40 @@ webhookRouter.post('/', express.urlencoded({ extended: true }), async (req, res)
     if (invErr) throw invErr;
     if (!invoice) {
       console.warn('[paydunya/webhook] token inconnu:', token);
-      await sb().from('paydunya_webhooks').update({ handled: true }).eq('fingerprint', fingerprint);
+      await sb()
+        .from('paydunya_webhooks')
+        .update({ handled: true, handled_at: new Date().toISOString() })
+        .eq('fingerprint', fingerprint);
       return res.json({ success: true, token, result: 'unknown' });
     }
 
-    // 4) Confirmation auprès de l'API : le statut renvoyé par l'IPN n'est
-    // jamais pris au pied de la lettre, la facture est re-confirmée.
-    let confirmed;
+    // 4) Confirmation + effets métier (source de vérité serveur partagée).
+    let outcome;
     try {
-      confirmed = await confirmPaydunyaInvoice(token);
+      outcome = await reconcilePaydunyaInvoice(invoice, { ipnData: data });
     } catch (err) {
-      console.error('[paydunya/webhook] confirm échoué:', err.message);
-      await sb().from('paydunya_webhooks').update({ handled: true }).eq('fingerprint', fingerprint);
-      return res.json({ success: true, token, result: 'confirm_unavailable' });
+      console.error('[paydunya/webhook] traitement différé:', err.message);
+      await sb().from('paydunya_webhooks').update({ error: err.message || String(err) }).eq('fingerprint', fingerprint);
+      return res.status(503).json({
+        success: false,
+        token,
+        result: 'confirm_unavailable',
+        message: 'Confirmation PayDunya momentanément indisponible ; notification conservée pour re-traitement.',
+      });
     }
 
-    // 5) Vérification du montant : le montant confirmé doit correspondre
-    // au montant en base de la session.
-    const confirmedAmount = confirmed.totalAmount;
-    if (confirmed.status === 'completed' && !(confirmedAmount > 0 && confirmedAmount === Number(invoice.amount))) {
-      console.error(`[paydunya/webhook] montant incohérent: confirmé=${confirmedAmount} attendu=${invoice.amount}`);
-      await sb().from('paydunya_invoices').update({ status: 'failed', last_ipn: data }).eq('id', invoice.id);
-      await sb().from('paydunya_webhooks').update({ handled: true }).eq('fingerprint', fingerprint);
-      return res.json({ success: true, token, result: 'amount_mismatch' });
-    }
-
-    // 6) On n'abaisse jamais une session déjà complétée.
-    if (invoice.status === 'completed' && confirmed.status !== 'completed') {
-      await sb().from('paydunya_webhooks').update({ handled: true }).eq('fingerprint', fingerprint);
-      return res.json({ success: true, token, result: 'already_completed' });
-    }
-
-    // 7) Mise à jour de la session.
-    const nextStatus = ['completed', 'pending', 'cancelled'].includes(confirmed.status) ? confirmed.status : invoice.status;
+    // 5) Traitement mené à terme : le journal est clos (audit horodaté).
     await sb()
-      .from('paydunya_invoices')
-      .update({
-        status: nextStatus,
-        receipt_url: confirmed.receiptUrl || invoice.receipt_url,
-        last_ipn: data,
-      })
-      .eq('id', invoice.id);
+      .from('paydunya_webhooks')
+      .update({ handled: true, handled_at: new Date().toISOString(), error: null })
+      .eq('fingerprint', fingerprint);
 
-    // 8) Succès : mise à jour de la donnée MIM selon la source.
-    if (nextStatus === 'completed') {
-      if (invoice.source === 'salaire') {
-        await applySalaireCompleted(invoice, token);
-      } else if (invoice.source === 'abonnement') {
-        await applyAbonnementCompleted(invoice, token);
-      } else {
-        await applyLoyerCompleted(invoice, token);
-      }
-    }
-
-    await sb().from('paydunya_webhooks').update({ handled: true }).eq('fingerprint', fingerprint);
-    res.json({ success: true, token, result: nextStatus });
+    const result = outcome.result === 'unchanged' ? outcome.status : outcome.result;
+    res.json({ success: true, token, result });
   } catch (err) {
     console.error('[paydunya/webhook]', err.message);
     res.status(500).json({ success: false, message: 'Erreur interne.' });
   }
 });
-
-// ---- Traitements par source (succès) ----
-
-// Loyer : le locataire a payé MIM via PayDunya. Le paiement passe
-// « paye » directement (l'argent est encaissé par MIM, plus besoin de
-// validation propriétaire) et MIM redistribue au propriétaire.
-async function applyLoyerCompleted(invoice, token) {
-  const { data: paiement } = await sb()
-    .from('paiements')
-    .select('id, user_id, locataire_id, logement_id, mois, montant, statut, reference')
-    .eq('id', invoice.paiement_id)
-    .maybeSingle();
-  if (!paiement) return;
-
-  // Mise à jour conditionnelle : une seule écriture gagne en cas de course.
-  const { data: updated, error: payErr } = await sb()
-    .from('paiements')
-    .update({
-      statut: 'paye',
-      date_paiement: new Date().toISOString().slice(0, 10),
-      methode_paiement: 'paydunya',
-      reference: paiement.reference || token,
-    })
-    .eq('id', paiement.id)
-    .in('statut', ['attente', 'retard', 'refuse', 'a_confirmer', 'en_validation'])
-    .select()
-    .maybeSingle();
-  if (payErr) throw payErr;
-  if (!updated) return;
-
-  // L'échéance du mois suivant est créée (anti-doublon en base).
-  try {
-    await creerEcheanceSuivante(sb(), paiement);
-  } catch (e) {
-    console.warn('[paydunya/webhook] échéance suivante :', e.message);
-  }
-
-  // Redistribution au propriétaire (compte PayDunya du destinataire).
-  try {
-    const alias = await recipientAliasOfOwner(paiement.user_id);
-    if (alias) {
-      await createAndAttemptRedistribution({
-        source: 'loyer',
-        userId: paiement.user_id,
-        paiementId: paiement.id,
-        recipientAlias: alias,
-        recipientLabel: `Loyer ${paiement.mois}`,
-        amount: Number(paiement.montant),
-      });
-    }
-  } catch (e) {
-    console.warn('[paydunya/webhook] redistribution loyer :', e.message);
-  }
-
-  // Notifications.
-  try {
-    const { notify, tenantUidOfLocataire } = await import('../utils/notifications.js');
-    await notify(
-      paiement.user_id,
-      'success',
-      `Loyer ${paiement.mois} encaissé via PayDunya (${Number(paiement.montant).toLocaleString('fr-FR')} FCFA). Redistribution au propriétaire en cours.`
-    );
-    const tenantUid = await tenantUidOfLocataire(paiement.locataire_id);
-    if (tenantUid) {
-      await notify(tenantUid, 'paiement', `Votre loyer de ${paiement.mois} a été réglé avec succès via PayDunya.`);
-    }
-  } catch (e) {
-    console.warn('[paydunya/webhook] notification loyer :', e.message);
-  }
-}
-
-// Salaire : le propriétaire a payé MIM via PayDunya -> le salaire passe
-// « paye » et MIM redistribue à l'employé.
-async function applySalaireCompleted(invoice, token) {
-  const { data: pay } = await sb()
-    .from('paiements_employes')
-    .select('id, user_id, employe_id, employe_uid, mois, montant, statut, reference')
-    .eq('id', invoice.paiement_employe_id)
-    .maybeSingle();
-  if (!pay) return;
-
-  const { data: updated, error: payErr } = await sb()
-    .from('paiements_employes')
-    .update({
-      statut: 'paye',
-      date_paiement: new Date().toISOString().slice(0, 10),
-      methode_paiement: 'paydunya',
-      reference: pay.reference || token,
-    })
-    .eq('id', pay.id)
-    .neq('statut', 'paye')
-    .select()
-    .maybeSingle();
-  if (payErr) throw payErr;
-  if (!updated) return;
-
-  // Redistribution à l'employé (compte PayDunya du destinataire).
-  try {
-    const alias = await recipientAliasOfEmploye(pay.employe_id);
-    if (alias) {
-      await createAndAttemptRedistribution({
-        source: 'salaire',
-        userId: pay.user_id,
-        paiementEmployeId: pay.id,
-        recipientAlias: alias,
-        recipientLabel: `Salaire ${pay.mois}`,
-        amount: Number(pay.montant),
-      });
-    }
-  } catch (e) {
-    console.warn('[paydunya/webhook] redistribution salaire :', e.message);
-  }
-
-  // Notifications.
-  try {
-    const { notify } = await import('../utils/notifications.js');
-    await notify(
-      pay.user_id,
-      'success',
-      `Salaire ${pay.mois} encaissé via PayDunya (${Number(pay.montant).toLocaleString('fr-FR')} FCFA). Redistribution à l'employé en cours.`
-    );
-    if (pay.employe_uid) {
-      await notify(pay.employe_uid, 'salaire', `Votre salaire de ${pay.mois} a été payé via PayDunya. Vérifiez votre compte PayDunya.`);
-    }
-  } catch (e) {
-    console.warn('[paydunya/webhook] notification salaire :', e.message);
-  }
-}
-
-// Abonnement : le propriétaire a payé MIM -> activation de l'abonnement.
-async function applyAbonnementCompleted(invoice, token) {
-  const { data: paiementAbonnement, error: apErr } = await sb()
-    .from('abonnement_paiements')
-    .select('*')
-    .eq('id', invoice.abonnement_paiement_id)
-    .maybeSingle();
-  if (apErr) throw apErr;
-  if (!paiementAbonnement) return;
-
-  const now = new Date();
-  const updateHist = {
-    date_paiement: now.toISOString(),
-    methode_paiement: 'paydunya',
-  };
-  if (!paiementAbonnement.reference) updateHist.reference = token;
-  await sb().from('abonnement_paiements').update(updateHist).eq('id', paiementAbonnement.id);
-
-  // Activation / renouvellement de l'abonnement : l'échéance (date_debut,
-  // date_expiration) a été calculée côté serveur lors de l'initiation.
-  await sb()
-    .from('subscriptions')
-    .upsert(
-      {
-        user_id: paiementAbonnement.user_id,
-        plan: paiementAbonnement.plan,
-        statut: 'actif',
-        date_debut: paiementAbonnement.date_debut,
-        date_expiration: paiementAbonnement.date_expiration,
-        date_paiement: now.toISOString(),
-        montant: Number(paiementAbonnement.montant),
-        methode_paiement: 'paydunya',
-        reference: updateHist.reference,
-        updated_at: now.toISOString(),
-      },
-      { onConflict: 'user_id' }
-    );
-
-  const { invalidateSubscriptionCache } = await import('../utils/subscription.js');
-  invalidateSubscriptionCache();
-  const { invalidatePlatformCache } = await import('./admin.js');
-  invalidatePlatformCache();
-
-  // Notification au propriétaire (abonnement activé).
-  try {
-    const { notify } = await import('../utils/notifications.js');
-    await notify(paiementAbonnement.user_id, 'abonnement', `Votre abonnement MIM est actif. Merci pour votre paiement PayDunya.`);
-  } catch (e) {
-    console.warn('[paydunya/webhook] notification abonnement :', e.message);
-  }
-}
 
 export default router;

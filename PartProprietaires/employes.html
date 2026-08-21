@@ -333,6 +333,7 @@
 
     <script src="../PartPublic/form-utils.js"></script>
     <script src="../PartPublic/password-strength.js"></script>
+    <script src="../PartPublic/pay-status.js"></script>
     <script src="api.js"></script>
     <script src="crud.js"></script>
     <script>
@@ -718,6 +719,24 @@ el("paydunyaResult").style.display = "none";
                 resultEl.style.display = "block";
                 await loadAll();
                 await loadPayHistory(payEmployeeId);
+                // Suivi automatique : dès que le paiement est confirmé
+                // (webhook ou réconciliation via le polling), la page
+                // se rafraîchit d'elle-même.
+                const token = res.data?.token;
+                if (token && typeof pollPaydunyaStatus === "function") {
+                    resultEl.innerHTML = '<p class="ok">Lien de paiement ouvert : cette page se mettra à jour automatiquement dès la confirmation du paiement.</p>';
+                    const payId = payEmployeeId;
+                    pollPaydunyaStatus(token).then((invoice) => {
+                        if (invoice?.status === "completed") {
+                            showToast("Paiement PayDunya confirmé : salaire marqué payé.", "success");
+                            loadAll();
+                            if (el("payModal").style.display !== "none" && payEmployeeId === payId) {
+                                loadPayHistory(payId);
+                                resultEl.innerHTML = '<p class="ok">Paiement confirmé : le salaire est marqué payé et MIM redistribue à l\'employé.</p>';
+                            }
+                        }
+                    });
+                }
             } catch (err) {
                 applyServerErrors(form, err.errors);
                 showToast(err.message, "error");

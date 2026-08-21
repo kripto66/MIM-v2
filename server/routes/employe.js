@@ -11,7 +11,7 @@ import { gitAutoBackup } from '../utils/gitBackup.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { tenantEmailFor, usernameIsValid } from '../utils/tenantAccount.js';
 import { notify } from '../utils/notifications.js';
-import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
+import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paydunyaAliasError, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
 
 const router = Router();
 
@@ -680,6 +680,10 @@ router.post('/moyens-paiement', requireEmploye, async (req, res) => {
     }
 
     const clean = sanitizeMoyenBody(type, req.body);
+    const aliasError = paydunyaAliasError(clean.paydunya_alias);
+    if (aliasError) {
+      return res.status(400).json({ success: false, message: aliasError, errors: { paydunya_alias: aliasError } });
+    }
     const { data, error } = await sb
       .from('moyens_paiement_employes')
       .insert({ employe_uid: req.user.id, type, ...clean })
@@ -715,6 +719,10 @@ router.put('/moyens-paiement/:id', requireEmploye, async (req, res) => {
     }
 
     const clean = sanitizeMoyenBody(existing.type, req.body);
+    const aliasError = paydunyaAliasError(clean.paydunya_alias);
+    if (aliasError) {
+      return res.status(400).json({ success: false, message: aliasError, errors: { paydunya_alias: aliasError } });
+    }
     const { data, error } = await sb
       .from('moyens_paiement_employes')
       .update(clean)

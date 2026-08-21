@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Paiement en cours de vérification — MIM</title>
+    <link rel="stylesheet" href="/paiement.css">
+    <script src="/pay-status.js"></script>
+
+</head>
+
+<body class="pay-return-body">
+
+    <main class="pay-return-card">
+
+        <div class="pay-return-logo">MIM</div>
+
+        <!-- État initial : vérification -->
+        <div id="payPending">
+            <div class="spinner"></div>
+            <h1>Vérification de votre paiement…</h1>
+            <p>Nous confirmons votre paiement auprès de PayDunya. Cette page se met à jour automatiquement.</p>
+        </div>
+
+        <!-- Paiement confirmé -->
+        <div id="paySuccess" hidden>
+            <div class="pay-return-icon success">✓</div>
+            <h1>Paiement confirmé, merci !</h1>
+            <div id="paySuccessAmount" class="pay-amount"></div>
+            <p id="paySuccessMeta" class="pay-meta"></p>
+            <a id="payReceiptLink" class="pay-receipt" href="#" target="_blank" rel="noopener" hidden>Voir le reçu PDF (PayDunya)</a>
+        </div>
+
+        <!-- Échec / annulation depuis l'URL de succès : rare, mais possible -->
+        <div id="payFailure" hidden>
+            <div class="pay-return-icon failed">✕</div>
+            <h1 id="payFailureTitle">Paiement non abouti</h1>
+            <p id="payFailureText">Le paiement n'a pas été confirmé. Aucun montant n'a été encaissé. Vous pouvez réessayer depuis votre espace.</p>
+        </div>
+
+        <!-- Délai dépassé sans confirmation définitive -->
+        <div id="payTimeout" hidden>
+            <div class="pay-return-icon pending">⏳</div>
+            <h1>Vérification encore en cours</h1>
+            <p>Votre paiement est en cours de traitement côté PayDunya. S'il aboutit, il apparaîtra automatiquement dans votre espace — aucune action n'est nécessaire.</p>
+            <div class="pay-return-actions">
+                <button type="button" class="primary-button" id="payRetryBtn">Réessayer la vérification</button>
+                <a id="payTimeoutHome" class="secondary-button" href="/">Retour à mon espace</a>
+            </div>
+        </div>
+
+        <!-- Erreur d'accès à la session (token invalide, session expirée…) -->
+        <div id="payError" hidden>
+            <div class="pay-return-icon failed">!</div>
+            <h1>Impossible de vérifier le paiement</h1>
+            <p id="payErrorText"></p>
+            <div class="pay-return-actions">
+                <a id="payErrorHome" class="secondary-button" href="/">Retour à l'accueil</a>
+            </div>
+        </div>
+
+    </main>
+
+    <script src="/pay-status.js"></script>
+    <script>
+        (async () => {
+            const views = ["payPending", "paySuccess", "payFailure", "payTimeout", "payError"];
+            const show = (id) => {
+                views.forEach((v) => document.getElementById(v).hidden = v !== id);
+                document.title = document.getElementById(id).querySelector("h1").textContent + " — MIM";
+            };
+
+            const token = payStatusTokenFromUrl();
+
+            async function renderHomeLinks() {
+                const home = await payStatusHomeLink();
+                for (const el of [document.getElementById("payTimeoutHome"), document.getElementById("payErrorHome")]) {
+                    el.href = home;
+                }
+            }
+
+            function showSuccess(invoice) {
+                document.getElementById("paySuccessAmount").textContent =
+                    payStatusFormatFcfa(invoice.amount) || "";
+                const meta = [];
+                if (invoice.description) meta.push(invoice.description);
+                meta.push(`Session ${String(invoice.token || "").slice(0, 8).toUpperCase()}…`);
+                document.getElementById("paySuccessMeta").textContent = meta.filter(Boolean).join(" · ");
+                const receipt = document.getElementById("payReceiptLink");
+                if (invoice.receipt_url) {
+                    receipt.href = invoice.receipt_url;
+                    receipt.hidden = false;
+                }
+                show("paySuccess");
+            }
+
+            function showFailure(message) {
+                if (message) document.getElementById("payFailureText").textContent = message;
+                show("payFailure");
+            }
+
+            async function run() {
+                show("payPending");
+                await renderHomeLinks();
+
+                if (!token) {
+                    document.getElementById("payErrorText").textContent =
+                        "Lien incomplet : aucun identifiant de paiement n'a été fourni.";
+                    show("payError");
+                    return;
+                }
+
+                try {
+                    // Lecture initiale immédiate (réconcilie déjà côté serveur).
+                    let first = null;
+                    try { first = await fetchPaydunyaStatus(token); } catch (err) {
+                        document.getElementById("payErrorText").textContent =
+                            err.message === "Facture introuvable."
+                                ? "Cette session de paiement est inconnue ou ne vous appartient pas."
+                                : `Erreur : ${err.message}`;
+                        show("payError");
+                        return;
+                    }
+
+                    let finalInvoice = first;
+                    if (!["completed", "cancelled", "failed"].includes(first.status)) {
+                        finalInvoice = await pollPaydunyaStatus(token, {
+                            intervalMs: 4000,
+                            maxAttempts: 45,
+                        });
+                    }
+
+                    if (!finalInvoice) {
+                        show("payTimeout");
+                        return;
+                    }
+                    if (finalInvoice.status === "completed") {
+                        showSuccess(finalInvoice);
+                        return;
+                    }
+                    showFailure(
+                        finalInvoice.status === "cancelled"
+                            ? "Le paiement a été annulé. Aucun montant n'a été encaissé. Vous pouvez réessayer depuis votre espace."
+                            : "Le paiement n'a pas pu être confirmé. Aucun montant n'a été encaissé. Vous pouvez réessayer depuis votre espace."
+                    );
+                } catch (err) {
+                    document.getElementById("payErrorText").textContent = `Erreur inattendue : ${err.message}`;
+                    show("payError");
+                }
+            }
+
+            document.getElementById("payRetryBtn").addEventListener("click", run);
+            run();
+        })();
+    </script>
+
+</body>
+
+</html>

@@ -204,6 +204,7 @@
         </div>
     </div>
 
+    <script src="../PartPublic/pay-status.js"></script>
     <script src="LocaDash.js"></script>
     <script>
         // ============================================================
@@ -527,6 +528,17 @@
                                 window.open(url, "_blank", "noopener");
                                 showTenantError("Lien de paiement ouvert : finalisez le paiement dans le nouvel onglet.", true);
                                 reloadPage();
+                                // Suivi automatique : la liste se rafraîchit
+                                // dès la confirmation du paiement.
+                                const token = res.data?.token;
+                                if (token && typeof pollPaydunyaStatus === "function") {
+                                    pollPaydunyaStatus(token).then((invoice) => {
+                                        if (invoice?.status === "completed") {
+                                            showTenantError("Paiement confirmé avec succès : votre loyer est à jour.", true);
+                                            reloadPage();
+                                        }
+                                    });
+                                }
                             })
                             .catch((err) => {
                                 paydunyaBtn.disabled = false;

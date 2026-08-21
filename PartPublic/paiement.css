@@ -1,0 +1,137 @@
+/* ============================================================
+   MIM - Pages de retour de paiement PayDunya (succès / annulation)
+   ============================================================ */
+
+.pay-return-body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #f5f7fb 0%, #e8edf5 100%);
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    color: #1f2937;
+    padding: 24px;
+}
+
+.pay-return-card {
+    width: 100%;
+    max-width: 460px;
+    background: #ffffff;
+    border-radius: 18px;
+    box-shadow: 0 18px 45px rgba(15, 23, 42, 0.12);
+    padding: 40px 32px;
+    text-align: center;
+}
+
+.pay-return-logo {
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: #2563eb;
+    font-size: 22px;
+    margin-bottom: 18px;
+}
+
+.pay-return-icon {
+    width: 74px;
+    height: 74px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 18px;
+    font-size: 34px;
+}
+
+.pay-return-icon.success { background: #dcfce7; }
+.pay-return-icon.pending { background: #fef9c3; }
+.pay-return-icon.failed  { background: #fee2e2; }
+
+.pay-return-card h1 {
+    font-size: 22px;
+    margin: 0 0 10px;
+}
+
+.pay-return-card p {
+    color: #6b7280;
+    margin: 0 0 8px;
+    line-height: 1.55;
+}
+
+.pay-amount {
+    font-size: 30px;
+    font-weight: 800;
+    color: #111827;
+    margin: 16px 0 4px;
+}
+
+.pay-meta {
+    font-size: 13.5px;
+    color: #6b7280;
+}
+
+.pay-receipt {
+    display: inline-block;
+    margin-top: 14px;
+    font-size: 14px;
+    color: #2563eb;
+    text-decoration: none;
+    border-bottom: 1px dashed #93c5fd;
+}
+
+.pay-receipt:hover { color: #1d4ed8; }
+
+.pay-return-actions {
+    margin-top: 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.primary-button {
+    display: block;
+    width: 100%;
+    padding: 13px 18px;
+    border: none;
+    border-radius: 10px;
+    background: #2563eb;
+    color: #ffffff;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s ease;
+}
+
+.primary-button:hover { background: #1d4ed8; }
+
+.secondary-button {
+    display: block;
+    width: 100%;
+    padding: 13px 18px;
+    border: 1px solid #d1d5db;
+    border-radius: 10px;
+    background: #ffffff;
+    color: #374151;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background 0.2s ease;
+}
+
+.secondary-button:hover { background: #f3f4f6; }
+
+.spinner {
+    width: 38px;
+    height: 38px;
+    border: 4px solid #e5e7eb;
+    border-top-color: #2563eb;
+    border-radius: 50%;
+    animation: pay-spin 0.9s linear infinite;
+    margin: 0 auto 18px;
+}
+
+@keyframes pay-spin {
+    to { transform: rotate(360deg); }
+}

@@ -11,7 +11,7 @@
 
 import { Router } from 'express';
 import { serviceClient } from '../app.js';
-import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody } from '../utils/paiementMethodes.js';
+import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paydunyaAliasError } from '../utils/paiementMethodes.js';
 
 const router = Router();
 const sb = () => serviceClient();
@@ -43,6 +43,10 @@ router.post('/', async (req, res) => {
     }
 
     const clean = sanitizeMoyenBody(type, req.body);
+    const aliasError = paydunyaAliasError(clean.paydunya_alias);
+    if (aliasError) {
+      return res.status(400).json({ success: false, message: aliasError, errors: { paydunya_alias: aliasError } });
+    }
     const { data, error } = await sb()
       .from('moyens_paiement')
       .insert({ user_id: req.user.id, type, ...clean })
@@ -75,6 +79,10 @@ router.put('/:id', async (req, res) => {
     }
 
     const clean = sanitizeMoyenBody(existing.type, req.body);
+    const aliasError = paydunyaAliasError(clean.paydunya_alias);
+    if (aliasError) {
+      return res.status(400).json({ success: false, message: aliasError, errors: { paydunya_alias: aliasError } });
+    }
     const { data, error } = await sb()
       .from('moyens_paiement')
       .update(clean)

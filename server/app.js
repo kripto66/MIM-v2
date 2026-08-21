@@ -94,6 +94,12 @@ app.use(cookieParser());
 
 const ROOT = path.join(__dirname, '..');
 
+// Pages de retour PayDunya (URLs propres sans extension .html : ce sont
+// les success_url / cancel_url configurées dans paydunyaCheckouts.js).
+const payReturnPage = (file) => (req, res) => res.sendFile(path.join(ROOT, 'PartPublic', file));
+app.get('/paiement-succes', payReturnPage('paiement-succes.html'));
+app.get('/paiement-annule', payReturnPage('paiement-annule.html'));
+
 app.use(express.static(path.join(ROOT, 'PartPublic')));
 app.use('/PartPublic', express.static(path.join(ROOT, 'PartPublic')));
 // Zones protégées : les pages (et leurs assets) ne sont servies qu'aux
