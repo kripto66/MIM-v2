@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Paiement annulé — MIM</title>
+    <link rel="stylesheet" href="/paiement.css">
+    <script src="/pay-status.js"></script>
+
+</head>
+
+<body class="pay-return-body">
+
+    <main class="pay-return-card">
+
+        <div class="pay-return-logo">MIM</div>
+
+        <div id="payCancelled">
+            <div class="pay-return-icon failed">✕</div>
+            <h1>Paiement annulé</h1>
+            <p id="payCancelledText">Votre paiement a été annulé. Aucun montant n'a été encaissé. Vous pouvez relancer un paiement à tout moment depuis votre espace.</p>
+            <div class="pay-return-actions">
+                <a id="payHome" class="primary-button" href="/">Retour à mon espace</a>
+            </div>
+        </div>
+
+        <!-- Cas particulier : PayDunya renvoie parfois vers l'annulation
+             alors que le paiement est passé. On vérifie avant d'affirmer. -->
+        <div id="payActuallySuccess" hidden>
+            <div class="pay-return-icon success">✓</div>
+            <h1>Paiement confirmé, merci !</h1>
+            <div id="payAmount" class="pay-amount"></div>
+            <p id="payMeta" class="pay-meta"></p>
+            <a id="payReceiptLink" class="pay-receipt" href="#" target="_blank" rel="noopener" hidden>Voir le reçu PDF (PayDunya)</a>
+            <div class="pay-return-actions">
+                <a id="payHome2" class="primary-button" href="/">Retour à mon espace</a>
+            </div>
+        </div>
+
+        <div id="payPendingCheck" hidden>
+            <div class="spinner"></div>
+            <h1>Vérification…</h1>
+            <p>Nous vérifions l'état exact de votre paiement.</p>
+        </div>
+
+    </main>
+
+    <script src="/pay-status.js"></script>
+    <script>
+        (async () => {
+            const token = payStatusTokenFromUrl();
+            const home = await payStatusHomeLink();
+            document.getElementById("payHome").href = home;
+            document.getElementById("payHome2").href = home;
+
+            if (!token) return; // annulation simple sans token : rien à vérifier
+
+            const cancelled = document.getElementById("payCancelled");
+            const pending = document.getElementById("payPendingCheck");
+            const success = document.getElementById("payActuallySuccess");
+            try {
+                cancelled.hidden = true;
+                pending.hidden = false;
+
+                // Quelques lectures espacées : le statut peut être encore
+                // « pending » quelques secondes après la redirection.
+                const invoice = await pollPaydunyaStatus(token, { intervalMs: 3000, maxAttempts: 5 });
+
+                if (invoice?.status === "completed") {
+                    document.getElementById("payAmount").textContent = payStatusFormatFcfa(invoice.amount) || "";
+                    document.getElementById("payMeta").textContent = invoice.description || "";
+                    const receipt = document.getElementById("payReceiptLink");
+                    if (invoice.receipt_url) {
+                        receipt.href = invoice.receipt_url;
+                        receipt.hidden = false;
+                    }
+                    pending.hidden = true;
+                    success.hidden = false;
+                    document.title = "Paiement confirmé — MIM";
+                    return;
+                }
+
+                pending.hidden = true;
+                cancelled.hidden = false;
+            } catch {
+                pending.hidden = true;
+                cancelled.hidden = false;
+            }
+        })();
+    </script>
+
+</body>
+
+</html>

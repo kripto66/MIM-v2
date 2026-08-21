@@ -217,6 +217,17 @@ document.addEventListener("click", async (e) => {
     showTenantError("Lien de paiement ouvert : finalisez le paiement dans le nouvel onglet.", true);
     const data = await tenantRequest("/locataire/dashboard");
     renderDashboard(data);
+    // Suivi automatique : la page se rafraîchit dès la confirmation
+    // (webhook PayDunya ou réconciliation via le polling de statut).
+    const token = res.data?.token;
+    if (token && typeof pollPaydunyaStatus === "function") {
+      pollPaydunyaStatus(token).then((invoice) => {
+        if (invoice?.status === "completed") {
+          showTenantError("Paiement confirmé avec succès : votre loyer est à jour.", true);
+          tenantRequest("/locataire/dashboard").then(renderDashboard);
+        }
+      });
+    }
   } catch (err) {
     btn.disabled = false;
     btn.textContent = original;

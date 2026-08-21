@@ -58,6 +58,21 @@ export const CHAMPS_MOYEN = {
   especes: ['instructions'],
 };
 
+// Alias PayDunya (compte de réception des redistributions) :
+// vide = autorisé (retour au téléphone/email de secours) ; sinon doit
+// ressembler à un email ou à un numéro de téléphone (>= 6 chiffres,
+// séparateurs/indicatifs tolérés). Évite les alias aberrants qui
+// feraient échouer silencieusement chaque versement.
+export function paydunyaAliasError(value) {
+  if (value == null || value === '') return null;
+  const v = String(value).trim();
+  if (!v) return null;
+  if (v.length > 200) return "L'alias PayDunya ne doit pas dépasser 200 caractères.";
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return null; // email
+  if ((v.match(/\d/g) || []).length >= 6) return null; // téléphone (+221 77 123 45 67, etc.)
+  return "L'alias PayDunya doit être un email ou un numéro de téléphone valides.";
+}
+
 // Nettoie un corps de moyen de paiement selon son type (champs admis,
 // chaînes tronquées à 200 caractères).
 // Règle : un champ ABSENT (clé non fournie) n'est pas modifié ; un champ
@@ -72,8 +87,8 @@ export function sanitizeMoyenBody(type, body) {
     clean[field] = s === '' ? null : s.slice(0, 200);
   }
   // Alias PayDunya (compte de réception des redistributions) : accepté
-  // quel que soit le type de moyen, aucune contrainte de format côté
-  // serveur (l'API PayDunya validera l'alias au versement).
+  // quel que soit le type de moyen ; la validité du FORMAT est contrôlée
+  // par paydunyaAliasError (appelée par les routes).
   if (body && 'paydunya_alias' in body) {
     const v = body.paydunya_alias;
     const s = v == null ? '' : String(v).trim();

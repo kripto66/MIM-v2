@@ -11,7 +11,7 @@ import { gitAutoBackup } from '../utils/gitBackup.js';
 import { tenantEmailFor, usernameIsValid, uniqueUsername, splitFullName, INITIAL_PASSWORD } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { notify } from '../utils/notifications.js';
-import { methodePaiementError, TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
+import { methodePaiementError, TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paydunyaAliasError, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
 
 const router = Router();
 
@@ -524,6 +524,33 @@ router.post('/:id/paiements', async (req, res) => {
     return res.status(400).json({ success: false, message: methodeError, errors: { methode_paiement: methodeError } });
   }
 
+  // PayDunya : une seule ligne de paiement par employé + mois. Un
+  // double-clic (ou un re-essai) reprend la déclaration existante au
+  // lieu d'en créer une seconde — la facture en attente sera de toute
+  // façon réutilisée à l'initiation.
+  if (effectiveMethode === 'paydunya') {
+    const { data: existing } = await sb
+      .from('paiements_employes')
+      .select('*')
+      .eq('user_id', ownerId)
+      .eq('employe_id', employe.id)
+      .eq('mois', mois)
+      .eq('methode_paiement', 'paydunya')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existing?.statut === 'attente' || existing?.statut === 'paye') {
+      return res.status(200).json({
+        success: true,
+        data: existing,
+        message:
+          existing.statut === 'paye'
+            ? 'Ce salaire a déjà été payé.'
+            : 'Un versement PayDunya est déjà déclaré pour ce mois.',
+      });
+    }
+  }
+
   const { data, error } = await sb
     .from('paiements_employes')
     .insert({
@@ -630,6 +657,10 @@ router.post('/:id/moyens-paiement', async (req, res) => {
   }
 
   const clean = sanitizeMoyenBody(type, req.body);
+  const aliasError = paydunyaAliasError(clean.paydunya_alias);
+  if (aliasError) {
+    return res.status(400).json({ success: false, message: aliasError, errors: { paydunya_alias: aliasError } });
+  }
   const { data, error } = await sb
     .from('moyens_paiement_employes')
     .insert({ employe_uid: employe.account_uid, type, ...clean })
