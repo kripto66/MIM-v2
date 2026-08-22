@@ -1,20 +1,26 @@
 // ============================================================
 // MIM - Suite PayDunya (paiements en ligne : loyers, salaires,
-// sessions d'encaissement et redistribution PER)
+// sessions d'encaissement et redistribution / décaissement)
 //
 // Un mock local (127.0.0.1:64330) simule l'API PayDunya :
 //   POST   /checkout-invoice/create          -> crée une facture
 //   GET    /checkout-invoice/confirm/:token  -> statut de la facture
-//   POST   /direct-pay/credit-account        -> versement PER
+//   POST   /direct-pay/credit-account        -> versement PER (compte à compte)
+//   POST   /api/v2/disburse/get-invoice      -> ordre de décaissement (v2)
+//   POST   /api/v2/disburse/submit-invoice   -> soumission à l'opérateur (v2)
+//   POST   /api/v2/disburse/check-status     -> statut d'un décaissement (v2)
 //   POST   /mock/pay   { token, amount }     -> marque la facture payée
 //   POST   /mock/fail-confirm { on }         -> simule une panne de l'API
+//   POST   /mock/settle-disburse { token, status } -> statut final différé
 //   POST   /mock/reset                       -> réinitialise le mock
 // L'IPN est envoyé comme PayDunya le fait vraiment : POST
 // application/x-www-form-urlencoded avec hash SHA-512(Master Key).
 //
 // Comportements spéciaux du mock :
-//   - un alias contenant « .reject. » fait ÉCHOUER le versement PER
-//     (simule un compte destinataire introuvable) ;
+//   - un alias contenant « .reject. » fait ÉCHOUER le versement
+//     (compte destinataire introuvable) ;
+//   - un numéro contenant « .pending. » laisse le décaissement v2 en
+//     attente chez l'opérateur jusqu'à /mock/settle-disburse ;
 //   - fail-confirm=true fait répondre 500 à toute confirmation
 //     (simule une indisponibilité transitoire de PayDunya).
 // ============================================================
@@ -30,6 +36,9 @@ const ADMIN_PASSWORD = 'Admin1234!';
 
 let invoices = {};
 let creditLog = [];
+let disburseInvoices = {}; // token -> { status, alias, mode, amount, transactionId }
+let disburseLog = [];      // versements réellement exécutés (submit success)
+let usedDisburseIds = [];
 let seq = 0;
 let failConfirm = false;
 // Identifiant unique par exécution : évite toute collision de fingerprint
@@ -43,6 +52,19 @@ function safeJson(body) {
   } catch {
     return null;
   }
+}
+
+// Déclencheur de scénario pour un décaissement v2 : l'alias envoyé est
+// soit un alias PayDunya (chaîne libre), soit le numéro wallet normalisé
+// (chiffres seuls) — d'où les numéros magiques de sandbox.
+const REJECT_NUMBERS = ['000000001'];
+const PENDING_NUMBERS = ['000000002'];
+
+function disburseTrigger(alias) {
+  const a = String(alias || '');
+  if (a.includes('.reject.') || REJECT_NUMBERS.includes(a)) return 'reject';
+  if (a.includes('.pending.') || PENDING_NUMBERS.includes(a)) return 'pending';
+  return null;
 }
 
 export function startPaydunyaMock() {
@@ -114,6 +136,102 @@ export function startPaydunyaMock() {
         });
       }
 
+      if (u.pathname === '/api/v2/disburse/get-invoice') {
+        seq++;
+        const alias = String(parsed?.account_alias || '');
+        const mode = String(parsed?.withdraw_mode || '');
+        if (!['paydunya', 'wave-senegal', 'orange-money-senegal'].includes(mode)) {
+          return json(400, { response_code: '1001', response_text: 'withdraw_mode non pris en charge' });
+        }
+        const token = `mock_disb_${RUN_ID}_${seq}`;
+        disburseInvoices[token] = {
+          status: 'created',
+          alias,
+          mode,
+          amount: Number(parsed?.amount),
+          transactionId: null,
+        };
+        return json(200, { response_code: '00', disburse_token: token });
+      }
+
+      if (u.pathname === '/api/v2/disburse/submit-invoice') {
+        const token = String(parsed?.disburse_invoice || '');
+        const inv = disburseInvoices[token];
+        if (!inv) return json(200, { response_code: '01', response_text: 'Token de décaissement inconnu' });
+        const disburseId = parsed?.disburse_id != null ? String(parsed.disburse_id) : null;
+        if (disburseId && usedDisburseIds.includes(disburseId)) {
+          return json(200, { response_code: '5000', response_text: 'disburse_id already used' });
+        }
+        if (disburseId) usedDisburseIds.push(disburseId);
+        // Déjà soumis : idempotent (même statut, pas de double exécution).
+        if (inv.status !== 'created') {
+          return json(200, {
+            response_code: '00',
+            status: inv.status,
+            response_text: 'Transaction deja traitee',
+            description: 'TEST',
+            ...(inv.transactionId ? { transaction_id: inv.transactionId } : {}),
+          });
+        }
+        // Déclencheurs : alias contenant « .reject. » / « .pending. », ou
+        // numéros magiques de sandbox (le numéro EST l'alias en v2) :
+        //   000000001 -> versement refusé (compte introuvable)
+        //   000000002 -> traitement différé chez l'opérateur
+        const trig = disburseTrigger(inv.alias);
+        if (trig === 'reject') {
+          inv.status = 'failed';
+          return json(200, {
+            response_code: '00',
+            status: 'failed',
+            response_text: 'Transaction failed',
+            description: 'Compte introuvable',
+          });
+        }
+        if (trig === 'pending') {
+          inv.status = 'pending';
+          inv.transactionId = `mock_dttxn_${seq}`;
+          return json(200, {
+            response_code: '00',
+            status: 'pending',
+            response_text: 'Transaction pending',
+            description: 'Transaction pending, please check the final status later through our status API',
+            transaction_id: inv.transactionId,
+          });
+        }
+        inv.status = 'success';
+        inv.transactionId = `mock_dttxn_${seq}`;
+        disburseLog.push({
+          account_alias: inv.alias,
+          withdraw_mode: inv.mode,
+          amount: inv.amount,
+          transaction_id: inv.transactionId,
+          provider_ref: `mock_pref_${seq}`,
+          at: new Date().toISOString(),
+        });
+        return json(200, {
+          response_code: '00',
+          status: 'success',
+          response_text: 'Transaction completed successfully',
+          description: `Success! Amount of ${inv.amount} FCFA has been transfered`,
+          transaction_id: inv.transactionId,
+          provider_ref: `mock_pref_${seq}`,
+        });
+      }
+
+      if (u.pathname === '/api/v2/disburse/check-status') {
+        const token = String(parsed?.disburse_invoice || '');
+        const inv = disburseInvoices[token];
+        if (!inv) return json(200, { response_code: '01', response_text: 'Token de décaissement inconnu' });
+        return json(200, {
+          response_code: '00',
+          status: inv.status,
+          token,
+          withdraw_mode: inv.mode,
+          amount: String(inv.amount),
+          ...(inv.transactionId ? { transaction_id: inv.transactionId } : {}),
+        });
+      }
+
       if (u.pathname === '/mock/pay') {
         // Crée la facture si inconnue : permet de simuler des sessions
         // insérées directement en base (ex. abonnement).
@@ -129,9 +247,35 @@ export function startPaydunyaMock() {
         return json(200, { ok: true, failConfirm });
       }
 
+      if (u.pathname === '/mock/settle-disburse') {
+        // Fait évoluer le statut final d'un décaissement resté 'pending'
+        // (simule la confirmation différée de l'opérateur).
+        const inv = disburseInvoices[parsed?.token];
+        if (!inv) return json(200, { ok: false });
+        const next = ['success', 'failed', 'pending'].includes(parsed?.status) ? parsed.status : 'success';
+        if (inv.status === 'pending' && next === 'success') {
+          inv.status = 'success';
+          inv.transactionId = inv.transactionId || `mock_dttxn_settle_${seq}`;
+          disburseLog.push({
+            account_alias: inv.alias,
+            withdraw_mode: inv.mode,
+            amount: inv.amount,
+            transaction_id: inv.transactionId,
+            provider_ref: `mock_pref_settle_${seq}`,
+            at: new Date().toISOString(),
+          });
+        } else if (inv.status === 'pending') {
+          inv.status = next;
+        }
+        return json(200, { ok: true, status: inv.status });
+      }
+
       if (u.pathname === '/mock/reset') {
         invoices = {};
         creditLog = [];
+        disburseInvoices = {};
+        disburseLog = [];
+        usedDisburseIds = [];
         failConfirm = false;
         return json(200, { ok: true });
       }
@@ -171,6 +315,19 @@ export function setMockConfirmFailure(on) {
 
 export function paydunyaCreditLog() {
   return creditLog.slice();
+}
+
+export function paydunyaDisburseLog() {
+  return disburseLog.slice();
+}
+
+// Fait évoluer le statut final d'un décaissement resté 'pending'.
+export function settleMockDisbursement(token, status = 'success') {
+  return fetch(`http://127.0.0.1:${MOCK_PORT}/mock/settle-disburse`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, status }),
+  });
 }
 
 // Construit le corps form-urlencoded d'un IPN PayDunya (identique à ce
@@ -1075,6 +1232,340 @@ export async function runPaydunya(r, ctx) {
     const { data: notifsAbo } = await service.from('notifications').select('id').eq('user_id', subOwnerId).like('message', '%abonnement MIM est actif%');
     if (notifsAbo?.length === 1) r.pass(S, 'une seule notification d\'activation malgré le replay');
     else r.fail(S, "une seule notification d'activation malgré le replay", `${notifsAbo?.length}`);
+  });
+
+  // ----------------------------------------------------------
+  await r.section('paydunya : décaissement direct (Wave / Orange Money)', async () => {
+    // Callback « statut final d'un décaissement » tel que PayDunya
+    // l'enverrait : form-urlencoded signé (hash SHA-512 Master Key).
+    async function sendDisburseCallback(opts) {
+      const res = await fetch('http://127.0.0.1:3100/api/paydunya/disburse-callback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: buildIpnForm(opts),
+      });
+      const data = await res.json().catch(() => null);
+      return { status: res.status, data };
+    }
+
+    // 1) « Pour versement » exige un numéro exploitable ou un alias.
+    const badPv = await api('/moyens-paiement', {
+      method: 'POST',
+      jar: ownerJar,
+      body: { type: 'wave', nom_titulaire: 'Owner Vir', pour_versement: true },
+    });
+    if (badPv.status === 400) r.pass(S, 'versement wave sans numéro ni alias → refusé');
+    else r.fail(S, 'versement wave sans numéro ni alias → refusé', `statut ${badPv.status}`);
+
+    // 2) Moyen Wave du propriétaire choisi pour recevoir les versements.
+    const moyenV = await api('/moyens-paiement', {
+      method: 'POST',
+      jar: ownerJar,
+      body: {
+        type: 'wave',
+        nom_titulaire: 'Owner Vir',
+        numero: '+221 78 123 45 67',
+        paydunya_alias: `owner.vir.${RUN_ID}@mim.test`,
+        pour_versement: true,
+      },
+    });
+    if (!expectSuccess(r, moyenV, S, 'moyen wave « pour versement » créé', [201])) return;
+    const moyenVId = moyenV.data.data.id;
+    if (moyenV.data.data.pour_versement === true) r.pass(S, 'pour_versement persisté sur le moyen');
+    else r.fail(S, 'pour_versement persisté sur le moyen', JSON.stringify(moyenV.data?.data));
+
+    // 3) Loyer payé → versement DIRECT via l'API Déboursement v2
+    //    (Wave), et PAS un crédit compte-à-compte PayDunya.
+    const creditBefore = paydunyaCreditLog().length;
+    const { res: pV, loc: locV } = await createPaiement(4, 72000);
+    if (!expectSuccess(r, pV, S, 'création du loyer (virement Wave)', [201])) return;
+    const pidV = pV.data.data.id;
+    const { res: initV } = await initiateLoyer(locV, pidV);
+    if (!expectSuccess(r, initV, S, 'initiation de la facture (virement Wave)', [201])) return;
+    await markMockInvoicePaid(initV.data.data.token, 72000);
+    const wV = await sendPaydunyaIpn({ token: initV.data.data.token, status: 'completed', amount: 72000 });
+    if (wV.data?.result === 'completed') r.pass(S, 'IPN loyer → completed');
+    else r.fail(S, 'IPN loyer → completed', JSON.stringify(wV.data));
+
+    const { data: redistV } = await service.from('paydunya_redistributions').select('*').eq('paiement_id', pidV).maybeSingle();
+    if (
+      redistV?.status === 'success' &&
+      redistV.withdraw_mode === 'wave-senegal' &&
+      redistV.recipient_alias === '781234567' &&
+      Number(redistV.amount) === 72000 &&
+      String(redistV.provider_token || '').startsWith('mock_disb_') &&
+      redistV.transaction_id
+    ) {
+      r.pass(S, `versement direct Wave effectué (${redistV.recipient_alias} sans indicatif, token opérateur conservé)`);
+    } else {
+      r.fail(S, 'versement direct Wave effectué (mode wave-senegal)', JSON.stringify(redistV));
+    }
+
+    if (paydunyaCreditLog().length === creditBefore) r.pass(S, 'aucun crédit PER utilisé (pas de compte-à-compte)');
+    else r.fail(S, 'aucun crédit PER utilisé', `${creditBefore} → ${paydunyaCreditLog().length}`);
+
+    const ordreV2 = paydunyaDisburseLog().find((d) => d.account_alias === '781234567' && d.withdraw_mode === 'wave-senegal');
+    if (ordreV2) r.pass(S, "le mock a reçu l'ordre de décaissement v2 (withdraw_mode Wave)");
+    else r.fail(S, "le mock a reçu l'ordre de décaissement v2 (withdraw_mode Wave)", JSON.stringify(paydunyaDisburseLog()));
+
+    // 4) Un seul moyen « pour versement » à la fois (exclusivité).
+    const moyenO = await api('/moyens-paiement', {
+      method: 'POST',
+      jar: ownerJar,
+      body: { type: 'orange_money', nom_titulaire: 'Owner Vir OM', numero: '782345678', pour_versement: true },
+    });
+    if (!expectSuccess(r, moyenO, S, 'second moyen « pour versement » créé', [201])) return;
+    const moyenOId = moyenO.data.data.id;
+    const { data: pvRows } = await service.from('moyens_paiement').select('id, pour_versement').in('id', [moyenVId, moyenOId]);
+    const vRow = pvRows?.find((m) => m.id === moyenVId);
+    const oRow = pvRows?.find((m) => m.id === moyenOId);
+    if (vRow?.pour_versement === false && oRow?.pour_versement === true) {
+      r.pass(S, 'exclusivité : le nouveau choix retire automatiquement le précédent');
+    } else {
+      r.fail(S, 'exclusivité : le nouveau choix retire automatiquement le précédent', JSON.stringify(pvRows));
+    }
+
+    // 5) Salaire employé versé directement sur son Orange Money.
+    const usernameOm = `payempvir${Date.now() % 1000000000}`;
+    const empOm = await api('/employes', {
+      method: 'POST',
+      jar: ownerJar,
+      body: {
+        nom: 'Employé Versement OM',
+        username: usernameOm,
+        password: 'Test1234!',
+        salaire: 42000,
+        date_embauche: '2026-01-01',
+        phone: '+221783456789',
+      },
+    });
+    if (!expectSuccess(r, empOm, S, "création de l'employé (OM)", [201])) return;
+    const empOmMoyen = await api(`/employes/${empOm.data.data.id}/moyens-paiement`, {
+      method: 'POST',
+      jar: ownerJar,
+      body: { type: 'orange_money', nom_titulaire: 'Employé OM', numero: '783456789', pour_versement: true },
+    });
+    if (!expectSuccess(r, empOmMoyen, S, "moyen OM « pour versement » de l'employé", [201])) return;
+
+    const payOm = await api(`/employes/${empOm.data.data.id}/paiements`, {
+      method: 'POST',
+      jar: ownerJar,
+      body: { montant: 42000, mois: ctx.seed.month, statut: 'attente', methode_paiement: 'paydunya' },
+    });
+    if (!expectSuccess(r, payOm, S, 'création du paiement de salaire (OM)', [201])) return;
+    const initOm = await api('/paydunya/initiate', {
+      method: 'POST',
+      jar: ownerJar,
+      body: { source: 'salaire', paiement_employe_id: payOm.data.data.id },
+    });
+    if (!expectSuccess(r, initOm, S, 'initiation de la facture salaire (OM)', [201])) return;
+    await markMockInvoicePaid(initOm.data.data.token, 42000);
+    const wOm = await sendPaydunyaIpn({ token: initOm.data.data.token, status: 'completed', amount: 42000 });
+    if (wOm.data?.result === 'completed') r.pass(S, 'IPN salaire OM → completed');
+    else r.fail(S, 'IPN salaire OM → completed', JSON.stringify(wOm.data));
+
+    const { data: redistOm } = await service
+      .from('paydunya_redistributions')
+      .select('*')
+      .eq('paiement_employe_id', payOm.data.data.id)
+      .maybeSingle();
+    if (redistOm?.status === 'success' && redistOm.withdraw_mode === 'orange-money-senegal' && redistOm.recipient_alias === '783456789') {
+      r.pass(S, "salaire versé directement sur l'Orange Money de l'employé");
+    } else {
+      r.fail(S, "salaire versé directement sur l'Orange Money de l'employé", JSON.stringify(redistOm));
+    }
+
+    // 6) Décaissement différé : soumis à l'opérateur, confirmé ensuite
+    //    par le callback signé (jamais rejeté aveuglément).
+    const moyenP = await api('/moyens-paiement', {
+      method: 'POST',
+      jar: ownerJar,
+      body: { type: 'wave', nom_titulaire: 'Owner Différé', numero: '000000002', pour_versement: true },
+    });
+    if (!expectSuccess(r, moyenP, S, 'moyen wave différé créé', [201])) return;
+    const moyenPId = moyenP.data.data.id;
+
+    const notifConfBefore = (await service.from('notifications').select('id').eq('user_id', owner.id).like('message', 'Versement PayDunya confirmé%')).data.length;
+
+    const { res: pP, loc: locP } = await createPaiement(5, 73000);
+    if (!expectSuccess(r, pP, S, 'création du loyer (décaissement différé)', [201])) return;
+    const pidP = pP.data.data.id;
+    const { res: initP } = await initiateLoyer(locP, pidP);
+    if (!expectSuccess(r, initP, S, 'initiation de la facture (décaissement différé)', [201])) return;
+    await markMockInvoicePaid(initP.data.data.token, 73000);
+    await sendPaydunyaIpn({ token: initP.data.data.token, status: 'completed', amount: 73000 });
+
+    const { data: redistP } = await service.from('paydunya_redistributions').select('*').eq('paiement_id', pidP).maybeSingle();
+    if (
+      redistP?.status === 'pending' &&
+      String(redistP.provider_token || '').startsWith('mock_disb_') &&
+      redistP.attempt_count === 1
+    ) {
+      r.pass(S, 'décaissement soumis puis « pending » chez l’opérateur (conservé, non rejoué)');
+    } else {
+      r.fail(S, 'décaissement soumis puis « pending » chez l’opérateur', JSON.stringify(redistP));
+    }
+
+    // Relance AVANT confirmation du statut : vérification d'abord, pas de rejeu.
+    const retryPending = await api(`/paydunya/redistributions/${redistP.id}/retry`, { method: 'POST', jar: adminJar });
+    if (
+      retryPending.status === 200 &&
+      retryPending.data?.data?.status === 'pending' &&
+      retryPending.data.data.attempt_count === 1 &&
+      String(retryPending.data?.message || '').includes('attente')
+    ) {
+      r.pass(S, 'relance sur décaissement soumis → statut revérifié, aucun second envoi');
+    } else {
+      r.fail(S, 'relance sur décaissement soumis → statut revérifié, aucun second envoi', JSON.stringify(retryPending.data));
+    }
+
+    // L'opérateur confirme le succès ; PayDunya pousse son callback.
+    await settleMockDisbursement(redistP.provider_token, 'success');
+
+    const badCb = await sendDisburseCallback({
+      token: redistP.provider_token,
+      status: 'success',
+      amount: 73000,
+      hashOverride: 'e'.repeat(128),
+    });
+    if (badCb.status === 401) r.pass(S, 'callback décaissement avec mauvais hash → 401');
+    else r.fail(S, 'callback décaissement avec mauvais hash → 401', `statut ${badCb.status}`);
+
+    const cbOk = await sendDisburseCallback({ token: redistP.provider_token, status: 'success', amount: 73000 });
+    if (cbOk.status === 200 && cbOk.data?.result === 'redistribution_success') {
+      r.pass(S, 'callback PayDunya signé → redistribution_success');
+    } else {
+      r.fail(S, 'callback PayDunya signé → redistribution_success', `statut ${cbOk.status} ${JSON.stringify(cbOk.data)}`);
+    }
+
+    const { data: redistPFinal } = await service.from('paydunya_redistributions').select('*').eq('id', redistP.id).single();
+    const notifConfAfter = (await service.from('notifications').select('id').eq('user_id', owner.id).like('message', 'Versement PayDunya confirmé%')).data.length;
+    if (redistPFinal?.status === 'success' && notifConfAfter === notifConfBefore + 1) {
+      r.pass(S, 'versement différé finalisé « success » + propriétaire notifié');
+    } else {
+      r.fail(S, 'versement différé finalisé « success » + propriétaire notifié', `${redistPFinal?.status}, notifs ${notifConfBefore} → ${notifConfAfter}`);
+    }
+
+    // Callback rejoué : idempotent, aucune notification en double.
+    await sendDisburseCallback({ token: redistP.provider_token, status: 'success', amount: 73000 });
+    const notifConfReplay = (await service.from('notifications').select('id').eq('user_id', owner.id).like('message', 'Versement PayDunya confirmé%')).data.length;
+    if (notifConfReplay === notifConfAfter) r.pass(S, 'callback rejoué : aucune notification dupliquée');
+    else r.fail(S, 'callback rejoué : aucune notification dupliquée', `${notifConfAfter} → ${notifConfReplay}`);
+
+    // 7) Échec différé confirmé par callback, puis relance admin après
+    //    correction du numéro PAR L'EMPLOYÉ lui-même.
+    const usernameFail = `payempdiff${Date.now() % 1000000000}`;
+    const empFail = await api('/employes', {
+      method: 'POST',
+      jar: ownerJar,
+      body: {
+        nom: 'Employé Différé',
+        username: usernameFail,
+        password: 'Test1234!',
+        salaire: 36000,
+        date_embauche: '2026-01-01',
+        phone: '+221785555000',
+      },
+    });
+    if (!expectSuccess(r, empFail, S, "création de l'employé (échec différé)", [201])) return;
+    const empFailMoyen = await api(`/employes/${empFail.data.data.id}/moyens-paiement`, {
+      method: 'POST',
+      jar: ownerJar,
+      body: { type: 'orange_money', nom_titulaire: 'Employé Différé', numero: '000000002', pour_versement: true },
+    });
+    if (!expectSuccess(r, empFailMoyen, S, "moyen OM de l'employé (numéro différé)", [201])) return;
+
+    const payF = await api(`/employes/${empFail.data.data.id}/paiements`, {
+      method: 'POST',
+      jar: ownerJar,
+      body: { montant: 36000, mois: ctx.seed.month, statut: 'attente', methode_paiement: 'paydunya' },
+    });
+    if (!expectSuccess(r, payF, S, 'création du paiement de salaire (échec différé)', [201])) return;
+    const initF = await api('/paydunya/initiate', {
+      method: 'POST',
+      jar: ownerJar,
+      body: { source: 'salaire', paiement_employe_id: payF.data.data.id },
+    });
+    if (!expectSuccess(r, initF, S, 'initiation de la facture salaire (échec différé)', [201])) return;
+    await markMockInvoicePaid(initF.data.data.token, 36000);
+    await sendPaydunyaIpn({ token: initF.data.data.token, status: 'completed', amount: 36000 });
+
+    const { data: redistF } = await service
+      .from('paydunya_redistributions')
+      .select('*')
+      .eq('paiement_employe_id', payF.data.data.id)
+      .maybeSingle();
+    if (redistF?.status !== 'pending' || !redistF.provider_token) {
+      r.fail(S, 'préparation du décaissement différé (employé)', JSON.stringify(redistF));
+      return;
+    }
+
+    const notifRefusBefore = (await service.from('notifications').select('id').eq('user_id', owner.id).like('message', 'Versement PayDunya refusé%')).data.length;
+
+    await settleMockDisbursement(redistF.provider_token, 'failed');
+    const cbFail = await sendDisburseCallback({ token: redistF.provider_token, status: 'failed', amount: 36000 });
+    if (cbFail.status === 200 && cbFail.data?.result === 'redistribution_failed') {
+      r.pass(S, 'callback PayDunya → redistribution_failed');
+    } else {
+      r.fail(S, 'callback PayDunya → redistribution_failed', `statut ${cbFail.status} ${JSON.stringify(cbFail.data)}`);
+    }
+
+    const { data: redistFFinal } = await service.from('paydunya_redistributions').select('*').eq('id', redistF.id).single();
+    const notifRefusAfter = (await service.from('notifications').select('id').eq('user_id', owner.id).like('message', 'Versement PayDunya refusé%')).data.length;
+    if (
+      redistFFinal?.status === 'pending' &&
+      redistFFinal.response?.source === 'callback' &&
+      String(redistFFinal.response?.message || '').includes('refus') &&
+      notifRefusAfter === notifRefusBefore + 1
+    ) {
+      r.pass(S, 'échec confirmé par l’opérateur : versement relançable + destinataire notifié');
+    } else {
+      r.fail(S, 'échec confirmé par l’opérateur : versement relançable + destinataire notifié', JSON.stringify(redistFFinal));
+    }
+
+    // L'employé corrige son numéro depuis SON espace.
+    const empFailJar = newJar();
+    const empLogin = await api('/auth/login', {
+      method: 'POST',
+      jar: empFailJar,
+      body: { identifier: usernameFail, password: 'Test1234!' },
+    });
+    if (empLogin.status !== 200) {
+      r.fail(S, 'connexion du compte employé', `statut ${empLogin.status}`);
+      return;
+    }
+    const { data: empFailMoyensRows } = await service
+      .from('moyens_paiement_employes')
+      .select('id')
+      .eq('employe_uid', empFail.data.data.account_uid);
+    const fixRes = await api(`/employe/moyens-paiement/${empFailMoyensRows[0].id}`, {
+      method: 'PUT',
+      jar: empFailJar,
+      body: { numero: '785555555' },
+    });
+    if (fixRes.status === 200 && fixRes.data?.data?.numero === '785555555') {
+      r.pass(S, "l'employé corrige son numéro de réception depuis son espace");
+    } else {
+      r.fail(S, "l'employé corrige son numéro de réception depuis son espace", `statut ${fixRes.status} ${JSON.stringify(fixRes.data)}`);
+    }
+
+    // La relance admin repart automatiquement sur la cible corrigée.
+    const retryFixed = await api(`/paydunya/redistributions/${redistF.id}/retry`, { method: 'POST', jar: adminJar });
+    if (retryFixed.status === 200 && retryFixed.data?.data?.status === 'success' && retryFixed.data.data.recipient_alias === '785555555') {
+      r.pass(S, 'relance admin → nouveau décaissement réussi vers le numéro corrigé');
+    } else {
+      r.fail(S, 'relance admin → nouveau décaissement réussi vers le numéro corrigé', JSON.stringify(retryFixed.data));
+    }
+
+    // 8) Nettoyage : aucun moyen résiduel pour les suites suivantes.
+    await service.from('moyens_paiement').delete().in('id', [moyenVId, moyenOId, moyenPId]);
+    await service.from('moyens_paiement_employes').delete().in(
+      'id',
+      [empOmMoyen.data.data.id, empFailMoyen.data.data.id].filter(Boolean)
+    );
+    const { data: restants } = await service.from('moyens_paiement').select('id').eq('user_id', owner.id);
+    if ((restants?.length ?? 0) === 0) r.pass(S, 'nettoyage des moyens créés');
+    else r.fail(S, 'nettoyage des moyens créés', `${restants?.length} moyen(s) restant(s)`);
   });
 
   // ----------------------------------------------------------

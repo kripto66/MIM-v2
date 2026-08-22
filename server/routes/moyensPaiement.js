@@ -11,10 +11,20 @@
 
 import { Router } from 'express';
 import { serviceClient } from '../app.js';
-import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paydunyaAliasError } from '../utils/paiementMethodes.js';
+import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paydunyaAliasError, pourVersementError } from '../utils/paiementMethodes.js';
 
 const router = Router();
 const sb = () => serviceClient();
+
+// Un seul moyen de réception des versements à la fois : le nouveau choix
+// désactive implicitement les autres du même propriétaire.
+async function exclusivePourVersement(ownerId, keepId) {
+  await sb()
+    .from('moyens_paiement')
+    .update({ pour_versement: false })
+    .eq('user_id', ownerId)
+    .neq('id', keepId);
+}
 
 // Liste des moyens de paiement du propriétaire.
 router.get('/', async (req, res) => {
@@ -47,6 +57,10 @@ router.post('/', async (req, res) => {
     if (aliasError) {
       return res.status(400).json({ success: false, message: aliasError, errors: { paydunya_alias: aliasError } });
     }
+    const pvError = pourVersementError(type, clean);
+    if (pvError) {
+      return res.status(400).json({ success: false, message: pvError });
+    }
     const { data, error } = await sb()
       .from('moyens_paiement')
       .insert({ user_id: req.user.id, type, ...clean })
@@ -57,6 +71,7 @@ router.post('/', async (req, res) => {
       console.error('[moyens-paiement] insert :', error.message);
       return res.status(400).json({ success: false, message: 'Erreur lors de l\'enregistrement.' });
     }
+    if (clean.pour_versement === true) await exclusivePourVersement(req.user.id, data.id);
     res.status(201).json({ success: true, data, message: 'Moyen de paiement enregistré.' });
   } catch (err) {
     console.error('[moyens-paiement]', err.message);
@@ -69,7 +84,7 @@ router.put('/:id', async (req, res) => {
   try {
     const { data: existing } = await sb()
       .from('moyens_paiement')
-      .select('id, type')
+      .select('*')
       .eq('id', req.params.id)
       .eq('user_id', req.user.id)
       .maybeSingle();
@@ -83,6 +98,12 @@ router.put('/:id', async (req, res) => {
     if (aliasError) {
       return res.status(400).json({ success: false, message: aliasError, errors: { paydunya_alias: aliasError } });
     }
+    // Validation sur l'état FINAL (champs non fournis conservés).
+    const merged = { ...existing, ...clean };
+    const pvError = pourVersementError(existing.type, merged);
+    if (pvError) {
+      return res.status(400).json({ success: false, message: pvError });
+    }
     const { data, error } = await sb()
       .from('moyens_paiement')
       .update(clean)
@@ -95,6 +116,7 @@ router.put('/:id', async (req, res) => {
       console.error('[moyens-paiement] update :', error.message);
       return res.status(400).json({ success: false, message: 'Erreur lors de la mise à jour.' });
     }
+    if (clean.pour_versement === true) await exclusivePourVersement(req.user.id, data.id);
     res.json({ success: true, data, message: 'Moyen de paiement mis à jour.' });
   } catch (err) {
     console.error('[moyens-paiement]', err.message);

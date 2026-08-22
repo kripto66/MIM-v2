@@ -11,7 +11,7 @@ import { gitAutoBackup } from '../utils/gitBackup.js';
 import { tenantEmailFor, usernameIsValid, uniqueUsername, splitFullName, INITIAL_PASSWORD } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { notify } from '../utils/notifications.js';
-import { methodePaiementError, TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paydunyaAliasError, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
+import { methodePaiementError, TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paydunyaAliasError, pourVersementError, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
 
 const router = Router();
 
@@ -661,6 +661,10 @@ router.post('/:id/moyens-paiement', async (req, res) => {
   if (aliasError) {
     return res.status(400).json({ success: false, message: aliasError, errors: { paydunya_alias: aliasError } });
   }
+  const pvError = pourVersementError(type, clean);
+  if (pvError) {
+    return res.status(400).json({ success: false, message: pvError });
+  }
   const { data, error } = await sb
     .from('moyens_paiement_employes')
     .insert({ employe_uid: employe.account_uid, type, ...clean })
@@ -670,6 +674,14 @@ router.post('/:id/moyens-paiement', async (req, res) => {
   if (error) {
     console.error('[employes/moyens-paiement] insert :', error.message);
     return res.status(400).json({ success: false, message: 'Erreur lors de l\'enregistrement.' });
+  }
+  if (clean.pour_versement === true) {
+    // Un seul moyen de réception des versements par employé.
+    await sb
+      .from('moyens_paiement_employes')
+      .update({ pour_versement: false })
+      .eq('employe_uid', employe.account_uid)
+      .neq('id', data.id);
   }
   res.status(201).json({ success: true, data, message: 'Moyen de paiement enregistré.' });
 });

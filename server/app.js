@@ -16,7 +16,7 @@ import subscriptionRoutes from './routes/subscription.js';
 import employesRoutes from './routes/employes.js';
 import tasksRoutes from './routes/tasks.js';
 import employeRoutes from './routes/employe.js';
-import paydunyaRoutes, { webhookRouter } from './routes/paydunya.js';
+import paydunyaRoutes, { webhookRouter, disburseCallbackRouter } from './routes/paydunya.js';
 import validationsRoutes from './routes/validations.js';
 import moyensPaiementRoutes from './routes/moyensPaiement.js';
 import importRoutes from './routes/import.js';
@@ -88,6 +88,9 @@ app.use((req, res, next) => {
 // Le webhook PayDunya est monté AVANT express.json : il doit recevoir
 // le corps urlencoded brut des notifications IPN PayDunya.
 app.use('/api/paydunya/webhook', webhookRouter);
+// Callback des décaissements (statuts finaux des versements wallets) :
+// même logique, corps urlencoded brut, route publique signée par hash.
+app.use('/api/paydunya/disburse-callback', disburseCallbackRouter);
 
 app.use(express.json({ limit: '4mb' }));
 app.use(cookieParser());

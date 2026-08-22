@@ -259,7 +259,9 @@ function renderMoyens(list) {
         .join("<br>");
       return `<div class="card moyen ${m.actif === false ? "inactif" : ""}"><b>${MOYEN_TYPE_ICONS[m.type] || ""} ${
         esc(MOYEN_TYPE_LABELS[m.type] || m.type)
-      }</b> ${m.actif === false ? '<span class="status st-non_recu">Inactif</span>' : ""}<div class="muted small">${
+      }</b> ${m.actif === false ? '<span class="status st-non_recu">Inactif</span>' : ""}${
+        m.pour_versement ? '<span class="status st-recu">Réception des versements</span>' : ""
+      }<div class="muted small">${
         details || "—"
       }</div>${m.instructions ? `<div class="muted small">${esc(m.instructions)}</div>` : ""}<div class="sal-actions"><button class="secondary small" data-edit="${
         m.id
@@ -352,6 +354,7 @@ function openMoyenModal(m) {
   } else {
     $("#moyenActif").checked = true;
   }
+  $("#moyenPourVersement").checked = m?.pour_versement === true;
   $("#moyenOverlay").classList.remove("hidden");
 }
 $("#moyenType").onchange = (e) => {
@@ -360,7 +363,7 @@ $("#moyenType").onchange = (e) => {
 $("#addMoyenBtn").onclick = () => openMoyenModal(null);
 $("#moyenSave").onclick = async () => {
   const type = $("#moyenType").value;
-  const body = { type, actif: $("#moyenActif").checked };
+  const body = { type, actif: $("#moyenActif").checked, pour_versement: $("#moyenPourVersement").checked };
   for (const k of (MOYEN_FIELDS[type] || []).map((x) => x[0])) {
     const v = $(`[data-field="${k}"]`)?.value.trim();
     if (v) body[k] = v;

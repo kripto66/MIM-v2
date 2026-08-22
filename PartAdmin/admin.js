@@ -618,6 +618,11 @@ async function activite() {
 const PD_SRC_LABELS = { abonnement: "Abonnement", loyer: "Loyer", salaire: "Salaire" };
 const PD_INV_STATUS = { pending: "En attente", completed: "Payée", cancelled: "Annulée", failed: "Échouée" };
 const PD_RED_STATUS = { pending: "En attente", success: "Versé", failed: "Échec" };
+const PD_WITHDRAW_LABELS = {
+  paydunya: "Compte PayDunya",
+  "wave-senegal": "Wave",
+  "orange-money-senegal": "Orange Money",
+};
 
 let pdTab = "sessions";
 
@@ -644,11 +649,13 @@ function pdSessionsTable(list) {
 function pdRedistributionsTable(list) {
   if (!list.length) return `<div class="empty">Aucune redistribution PayDunya.</div>`;
   return `<div class="table-wrap"><table class="table"><thead><tr>
-    <th>ID</th><th>Source</th><th>Destinataire</th><th>Label</th><th>Montant</th><th>Statut</th><th>Transaction</th><th>Tentatives</th><th>Dernier essai</th><th>Actions</th>
+    <th>ID</th><th>Source</th><th>Destinataire</th><th>Canal</th><th>Montant</th><th>Statut</th><th>Transaction</th><th>Tentatives</th><th>Dernier essai</th><th>Actions</th>
   </tr></thead><tbody>${list
     .map((r) => `<tr>
-      <td>${r.id}</td><td>${PD_SRC_LABELS[r.source] || r.source}</td><td>${escapeHtml(r.recipient_alias)}</td>
-      <td>${escapeHtml(r.recipient_label || "—")}</td><td class="num">${money(r.amount)}</td>
+      <td>${r.id}</td><td>${PD_SRC_LABELS[r.source] || r.source}</td>
+      <td>${escapeHtml(r.recipient_alias)}${r.response?.message ? `<div class="muted" title="${escapeHtml(String(r.response.message))}">${escapeHtml(String(r.response.message).slice(0, 60))}…</div>` : ""}</td>
+      <td>${PD_WITHDRAW_LABELS[r.withdraw_mode] || r.withdraw_mode || "Compte PayDunya"}</td>
+      <td class="num">${money(r.amount)}</td>
       <td>${badge(PD_RED_STATUS[r.status] || r.status)}</td>
       <td>${escapeHtml(r.transaction_id || "—")}</td><td>${r.attempt_count || 0}</td>
       <td>${fmtDateTime(r.last_attempt_at)}</td>

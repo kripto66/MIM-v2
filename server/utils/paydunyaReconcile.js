@@ -22,8 +22,8 @@ import {
   createAndAttemptRedistribution,
   retryRedistribution,
   findRedistributionForTarget,
-  recipientAliasOfOwner,
-  recipientAliasOfEmploye,
+  recipientTargetOfOwner,
+  recipientTargetOfEmploye,
 } from './paydunyaRedistributions.js';
 import { creerEcheanceSuivante } from './echeances.js';
 import { serviceClient } from '../app.js';
@@ -145,13 +145,14 @@ export async function applyLoyerCompleted(invoice, token) {
   // Redistribution au propriétaire : dédoublonnée par cible ; une
   // redistribution existante non aboutie est relancée au lieu d'être dupliquée.
   try {
-    const alias = await recipientAliasOfOwner(paiement.user_id);
-    if (alias) {
+    const target = await recipientTargetOfOwner(paiement.user_id);
+    if (target?.alias) {
       await ensureRedistribution({
         source: 'loyer',
         userId: paiement.user_id,
         paiementId: paiement.id,
-        recipientAlias: alias,
+        recipientAlias: target.alias,
+        recipientWithdrawMode: target.withdrawMode,
         recipientLabel: `Loyer ${paiement.mois}`,
         amount: Number(paiement.montant),
       });
@@ -208,13 +209,14 @@ export async function applySalaireCompleted(invoice, token) {
 
   // Redistribution à l'employé (dédoublonnée, relancée si nécessaire).
   try {
-    const alias = await recipientAliasOfEmploye(pay.employe_id);
-    if (alias) {
+    const target = await recipientTargetOfEmploye(pay.employe_id);
+    if (target?.alias) {
       await ensureRedistribution({
         source: 'salaire',
         userId: pay.user_id,
         paiementEmployeId: pay.id,
-        recipientAlias: alias,
+        recipientAlias: target.alias,
+        recipientWithdrawMode: target.withdrawMode,
         recipientLabel: `Salaire ${pay.mois}`,
         amount: Number(pay.montant),
       });
