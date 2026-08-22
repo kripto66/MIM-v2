@@ -33,7 +33,7 @@ import express, { Router } from 'express';
 import crypto from 'node:crypto';
 import { verifyIpnHash, paydunyaConfig } from '../utils/paydunya.js';
 import { initiatePaydunyaInvoice, findPendingPaydunyaInvoice } from '../utils/paydunyaCheckouts.js';
-import { retryRedistribution } from '../utils/paydunyaRedistributions.js';
+import { retryRedistribution, finalizeDisbursementByProviderToken } from '../utils/paydunyaRedistributions.js';
 import { reconcilePaydunyaInvoice } from '../utils/paydunyaReconcile.js';
 import { serviceClient } from '../app.js';
 
@@ -342,11 +342,67 @@ router.post('/redistributions/:id/retry', async (req, res) => {
       message:
         redistribution.status === 'success'
           ? 'Versement effectué.'
-          : "Versement toujours en échec : vérifiez l'alias du destinataire.",
+          : redistribution.response?.pending
+            ? 'Décaissement toujours en attente chez l’opérateur : son statut sera confirmé automatiquement.'
+            : "Versement toujours en échec : vérifiez le moyen de réception ou l'alias du destinataire.",
     });
   } catch (err) {
     console.error('[paydunya/redistributions/retry]', err.message);
     res.status(500).json({ success: false, message: err.message || 'Erreur lors de la relance.' });
+  }
+});
+
+// ------------------------------------------------------------
+// Callback des décaissements (API Déboursement v2, PUBLIC).
+// PayDunya y pousse le statut FINAL d'un versement wallet soumis
+// (success | failed), authentifié par hash SHA-512(Master Key).
+// La finalisation est idempotent (écriture conditionnelle sur
+// status='pending') : un callback rejoué ne notifie pas deux fois.
+// ------------------------------------------------------------
+export const disburseCallbackRouter = Router();
+
+disburseCallbackRouter.post('/', express.urlencoded({ extended: true }), async (req, res) => {
+  try {
+    let data = req.body?.data ?? req.body;
+    if (typeof data === 'string') {
+      try {
+        data = JSON.parse(data);
+      } catch {
+        return res.status(400).json({ success: false, message: 'data invalide.' });
+      }
+    }
+    if (!data || typeof data !== 'object') {
+      return res.status(400).json({ success: false, message: 'Payload invalide.' });
+    }
+
+    // 1) Authenticité : hash SHA-512 du Master Key.
+    if (!verifyIpnHash(data.hash)) {
+      return res.status(401).json({ success: false, message: 'Hash invalide.' });
+    }
+
+    const token = data.token || null;
+    if (!token) return res.status(400).json({ success: false, message: 'token manquant.' });
+
+    const status = String(data.status || '').toLowerCase();
+    if (!['success', 'failed'].includes(status)) {
+      // Statuts intermédiaires (created/pending) : rien à finaliser.
+      return res.json({ success: true, result: 'ignored' });
+    }
+
+    const row = await finalizeDisbursementByProviderToken(token, status, {
+      transactionId: data.transaction_id || null,
+      disburseTxId: data.disburse_tx_id || null,
+      disburseId: data.disburse_id || null,
+      withdrawMode: data.withdraw_mode || null,
+      amount: data.amount != null ? Number(data.amount) : null,
+      description: typeof data.description === 'string' ? data.description : '',
+    });
+
+    return res.json({ success: true, result: row ? `redistribution_${status}` : 'unknown' });
+  } catch (err) {
+    console.error('[paydunya/disburse-callback]', err.message);
+    // 200 malgré l'erreur interne ? Non : 500 pour que PayDunya rejoue.
+    res.status(500).json({ success: false, message: 'Erreur interne.' });
   }
 });
 

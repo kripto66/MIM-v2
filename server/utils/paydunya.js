@@ -157,3 +157,107 @@ export async function creditPaydunyaAccount(accountAlias, amount) {
     transactionId: data.transaction_id != null ? String(data.transaction_id) : null,
   };
 }
+
+// ============================================================
+// API Déboursement (PUSH) v2 : versement DIRECT sur un wallet
+// mobile money (Wave, Orange Money, Free Money, MTN, Moov, ...)
+// à partir du numéro du bénéficiaire, ou compte-à-compte
+// ('paydunya'). Flux officiel en 3 temps :
+//   1. POST /disburse/get-invoice    -> disburse_token (statut 'created')
+//   2. POST /disburse/submit-invoice -> pending | success | failed
+//   3. POST /disburse/check-status   -> statut final d'un 'pending'
+// Un callback_url signé (hash SHA-512 du Master Key) permet aussi
+// à PayDunya de nous prévenir du statut final.
+// En test, la base est redirigée via PAYDUNYA_DISBURSE_API_URL.
+// ============================================================
+const DISBURSE_BASE_PROD = 'https://app.paydunya.com/api/v2';
+
+function paydunyaDisburseBase() {
+  if (process.env.PAYDUNYA_DISBURSE_API_URL) {
+    return process.env.PAYDUNYA_DISBURSE_API_URL;
+  }
+  // Le mode sandbox n'expose pas de base dédiée pour la v2 : mêmes
+  // endpoints avec les clés de test.
+  return DISBURSE_BASE_PROD;
+}
+
+async function paydunyaDisburseRequest(path, body, { timeout = 30000 } = {}) {
+  const cfg = paydunyaConfig();
+  const url = new URL(String(path).replace(/^\/+/, ''), paydunyaDisburseBase().replace(/\/+$/, '') + '/');
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'PAYDUNYA-MASTER-KEY': cfg.masterKey,
+      'PAYDUNYA-PRIVATE-KEY': cfg.privateKey,
+      'PAYDUNYA-TOKEN': cfg.token,
+    },
+    body: JSON.stringify(body),
+    timeout,
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data || (data.response_code != null && String(data.response_code) !== '00')) {
+    const err = new Error(data?.response_text || data?.message || `PayDunya ${path} -> HTTP ${res.status}`);
+    err.code = data?.response_code || res.status;
+    err.paydunya = data;
+    throw err;
+  }
+  return data;
+}
+
+// URL de callback (statuts finaux des décaissements) : construite depuis
+// APP_URL ; omise si APP_URL n'est pas une URL exploitable.
+export function paydunyaDisburseCallbackUrl() {
+  const base = process.env.APP_URL || '';
+  try {
+    return `${new URL(base).origin}/api/paydunya/disburse-callback`;
+  } catch {
+    return '';
+  }
+}
+
+// Étape 1 : création de l'ordre de décaissement (token 'created').
+export async function createDisburseInvoice({ accountAlias, amount, withdrawMode, callbackUrl = '' }) {
+  const payload = {
+    account_alias: String(accountAlias),
+    amount: Math.round(Number(amount)),
+    withdraw_mode: String(withdrawMode),
+  };
+  // La doc exige un callback_url VALIDE : on ne l'envoie que si APP_URL
+  // permet d'en construire un (sinon le suivi passe par check-status).
+  if (callbackUrl) payload.callback_url = String(callbackUrl);
+  const data = await paydunyaDisburseRequest('disburse/get-invoice', payload);
+  if (!data.disburse_token) throw new Error("PayDunya n'a pas retourné de token de décaissement.");
+  return { token: data.disburse_token };
+}
+
+// Étape 2 : soumission à l'opérateur. Réponse immédiate success/failed,
+// ou 'pending' (statut final à obtenir via check-status / callback).
+// NB : une réponse sans champ status signifie succès immédiat.
+export async function submitDisburseInvoice({ token, disburseId = '' }) {
+  const payload = { disburse_invoice: String(token) };
+  if (disburseId) payload.disburse_id = String(disburseId);
+  const data = await paydunyaDisburseRequest('disburse/submit-invoice', payload);
+  const rawStatus = String(data.status || '').toLowerCase();
+  return {
+    status: ['success', 'pending', 'failed'].includes(rawStatus) ? rawStatus : 'success',
+    transactionId: data.transaction_id != null ? String(data.transaction_id) : null,
+    providerRef: data.provider_ref != null ? String(data.provider_ref) : null,
+    description: data.description || data.response_text || '',
+  };
+}
+
+// Étape 3 : statut d'un décaissement (created/pending/success/failed).
+export async function checkDisburseStatus(token) {
+  const data = await paydunyaDisburseRequest('disburse/check-status', { disburse_invoice: String(token) });
+  const status = String(data.status || '').toLowerCase();
+  return {
+    status: ['created', 'pending', 'success', 'failed'].includes(status) ? status : '',
+    transactionId: data.transaction_id != null ? String(data.transaction_id) : null,
+    disburseTxId: data.disburse_tx_id != null ? String(data.disburse_tx_id) : null,
+    providerRef: data.provider_ref != null ? String(data.provider_ref) : null,
+    withdrawMode: data.withdraw_mode != null ? String(data.withdraw_mode) : null,
+    amount: data.amount != null ? Number(data.amount) : null,
+    disburseId: data.disburse_id != null ? String(data.disburse_id) : null,
+  };
+}

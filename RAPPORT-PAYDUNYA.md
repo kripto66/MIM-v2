@@ -120,10 +120,74 @@ TOTAL  569   ✅ 569   ❌ 0   ⛔ 0   🟢
 (528 avant phase 5 → 569 après : +41 vérifications, dont les 41
 nouvelles de la suite paydunya.)
 
-## 10. Passage en production (rappel)
+## 10. Versements automatiques — décaissement direct (phase 6)
+
+Jusqu'ici MIM reversait chaque encaissement sur un **compte PayDunya**,
+obligé d'aller ensuite retirer manuellement. La phase 6 ajoute l'API
+officielle **Déboursement (PUSH v2)** : le versement part DIRECTEMENT
+sur le wallet choisi par le destinataire (Wave, Orange Money…).
+
+### Choix du destinataire (`pour_versement`)
+
+- Nouvelle colonne `pour_versement` sur `moyens_paiement` et
+  `moyens_paiement_employes` (migration
+  `20260821100000_paydunya_deboursement.sql`, qui ajoute aussi
+  `withdraw_mode`, `provider_token`, `provider_ref` à
+  `paydunya_redistributions`).
+- Le destinataire coche « Recevoir les versements automatiques » sur UN
+  moyen (exclusivité appliquée côté serveur : choisir celui-ci désactive
+  les autres). Côtés couverts : paramètres propriétaire, paiements
+  propriétaire, espace employé ; l'admin voit le canal utilisé dans le
+  tableau des redistributions.
+- Résolution de cible (`recipientTargetOf*`) :
+  1. moyen `pour_versement` : wallet direct si type décaissable +
+     numéro exploitable (indicatif 221 retiré), sinon son alias PayDunya ;
+  2. chaîne historique inchangée (alias → téléphone profil → email).
+
+### Flux officiel v2 (`utils/paydunya.js`)
+
+`get-invoice → submit-invoice → statut` avec `withdraw_mode`
+(`wave-senegal`, `orange-money-senegal`) et `disburse_id` idempotent ;
+statuts `success | pending | failed`. Les clés restent côté serveur
+(`PAYDUNYA_DISBURSE_API_URL` pour le sandbox/test).
+
+### Sécurité double-paiement
+
+- Un décaissement soumis (`pending`) n'est JAMAIS rejoué aveuglément :
+  sa statut est revérifié (`check-status`) avant toute nouvelle
+  tentative ; un `failed` confirmé repart proprement sur une NOUVELLE
+  cible relue en base (numéro corrigé entre-temps = nouveau versement).
+- **Callback signé** `POST /api/paydunya/disburse-callback`
+  (hash SHA-512 Master Key, monté comme le webhook IPN) : confirme le
+  statut final poussé par PayDunya. Finalisation idempotente
+  (écriture conditionnelle sur `status='pending'`), notifications
+  « confirmé » / « refusé » sans doublon.
+- Relance admin inchangée (`POST /redistributions/:id/retry`) mais
+  désormais consciente des décaissements wallet (vérification d'abord,
+  jamais de double envoi).
+
+### Tests
+
+Nouvelle section « décaissement direct » (suite paydunya 75 → **95**) :
+versement Wave immédiat (sans crédit PER), salaire employé sur Orange
+Money, exclusivité du moyen de réception, décaissement différé
+(`pending`) confirmé par callback signé (+ rejet mauvais hash,
+idempotence), échec différé confirmé puis relance admin réussie vers le
+numéro corrigé par l'employé lui-même.
+
+## 11. Résultat campagne (après phase 6)
+
+```
+TOTAL  589   ✅ 589   ❌ 0   ⛔ 0   🟢
+```
+
+(569 après phase 5 → 589 : +20 vérifications.)
+
+## 12. Passage en production (rappel)
 
 1. `PAYDUNYA_MODE=live` + clés live dans `server/.env`.
 2. `PAYDUNYA_TEST_MODE=false` (désactive /test-ipn).
-3. URL de callback HTTPS configurée chez PayDunya (l'URL de webhook
-   n'est activée que si `APP_URL` est en HTTPS).
+3. URLs de callback HTTPS configurées chez PayDunya : webhook IPN
+   (`/api/paydunya/webhook`) ET callback de décaissement
+   (`/api/paydunya/disburse-callback`) — activées si `APP_URL` est en HTTPS.
 4. Migrations Supabase appliquées (déjà fait en local).

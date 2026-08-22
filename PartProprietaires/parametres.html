@@ -230,6 +230,13 @@
                     <input type="text" id="moyenAlias" maxlength="200" placeholder="Email ou n° mobile du compte PayDunya">
                     <p class="muted">Utilisé pour recevoir vos loyers payés en ligne via PayDunya. Vide = téléphone/email de votre profil.</p>
                 </div>
+                <div class="form-group">
+                    <label style="display:flex;align-items:center;gap:8px;">
+                        <input type="checkbox" id="moyenPourVersement">
+                        <span>Recevoir les versements automatiques sur ce moyen</span>
+                    </label>
+                    <p class="muted">Chaque loyer ou salaire encaissé via PayDunya vous est reversé directement sur ce wallet (Wave, Orange Money) ou ce compte PayDunya. Un seul moyen de réception à la fois : choisir celui-ci désactive les autres.</p>
+                </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="moyenCancel">Annuler</button>
                     <button type="submit" class="btn btn-primary">Enregistrer</button>
@@ -348,6 +355,7 @@ async function loadProfile() {
                             ${m.banque ? `<p class="pay-methode">${escapeHtml(m.banque)}${m.num_compte ? " — " + escapeHtml(m.num_compte) : ""}</p>` : ""}
 ${m.lien_paiement ? `<p><a href="${escapeAttr(m.lien_paiement)}" target="_blank" rel="noopener">${escapeHtml(m.lien_paiement)}</a></p>` : ""}
                             ${m.paydunya_alias ? `<p class="pay-methode">PayDunya : ${escapeHtml(m.paydunya_alias)}</p>` : ""}
+                            ${m.pour_versement ? `<p class="pay-hint">✅ Réception des versements PayDunya</p>` : ""}
                             ${m.instructions ? `<p class="pay-hint">${escapeHtml(m.instructions)}</p>` : ""}
                             <p class="pay-hint">${m.actif ? "Actif" : "Inactif"}</p>
                         </div>
@@ -389,6 +397,7 @@ ${m.lien_paiement ? `<p><a href="${escapeAttr(m.lien_paiement)}" target="_blank"
             document.getElementById("moyenCompte").value = moyen?.num_compte || "";
             document.getElementById("moyenInstructions").value = moyen?.instructions || "";
             document.getElementById("moyenAlias").value = moyen?.paydunya_alias || "";
+            document.getElementById("moyenPourVersement").checked = moyen?.pour_versement === true;
             applyTypeVisibility(document.getElementById("moyenType").value);
             document.getElementById("moyenModal").style.display = "flex";
         }
@@ -406,6 +415,7 @@ ${m.lien_paiement ? `<p><a href="${escapeAttr(m.lien_paiement)}" target="_blank"
 num_compte: document.getElementById("moyenCompte").value.trim() || null,
                 instructions: document.getElementById("moyenInstructions").value.trim() || null,
                 paydunya_alias: document.getElementById("moyenAlias").value.trim() || null,
+                pour_versement: document.getElementById("moyenPourVersement").checked,
             };
             try {
                 const res = await apiRequest(id ? `/moyens-paiement/${id}` : "/moyens-paiement", {

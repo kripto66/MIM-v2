@@ -50,6 +50,19 @@ export const TYPE_MOYEN_LABELS = {
   especes: 'Espèces',
 };
 
+// Modes de retrait PayDunya (API Déboursement v2) : un moyen dont le
+// type est mappé ici peut recevoir les versements automatiques
+// directement sur le wallet du bénéficiaire. Les autres types
+// (virement, espèces) retombent sur un compte PayDunya classique.
+export const WITHDRAW_MODES = {
+  wave: 'wave-senegal',
+  orange_money: 'orange-money-senegal',
+};
+
+export function withdrawModeOf(type) {
+  return WITHDRAW_MODES[type] || null;
+}
+
 // Champs admis par type de moyen de paiement (propriétaire ET employé).
 export const CHAMPS_MOYEN = {
   wave: ['nom_titulaire', 'numero', 'lien_paiement', 'instructions'],
@@ -95,6 +108,25 @@ export function sanitizeMoyenBody(type, body) {
     clean.paydunya_alias = s === '' ? null : s.slice(0, 200);
   }
   if (body?.actif === false || body?.actif === true) clean.actif = Boolean(body.actif);
+  // Moyen choisi pour RECEVOIR les versements automatiques PayDunya
+  // (un seul actif à la fois : l'exclusivité est appliquée par les routes).
+  if (body?.pour_versement === false || body?.pour_versement === true) {
+    clean.pour_versement = Boolean(body.pour_versement);
+  }
   clean.updated_at = new Date().toISOString();
   return clean;
+}
+
+// Un moyen peut recevoir les versements automatiques si son type est
+// décaissable directement (wallet) avec un numéro exploitable, ou s'il
+// porte un alias de compte PayDunya. `clean` doit représenter l'état
+// FINAL du moyen (champs existants fusionnés avec le corps reçu).
+// Renvoie null si valide, sinon un message d'erreur destiné à la route.
+export function pourVersementError(type, clean) {
+  if (!clean || clean.pour_versement !== true) return null;
+  const digits = String(clean.numero || '').replace(/\D+/g, '');
+  if (withdrawModeOf(type) && digits.length >= 6) return null;
+  const alias = String(clean.paydunya_alias || '').trim();
+  if (alias) return null;
+  return 'Renseignez un numéro valide (ou un alias PayDunya) : ce moyen ne peut pas recevoir de versements automatiques.';
 }
