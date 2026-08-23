@@ -27,6 +27,7 @@ import { runLocataires } from './locataires.test.js';
 import { runSalaires } from './salaires.test.js';
 import { runVierge } from './vierge.test.js';
 import { runSimplif } from './simplif.test.js';
+import { runComplet, runMatrice } from './complet.test.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.join(__dirname, '..', '..');
@@ -55,6 +56,8 @@ const SUITES = [
   ['salaires', runSalaires],
   ['vierge', runVierge],
   ['simplif', runSimplif],
+  ['complet', runComplet],
+  ['matrice', runMatrice],
 ];
 
 const runner = new Runner();
