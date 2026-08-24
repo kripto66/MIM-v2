@@ -14,6 +14,7 @@ import { Router } from 'express';
 import { serviceClient } from '../app.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
 import { prepareImport, executeImport, decodeCsvBuffer, CATEGORIES, INITIAL_PASSWORD } from '../utils/importCsv.js';
+import { splitGroupedCsv, GROUPED_HEADERS, GROUPED_TEMPLATE_ROWS } from '../utils/importGrouped.js';
 
 const router = Router();
 
@@ -38,6 +39,34 @@ function fileContent(file) {
     return decodeCsvBuffer(Buffer.from(file.content_b64, 'base64'));
   }
   return String(file.content || '');
+}
+
+// Mode « groupé » : le corps contient { mode: 'grouped', files.grouped }.
+// Le fichier unique est découpé en fichiers par catégorie (avec
+// résolution de l'héritage) puis injecté dans le moteur standard.
+function expandGroupedPayload(body, fileContentFn) {
+  const file = body?.files?.grouped;
+  if (!file) {
+    return { error: 'Fichier groupé manquant.' };
+  }
+  const content = fileContentFn(file);
+  if (!String(content || '').trim()) {
+    return { error: 'Le fichier groupé est vide.' };
+  }
+  const split = splitGroupedCsv(content, { filename: file.filename });
+  if (split.error) return { error: split.error };
+  if (split.errors.length) {
+    const detail = split.errors
+      .slice(0, 4)
+      .map((e) => `ligne ${e.line} : ${e.message}`)
+      .join(' — ');
+    const more = split.errors.length > 4 ? ` (+${split.errors.length - 4} autre(s))` : '';
+    return { error: `Fichier groupé invalide — ${detail}${more}` };
+  }
+  if (!split.categories.length) {
+    return { error: 'Le fichier groupé ne contient aucune donnée à importer.' };
+  }
+  return { categories: split.categories, files: split.files };
 }
 
 const TEMPLATES = {
@@ -72,6 +101,11 @@ const TEMPLATES = {
       ['Nom Exemple 2', 'Prenom Exemple 2', '', '+221700000004', 'Agent d\'entretien', '', '35000', '2026-09-01', 'actif'],
     ],
     hint: 'Salaire : montant mensuel. Le compte employé est créé automatiquement (username généré, mot de passe initial 1234).',
+  },
+  grouped: {
+    headers: GROUPED_HEADERS,
+    examples: GROUPED_TEMPLATE_ROWS,
+    hint: 'Fichier unique « tout-en-un » : chaque ligne = un logement (et son locataire) ou un employé. Cellule vide = même valeur que la ligne au-dessus (les détails du bien ne se saisissent qu\'une fois).',
   },
 };
 
@@ -134,7 +168,7 @@ router.post('/preview', async (req, res) => {
   const sb = serviceClient();
   const ownerId = req.user.id;
 
-  const { categories = [], files = {}, duplicatePolicy = 'ignore' } = req.body || {};
+  const { categories = [], files = {}, duplicatePolicy = 'ignore', mode } = req.body || {};
 
   // Taille totale raisonnable (le corps est déjà limité à 2 Mo).
   let totalBytes = 0;
@@ -146,7 +180,14 @@ router.post('/preview', async (req, res) => {
   }
 
   try {
-    const result = await prepareImport(sb, ownerId, { categories, files, duplicatePolicy, fileContent });
+    let payload = { categories, files };
+    if (mode === 'grouped') {
+      payload = expandGroupedPayload(req.body, fileContent);
+      if (payload.error) {
+        return res.status(400).json({ success: false, message: payload.error });
+      }
+    }
+    const result = await prepareImport(sb, ownerId, { ...payload, duplicatePolicy, fileContent });
     if (result.error) {
       return res.status(400).json({ success: false, message: result.error });
     }
