@@ -100,13 +100,31 @@
                     </div>
                 </div>
 
-                <!-- ============ ÉTAPE 1 : CHOIX DES CATÉGORIES ============ -->
+                <!-- ============ ÉTAPE 1 : CHOIX DU MODE / DES CATÉGORIES ============ -->
                 <div class="wizard-pane" id="step1">
 
                     <h2>Que souhaitez-vous importer ?</h2>
-                    <p class="muted">Sélectionnez une ou plusieurs catégories, puis continuez.</p>
+                    <p class="muted">Choisissez la façon de fournir vos données, puis continuez.</p>
 
-                    <div class="wizard-categories">
+                    <div class="wizard-mode" id="modeBox">
+                        <label class="wizard-radio">
+                            <input type="radio" name="importMode" value="grouped" checked>
+                            <span>
+                                <strong>Un seul fichier tout-en-un</strong> — tout dans un même fichier :
+                                chaque ligne décrit un logement (et son locataire) ou un employé.
+                                Les informations du bien ne se saisissent qu'une seule fois.
+                            </span>
+                        </label>
+                        <label class="wizard-radio">
+                            <input type="radio" name="importMode" value="separate">
+                            <span>
+                                <strong>Un fichier par catégorie</strong> — sélectionnez les catégories
+                                ci-dessous et fournissez un fichier CSV pour chacune.
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="wizard-categories" id="catsBox">
 
                         <label class="wizard-cat">
                             <input type="checkbox" value="biens" data-cat="biens">
@@ -188,7 +206,7 @@
                 <div class="wizard-pane" id="step3" hidden>
 
                     <h2>Sélectionnez vos fichiers CSV</h2>
-                    <p class="muted">
+                    <p class="muted" id="filesHint">
                         Un fichier par catégorie (maximum 1,5 Mo au total). Les fichiers peuvent être séparés
                         par des virgules ou des points-virgules.
                     </p>

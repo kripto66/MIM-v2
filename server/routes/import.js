@@ -205,57 +205,70 @@ router.post('/execute', async (req, res) => {
   const sb = serviceClient();
   const ownerId = req.user.id;
 
-  const { categories = [], files = {}, duplicatePolicy = 'ignore' } = req.body || {};
+  const { categories = [], files = {}, duplicatePolicy = 'ignore', mode } = req.body || {};
 
   if (!['ignore', 'update', 'abort'].includes(duplicatePolicy)) {
     return res.status(400).json({ success: false, message: 'Politique de doublons invalide.' });
   }
 
-  const runId = newRunId(ownerId);
-  const run = { runId, ownerId, done: 0, total: 0, status: 'running', message: 'Démarrage…' };
-  importRuns.set(runId, run);
-
-  // Nettoyage des anciennes entrées (max 50 par propriétaire).
-  const own = [...importRuns.values()].filter((r) => r.ownerId === ownerId);
-  if (own.length > 50) {
-    for (const stale of own.slice(0, own.length - 50)) importRuns.delete(stale.runId);
-  }
-
   try {
-    const result = await executeImport(sb, ownerId, { categories, files, duplicatePolicy, fileContent }, {
-      onProgress: (done, total) => {
-        run.done = done;
-        run.total = total;
-        run.message = `Traitement… ${done}/${total}`;
-      },
-    });
-
-    run.status = 'done';
-    run.message = 'Terminé';
-
-    if (result.error) {
-      run.status = 'error';
-      run.message = String(result.error || 'Import bloqué');
-      return res.status(409).json({ success: false, message: result.error, prepared: result.prepared, runId });
+    let payload = { categories, files };
+    if (mode === 'grouped') {
+      payload = expandGroupedPayload(req.body, fileContent);
+      if (payload.error) {
+        return res.status(400).json({ success: false, message: payload.error });
+      }
     }
 
-    const r = result.report;
-    const labels = r.categories.map((c) => `${c.created} ${c.label.toLowerCase()}`).join(', ');
+    const runId = newRunId(ownerId);
+    const run = { runId, ownerId, done: 0, total: 0, status: 'running', message: 'Démarrage…' };
+    importRuns.set(runId, run);
 
-    gitAutoBackup(`Sauvegarde auto : import de données (${labels || 'aucun élément'})`);
+    // Nettoyage des anciennes entrées (max 50 par propriétaire).
+    const own = [...importRuns.values()].filter((r) => r.ownerId === ownerId);
+    if (own.length > 50) {
+      for (const stale of own.slice(0, own.length - 50)) importRuns.delete(stale.runId);
+    }
 
-    res.status(201).json({
-      success: true,
-      message: `Importation terminée : ${labels || 'aucun élément créé'}.`,
-      initialPassword: INITIAL_PASSWORD,
-      runId,
-      report: r,
-    });
+    try {
+      const result = await executeImport(sb, ownerId, { ...payload, duplicatePolicy, fileContent }, {
+        onProgress: (done, total) => {
+          run.done = done;
+          run.total = total;
+          run.message = `Traitement… ${done}/${total}`;
+        },
+      });
+
+      run.status = 'done';
+      run.message = 'Terminé';
+
+      if (result.error) {
+        run.status = 'error';
+        run.message = String(result.error || 'Import bloqué');
+        return res.status(409).json({ success: false, message: result.error, prepared: result.prepared, runId });
+      }
+
+      const r = result.report;
+      const labels = r.categories.map((c) => `${c.created} ${c.label.toLowerCase()}`).join(', ');
+
+      gitAutoBackup(`Sauvegarde auto : import de données (${labels || 'aucun élément'})`);
+
+      res.status(201).json({
+        success: true,
+        message: `Importation terminée : ${labels || 'aucun élément créé'}.`,
+        initialPassword: INITIAL_PASSWORD,
+        runId,
+        report: r,
+      });
+    } catch (err) {
+      run.status = 'error';
+      run.message = err?.message || 'Erreur technique';
+      console.error('[import/execute]', err.message);
+      res.status(500).json({ success: false, message: 'Erreur lors de l\'importation des données.', runId });
+    }
   } catch (err) {
-    run.status = 'error';
-    run.message = err?.message || 'Erreur technique';
     console.error('[import/execute]', err.message);
-    res.status(500).json({ success: false, message: 'Erreur lors de l\'importation des données.', runId });
+    res.status(500).json({ success: false, message: 'Erreur lors de l\'importation des données.' });
   }
 });
 
