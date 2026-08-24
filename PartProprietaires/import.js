@@ -10,6 +10,7 @@
 // ============================================================
 
 const CATS = {
+  grouped: { label: "Tout-en-un" },
   biens: { label: "Biens" },
   logements: { label: "Logements" },
   locataires: { label: "Locataires" },
@@ -21,6 +22,31 @@ const CATEGORY_ORDER = ["biens", "logements", "locataires", "employes"];
 // Exemples affichés à l'étape « Modèle » (les mêmes que ceux du serveur).
 // Valeurs génériques : elles ne représentent aucune personne ni aucun bien réel.
 const MODEL_EXAMPLES = {
+  grouped: {
+    headers: [
+      "bien", "type_bien", "adresse_bien", "ville", "pays", "description_bien",
+      "logement", "type_logement", "nombre_chambres", "loyer", "statut_logement", "description_logement",
+      "locataire_nom", "locataire_prenom", "locataire_email", "locataire_telephone",
+      "jour_echeance", "date_entree",
+      "employe_nom", "employe_prenom", "employe_poste", "employe_salaire",
+      "employe_telephone", "employe_email",
+    ],
+    rows: [
+      ["Résidence Exemple", "immeuble", "Adresse exemple 1", "Dakar", "Sénégal", "Résidence sécurisée",
+        "Appartement 1", "appartement", "2", "150000", "", "Étage 1, balcon",
+        "Nom Exemple 1", "Prenom Exemple 1", "locataire1@exemple.com", "+221700000001", "5", "2026-09-01",
+        "", "", "", "", "", ""],
+      ["", "", "", "", "", "",
+        "Chambre 2", "chambre", "1", "50000", "", "",
+        "", "", "", "", "", "",
+        "", "", "", "", "", ""],
+      ["Villa Exemple", "villa", "Adresse exemple 2", "Dakar", "Sénégal", "",
+        "", "", "", "", "", "",
+        "", "", "", "", "", "",
+        "Nom Exemple 2", "Prenom Exemple 2", "Gardien", "90000", "+221700000002", "employe1@exemple.com"],
+    ],
+    hint: "Une ligne = un logement (avec son locataire éventuel) ou un employé. Cellule vide = même valeur que la ligne au-dessus : les détails du bien (lignes 1 et 3 de l'exemple) ne se saisissent qu'une seule fois.",
+  },
   biens: {
     headers: ["nom", "type", "adresse", "ville", "pays", "description"],
     rows: [
@@ -57,8 +83,9 @@ const MODEL_EXAMPLES = {
 
 const state = {
   step: 1,
+  mode: "grouped", // 'grouped' (un seul fichier) | 'separate' (un fichier par catégorie)
   categories: [],
-  files: {}, // cat -> { filename, content_b64 }
+  files: {}, // cat -> { filename, content_b64 } (ou 'grouped' en mode tout-en-un)
   preview: null,
   duplicatePolicy: "ignore",
   initialPassword: "1234",
@@ -86,13 +113,18 @@ function selectedCats() {
   return CATEGORY_ORDER.filter((c) => state.categories.includes(c));
 }
 
+// Catégories effectives : ['grouped'] en mode tout-en-un.
+function effectiveCats() {
+  return state.mode === "grouped" ? ["grouped"] : selectedCats();
+}
+
 // ------------------------------------------------------------
 // Étape 2 : affichage des modèles / exemples
 // ------------------------------------------------------------
 
 function renderModels() {
   const list = document.getElementById("modelsList");
-  const cats = selectedCats();
+  const cats = effectiveCats();
 
   list.innerHTML = cats
     .map((cat) => {
@@ -128,9 +160,18 @@ function renderModels() {
 // Étape 3 : sélection des fichiers
 // ------------------------------------------------------------
 
+const FILES_HINTS = {
+  grouped:
+    "Un seul fichier « tout-en-un » (maximum 1,5 Mo). Rappel : une cellule vide reprend la valeur de la ligne au-dessus — ne saisissez les détails du bien qu'à sa première ligne.",
+  separate:
+    "Un fichier par catégorie (maximum 1,5 Mo au total). Les fichiers peuvent être séparés par des virgules ou des points-virgules.",
+};
+
 function renderFileInputs() {
   const list = document.getElementById("filesList");
-  const cats = selectedCats();
+  const hint = document.getElementById("filesHint");
+  const cats = effectiveCats();
+  if (hint) hint.textContent = FILES_HINTS[state.mode] || FILES_HINTS.separate;
 
   list.innerHTML = cats
     .map((cat) => {
@@ -164,6 +205,19 @@ function readFileAsBase64(file) {
 // Étape 4 : vérification (preview)
 // ------------------------------------------------------------
 
+// Corps de requête commun à /preview et /execute.
+function importRequestBody() {
+  const files = {};
+  for (const cat of effectiveCats()) {
+    if (state.mode === "grouped") files.grouped = state.files.grouped;
+    else files[cat] = state.files[cat];
+  }
+  const body = { files, duplicatePolicy: state.duplicatePolicy };
+  if (state.mode === "grouped") body.mode = "grouped";
+  else body.categories = selectedCats();
+  return body;
+}
+
 async function runPreview() {
   const box = document.getElementById("previewLoading");
   const result = document.getElementById("previewResult");
@@ -171,18 +225,9 @@ async function runPreview() {
   result.hidden = true;
 
   try {
-    const files = {};
-    for (const cat of selectedCats()) {
-      files[cat] = state.files[cat];
-    }
-
     const res = await apiRequest("/import/preview", {
       method: "POST",
-      body: JSON.stringify({
-        categories: selectedCats(),
-        files,
-        duplicatePolicy: state.duplicatePolicy,
-      }),
+      body: JSON.stringify(importRequestBody()),
     });
 
     state.preview = res;
@@ -351,19 +396,10 @@ async function runImport() {
   etaEl.textContent = "—";
   msgEl.textContent = "Préparation…";
 
-  const files = {};
-  for (const cat of selectedCats()) {
-    files[cat] = state.files[cat];
-  }
-
   const startedAt = performance.now();
   const importPromise = apiRequest("/import/execute", {
     method: "POST",
-    body: JSON.stringify({
-      categories: selectedCats(),
-      files,
-      duplicatePolicy: state.duplicatePolicy,
-    }),
+    body: JSON.stringify(importRequestBody()),
   });
 
   let finished = false;
@@ -579,23 +615,45 @@ async function downloadModel(cat) {
 // ------------------------------------------------------------
 
 function resetToStep1() {
+  state.mode = "grouped";
   state.categories = [];
   state.files = {};
   state.preview = null;
   state.duplicatePolicy = "ignore";
   for (const cb of document.querySelectorAll('input[data-cat]')) cb.checked = false;
+  const groupedRadio = document.querySelector('input[name="importMode"][value="grouped"]');
+  if (groupedRadio) groupedRadio.checked = true;
+  applyMode();
   setStep(1);
 }
 
+// Affiche/masque les catégories selon le mode choisi.
+function applyMode() {
+  const checked = document.querySelector('input[name="importMode"]:checked');
+  state.mode = checked ? checked.value : "grouped";
+  const catsBox = document.getElementById("catsBox");
+  if (catsBox) catsBox.classList.toggle("is-hidden", state.mode === "grouped");
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+  // Choix du mode (tout-en-un vs fichiers par catégorie).
+  document.querySelectorAll('input[name="importMode"]').forEach((r) => {
+    r.addEventListener("change", applyMode);
+  });
+  applyMode();
+
   // Étape 1 → 2
   document.getElementById("wNext1").addEventListener("click", () => {
-    const cats = CATEGORY_ORDER.filter((c) => document.querySelector(`input[data-cat="${c}"]`)?.checked);
-    if (!cats.length) {
-      showToast("Sélectionnez au moins une catégorie.", "error");
-      return;
+    if (state.mode === "separate") {
+      const cats = CATEGORY_ORDER.filter((c) => document.querySelector(`input[data-cat="${c}"]`)?.checked);
+      if (!cats.length) {
+        showToast("Sélectionnez au moins une catégorie.", "error");
+        return;
+      }
+      state.categories = cats;
+    } else {
+      state.categories = [];
     }
-    state.categories = cats;
     renderModels();
     setStep(2);
   });
@@ -641,7 +699,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.getElementById("wBack3").addEventListener("click", () => setStep(2));
   document.getElementById("wNext3").addEventListener("click", () => {
-    const missing = selectedCats().filter((c) => !state.files[c]);
+    const missing = effectiveCats().filter((c) => !state.files[c]);
     if (missing.length) {
       showToast(`Fichier manquant : ${missing.map((c) => CATS[c].label).join(", ")}.`, "error");
       return;

@@ -105,12 +105,27 @@
   margin-top: 28px;
 }
 
-/* ---- Étape 1 : catégories ---- */
+/* ---- Étape 1 : mode d'import (tout-en-un / par catégorie) ---- */
+.wizard-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+  padding: 16px;
+  border: 2px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
 .wizard-categories {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 14px;
   margin-top: 20px;
+}
+
+.wizard-categories.is-hidden {
+  display: none;
 }
 
 .wizard-cat {
