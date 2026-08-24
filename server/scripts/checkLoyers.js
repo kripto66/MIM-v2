@@ -28,13 +28,18 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Cohérence avec utils/echeances.js : TOUT est calculé en UTC
+// (sinon le cron et la chaîne « mois payé + 1 » peuvent diverger
+// à la frontière d'un mois selon le fuseau du serveur).
 function monthOf(d) {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 async function main() {
   const now = new Date();
   const currentMonth = monthOf(now);
+  // Jour du mois en UTC (même référence que currentMois()).
+  const nowUtcDay = now.getUTCDate();
 
   const { data: locataires, error: locError } = await supabase
     .from('locataires')
@@ -97,7 +102,7 @@ async function main() {
     let overdue = paiement.mois < currentMonth;
 
     if (paiement.mois === currentMonth) {
-      overdue = now.getDate() > jourEcheance;
+      overdue = nowUtcDay > jourEcheance;
     }
 
     if (!overdue) continue;
