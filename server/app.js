@@ -17,6 +17,7 @@ import employesRoutes from './routes/employes.js';
 import tasksRoutes from './routes/tasks.js';
 import employeRoutes from './routes/employe.js';
 import paydunyaRoutes, { webhookRouter, disburseCallbackRouter } from './routes/paydunya.js';
+import cinetpayRoutes, { webhookRouter as cinetpayWebhookRouter, transferNotifyRouter } from './routes/cinetpay.js';
 import validationsRoutes from './routes/validations.js';
 import moyensPaiementRoutes from './routes/moyensPaiement.js';
 import importRoutes from './routes/import.js';
@@ -92,6 +93,12 @@ app.use('/api/paydunya/webhook', webhookRouter);
 // même logique, corps urlencoded brut, route publique signée par hash.
 app.use('/api/paydunya/disburse-callback', disburseCallbackRouter);
 
+// Webhooks CinetPay : mêmes contraintes que PayDunya (corps urlencoded
+// brut, montés AVANT express.json). Notification Checkout + notification
+// Transferts (reversements) — routes publiques authentifiées par HMAC.
+app.use('/api/cinetpay/webhook', cinetpayWebhookRouter);
+app.use('/api/cinetpay/payout-notify', transferNotifyRouter);
+
 app.use(express.json({ limit: '4mb' }));
 app.use(cookieParser());
 
@@ -132,6 +139,7 @@ app.use('/api/employes', authenticate, requireActive, requireRole('proprietaire'
 app.use('/api/tasks', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), tasksRoutes);
 app.use('/api/employe', authenticate, requireActive, requireRole('employe'), employeRoutes);
 app.use('/api/paydunya', authenticate, requireActive, paydunyaRoutes);
+app.use('/api/cinetpay', authenticate, requireActive, cinetpayRoutes);
 app.use('/api/paiements-validation', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), validationsRoutes);
 app.use('/api/moyens-paiement', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), moyensPaiementRoutes);
 app.use('/api/import', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), importRoutes);
