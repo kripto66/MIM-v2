@@ -7,6 +7,7 @@ import { api, expectSuccess } from './lib.js';
 const S = 'crud';
 
 export async function runCrud(r, ctx) {
+  const { service, seed } = ctx;
   const owner = ctx.seed.owners[0];
   const jar = owner.jar;
 
@@ -69,6 +70,92 @@ export async function runCrud(r, ctx) {
     const del = await api(`/logements/${id}`, { method: 'DELETE', jar });
     if (expectSuccess(r, del, S, r)) r.pass(S, 'logement libre supprimé');
     else r.fail(S, 'logement libre supprimé', JSON.stringify(del.data));
+  });
+
+  // ----------------------------------------------------------
+  await r.section('loyer modifié → échéances ouvertes synchronisées', async () => {
+    const lg = await api('/logements', {
+      method: 'POST',
+      jar,
+      body: { bien_id: owner.bienId, nom: 'CRUD Sync Log', type: 'chambre', adresse: 'A', loyer_mensuel: 40000, statut: 'libre' },
+    });
+    if (!expectSuccess(r, lg, S, r, [201]) || !lg.data.data?.id) return;
+    const lgId = lg.data.data.id;
+
+    // Locataire avec compte automatique : crée l'échéance initiale du mois
+    // courant au montant du logement (statut « attente »).
+    const loc = await api('/locataires', {
+      method: 'POST',
+      jar,
+      body: { logement_id: lgId, nom: 'CRUD Sync Locataire', statut: 'actif', autoAccount: true },
+    });
+    if (!expectSuccess(r, loc, S, r, [201]) || !loc.data.data?.id) return;
+    const locId = loc.data.data.id;
+    if (loc.data.accountCreated === true && loc.data.echeance?.mois)
+      r.pass(S, `compte auto + échéance initiale (${loc.data.echeance.mois})`);
+    else r.fail(S, 'compte auto + échéance initiale', JSON.stringify(loc.data).slice(0, 200));
+
+    const rowsOf = async () =>
+      (await service.from('paiements').select('id, user_id, montant, statut').eq('logement_id', lgId)).data || [];
+
+    const attente0 = (await rowsOf()).find((p) => p.statut === 'attente');
+    if (!attente0) {
+      r.fail(S, 'échéance initiale « attente » créée au loyer du logement');
+      await api(`/locataires/${locId}`, { method: 'DELETE', jar });
+      await api(`/logements/${lgId}`, { method: 'DELETE', jar });
+      return;
+    }
+    if (Number(attente0.montant) === 40000) r.pass(S, 'échéance initiale « attente » au loyer du logement (40000)');
+    else r.fail(S, 'échéance initiale « attente » au loyer du logement (40000)', `montant ${attente0.montant}`);
+
+    // Échéance déjà réglée : ne doit JAMAIS être modifiée par un changement de loyer.
+    await service.from('paiements').insert({
+      user_id: attente0.user_id,
+      locataire_id: locId,
+      logement_id: lgId,
+      montant: 40000,
+      mois: seed.prev,
+      statut: 'paye',
+      date_paiement: '2026-07-05',
+    });
+
+    const cleanup = async () => {
+      await service.from('paiements').delete().eq('logement_id', lgId);
+      await api(`/locataires/${locId}`, { method: 'DELETE', jar });
+      await api(`/logements/${lgId}`, { method: 'DELETE', jar });
+    };
+
+    try {
+      // 1) Chemin PUT /logements/:id
+      const upd = await api(`/logements/${lgId}`, { method: 'PUT', jar, body: { loyer_mensuel: 55000 } });
+      if (!expectSuccess(r, upd, S, 'PUT /logements/:id accepté')) return;
+      let after = await rowsOf();
+      if (Number(after.find((p) => p.statut === 'attente')?.montant) === 55000)
+        r.pass(S, 'PUT /logements : échéance « attente » passée au nouveau loyer (55000)');
+      else r.fail(S, 'PUT /logements : échéance « attente » passée au nouveau loyer (55000)', JSON.stringify(after));
+      if (Number(after.find((p) => p.statut === 'paye')?.montant) === 40000)
+        r.pass(S, 'échéance « paye » inchangée (historique)');
+      else r.fail(S, 'échéance « paye » inchangée (historique)', JSON.stringify(after));
+
+      // 2) Chemin embarqué logement_update depuis la fiche locataire
+      //    (comme l'envoie le formulaire réel : accompagné d'autres champs).
+      const upd2 = await api(`/locataires/${locId}`, {
+        method: 'PUT',
+        jar,
+        body: {
+          nom: 'CRUD Sync Locataire',
+          statut: 'actif',
+          logement_update: { id: lgId, bien_id: owner.bienId, loyer_mensuel: 60000 },
+        },
+      });
+      if (!expectSuccess(r, upd2, S, 'PUT /locataires + logement_update accepté')) return;
+      after = await rowsOf();
+      if (Number(after.find((p) => p.statut === 'attente')?.montant) === 60000)
+        r.pass(S, 'logement_update : échéance « attente » passée au nouveau loyer (60000)');
+      else r.fail(S, 'logement_update : échéance « attente » passée au nouveau loyer (60000)', JSON.stringify(after));
+    } finally {
+      await cleanup();
+    }
   });
 
   // ----------------------------------------------------------

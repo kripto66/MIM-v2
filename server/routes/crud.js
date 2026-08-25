@@ -5,7 +5,7 @@ import { tenantEmailFor, usernameIsValid, uniqueUsername, splitFullName, INITIAL
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { notify, tenantUidOfLogement, tenantUidOfLocataire, logementNomOf } from '../utils/notifications.js';
 import { methodePaiementError } from '../utils/paiementMethodes.js';
-import { creerEcheanceInitiale } from '../utils/echeances.js';
+import { creerEcheanceInitiale, syncMontantEcheancesOuvertes } from '../utils/echeances.js';
 
 const SCHEMAS = {
   biens: {
@@ -329,6 +329,13 @@ export function createCrudRouter(tableName) {
       return { errors: { bien_id: 'Bien introuvable ou ne vous appartient pas.' } };
     }
 
+    const { data: prevLoyerRow } = await admin
+      .from('logements')
+      .select('loyer_mensuel')
+      .eq('id', id)
+      .eq('user_id', ownerId)
+      .maybeSingle();
+
     const { data, error } = await admin
       .from('logements')
       .update(clean)
@@ -341,6 +348,21 @@ export function createCrudRouter(tableName) {
       console.error('[updateLogement]', error.message);
       return { error };
     }
+
+    // Changement de loyer : les échéances ouvertes (« attente » /
+    // « retard ») suivent le nouveau montant.
+    if (
+      clean.loyer_mensuel !== undefined &&
+      prevLoyerRow &&
+      Number(clean.loyer_mensuel) !== Number(prevLoyerRow.loyer_mensuel)
+    ) {
+      const synced = await syncMontantEcheancesOuvertes(admin, {
+        logementId: id,
+        montant: clean.loyer_mensuel,
+      });
+      if (synced.error) console.warn('[updateLogement] échéances ouvertes :', synced.error);
+    }
+
     return { data };
   }
 
@@ -817,6 +839,22 @@ if (createdLogementId) {
     }
 
     await notifyOnUpdate(tableName, prev, data, userId(req));
+
+    // Changement de loyer : les échéances ouvertes (« attente » /
+    // « retard ») suivent le nouveau montant, sinon le locataire
+    // paierait l'ancien loyer jusqu'à l'échéance suivante.
+    if (
+      tableName === 'logements' &&
+      body.loyer_mensuel !== undefined &&
+      prev &&
+      Number(body.loyer_mensuel) !== Number(prev.loyer_mensuel)
+    ) {
+      const synced = await syncMontantEcheancesOuvertes(serviceClient(), {
+        logementId: id,
+        montant: body.loyer_mensuel,
+      });
+      if (synced.error) console.warn('[logements] échéances ouvertes :', synced.error);
+    }
 
     // Synchronisation du statut des logements quand le locataire change de logement.
     if (tableName === 'locataires' && prev) {
