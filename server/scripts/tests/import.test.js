@@ -23,6 +23,14 @@ const B_HEADERS = ['nom', 'type', 'adresse', 'ville', 'pays', 'description'];
 const L_HEADERS = ['bien', 'nom', 'type', 'loyer', 'nombre_chambres', 'adresse', 'statut', 'description'];
 const LOC_HEADERS = ['nom', 'prenom', 'email', 'telephone', 'bien', 'logement', 'loyer', 'jour_echeance', 'date_entree', 'statut'];
 const EMP_HEADERS = ['nom', 'prenom', 'email', 'telephone', 'poste', 'bien', 'salaire', 'date_embauche', 'statut'];
+const G_HEADERS = [
+  'bien', 'type_bien', 'adresse_bien', 'ville', 'pays', 'description_bien',
+  'logement', 'type_logement', 'nombre_chambres', 'loyer', 'statut_logement', 'description_logement',
+  'locataire_nom', 'locataire_prenom', 'locataire_email', 'locataire_telephone',
+  'jour_echeance', 'date_entree',
+  'employe_nom', 'employe_prenom', 'employe_poste', 'employe_salaire',
+  'employe_telephone', 'employe_email',
+];
 
 const SUFFIX = Date.now() % 100000;
 
@@ -66,7 +74,7 @@ export async function runImport(r, ctx) {
 
   // ----------------------------------------------------------
   await r.section('modèles CSV téléchargeables', async () => {
-    for (const cat of ['biens', 'logements', 'locataires', 'employes']) {
+    for (const cat of ['biens', 'logements', 'locataires', 'employes', 'grouped']) {
       const res = await fetch(`http://127.0.0.1:3100/api/import/templates/${cat}`, {
         headers: { Cookie: jar.cookies.map((c) => `${c.name}=${c.value}`).join('; ') },
       });
@@ -546,6 +554,146 @@ const text = await res.text();
       r.pass(S, 'adresse effectivement mise à jour en base');
     } else {
       r.fail(S, 'adresse effectivement mise à jour en base', JSON.stringify(updatedBien));
+    }
+  });
+
+  // ----------------------------------------------------------
+  await r.section('import groupé « tout-en-un »', async () => {
+    const gBien1 = `Residence Groupe ${SUFFIX}`;
+    const gBien2 = `Villa Groupe ${SUFFIX}`;
+    const gLogA = `Appartement GA-${SUFFIX}`;
+    const gLogB = `Chambre GB-${SUFFIX}`;
+    const gLocNom = `Ndiaye Groupe${SUFFIX}`;
+    const gEmpNom = `Sarr Groupe${SUFFIX}`;
+    const groupedBody = (content) => ({
+      mode: 'grouped',
+      files: { grouped: { filename: 'tout-en-un.csv', content } },
+    });
+
+    // Fichier : bien 1 + 2 logements (héritage) + locataire sur le
+    // premier logement ; puis un second bien avec un employé (le
+    // changement de bien ne doit PAS hériter du logement précédent).
+    const okCsv = csv(G_HEADERS, [
+      [gBien1, 'immeuble', 'Av Groupe', 'Dakar', 'Sénégal', '',
+        gLogA, 'appartement', '2', '150000', '', '',
+        gLocNom, 'Awa', `awa.groupe${SUFFIX}@exemple.com`, '+221770000101', '5', '',
+        '', '', '', '', '', ''],
+      ['', '', '', '', '', '',
+        gLogB, 'chambre', '1', '60000', '', '',
+        '', '', '', '', '', '',
+        '', '', '', '', '', ''],
+      [gBien2, 'villa', '', 'Dakar', 'Sénégal', '',
+        '', '', '', '', '', '',
+        '', '', '', '', '', '',
+        gEmpNom, 'Moussa', 'Jardinier', '70000', '+221770000102', ''],
+    ]);
+
+    // Aucun fichier groupé fourni ? rejet clair.
+    const noFile = await api('/import/preview', {
+      method: 'POST',
+      jar,
+      body: { mode: 'grouped', files: {}, duplicatePolicy: 'ignore' },
+    });
+    if (noFile.status === 400 && /manquant/i.test(String(noFile.data?.message || ''))) {
+      r.pass(S, 'groupé sans fichier ? rejeté');
+    } else {
+      r.fail(S, 'groupé sans fichier ? rejeté', `statut ${noFile.status} ${JSON.stringify(noFile.data).slice(0, 160)}`);
+    }
+
+    // Ligne mêlant locataire et employé ? rejet structurel (ligne d'origine).
+    const mixCsv = csv(G_HEADERS, [
+      [gBien1, 'immeuble', '', 'Dakar', 'Sénégal', '',
+        'Appartement Mixte', 'appartement', '1', '50000', '', '',
+        'Nom Mixte', '', '+221770000103', '', '', '',
+        'Emp Mixte', '', 'Gardien', '50000', '', ''],
+    ]);
+    const mix = await api('/import/preview', { method: 'POST', jar, body: groupedBody(mixCsv) });
+    if (mix.status === 400 && /à la fois/.test(String(mix.data?.message || ''))) {
+      r.pass(S, 'groupé : ligne locataire + employé ? rejetée');
+    } else {
+      r.fail(S, 'groupé : ligne locataire + employé ? rejetée', `statut ${mix.status} ${JSON.stringify(mix.data).slice(0, 200)}`);
+    }
+
+    // Bien déclaré sans type_bien ? l'erreur du moteur porte le champ « type ».
+    const noTypeCsv = csv(G_HEADERS, [
+      [`Bien Sans Type ${SUFFIX}`, '', '', '', '', '',
+        'Chambre ST', 'chambre', '1', '40000', '', '',
+        '', '', '', '', '', '',
+        '', '', '', '', '', ''],
+    ]);
+    const noTypeG = await api('/import/preview', { method: 'POST', jar, body: groupedBody(noTypeCsv) });
+    const biensErrs = noTypeG.data?.categories?.find((c) => c.category === 'biens')?.errors || [];
+    if (expectSuccess(r, noTypeG, S, r) && biensErrs.some((e) => e.champ === 'type')) {
+      r.pass(S, 'groupé : type_bien manquant ? erreur « type »');
+    } else {
+      r.fail(S, 'groupé : type_bien manquant ? erreur « type »', JSON.stringify(noTypeG.data).slice(0, 300));
+    }
+
+    // Aperçu complet : héritage + classification.
+    const prev = await api('/import/preview', { method: 'POST', jar, body: groupedBody(okCsv) });
+    if (
+      expectSuccess(r, prev, S, r) &&
+      prev.data.totals.errors === 0 &&
+      prev.data.totals.ok === 6 &&
+      prev.data.categories.length === 4 &&
+      prev.data.categories.find((c) => c.category === 'biens')?.total === 2 &&
+      prev.data.categories.find((c) => c.category === 'logements')?.total === 2 &&
+      prev.data.categories.find((c) => c.category === 'locataires')?.accounts.length === 1 &&
+      prev.data.categories.find((c) => c.category === 'employes')?.accounts.length === 1
+    ) {
+      r.pass(S, 'groupé : aperçu 2 biens + 2 logements + 1 locataire + 1 employé');
+    } else {
+      r.fail(S, 'groupé : aperçu 2 biens + 2 logements + 1 locataire + 1 employé', JSON.stringify(prev.data).slice(0, 400));
+    }
+
+    // Exécution + effets attendus en base.
+    const exe = await api('/import/execute', { method: 'POST', jar, body: groupedBody(okCsv) });
+    if (expectSuccess(r, exe, S, r, [201]) && exe.data.report.totals.created === 6) {
+      r.pass(S, 'groupé : exécution ? 6 éléments créés');
+    } else {
+      r.fail(S, 'groupé : exécution ? 6 éléments créés', `statut ${exe.status} ${JSON.stringify(exe.data).slice(0, 300)}`);
+      return;
+    }
+
+    const { data: locaRow } = await service
+      .from('locataires')
+      .select('id, username, logement_id, bien_id')
+      .eq('user_id', ownerId)
+      .ilike('nom', gLocNom)
+      .maybeSingle();
+    if (locaRow?.username && locaRow.logement_id && locaRow.bien_id) {
+      r.pass(S, 'groupé : locataire rattaché au logement importé');
+    } else {
+      r.fail(S, 'groupé : locataire rattaché au logement importé', JSON.stringify(locaRow));
+    }
+
+    const { data: logsBien1 } = await service
+      .from('logements')
+      .select('id, statut, nom')
+      .eq('user_id', ownerId)
+      .eq('bien_id', locaRow.bien_id);
+    const logA = (logsBien1 || []).find((l) => l.nom === gLogA);
+    if ((logsBien1 || []).length === 2 && logA?.statut === 'occupe') {
+      r.pass(S, 'groupé : 2 logements sous le bien 1, logement occupé');
+    } else {
+      r.fail(S, 'groupé : 2 logements sous le bien 1, logement occupé', JSON.stringify(logsBien1));
+    }
+
+    const { data: empRow } = await service
+      .from('employes')
+      .select('id')
+      .eq('user_id', ownerId)
+      .ilike('nom', gEmpNom)
+      .maybeSingle();
+    const { data: lienEmp } = await service
+      .from('employes_biens')
+      .select('id, bien_id')
+      .eq('employe_id', empRow?.id || '')
+      .maybeSingle();
+    if (empRow && lienEmp && lienEmp.bien_id && lienEmp.bien_id !== locaRow.bien_id) {
+      r.pass(S, 'groupé : employé affecté à son bien (pas d’héritage parasite)');
+    } else {
+      r.fail(S, 'groupé : employé affecté à son bien (pas d’héritage parasite)', JSON.stringify({ empRow, lienEmp }));
     }
   });
 

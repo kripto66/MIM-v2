@@ -74,7 +74,7 @@ l'application est accessible sur `http://localhost:3000` (l'usage via XAMPP rest
 | GET | `/api/stats/dashboard` | Statistiques du tableau de bord |
 | POST | `/api/git/backup` | Sauvegarde git manuelle |
 | GET | `/api/onboarding/status` | L'espace du propriétaire nécessite-t-il une première configuration ? |
-| GET | `/api/import/templates/:cat` | Télécharger le modèle CSV d'une catégorie (`biens`, `logements`, `locataires`, `employes`) |
+| GET | `/api/import/templates/:cat` | Télécharger le modèle CSV d'une catégorie (`biens`, `logements`, `locataires`, `employes`, `grouped`) |
 | POST | `/api/import/preview` | Validation + aperçu avant import (doublons, usernames générés) |
 | POST | `/api/import/execute` | Exécuter l'import (création des biens, logements, comptes locataires/employés) |
 | GET | `/api/import/meta` | Métadonnées de l'import (dictionnaire catégories/labels/colonnes) |
@@ -111,6 +111,16 @@ l'import à tout moment.
 
 Détails :
 
+- **Mode « tout-en-un » (`grouped`)** : au lieu d'un fichier par catégorie, un
+  SEUL fichier regroupe tout — chaque ligne décrit un logement (et son
+  locataire éventuel, colonnes `locataire_*`) ou un employé (colonnes
+  `employe_*`). Les cellules vides des colonnes structurelles (`bien`,
+  `type_bien`, `adresse_bien`, `ville`, `pays`, `logement`) reprennent la
+  valeur de la ligne au-dessus : les détails d'un bien ne se saisissent
+  qu'à sa première ligne, sans répétition. Le fichier est découpé côté
+  serveur (`server/utils/importGrouped.js`) puis traité par le moteur
+  standard ; le mode est demandé via `mode: 'grouped'` sur `/preview` et
+  `/execute`.
 - Les modèles CSV sont téléchargeables (BOM UTF-8, séparateur `;`, en-têtes
   français, colonnes surlignées en jaune et sensibles à la casse).
 - L'ordre d'import respecte les dépendances : `biens` → `logements` →

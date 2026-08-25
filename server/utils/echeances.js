@@ -100,3 +100,25 @@ export async function creerEcheanceSuivante(sb, paiement) {
   if (error) return { created: false, mois: moisSuivant, error: error.message };
   return { created: true, mois: moisSuivant, paiement: data };
 }
+
+// Répercute un changement de loyer_mensuel sur les échéances OUVERTES
+// (« attente » / « retard ») du logement : sans cela, le locataire
+// continuerait de devoir l'ancien montant jusqu'à l'échéance suivante.
+// Les échéances déjà réglées (« paye ») ou déclarées par le locataire
+// (« a_confirmer ») conservent leur montant d'origine (historique).
+export async function syncMontantEcheancesOuvertes(sb, { logementId, montant }) {
+  const value = Number(montant);
+  if (!logementId || !Number.isFinite(value)) {
+    return { updated: 0, error: 'Paramètres invalides.' };
+  }
+
+  const { data, error } = await sb
+    .from('paiements')
+    .update({ montant: value })
+    .eq('logement_id', logementId)
+    .in('statut', ['attente', 'retard'])
+    .select('id');
+
+  if (error) return { updated: 0, error: error.message };
+  return { updated: data?.length || 0, error: null };
+}
