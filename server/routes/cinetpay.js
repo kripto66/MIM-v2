@@ -63,13 +63,15 @@ router.post('/initiate', async (req, res) => {
         if (req.user.account_type !== 'locataire') {
             return res.status(403).json({ success: false, message: 'Accès réservé aux locataires.' });
         }
-        const { paiement_id } = req.body || {};
+        const { paiement_id, phone, wallet } = req.body || {};
         if (!paiement_id) {
             return res.status(400).json({ success: false, message: 'paiement_id requis.' });
         }
         const { payment, resumed } = await initiateCinetpayRentPayment({
             userId: req.user.id,
             paiementId: Number(paiement_id),
+            phone: phone != null ? String(phone) : null,
+            wallet: wallet != null ? String(wallet) : null,
         });
         return res.status(resumed ? 200 : 201).json({
             success: true,

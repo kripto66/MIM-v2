@@ -82,7 +82,7 @@ const cinetpayProvider = {
     available() {
         return cinetpay.cinetpayEnabled();
     },
-    async createPayment({ reference, amount, currency, description, customer = {}, metadata = null, notifyUrl = null, returnUrl = null }) {
+    async createPayment({ reference, amount, currency, description, customer = {}, metadata = null, notifyUrl = null, returnUrl = null, channels = null, lockPhoneNumber = false }) {
         const res = await cinetpay.createCheckout({
             transactionId: reference,
             amount,
@@ -92,6 +92,8 @@ const cinetpayProvider = {
             metadata,
             notifyUrl,
             returnUrl,
+            channels,
+            lockPhoneNumber,
         });
         return { providerRef: res.paymentToken, paymentUrl: res.paymentUrl, raw: res.raw };
     },

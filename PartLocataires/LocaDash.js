@@ -185,40 +185,9 @@ document.addEventListener("DOMContentLoaded", () => {
   })();
 });
 
-document.addEventListener("click", async (e) => {
-  const btn = e.target.closest("[data-paydunya-pay]");
-  if (!btn || btn.disabled) return;
-  btn.disabled = true;
-  const original = btn.textContent;
-  btn.textContent = "Génération du lien de paiement...";
-  try {
-    const res = await tenantRequest("/paydunya/initiate", {
-      method: "POST",
-      body: JSON.stringify({ source: "loyer", paiement_id: Number(btn.dataset.paydunyaPay) }),
-    });
-    const url = res.data?.payment_url;
-    if (!url) throw new Error(res.message || "Aucun lien de paiement reçu.");
-    window.open(url, "_blank", "noopener");
-    showTenantError("Lien de paiement ouvert : finalisez le paiement dans le nouvel onglet.", true);
-    const data = await tenantRequest("/locataire/dashboard");
-    renderDashboard(data);
-    // Suivi automatique : la page se rafraîchit dès la confirmation
-    // (webhook PayDunya ou réconciliation via le polling de statut).
-    const token = res.data?.token;
-    if (token && typeof pollPaydunyaStatus === "function") {
-      pollPaydunyaStatus(token).then((invoice) => {
-        if (invoice?.status === "completed") {
-          showTenantError("Paiement confirmé avec succès : votre loyer est à jour.", true);
-          tenantRequest("/locataire/dashboard").then(renderDashboard);
-        }
-      });
-    }
-  } catch (err) {
-    btn.disabled = false;
-    btn.textContent = original;
-    showTenantError(err.message);
-  }
-});
+// Les boutons de paiement en ligne vivent dans paiements.html
+// (modale mobile money CinetPay / repli PayDunya) : le dashboard
+// y renvoie simplement le locataire.
 
 function renderDashboard(data) {
   const unlinked = document.getElementById("unlinkedMessage");
@@ -320,11 +289,8 @@ function renderConfirmPayment(data) {
   zone.innerHTML = `
     <div class="confirm-payment-info">
       <strong>💰 Loyer à payer</strong>
-      <p>Payez votre loyer de ${formatMois(pending.mois)} (${fmtFCFA(pending.montant)}) en ligne ou directement auprès de votre propriétaire.</p>
-      <button type="button" class="primary-button" data-paydunya-pay="${pending.id}">💳 Payer en ligne (PayDunya)</button>
-      <a href="paiements.html" class="primary-button" type="button" style="margin-top:8px;display:inline-block;">
-        Voir mes paiements
-      </a>
+      <p>Payez votre loyer de ${formatMois(pending.mois)} (${fmtFCFA(pending.montant)}) en ligne (Orange Money, Wave, Free Money…) ou directement auprès de votre propriétaire.</p>
+      <a href="paiements.html" class="primary-button" type="button">📱 Payer mon loyer</a>
     </div>`;
 }
 

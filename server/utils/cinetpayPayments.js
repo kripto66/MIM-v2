@@ -42,9 +42,17 @@ function cinetpayUrls() {
 // Montant / propriétaire / locataire relus en base — jamais fournis
 // par le client. Une seule session active par loyer (index unique
 // partiel + rattrapage applicatif sur code 23505).
+//
+// phone / wallet (optionnels, saisis par le locataire) :
+//   - phone      -> customer_phone_number + lock_phone_number=true :
+//                   le guichet ne redemande pas le numéro, le client
+//                   valide simplement (push USSD / application wallet).
+//   - wallet     -> channels restreint à MOBILE_MONEY (univers
+//                   officiel) ; l'opérateur exact est confirmé au
+//                   guichet puis lors de la validation USSD.
 // Retour : { payment, resumed }
 // ------------------------------------------------------------
-export async function initiateCinetpayRentPayment({ userId, paiementId }) {
+export async function initiateCinetpayRentPayment({ userId, paiementId, phone = null, wallet = null }) {
     // Fiche locataire déduite du compte : impossible de payer le loyer
     // d'un autre locataire.
     const { data: locataire } = await sb()
@@ -55,6 +63,13 @@ export async function initiateCinetpayRentPayment({ userId, paiementId }) {
     if (!locataire) {
         const e = new Error("Votre compte n'est pas lié à une fiche locataire.");
         e.httpStatus = 403;
+        throw e;
+    }
+
+    const digits = phone != null ? String(phone).replace(/\D/g, '') : '';
+    if (phone != null && (digits.length < 8 || digits.length > 15)) {
+        const e = new Error('Numéro invalide : 8 à 15 chiffres attendus.');
+        e.httpStatus = 400;
         throw e;
     }
 
@@ -120,16 +135,28 @@ export async function initiateCinetpayRentPayment({ userId, paiementId }) {
     // Appel Checkout v2 (hors transaction : la ligne PENDING existe déjà,
     // une erreur réseau laisse un PENDING rattrapable par le statut/retry).
     const urls = cinetpayUrls();
+    const walletClean = wallet ? String(wallet).trim() : null;
     try {
         const res = await provider().createPayment({
             reference: transactionId,
             amount,
             currency: inserted.currency,
             description: `MIM-LOYER-${paiement.id} (${paiement.mois})`,
-            customer: { name: profile?.name || locataire.nom || '', phone: profile?.phone || '' },
-            metadata: JSON.stringify({ source: 'loyer', paiement_id: paiement.id }),
+            customer: {
+                name: profile?.name || locataire.nom || '',
+                phone: digits || profile?.phone || '',
+            },
+            metadata: JSON.stringify({
+                source: 'loyer',
+                paiement_id: paiement.id,
+                ...(walletClean ? { wallet: walletClean } : {}),
+            }),
             notifyUrl: urls.notifyUrl,
             returnUrl: urls.returnUrl,
+            // Univers mobile money dès qu'un numéro/wallet est fourni :
+            // le guichet n'affiche que Orange Money, Wave, Free Money, etc.
+            channels: digits || walletClean ? 'MOBILE_MONEY' : null,
+            lockPhoneNumber: Boolean(digits),
         });
         const { data: fresh } = await sb()
             .from('cinetpay_payments')
