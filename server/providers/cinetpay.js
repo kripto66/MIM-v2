@@ -108,7 +108,7 @@ function httpsRequest(url, options, cb) {
 // Checkout v2
 // ------------------------------------------------------------
 
-export async function createCheckout({ transactionId, amount, currency, description, customer = {}, metadata = null, notifyUrl = null, returnUrl = null, channels = null }) {
+export async function createCheckout({ transactionId, amount, currency, description, customer = {}, metadata = null, notifyUrl = null, returnUrl = null, channels = null, lockPhoneNumber = false }) {
     const c = cinetpayConfig();
     const payload = {
         apikey: c.apiKey,
@@ -125,7 +125,14 @@ export async function createCheckout({ transactionId, amount, currency, descript
     if (customer.name) payload.customer_name = customer.name;
     if (customer.surname) payload.customer_surname = customer.surname;
     if (customer.email) payload.customer_email = customer.email;
-    if (customer.phone) payload.customer_phone_number = customer.phone;
+    if (customer.phone) {
+        payload.customer_phone_number = customer.phone;
+        // Paramètre officiel (docs « Initialisation d'un paiement ») : avec
+        // lock_phone_number=true, le guichet ne demande PAS de numéro, le
+        // client valide simplement son paiement (push USSD / app wallet).
+        // Toujours accompagné de customer_phone_number.
+        if (lockPhoneNumber) payload.lock_phone_number = true;
+    }
 
     const body = await postJson(`${c.checkoutBase}/payment`, payload);
     if (body?.code !== '201' || !body?.data?.payment_url) {
