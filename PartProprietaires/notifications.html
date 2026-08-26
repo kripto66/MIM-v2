@@ -69,6 +69,7 @@
                 </div>
 
                 <button class="btn btn-secondary" id="markAllBtn">Tout marquer comme lu</button>
+                <button class="btn btn-delete" id="deleteAllBtn">Tout supprimer</button>
 
             </header>
 
@@ -113,7 +114,10 @@
                             <h3>${escapeHtml(n.message)}</h3>
                             <p class="muted">${formatDate(n.created_at)}</p>
                         </div>
-                        <button class="btn btn-edit" data-mark="${n.id}">${n.lu ? "Lue" : "Marquer comme lu"}</button>
+                        <div>
+                            <button class="btn btn-edit" data-mark="${n.id}">${n.lu ? "Lue" : "Marquer comme lu"}</button>
+                            <button class="btn btn-delete" data-delete-notif="${n.id}">Supprimer</button>
+                        </div>
                     </div>
                 `).join("");
             } catch (err) {
@@ -158,12 +162,37 @@
             load();
 
             document.getElementById("notificationsList").addEventListener("click", (e) => {
-                const btn = e.target.closest("[data-mark]");
-                if (btn && !btn.textContent.startsWith("Lue")) markRead(btn.dataset.mark);
+                const markBtn = e.target.closest("[data-mark]");
+                if (markBtn && !markBtn.textContent.startsWith("Lue")) markRead(markBtn.dataset.mark);
+
+                const delBtn = e.target.closest("[data-delete-notif]");
+                if (delBtn) deleteNotif(delBtn.dataset.deleteNotif);
             });
 
 document.getElementById("markAllBtn").addEventListener("click", markAll);
+            document.getElementById("deleteAllBtn").addEventListener("click", deleteAll);
         });
+
+        async function deleteNotif(id) {
+            try {
+                await apiRequest(`/notifications/${id}`, { method: "DELETE" });
+                showToast("Notification supprimée.");
+                load();
+            } catch (err) {
+                showToast(err.message, "error");
+            }
+        }
+
+        async function deleteAll() {
+            if (!confirm("Supprimer toutes vos notifications ? Cette action est irréversible.")) return;
+            try {
+                await apiRequest("/notifications", { method: "DELETE" });
+                showToast("Toutes les notifications ont été supprimées.");
+                load();
+            } catch (err) {
+                showToast(err.message, "error");
+            }
+        }
     </script>
 
     <script src="../PartPublic/sidebar.js"></script>

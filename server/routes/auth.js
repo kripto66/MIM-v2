@@ -153,7 +153,7 @@ async function finalizeLogin(res, user, session, userAgent) {
   return {
     user: publicUser(user, profile),
     redirect: PAGE_BY_TYPE[accountType],
-    mustChangePassword: (accountType === 'locataire' || accountType === 'employe') && Boolean(profile?.must_change_password),
+    mustChangePassword: (accountType === 'locataire' || accountType === 'employe' || accountType === 'admin') && Boolean(profile?.must_change_password),
   };
 }
 
@@ -398,7 +398,7 @@ router.post('/login', async (req, res) => {
       mfaRequired: true,
       redirect: 'PartPublic/2fa.html',
       mustChangePassword:
-        (accountType === 'locataire' || accountType === 'employe') &&
+        (accountType === 'locataire' || accountType === 'employe' || accountType === 'admin') &&
         Boolean(mfaProfile?.must_change_password),
       message: 'Code de vérification requis.',
     });
@@ -805,6 +805,36 @@ router.put('/change-password', authenticate, async (req, res) => {
     console.error('[change-password]', err.message);
     res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
   }
+});
+
+router.post('/verify-password', authenticate, async (req, res) => {
+  const { password } = req.body;
+
+  if (!password) {
+    return res.status(400).json({ success: false, message: 'Mot de passe requis.' });
+  }
+
+  const sb = authedClient(req.user.supabase_token);
+  await sb.auth.setSession({
+    access_token: req.user.supabase_token,
+    refresh_token: req.user.refresh_token || '',
+  });
+
+  const { data: account, error: userError } = await sb.auth.getUser();
+  if (userError || !account?.user?.email) {
+    return res.status(401).json({ success: false, message: 'Session expirée, reconnectez-vous.' });
+  }
+
+  const { error: signInError } = await supabase.auth.signInWithPassword({
+    email: account.user.email,
+    password,
+  });
+
+  if (signInError) {
+    return res.status(403).json({ success: false, message: 'Mot de passe incorrect.' });
+  }
+
+  res.json({ success: true });
 });
 
 router.put('/update-username', authenticate, async (req, res) => {
