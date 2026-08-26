@@ -56,12 +56,19 @@ if (!user) {
 
 const profile = await profileOf(user.id);
 if (profile && profile.account_type !== 'admin') {
-  const { error } = await sb.from('profiles').update({ account_type: 'admin', role: 'admin', name }).eq('id', user.id);
+  const { error } = await sb.from('profiles').update({ account_type: 'admin', role: 'admin', name, must_change_password: true }).eq('id', user.id);
   if (error) {
     console.error('Échec maj profil :', error.message);
     process.exit(1);
   }
   console.log('Profil mis à jour → admin.');
+} else if (!profile) {
+  const { error } = await sb.from('profiles').insert({ id: user.id, account_type: 'admin', role: 'admin', name, email, must_change_password: true });
+  if (error) {
+    console.error('Échec création profil :', error.message);
+    process.exit(1);
+  }
+  console.log('Profil créé → admin.');
 }
 
 console.log(`ID : ${user.id}`);

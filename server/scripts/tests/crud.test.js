@@ -299,4 +299,62 @@ export async function runCrud(r, ctx) {
     if (bad.status === 400) r.pass(S, 'valeur lu invalide → 400');
     else r.fail(S, 'valeur lu invalide → 400', `statut ${bad.status}`);
   });
+
+  // ----------------------------------------------------------
+  await r.section('notifications – suppression', async () => {
+    const list = await api('/notifications', { jar });
+    if (!expectSuccess(r, list, S, r) || !Array.isArray(list.data.data)) return;
+
+    const notifCount = list.data.data.length;
+
+    if (notifCount > 0) {
+      const target = list.data.data[notifCount - 1];
+      const del = await api(`/notifications/${target.id}`, { method: 'DELETE', jar });
+      if (expectSuccess(r, del, S, 'DELETE notification')) {
+        r.pass(S, 'notification supprimée');
+        const after = await api('/notifications', { jar });
+        if (after.data.data.length === notifCount - 1) r.pass(S, 'compte décrémenté après suppression');
+        else r.fail(S, 'compte décrémenté après suppression', `attendu ${notifCount - 1}, reçu ${after.data.data.length}`);
+      }
+    } else {
+      r.pass(S, 'aucune notification à supprimer (OK)');
+    }
+
+    const badDel = await api('/notifications/999999999', { method: 'DELETE', jar });
+    if (badDel.status === 200) r.pass(S, 'DELETE id inexistant → 200 (RLS neutre, 0 row)');
+    else r.fail(S, 'DELETE id inexistant', `statut ${badDel.status}`);
+  });
+
+  // ----------------------------------------------------------
+  await r.section('notifications – suppression globale', async () => {
+    const before = await api('/notifications', { jar });
+    if (!expectSuccess(r, before, S, r)) return;
+
+    const delAll = await api('/notifications', { method: 'DELETE', jar });
+    if (expectSuccess(r, delAll, S, 'DELETE /notifications')) {
+      r.pass(S, 'suppression globale OK');
+      const after = await api('/notifications', { jar });
+      if (after.data.data.length === 0) r.pass(S, 'liste vide après suppression globale');
+      else r.fail(S, 'liste vide après suppression globale', `reste ${after.data.data.length}`);
+    }
+  });
+
+  // ----------------------------------------------------------
+  await r.section('notifications – isolation', async () => {
+    const otherJar = ctx.seed.owners[1]?.jar;
+    if (!otherJar) { r.pass(S, 'isolation skip (pas de 2e owner)'); return; }
+
+    const list = await api('/notifications', { jar: otherJar });
+    if (!expectSuccess(r, list, S, r)) return;
+
+    for (const n of (list.data.data || [])) {
+      const del = await api(`/notifications/${n.id}`, { method: 'DELETE', jar });
+      if (del.status === 200 && (!del.data?.data || Object.keys(del.data.data).length === 0)) {
+        r.pass(S, 'DELETE notification autrui → 0 row affecté (RLS)');
+      } else {
+        r.fail(S, 'DELETE notification autrui', `statut ${del.status} ${JSON.stringify(del.data)}`);
+      }
+    }
+    if (!(list.data.data || []).length) r.pass(S, 'isolation skip (aucune notif owner2)');
+  });
 }

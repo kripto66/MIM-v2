@@ -251,7 +251,10 @@ function renderNotifications(notifications) {
         <h3>${escapeHtml(n.message)}</h3>
         <p>${formatDate(n.created_at)}</p>
       </div>
-      ${n.lu ? "" : `<span class="status status-warning">Non lue</span>`}
+      <div>
+        ${n.lu ? "" : `<span class="status status-warning">Non lue</span>`}
+        <button class="btn btn-delete btn-sm" data-delete-notif="${n.id}" title="Supprimer">✕</button>
+      </div>
     </div>`).join("");
 }
 
@@ -361,7 +364,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
   const logoutBtn = document.getElementById("logoutBtn");
   if (logoutBtn) logoutBtn.addEventListener("click", logout);
+
+  const notifFeed = document.getElementById("recentNotifications");
+  if (notifFeed) {
+    notifFeed.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-delete-notif]");
+      if (btn) deleteNotif(btn.dataset.deleteNotif);
+    });
+  }
 });
+
+async function deleteNotif(id) {
+  try {
+    await apiRequest(`/notifications/${id}`, { method: "DELETE" });
+    showToast("Notification supprimée.");
+    loadOverview();
+  } catch (err) {
+    showToast(err.message, "error");
+  }
+}
 
 // Assistant de première configuration : modal d'accueil si l'espace
 // est vide, lien permanent « Importer / Configurer » sinon masqué.

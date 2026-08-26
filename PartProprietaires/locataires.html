@@ -238,6 +238,26 @@
         </div>
     </div>
 
+    <!-- ====================== MODAL CONFIRMATION MOT DE PASSE ====================== -->
+
+    <div class="modal-overlay" id="confirmPwdModal" style="display:none;">
+        <div class="modal">
+            <h2>Confirmer l'opération</h2>
+            <p class="form-hint">Saisissez votre mot de passe pour confirmer cette action sensible.</p>
+            <form id="confirmPwdForm">
+                <div class="form-group">
+                    <label for="confirmPassword">Mot de passe</label>
+                    <input type="password" id="confirmPassword" name="confirmPassword" required autocomplete="current-password">
+                </div>
+                <div class="form-group error-box" id="confirmPwdError" style="display:none;"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelConfirmPwd">Annuler</button>
+                    <button type="submit" class="btn btn-delete">Confirmer</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="../PartPublic/form-utils.js"></script>
     <script src="api.js"></script>
     <script src="crud.js"></script>
@@ -249,8 +269,28 @@ const LOCATAIRE_STATUS = {
 
         const state = { tenants: [], logements: [], biens: [] };
         let tenantEditId = null;
+        let _confirmPwdResolve = null;
 
         const el = (id) => document.getElementById(id);
+
+        function confirmPassword(message) {
+            return new Promise((resolve) => {
+                const modal = el("confirmPwdModal");
+                const form = el("confirmPwdForm");
+                const input = el("confirmPassword");
+                const errorBox = el("confirmPwdError");
+                form.reset();
+                errorBox.style.display = "none";
+                modal.style.display = "flex";
+                input.focus();
+                _confirmPwdResolve = resolve;
+            });
+        }
+
+        function closeConfirmPwd() {
+            el("confirmPwdModal").style.display = "none";
+            if (_confirmPwdResolve) { _confirmPwdResolve(null); _confirmPwdResolve = null; }
+        }
 
         function renderBienOptions(currentId) {
             const currentIdStr = currentId == null ? null : String(currentId);
@@ -539,6 +579,11 @@ async function loadAll() {
 
                 if (!editing) payload.autoAccount = true;
 
+                if (editing) {
+                    const pwd = await confirmPassword();
+                    if (!pwd) return;
+                }
+
                 let res;
                 if (editing) {
                     res = await apiRequest(`/locataires/${tenantEditId}`, { method: "PUT", body: JSON.stringify(payload) });
@@ -595,7 +640,8 @@ async function loadAll() {
         }
 
 async function deleteTenant(id) {
-            if (!confirm("Voulez-vous vraiment supprimer ce locataire ? Son compte d'accès (login) sera supprimé définitivement.")) return;
+            const pwd = await confirmPassword();
+            if (!pwd) return;
             try {
                 const res = await apiRequest(`/locataires/${id}`, { method: "DELETE" });
                 showToast(res.message);
@@ -625,6 +671,23 @@ async function deleteTenant(id) {
                     setTimeout(() => (b.textContent = "Copier les identifiants"), 2000);
                 } catch (err) {
                     showToast("Impossible de copier les identifiants.", "error");
+                }
+            });
+
+            el("cancelConfirmPwd").addEventListener("click", closeConfirmPwd);
+            el("confirmPwdModal").addEventListener("click", (e) => { if (e.target === el("confirmPwdModal")) closeConfirmPwd(); });
+            el("confirmPwdForm").addEventListener("submit", async (e) => {
+                e.preventDefault();
+                const password = el("confirmPassword").value;
+                if (!password) return;
+                try {
+                    await apiRequest("/auth/verify-password", { method: "POST", body: JSON.stringify({ password }) });
+                    el("confirmPwdModal").style.display = "none";
+                    if (_confirmPwdResolve) { _confirmPwdResolve(password); _confirmPwdResolve = null; }
+                } catch (err) {
+                    const errorBox = el("confirmPwdError");
+                    errorBox.textContent = err.message;
+                    errorBox.style.display = "block";
                 }
             });
 

@@ -427,6 +427,75 @@ export async function runAuth(r, ctx) {
     if (noToken.status === 401) r.pass(S, 'reset sans jeton → 401');
     else r.fail(S, 'reset sans jeton → 401', `statut ${noToken.status}`);
   });
+
+  // ----------------------------------------------------------
+  await r.section('verify-password', async () => {
+    const owner = ctx.seed.owners[0];
+    const jar = newJar();
+    const login = await api('/auth/login', { method: 'POST', jar, body: { email: owner.email, password: PW } });
+    if (!expectSuccess(r, login, S, 'login owner pour verify-password')) return;
+
+    const ok = await api('/auth/verify-password', { method: 'POST', jar, body: { password: PW } });
+    if (expectSuccess(r, ok, S, 'verify-password correct')) r.pass(S, 'mot de passe correct → 200');
+    else r.fail(S, 'mot de passe correct → 200', JSON.stringify(ok.data));
+
+    const wrong = await api('/auth/verify-password', { method: 'POST', jar, body: { password: 'Mauvais123!' } });
+    if (wrong.status === 403) r.pass(S, 'mot de passe incorrect → 403');
+    else r.fail(S, 'mot de passe incorrect → 403', `statut ${wrong.status}`);
+
+    const noPw = await api('/auth/verify-password', { method: 'POST', jar, body: {} });
+    if (noPw.status === 400) r.pass(S, 'mot de passe manquant → 400');
+    else r.fail(S, 'mot de passe manquant → 400', `statut ${noPw.status}`);
+
+    const noAuth = await api('/auth/verify-password', { method: 'POST', body: { password: PW } });
+    if (noAuth.status === 401) r.pass(S, 'sans session → 401');
+    else r.fail(S, 'sans session → 401', `statut ${noAuth.status}`);
+  });
+
+  // ----------------------------------------------------------
+  // mustChangePassword admin
+  await r.section('admin mustChangePassword', async () => {
+    const service = ctx.service;
+    const adminEmail = `admin.mustchange.${Date.now()}@mim.local`;
+    const adminPw = 'Admin1234!';
+
+    const { data: created, error } = await service.auth.admin.createUser({
+      email: adminEmail,
+      password: adminPw,
+      email_confirm: true,
+      user_metadata: { account_type: 'admin', name: 'Admin MC Test', role: 'admin' },
+    });
+    if (error) { r.fail(S, 'création admin mustChange', error.message); return; }
+
+    const adminId = created.user.id;
+
+    const { error: profErr } = await service.from('profiles')
+      .update({ must_change_password: true })
+      .eq('id', adminId);
+    if (profErr) { r.fail(S, 'set must_change_password=true', profErr.message); return; }
+
+    const jar = newJar();
+    const login = await api('/auth/login', { method: 'POST', jar, body: { email: adminEmail, password: adminPw } });
+    if (login.status !== 200 || !login.data?.success) {
+      r.fail(S, 'login admin mustChange', `statut ${login.status} ${JSON.stringify(login.data)}`);
+    } else {
+      if (login.data.mustChangePassword === true) r.pass(S, 'login admin mustChangePassword=true retourné');
+      else r.fail(S, 'login admin mustChangePassword=true retourné', `reçu ${login.data.mustChangePassword}`);
+
+      if (login.data.redirect === 'PartAdmin/admin.html') r.pass(S, 'redirect admin conserve admin.html');
+      else r.fail(S, 'redirect admin conserve admin.html', `reçu ${login.data.redirect}`);
+    }
+
+    const newPw = 'Admin$New1';
+    const changeJar = newJar();
+    const login2 = await api('/auth/login', { method: 'POST', jar: changeJar, body: { email: adminEmail, password: adminPw } });
+    if (!expectSuccess(r, login2, S, 'login admin pour change-password')) return;
+
+    const change = await api('/auth/change-password', { method: 'PUT', jar: changeJar, body: { password: newPw, password_confirm: newPw } });
+    if (expectSuccess(r, change, S, 'change-password admin (forced, no current_password)')) {
+      r.pass(S, 'admin mustChangePassword -> change OK sans demander ancien mdp');
+    }
+  });
 }
 
 async function tryCodes(fn, codes) {

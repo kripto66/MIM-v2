@@ -44,4 +44,35 @@ router.put('/:id', async (req, res) => {
   res.json({ success: true, data });
 });
 
+// --- Suppression ---
+
+router.delete('/:id', async (req, res) => {
+  const { error } = await authedClient(req.user.supabase_token)
+    .from('notifications')
+    .delete()
+    .eq('id', req.params.id)
+    .eq('user_id', req.user.id);
+
+  if (error) {
+    console.error('[notifications] delete', error.message);
+    return res.status(400).json({ success: false, message: 'Erreur lors de la suppression.' });
+  }
+
+  res.json({ success: true, message: 'Notification supprimée.' });
+});
+
+router.delete('/', async (req, res) => {
+  const { error } = await authedClient(req.user.supabase_token)
+    .from('notifications')
+    .delete()
+    .eq('user_id', req.user.id);
+
+  if (error) {
+    console.error('[notifications] deleteAll', error.message);
+    return res.status(400).json({ success: false, message: 'Erreur lors de la suppression.' });
+  }
+
+  res.json({ success: true, message: 'Toutes les notifications ont été supprimées.' });
+});
+
 export default router;

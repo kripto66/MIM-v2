@@ -173,6 +173,14 @@ document.addEventListener("DOMContentLoaded", () => {
   const dashboardContentEl = document.getElementById("dashboardContent");
   if (!dashboardContentEl) return;
 
+  const notifFeed = document.getElementById("notificationsFeed");
+  if (notifFeed) {
+    notifFeed.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-delete-notif]");
+      if (btn) deleteNotif(btn.dataset.deleteNotif);
+    });
+  }
+
   (async () => {
     try {
       const data = await tenantRequest("/locataire/dashboard");
@@ -337,7 +345,19 @@ function renderNotifications(notifications) {
             <strong>${escapeHtml(n.message)}</strong>
             ${n.date ? `<p>${formatDate(n.date)}</p>` : ""}
           </div>
+          <button class="btn btn-delete btn-sm" data-delete-notif="${n.id}" title="Supprimer">✕</button>
         </div>`;
     })
     .join("");
+}
+
+async function deleteNotif(id) {
+  try {
+    await tenantRequest(`/notifications/${id}`, { method: "DELETE" });
+    showToast("Notification supprimée.");
+    const data = await tenantRequest("/locataire/dashboard");
+    renderDashboard(data);
+  } catch (err) {
+    showToast(err.message, "error");
+  }
 }
