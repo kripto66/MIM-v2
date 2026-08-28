@@ -124,9 +124,10 @@ document.getElementById('passwordForm').addEventListener('submit', async (e) => 
     button.textContent = 'Enregistrement...';
 
     try {
+        await MIM._csrfReady;
         const response = await fetch(API + '/auth/change-password', {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...MIM.csrfHeader() },
             credentials: 'include',
             body: JSON.stringify({
                 password: form.password.value,
@@ -149,7 +150,7 @@ document.getElementById('passwordForm').addEventListener('submit', async (e) => 
         if (newUsername && newUsername !== currentUsername) {
             const usernameResp = await fetch(API + '/auth/update-username', {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 'Content-Type': 'application/json', ...MIM.csrfHeader() },
                 credentials: 'include',
                 body: JSON.stringify({ username: newUsername }),
             });

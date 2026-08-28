@@ -126,3 +126,24 @@ MIM._createToast = function () {
   document.body.appendChild(t);
   return t;
 };
+
+/* ============================================================
+   CSRF : récupération automatique du token + helper headers.
+   Le token est fetch au chargement de chaque page.
+   Utilisation : fetch(url, { headers: { ...MIM.csrfHeader(), ... } })
+   ============================================================ */
+MIM._csrfToken = null;
+MIM._csrfReady = (async function () {
+  try {
+    const origin = window.location.origin || "http://localhost:3000";
+    const isLocal = origin.includes("localhost") || origin.includes("127.0.0.1");
+    const base = (isLocal ? "http://localhost:3000" : origin) + "/api";
+    const res = await fetch(base + "/csrf-token", { credentials: "include" });
+    const d = await res.json();
+    if (d.success && d.csrfToken) MIM._csrfToken = d.csrfToken;
+  } catch { /* CSRF non critique pour les pages publiques */ }
+})();
+
+MIM.csrfHeader = function () {
+  return MIM._csrfToken ? { "x-csrf-token": MIM._csrfToken } : {};
+};

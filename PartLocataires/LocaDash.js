@@ -5,9 +5,15 @@ const API = (() => {
 })();
 
 async function tenantRequest(path, options = {}) {
+  const xsrf = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+  const csrfToken = xsrf ? decodeURIComponent(xsrf[1]) : '';
+
   const res = await fetch(`${API}${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
+    },
     ...options,
   });
 
@@ -72,8 +78,9 @@ function setText(id, value) {
 function initTenantShell() {
   const logoutButton = document.getElementById("logoutButton");
   if (logoutButton) {
-    logoutButton.addEventListener("click", () => {
-      fetch(`${API}/auth/logout`, { method: "POST", credentials: "include" })
+    logoutButton.addEventListener("click", async () => {
+      await MIM._csrfReady;
+      fetch(`${API}/auth/logout`, { method: "POST", credentials: "include", headers: MIM.csrfHeader() })
         .catch(() => {})
         .finally(() => {
           window.location.href = "../PartPublic/connexion.html";

@@ -46,9 +46,10 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     button.textContent = 'Connexion...';
 
     try {
+        await MIM._csrfReady;
         const response = await fetch(API + '/auth/login', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...MIM.csrfHeader() },
             credentials: 'include',
             body: JSON.stringify({
                 identifier: form.identifier.value,

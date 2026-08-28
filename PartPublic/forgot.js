@@ -12,9 +12,10 @@ document.getElementById('forgotForm').addEventListener('submit', async (e) => {
     button.textContent = 'Envoi...';
 
     try {
+        await MIM._csrfReady;
         const response = await fetch(API + '/auth/forgot', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...MIM.csrfHeader() },
             body: JSON.stringify({ email: form.email.value })
         });
 

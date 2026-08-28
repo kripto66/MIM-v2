@@ -629,6 +629,40 @@ router.patch('/proprietaires/:id', async (req, res) => {
 
 const ULTRA_PASSWORD = process.env.ULTRA_ADMIN_PASSWORD || 'Mim@Ultra2026!';
 
+// Fallback mémoire si la table system_config n'existe pas encore.
+let saasSuspended = false;
+
+async function getSystemConfig(key) {
+  try {
+    const sb = serviceClient();
+    const { data, error } = await sb.from('system_config').select('value').eq('key', key).maybeSingle();
+    if (error) return null;
+    return data?.value ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function setSystemConfig(key, value) {
+  try {
+    const sb = serviceClient();
+    const { error } = await sb.from('system_config').upsert(
+      { key, value: String(value), updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    );
+    if (error) throw error;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function isSaasSuspended() {
+  const db = await getSystemConfig('saas_suspended');
+  if (db !== null) return db === 'true';
+  return saasSuspended;
+}
+
 router.post('/ultra-verify', (req, res) => {
   const { password } = req.body || {};
   if (!password || password !== ULTRA_PASSWORD) {
@@ -643,12 +677,8 @@ router.post('/ultra/suspend-saas', async (req, res) => {
     return res.status(401).json({ success: false, message: 'Mot de passe ultra-admin incorrect.' });
   }
   try {
-    const sb = serviceClient();
-    const { error } = await sb.from('system_config').upsert(
-      { key: 'saas_suspended', value: 'true', updated_at: new Date().toISOString() },
-      { onConflict: 'key' }
-    );
-    if (error) throw error;
+    const dbOk = await setSystemConfig('saas_suspended', 'true');
+    if (!dbOk) saasSuspended = true;
     invalidatePlatformCache();
     await auditLog({
       userId: req.user.id,
@@ -669,12 +699,8 @@ router.post('/ultra/reactivate-saas', async (req, res) => {
     return res.status(401).json({ success: false, message: 'Mot de passe ultra-admin incorrect.' });
   }
   try {
-    const sb = serviceClient();
-    const { error } = await sb.from('system_config').upsert(
-      { key: 'saas_suspended', value: 'false', updated_at: new Date().toISOString() },
-      { onConflict: 'key' }
-    );
-    if (error) throw error;
+    const dbOk = await setSystemConfig('saas_suspended', 'false');
+    if (!dbOk) saasSuspended = false;
     invalidatePlatformCache();
     await auditLog({
       userId: req.user.id,

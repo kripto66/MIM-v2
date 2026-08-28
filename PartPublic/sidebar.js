@@ -22,8 +22,9 @@
   var logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn && !logoutBtn.dataset.mimLogout) {
     logoutBtn.dataset.mimLogout = '1';
-    logoutBtn.addEventListener('click', function () {
-      fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+    logoutBtn.addEventListener('click', async function () {
+      await MIM._csrfReady;
+      fetch('/api/auth/logout', { method: 'POST', credentials: 'include', headers: MIM.csrfHeader() })
         .catch(function () {})
         .finally(function () {
           window.location.href = '../PartPublic/connexion.html';
