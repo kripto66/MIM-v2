@@ -84,10 +84,10 @@ router.post('/admins', async (req, res) => {
     }
 
     // Créer le compte via Supabase Auth Admin
-    const临时密码 = password || generateTempPassword();
+    const tempPw = password || generateTempPassword();
     const { data: authUser, error: createErr } = await sb().auth.admin.createUser({
       email: email.trim(),
-      password:临时密码,
+      password: tempPw,
       email_confirm: true,
       user_metadata: {
         account_type: 'admin',
@@ -131,7 +131,7 @@ router.post('/admins', async (req, res) => {
         name: name.trim(),
         email: email.trim(),
         username: username?.trim() || null,
-        temp_password: password ? undefined :临时密码,
+        temp_password: password ? undefined : tempPw,
       },
     });
   } catch (e) {
