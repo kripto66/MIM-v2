@@ -392,6 +392,16 @@ router.post('/subscriptions/register', async (req, res) => {
     // Token PayDunya enregistré dès l'initiation (audit).
     await sb.from('abonnement_paiements').update({ reference: invoice.token }).eq('id', hist.id);
 
+    await auditLog({
+      userId: req.user.id,
+      action: 'admin.register_subscription',
+      target: String(hist.id),
+      targetType: 'abonnement_paiement',
+      level: LEVELS.INFO,
+      meta: { owner_id: userId, plan, montant: Number(montant), dureeMois: duree },
+      ip: req.ip,
+    });
+
     res.status(201).json({
       success: true,
       message: 'Facture de paiement créée. L\'abonnement sera activé dès le paiement confirmé.',
@@ -623,136 +633,6 @@ router.patch('/proprietaires/:id', async (req, res) => {
   }
 });
 
-// ============================================================
-// Ultra-Admin : vérification de mot de passe + actions critiques
-// ============================================================
-
-const ULTRA_PASSWORD = process.env.ULTRA_ADMIN_PASSWORD || 'Mim@Ultra2026!';
-
-// Fallback mémoire si la table system_config n'existe pas encore.
-let saasSuspended = false;
-
-async function getSystemConfig(key) {
-  try {
-    const sb = serviceClient();
-    const { data, error } = await sb.from('system_config').select('value').eq('key', key).maybeSingle();
-    if (error) return null;
-    return data?.value ?? null;
-  } catch {
-    return null;
-  }
-}
-
-async function setSystemConfig(key, value) {
-  try {
-    const sb = serviceClient();
-    const { error } = await sb.from('system_config').upsert(
-      { key, value: String(value), updated_at: new Date().toISOString() },
-      { onConflict: 'key' }
-    );
-    if (error) throw error;
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-async function isSaasSuspended() {
-  const db = await getSystemConfig('saas_suspended');
-  if (db !== null) return db === 'true';
-  return saasSuspended;
-}
-
-router.post('/ultra-verify', (req, res) => {
-  const { password } = req.body || {};
-  if (!password || password !== ULTRA_PASSWORD) {
-    return res.status(401).json({ success: false, message: 'Mot de passe ultra-admin incorrect.' });
-  }
-  res.json({ success: true, message: 'Ultra-admin vérifié.' });
-});
-
-router.post('/ultra/suspend-saas', async (req, res) => {
-  const { password } = req.body || {};
-  if (!password || password !== ULTRA_PASSWORD) {
-    return res.status(401).json({ success: false, message: 'Mot de passe ultra-admin incorrect.' });
-  }
-  try {
-    const dbOk = await setSystemConfig('saas_suspended', 'true');
-    if (!dbOk) saasSuspended = true;
-    invalidatePlatformCache();
-    await auditLog({
-      userId: req.user.id,
-      action: 'ultra.suspend_saas',
-      level: LEVELS.CRITICAL,
-      ip: req.ip,
-    });
-    res.json({ success: true, message: 'Le SaaS a été suspendu.' });
-  } catch (err) {
-    console.error('[admin/ultra/suspend-saas]', err.message);
-    res.status(500).json({ success: false, message: 'Erreur lors de la suspension du SaaS.' });
-  }
-});
-
-router.post('/ultra/reactivate-saas', async (req, res) => {
-  const { password } = req.body || {};
-  if (!password || password !== ULTRA_PASSWORD) {
-    return res.status(401).json({ success: false, message: 'Mot de passe ultra-admin incorrect.' });
-  }
-  try {
-    const dbOk = await setSystemConfig('saas_suspended', 'false');
-    if (!dbOk) saasSuspended = false;
-    invalidatePlatformCache();
-    await auditLog({
-      userId: req.user.id,
-      action: 'ultra.reactivate_saas',
-      level: LEVELS.CRITICAL,
-      ip: req.ip,
-    });
-    res.json({ success: true, message: 'Le SaaS a été réactivé.' });
-  } catch (err) {
-    console.error('[admin/ultra/reactivate-saas]', err.message);
-    res.status(500).json({ success: false, message: 'Erreur lors de la réactivation du SaaS.' });
-  }
-});
-
-router.delete('/ultra/delete-all', async (req, res) => {
-  const { password, confirm } = req.body || {};
-  if (!password || password !== ULTRA_PASSWORD) {
-    return res.status(401).json({ success: false, message: 'Mot de passe ultra-admin incorrect.' });
-  }
-  if (confirm !== 'SUPPRIMER TOUT') {
-    return res.status(400).json({ success: false, message: 'Confirmation requise : tapez "SUPPRIMER TOUT".' });
-  }
-  try {
-    const sb = serviceClient();
-    const tables = ['interventions', 'incidents', 'paiements', 'locataires', 'logements', 'biens', 'abonnement_paiements', 'subscriptions', 'sessions'];
-    const deleted = {};
-    for (const table of tables) {
-      const { count, error } = await sb.from(table).delete({ count: 'exact', head: true });
-      if (error) throw new Error(`${table}: ${error.message}`);
-      deleted[table] = count || 0;
-    }
-    const { data: profiles } = await sb.from('profiles').select('id');
-    if (profiles && profiles.length) {
-      for (const p of profiles) {
-        await sb.auth.admin.deleteUser(p.id).catch(() => {});
-      }
-    }
-    const { count: profileCount } = await sb.from('profiles').delete({ count: 'exact', head: true });
-    deleted['profiles'] = profileCount || 0;
-    invalidatePlatformCache();
-    await auditLog({
-      userId: req.user.id,
-      action: 'ultra.delete_all',
-      level: LEVELS.CRITICAL,
-      meta: { deleted },
-      ip: req.ip,
-    });
-    res.json({ success: true, message: 'Toutes les données ont été supprimées.', deleted });
-  } catch (err) {
-    console.error('[admin/ultra/delete-all]', err.message);
-    res.status(500).json({ success: false, message: 'Erreur lors de la suppression : ' + err.message });
-  }
-});
+// Les routes ultra-admin sont désormais dans /routes/ultra-admin.js
 
 export default router;
