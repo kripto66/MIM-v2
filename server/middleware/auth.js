@@ -23,14 +23,14 @@ export function isBannedValue(value) {
 }
 
 // Statut du compte auth GoTrue : 'active' | 'suspended' | 'deleted'.
-async function banStatusOf(userId) {
+export async function banStatusOf(userId) {
   try {
     const { data } = await serviceClient().auth.admin.getUserById(userId);
     if (!data?.user) return 'deleted';
     return isBannedValue(data.user.banned_until) ? 'suspended' : 'active';
   } catch (err) {
     console.warn('[auth] banStatusOf :', err.message);
-    return 'active';
+    return 'suspended';
   }
 }
 
@@ -50,7 +50,7 @@ export async function ownerSuspendedFor(userId, accountType) {
     return data?.user_id ? (await banStatusOf(data.user_id)) === 'suspended' : false;
   } catch (err) {
     console.warn('[auth] ownerSuspendedFor :', err.message);
-    return false;
+    return true;
   }
 }
 
@@ -176,12 +176,15 @@ export function authenticatePage(redirectTo = PAGE_LOGIN_REDIRECT) {
 }
 
 export function signToken(payload, expiresIn = '7d') {
-  const clean = { ...payload };
-  delete clean.iat;
-  delete clean.exp;
-  delete clean.nbf;
-  delete clean.jti;
-  delete clean.suspended;
+  const clean = {
+    id: payload.id,
+    account_type: payload.account_type,
+    supabase_token: payload.supabase_token,
+    refresh_token: payload.refresh_token,
+    supabase_expires_at: payload.supabase_expires_at,
+  };
+  if (payload.mfa_pending) clean.mfa_pending = true;
+  if (payload.factorId) clean.factorId = payload.factorId;
   return jwt.sign(clean, process.env.JWT_SECRET, { expiresIn });
 }
 

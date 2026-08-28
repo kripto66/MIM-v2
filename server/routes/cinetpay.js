@@ -332,13 +332,13 @@ webhookRouter.post('/', express.urlencoded({ extended: true }), async (req, res)
 
         // 1) Authenticité HMAC (mécanisme officiel) si le secret est configuré.
         const secretConfigured = Boolean(cinetpayConfig().webhookSecret);
-        if (secretConfigured) {
-            const token = req.headers['x-token'] || '';
-            if (!verifyWebhookHmac(payload, token)) {
-                return res.status(401).json({ success: false, message: 'Signature x-token invalide.' });
-            }
-        } else {
-            console.warn('[cinetpay/webhook] CINETPAY_WEBHOOK_SECRET absent : seule la re-vérification serveur protège ce webhook.');
+        if (!secretConfigured) {
+            console.error('[cinetpay/webhook] CINETPAY_WEBHOOK_SECRET absent : webhook rejeté (fail-closed).');
+            return res.status(500).json({ success: false, message: 'Configuration HMAC manquante.' });
+        }
+        const token = req.headers['x-token'] || '';
+        if (!verifyWebhookHmac(payload, token)) {
+            return res.status(401).json({ success: false, message: 'Signature x-token invalide.' });
         }
 
         const transId = payload.cpm_trans_id || payload.transaction_id || null;

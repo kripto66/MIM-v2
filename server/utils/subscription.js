@@ -107,7 +107,7 @@ export async function subscriptionExpiredFor(userId, accountType) {
       userId = data.user_id;
     } catch (err) {
       console.warn('[subscription]', err.message);
-      return false;
+      return true;
     }
   }
 

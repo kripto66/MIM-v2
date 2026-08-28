@@ -9,13 +9,10 @@ setInterval(() => {
 
 const RATE_LIMIT_OFF = process.env.RATE_LIMIT_OFF === 'true';
 
-function makeLimiter({ windowMs, max, message }) {
+function makeLimiter({ windowMs, max, message, keyFn }) {
   return (req, res, next) => {
     if (RATE_LIMIT_OFF) return next();
-    // Clé sur le chemin (sans la query string) : évite de contourner la limite
-    // en variant les paramètres d'URL. req.ip reflète l'IP client quand le
-    // trust proxy est activé (voir app.js).
-    const key = `${req.ip}:${req.baseUrl || ''}${req.path}`;
+    const key = keyFn ? keyFn(req) : `${req.ip}:${req.baseUrl || ''}${req.path}`;
     const now = Date.now();
     const entry = buckets.get(key);
 
@@ -26,7 +23,7 @@ function makeLimiter({ windowMs, max, message }) {
 
     entry.count += 1;
 
-    if (entry.count > max) {
+    if (entry.count >= max) {
       res.setHeader('Retry-After', Math.ceil((windowMs - (now - entry.start)) / 1000));
       return res.status(429).json({ success: false, message });
     }
@@ -45,4 +42,18 @@ export const apiRateLimit = makeLimiter({
   windowMs: 60 * 1000,
   max: 300,
   message: 'Trop de requêtes. Veuillez patienter.',
+});
+
+export const forgotPasswordRateLimit = makeLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 3,
+  message: 'Trop de demandes de réinitialisation. Réessayez dans quelques minutes.',
+  keyFn: (req) => `forgot:${req.ip}`,
+});
+
+export const mfaVerifyRateLimit = makeLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  message: 'Trop de tentatives de vérification. Réessayez dans quelques minutes.',
+  keyFn: (req) => `mfa:${req.ip}`,
 });

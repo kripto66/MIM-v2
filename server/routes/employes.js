@@ -12,6 +12,7 @@ import { tenantEmailFor, usernameIsValid, uniqueUsername, splitFullName, INITIAL
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { notify } from '../utils/notifications.js';
 import { methodePaiementError, TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paydunyaAliasError, pourVersementError, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
+import { auditLog, LEVELS } from '../utils/audit.js';
 
 const router = Router();
 
@@ -258,14 +259,24 @@ router.post('/', async (req, res) => {
   if (biensError) {
     try {
       await sb.from('employes').delete().eq('id', data.id);
-    } catch {
-      /* déjà nettoyé */
+    } catch (cleanupErr) {
+      console.warn('[employes] nettoyage échec après rollback biens :', cleanupErr.message);
     }
     return res.status(400).json({ success: false, message: biensError.message, errors: biensError.errors });
   }
 
   await notify(accountUid, 'info', 'Votre compte employé a été créé par votre employeur. À votre première connexion, vous devrez choisir un nouveau mot de passe.');
   gitAutoBackup(`Sauvegarde auto : ajout employé (compte ${finalUsername})`);
+
+  await auditLog({
+    userId: req.user.id,
+    action: 'employee.create',
+    target: data.id,
+    targetType: 'employee',
+    level: LEVELS.INFO,
+    meta: { username: finalUsername, nom: data.nom, prenom: data.prenom },
+    ip: req.ip,
+  });
 
   res.status(201).json({
     success: true,
@@ -403,6 +414,16 @@ router.delete('/:id', async (req, res) => {
     await sb.auth.admin.deleteUser(existing.account_uid).catch(() => {});
   }
 
+  await auditLog({
+    userId: req.user.id,
+    action: 'employee.delete',
+    target: existing.id,
+    targetType: 'employee',
+    level: LEVELS.WARN,
+    meta: { nom: existing.nom },
+    ip: req.ip,
+  });
+
   gitAutoBackup(`Sauvegarde auto : suppression employé ${existing.nom}`);
   res.json({ success: true, message: 'Employé supprimé.' });
 });
@@ -416,7 +437,7 @@ router.get('/:id/paiements', async (req, res) => {
 
   const { data: employe } = await sb
     .from('employes')
-    .select('id')
+    .select('id, account_uid')
     .eq('id', req.params.id)
     .eq('user_id', ownerId)
     .maybeSingle();
@@ -431,7 +452,7 @@ router.get('/:id/paiements', async (req, res) => {
       .eq('employe_id', req.params.id)
       .eq('user_id', ownerId)
       .order('created_at', { ascending: false }),
-    sb.from('moyens_paiement_employes').select('id, type, nom_titulaire, numero'),
+    sb.from('moyens_paiement_employes').select('id, type, nom_titulaire, numero').eq('employe_uid', employe.account_uid),
   ]);
 
   if (error) {

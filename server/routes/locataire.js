@@ -55,6 +55,10 @@ router.post('/incidents', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Le titre est trop long (120 caractères maximum).', errors: { titre: 'Le titre est trop long (120 caractères maximum).' } });
     }
 
+    if (description.length > 5000) {
+      return res.status(400).json({ success: false, message: 'La description est trop longue (5000 caractères maximum).', errors: { description: 'La description est trop longue (5000 caractères maximum).' } });
+    }
+
     if (photo) {
       if (!/^data:image\/[a-zA-Z]+;base64,/.test(photo)) {
         return res.status(400).json({ success: false, message: 'Format de photo invalide.', errors: { photo: 'Format de photo invalide.' } });

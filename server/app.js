@@ -25,6 +25,7 @@ import uploadRoutes from './routes/upload.js';
 import { createCrudRouter } from './routes/crud.js';
 import { authenticate, requireActive, requireAdmin, requireRole, authenticatePage, requireZone } from './middleware/auth.js';
 import { authRateLimit, apiRateLimit } from './middleware/rateLimit.js';
+import { validateCsrfToken, csrfInitRoute } from './middleware/csrf.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -77,6 +78,23 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+
+  // Content-Security-Policy : défense en profondeur contre XSS.
+  // 'unsafe-inline' est nécessaire pour les scripts inline du frontend vanilla JS.
+  // 'unsafe-eval' est requis si des bibliothèques l'utilisent (vérifier avant de l'activer).
+  const cspDirectives = [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline'",           // scripts inline dans les HTML
+    "style-src 'self' 'unsafe-inline'",            // styles inline + Google Fonts si besoin
+    "img-src 'self' data: blob:",                  // images base64 (avatars), fichiers locaux
+    "font-src 'self' data:",                       // polices embarquées
+    "connect-src 'self' http://127.0.0.1:64321 https://*.supabase.co wss://*.supabase.co",  // API Supabase
+    "frame-ancestors 'none'",                      // pas de framing (renforce X-Frame-Options)
+    "base-uri 'self'",
+    "form-action 'self'",
+  ];
+  res.setHeader('Content-Security-Policy', cspDirectives.join('; '));
+
   // Les pages ne doivent jamais être servies depuis le cache du navigateur
   // (bouton « retour » / bfcache) : après une déconnexion, une page de zone
   // protégée ne doit pas rester visible avec une session invalide.
@@ -125,16 +143,19 @@ app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'MIM API OK' });
 });
 
+app.get('/api/csrf-token', csrfInitRoute);
+
 // Les fonctionnalités métier exigent un compte ACTIF (ni suspendu, ni
 // dépendant d'un propriétaire suspendu). Les routes /api/auth restent
 // ouvertes aux comptes suspendus : profil, mot de passe, déconnexion, 2FA.
-app.use('/api/auth', authRateLimit, authRoutes);
+// Le CSRF est appliqué aux routes POST/PUT/DELETE/PATCH de mutation.
+app.use('/api/auth', authRateLimit, validateCsrfToken, authRoutes);
 app.use('/api', apiRateLimit);
 app.use('/api/stats', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), statsRoutes);
 app.use('/api/git', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise', 'admin'), gitRoutes);
 app.use('/api/locataire', authenticate, requireActive, requireRole('locataire'), locataireRoutes);
 app.use('/api/admin', authenticate, requireActive, requireAdmin, adminRoutes);
-app.use('/api/subscription', authenticate, requireRole('proprietaire', 'agence', 'entreprise'), subscriptionRoutes);
+app.use('/api/subscription', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), subscriptionRoutes);
 app.use('/api/employes', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), employesRoutes);
 app.use('/api/tasks', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), tasksRoutes);
 app.use('/api/employe', authenticate, requireActive, requireRole('employe'), employeRoutes);
@@ -144,7 +165,6 @@ app.use('/api/paiements-validation', authenticate, requireActive, requireRole('p
 app.use('/api/moyens-paiement', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), moyensPaiementRoutes);
 app.use('/api/import', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), importRoutes);
 app.use('/api/upload', authenticate, requireActive, uploadRoutes);
-app.use('/api/onboarding', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), importRoutes);
 
 const ownerOnly = requireRole('proprietaire', 'agence', 'entreprise');
 app.use('/api/biens', authenticate, requireActive, ownerOnly, createCrudRouter('biens'));

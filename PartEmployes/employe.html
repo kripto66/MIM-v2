@@ -6,34 +6,189 @@
 <link rel="stylesheet" href="employe.css"></head>
 <body>
 <div id="toast" class="toast"></div><div class="app">
-<aside class="sidebar" id="sidebar" data-breakpoint="900"><div class="brand"><b>M</b> MyImmoManagement</div>
-<div class="employee"><span id="avatar">E</span><div><strong id="sideName">Employé</strong><small id="sideRole">Chargement…</small></div></div>
+<aside class="sidebar" id="sidebar" data-breakpoint="900"><div class="brand">
+    <b>M</b> MyImmoManagement</div>
+<div class="employee"><span id="avatar">E</span>
+    <div><strong id="sideName">Employé</strong>
+        <small id="sideRole">Chargement…</small></div></div>
 <nav>
 <button class="nav active" data-view="overview">⌂ Tableau de bord</button>
-<button class="nav" data-view="tasks">✓ Mes tâches <i id="taskBadge"></i></button>
-<button class="nav" data-view="incidents">⚠ Incidents <i id="incidentBadge"></i></button>
+<button class="nav" data-view="tasks">✓ Mes tâches 
+    <i id="taskBadge"></i></button>
+<button class="nav" data-view="incidents">⚠ Incidents 
+    <i id="incidentBadge"></i></button>
 <button class="nav" data-view="interventions">🔧 Interventions</button>
 <button class="nav" data-view="logements">⌂ Logements</button>
 <button class="nav" data-view="locataires">👥 Locataires</button>
-<button class="nav" data-view="notifications">🔔 Notifications <i id="notifBadge"></i></button>
+<button class="nav" data-view="notifications">🔔 Notifications 
+    <i id="notifBadge">
+
+</i></button>
 <button class="nav" data-view="paiements">💳 Mes paiements</button>
 <button class="nav" data-view="profile">⚙ Mon profil</button></nav>
 <button id="logout" class="logout">↪ Déconnexion</button></aside>
-<main><header><button id="menu" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">☰</button><div><small>ESPACE EMPLOYÉ</small><h1 id="title">Tableau de bord</h1></div><span id="topName">Employé</span></header>
-<section id="overview" class="view active"><div class="welcome"><div><span>Aujourd’hui</span><h2>Bonjour <b id="welcome">Employé</b> 👋</h2><p>Suivez vos tâches, incidents et interventions.</p></div><button class="primary" data-view="tasks">Voir mes tâches</button></div>
-<div class="stats"><article><small>Mes tâches</small><strong id="sTasks">—</strong><em id="sTasksSub">Chargement…</em></article><article><small>Incidents ouverts</small><strong id="sIncidents">—</strong><em>Réels</em></article><article><small>Interventions</small><strong id="sInterventions">—</strong><em>Réelles</em></article><article><small>Notifications</small><strong id="sNotifications">—</strong><em>Non lues</em></article></div>
-<div class="columns"><article class="panel"><h3>Priorités</h3><div id="priorities"></div></article><article class="panel"><h3>Activité récente</h3><div id="activity"></div></article></div></section>
-<section id="tasks" class="view"><div class="head"><div><h2>Mes tâches</h2><p>Tâches réellement assignées à votre compte.</p></div><button class="secondary" data-refresh="tasks">Actualiser</button></div><div class="filters"><input id="taskQ" placeholder="Rechercher…"><select id="taskS"><option value="">Tous</option><option value="a_faire">À faire</option><option value="en_cours">En cours</option><option value="termine">Terminées</option></select></div><div id="tasksList"></div></section>
-<section id="incidents" class="view"><div class="head"><div><h2>Incidents</h2><p>Incidents des biens qui vous sont affectés.</p></div><button class="secondary" data-refresh="incidents">Actualiser</button></div><div class="filters"><input id="incidentQ" placeholder="Rechercher…"><select id="incidentS"><option value="">Tous</option><option value="nouveau">Nouveau</option><option value="en_cours">En cours</option><option value="resolu">Résolu</option></select></div><div id="incidentsList"></div></section>
-<section id="interventions" class="view"><div class="head"><div><h2>Interventions</h2><p>Interventions attribuées.</p></div><button class="secondary" data-refresh="interventions">Actualiser</button></div><div id="interventionsList"></div></section>
-<section id="logements" class="view"><div class="head"><div><h2>Logements</h2><p>Logements accessibles selon les permissions backend.</p></div><button class="secondary" data-refresh="logements">Actualiser</button></div><div id="logementsList"></div></section>
-<section id="locataires" class="view"><div class="head"><div><h2>Locataires</h2><p>Locataires accessibles selon les permissions backend.</p></div><button class="secondary" data-refresh="locataires">Actualiser</button></div><div id="locatairesList"></div></section>
-<section id="notifications" class="view"><div class="head"><div><h2>Notifications</h2><p>Événements réels liés à votre activité.</p></div><button id="readAll" class="secondary">Tout marquer comme lu</button></div><div id="notificationsList"></div></section>
-<section id="paiements" class="view"><div class="head"><div><h2>Mes paiements</h2><p>Confirmez la réception de vos salaires et gérez vos moyens de réception.</p></div><button class="secondary" data-refresh="paiements">Actualiser</button></div>
-<article class="panel"><h3>Moyens de réception</h3><div class="moyens-tools"><button class="primary small" id="addMoyenBtn">+ Ajouter un moyen</button></div><div id="moyensList"></div></article>
-<h3 class="subtitle">Salaires</h3><div id="salairesList"></div></section>
-<div class="overlay hidden" id="moyenOverlay"><div class="modal"><h3 id="moyenModalTitle">Ajouter un moyen de réception</h3><label>Type<select id="moyenType"><option value="wave">Wave</option><option value="orange_money">Orange Money</option><option value="virement">Virement bancaire</option><option value="especes">Espèces</option></select></label><div id="moyenFields"></div><label class="check"><input type="checkbox" id="moyenActif" checked> Moyen actif</label><label class="check"><input type="checkbox" id="moyenPourVersement"> Recevoir les versements automatiques</label><p class="muted small">Votre salaire payé en ligne via PayDunya vous sera reversé directement sur ce wallet (Wave, Orange Money) ou compte PayDunya. Un seul moyen de réception à la fois.</p><div class="modal-actions"><button class="secondary" data-close>Annuler</button><button class="primary" id="moyenSave">Enregistrer</button></div></div></div>
-<div class="overlay hidden" id="refusOverlay"><div class="modal"><h3>Je n'ai pas reçu le paiement</h3><label>Motif<select id="refusMotif"><option>Paiement non reçu</option><option>Montant incorrect</option><option>Autre</option></select></label><label>Précisions (optionnel)<input id="refusDetail" placeholder="Ex. montant erroné…"></label><div class="modal-actions"><button class="secondary" data-close>Annuler</button><button class="primary" id="refusSave">Signaler</button></div></div></div>
-<section id="profile" class="view"><div class="head"><div><h2>Mon profil</h2><p>Informations du compte employé.</p></div></div>
-<form id="profileForm" class="panel form"><div class="avatar-edit"><img id="pAvatar" alt="Photo de profil" src="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84'%3E%3Crect width='84' height='84' fill='%23e9edf2'/%3E%3Ctext x='42' y='50' font-size='32' text-anchor='middle' fill='%239aa7b4'%3E👤%3C/text%3E%3C/svg%3E"><div><label for="pAvatarInput" class="secondary small" style="display:inline-block;cursor:pointer;">Changer la photo</label><input id="pAvatarInput" type="file" accept="image/jpeg,image/png,image/webp" hidden><button type="button" class="danger small" id="pAvatarRemove" style="display:none;">Supprimer la photo</button><small>JPEG, PNG ou WebP — 2 Mo max.</small></div></div><label>Nom<input id="pName" required></label><label>Username<input id="pUsername" required></label><label>Rôle<input id="pRole" disabled></label><label>Email<input id="pEmail" type="email"></label><hr><label>Mot de passe actuel<input id="pCurrent" type="password"></label><label>Nouveau mot de passe<input id="pNew" type="password"><small id="pwdHint"></small></label><label>Confirmation<input id="pConfirm" type="password"></label><button class="primary">Enregistrer</button></form></section>
-</main></div><script src="employe.js"></script><script src="../PartPublic/sidebar.js"></script></body></html>
+<main><header><button id="menu" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">☰
+
+</button>
+    <div><small>ESPACE EMPLOYÉ</small>
+        <h1 id="title">Tableau de bord</h1>
+    </div>
+        <span id="topName">Employé</span></header>
+<section id="overview" class="view active">
+    <div class="welcome"><div><span>Aujourd’hui</span>
+        <h2>Bonjour <b id="welcome">Employé</b> 👋</h2>
+        <p>Suivez vos tâches, incidents et interventions.</p>
+    </div><button class="primary" data-view="tasks">Voir mes tâches</button>
+</div>
+<div class="stats"><article><small>Mes tâches</small><strong id="sTasks">—</strong>
+    <em id="sTasksSub">Chargement…</em></article><article>
+        <small>Incidents ouverts</small>
+        <strong id="sIncidents">—</strong><em>Réels</em>
+    </article><article><small>Interventions</small>
+        <strong id="sInterventions">—</strong><em>Réelles</em>
+    </article><article><small>Notifications</small>
+        <strong id="sNotifications">—</strong><em>Non lues</em>
+    </article></div>
+<div class="columns"><article class="panel">
+    <h3>Priorités</h3><div id="priorities"></div></article>
+    <article class="panel"><h3>Activité récente</h3>
+        <div id="activity"></div></article></div></section>
+
+<section id="tasks" class="view">
+    <div class="head"><div><h2>Mes tâches</h2>
+        <p>Tâches réellement assignées à votre compte.</p>
+    </div><button class="secondary" data-refresh="tasks">Actualiser</button>
+</div><div class="filters"><input id="taskQ" placeholder="Rechercher…">
+    <select id="taskS"><option value="">Tous</option>
+        <option value="a_faire">À faire</option>
+        <option value="en_cours">En cours</option>
+        <option value="termine">Terminées</option>
+    </select></div><div id="tasksList"></div></section>
+<section id="incidents" class="view"><div class="head">
+    <div><h2>Incidents</h2><p>Incidents des biens qui vous sont affectés.</p>
+    </div>
+    <button class="secondary" data-refresh="incidents">Actualiser</button>
+</div><div class="filters"><input id="incidentQ" placeholder="Rechercher…">
+    <select id="incidentS"><option value="">Tous</option><option value="nouveau">Nouveau</option>
+        <option value="en_cours">En cours</option>
+        <option value="resolu">Résolu</option></select>
+    </div><div id="incidentsList"></div></section>
+<section id="interventions" class="view"><div class="head">
+    <div><h2>Interventions</h2>
+        <p>Interventions attribuées.</p>
+    </div>
+    <button class="secondary" data-refresh="interventions">Actualiser</button>
+</div><div id="interventionsList"></div></section>
+<section id="logements" class="view"><div class="head">
+    <div><h2>Logements</h2>
+        <p>Logements accessibles selon les permissions backend.</p>
+    </div><button class="secondary" data-refresh="logements">Actualiser</button></div>
+    <div id="logementsList"></div></section>
+<section id="locataires" class="view"><div class="head"><div>
+    <h2>Locataires</h2><p>Locataires accessibles selon les permissions backend.</p>
+</div><button class="secondary" data-refresh="locataires">Actualiser</button>
+</div><div id="locatairesList"></div></section>
+<section id="notifications" class="view"><div class="head">
+    <div><h2>Notifications</h2><p>Événements réels liés à votre activité.</p>
+    </div><button id="readAll" class="secondary">Tout marquer comme lu</button>
+</div><div id="notificationsList"></div></section>
+<section id="paiements" class="view">
+    <div class="head"><div><h2>Mes paiements</h2>
+        <p>Confirmez la réception de vos salaires et gérez vos moyens de réception.</p>
+    </div><button class="secondary" data-refresh="paiements">Actualiser</button></div>
+<article class="panel"><h3>Moyens de réception</h3><div class="moyens-tools">
+    <button class="primary small" id="addMoyenBtn">+ Ajouter un moyen</button>
+</div><div id="moyensList"></div></article>
+<h3 class="subtitle">Salaires</h3><div id="salairesList">
+
+</div></section>
+<div class="overlay hidden" id="moyenOverlay">
+    <div class="modal"><h3 id="moyenModalTitle">Ajouter un moyen de réception</h3>
+        <label>Type<select id="moyenType">
+            <option value="wave">Wave</option>
+            <option value="orange_money">Orange Money</option>
+            <option value="virement">Virement bancaire</option>
+            <option value="especes">Espèces</option>
+        </select></label><div id="moyenFields"></div>
+        <label class="check">
+            
+            <input type="checkbox" id="moyenActif" checked> Moyen actif</label>
+            <label class="check">
+                <input type="checkbox" id="moyenPourVersement"> Recevoir les versements automatiques
+            </label>
+
+            <p class="muted small">
+                Votre salaire payé en ligne via PayDunya vous sera 
+                reversé directement sur ce wallet (Wave, Orange Money) 
+                ou compte PayDunya. Un seul moyen de réception à la fois.
+            </p>
+            <div class="modal-actions"><button class="secondary" data-close>Annuler</button>
+                <button class="primary" id="moyenSave">Enregistrer</button>
+            </div>
+        </div>
+    </div>
+<div class="overlay hidden" id="refusOverlay">
+    <div class="modal"><h3>
+        Je n'ai pas reçu le paiement
+    </h3>
+    <label>Motif<select id="refusMotif">
+        <option>Paiement non reçu
+
+        </option>
+        <option>Montant incorrect
+
+        </option>
+        <option>Autre</option>
+    </select>
+</label>
+<label>Précisions (optionnel)
+    <input id="refusDetail" placeholder="Ex. montant erroné…">
+</label><div class="modal-actions">
+    <button class="secondary" data-close>Annuler</button>
+    <button class="primary" id="refusSave">Signaler</button>
+</div>
+     </div>
+  </div>
+<section id="profile" class="view">
+    <div class="head"><div><h2>Mon profil</h2>
+        <p>Informations du compte employé.</p>
+    </div>
+</div>
+
+
+<form id="profileForm" class="panel form">
+    <div class="avatar-edit">
+        <img id="pAvatar" alt="Photo de profil" 
+        src="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg'
+         width='84' height='84'%3E%3Crect width='84' 
+         height='84' fill='%23e9edf2'/%3E%3Ctext x='42' y='50' font-size='32' 
+         text-anchor='middle' 
+         fill='%239aa7b4'%3E👤%3C/text%3E%3C/svg%3E">
+         <div><label for="pAvatarInput" 
+            class="secondary small" 
+            style="display:inline-block;cursor:pointer;">
+            Changer la photo</label>
+            <input id="pAvatarInput" type="file" 
+            accept="image/jpeg,image/png,image/webp" hidden>
+            <button type="button" class="danger small" 
+            id="pAvatarRemove" style="display:none;">Supprimer la photo</button>
+            <small>JPEG, PNG ou WebP — 2 Mo max.</small>
+        </div></div><label>Nom<input id="pName" required>
+        </label>
+        <label>Username<input id="pUsername" required></label>
+        <label>Rôle<input id="pRole" disabled></label>
+        <label>Email<input id="pEmail" type="email"></label>
+        <hr><label>Mot de passe actuel<input id="pCurrent" type="password">
+        </label>
+        <label>Nouveau mot de passe<input id="pNew" type="password">
+            <small id="pwdHint"></small>
+        </label><label>Confirmation<input id="pConfirm" type="password">
+        </label><button class="primary">Enregistrer</button>
+    </form>
+</section>
+</main>
+</div>
+<script src="employe.js"></script>
+<script src="../PartPublic/sidebar.js"></script>
+</body>
+</html>

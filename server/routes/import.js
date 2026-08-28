@@ -11,6 +11,7 @@
 // ============================================================
 
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import { serviceClient } from '../app.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
 import { prepareImport, executeImport, decodeCsvBuffer, CATEGORIES, INITIAL_PASSWORD } from '../utils/importCsv.js';
@@ -25,9 +26,19 @@ const router = Router();
 const importRuns = new Map();
 let runSeq = 0;
 
+// Nettoyage périodique : supprime les runs terminés de plus de 30 min.
+setInterval(() => {
+  const cutoff = Date.now() - 30 * 60 * 1000;
+  for (const [id, run] of importRuns) {
+    if ((run.status === 'done' || run.status === 'error') && run.finishedAt && run.finishedAt < cutoff) {
+      importRuns.delete(id);
+    }
+  }
+}, 10 * 60 * 1000).unref();
+
 function newRunId(ownerId) {
   runSeq++;
-  return `${Date.now()}-${ownerId.slice(0, 8)}-${runSeq}`;
+  return `${Date.now()}-${ownerId.slice(0, 8)}-${runSeq}-${crypto.randomBytes(4).toString('hex')}`;
 }
 
 // Décodage du contenu d'un fichier : le frontend peut envoyer le texte brut
@@ -241,10 +252,12 @@ router.post('/execute', async (req, res) => {
 
       run.status = 'done';
       run.message = 'Terminé';
+      run.finishedAt = Date.now();
 
       if (result.error) {
-        run.status = 'error';
-        run.message = String(result.error || 'Import bloqué');
+      run.status = 'error';
+      run.message = String(result.error || 'Import bloqué');
+      run.finishedAt = Date.now();
         return res.status(409).json({ success: false, message: result.error, prepared: result.prepared, runId });
       }
 
@@ -263,6 +276,7 @@ router.post('/execute', async (req, res) => {
     } catch (err) {
       run.status = 'error';
       run.message = err?.message || 'Erreur technique';
+      run.finishedAt = Date.now();
       console.error('[import/execute]', err.message);
       res.status(500).json({ success: false, message: 'Erreur lors de l\'importation des données.', runId });
     }

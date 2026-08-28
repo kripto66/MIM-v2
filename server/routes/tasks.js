@@ -131,6 +131,9 @@ router.put('/:id', async (req, res) => {
     if (!titre) {
       return res.status(400).json({ success: false, message: 'Le titre est obligatoire.', errors: { titre: 'Le titre est obligatoire.' } });
     }
+    if (titre.length > 200) {
+      return res.status(400).json({ success: false, message: 'Le titre est trop long (200 caractères maximum).', errors: { titre: 'Le titre est trop long (200 caractères maximum).' } });
+    }
     updates.titre = titre;
   }
   if (req.body.description !== undefined) updates.description = String(req.body.description || '').trim() || null;
@@ -173,6 +176,17 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   const sb = serviceClient();
   const ownerId = req.user.id;
+
+  const { data: existing } = await sb
+    .from('tasks')
+    .select('id')
+    .eq('id', req.params.id)
+    .eq('user_id', ownerId)
+    .maybeSingle();
+
+  if (!existing) {
+    return res.status(404).json({ success: false, message: 'Tâche introuvable.' });
+  }
 
   const { error } = await sb.from('tasks').delete().eq('id', req.params.id).eq('user_id', ownerId);
 

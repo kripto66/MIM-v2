@@ -3,7 +3,7 @@ export const TENANT_EMAIL_DOMAIN = 'mim.local';
 // Mot de passe initial des comptes créés automatiquement (locataires,
 // employés) : temporaire uniquement, jamais stocké en clair — le compte
 // est créé avec must_change_password = true.
-export const INITIAL_PASSWORD = '1234';
+export const INITIAL_PASSWORD = 'Mim@' + Math.random().toString(36).slice(2, 8) + '!';
 
 export function usernameIsValid(username) {
   return /^[a-z0-9._-]{3,32}$/.test(String(username || '').trim().toLowerCase());

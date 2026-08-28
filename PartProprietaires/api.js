@@ -5,9 +5,15 @@ const API = (() => {
 })();
 
 async function apiRequest(path, options = {}) {
+  const xsrf = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+  const csrfToken = xsrf ? decodeURIComponent(xsrf[1]) : '';
+
   const res = await fetch(`${API}${path}`, {
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(csrfToken ? { "x-csrf-token": csrfToken } : {}),
+    },
     ...options,
   });
 

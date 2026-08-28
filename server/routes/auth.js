@@ -1,13 +1,15 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { supabase, authedClient, serviceClient } from '../app.js';
-import { signToken, authenticate, ownerSuspendedFor, isBannedValue } from '../middleware/auth.js';
+import { signToken, authenticate, ownerSuspendedFor, isBannedValue, banStatusOf } from '../middleware/auth.js';
+import { forgotPasswordRateLimit, mfaVerifyRateLimit } from '../middleware/rateLimit.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
 import { logSession, closeSession } from '../utils/sessions.js';
 import { newOAuthClient, storeFlow, getFlow, deleteFlow } from '../utils/oauth.js';
 import { resolveLoginEmail, tenantEmailFor, usernameIsValid, TENANT_EMAIL_DOMAIN } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { subscriptionExpiredFor } from '../utils/subscription.js';
+import { auditLog, LEVELS } from '../utils/audit.js';
 
 const router = Router();
 
@@ -76,12 +78,15 @@ function setPendingMfaCookie(res, token) {
     httpOnly: true,
     sameSite: 'lax',
     secure: IS_PROD,
+    path: '/',
     maxAge: 10 * 60 * 1000,
   });
 }
 
 function accountTypeOf(user) {
-  return user?.user_metadata?.account_type || 'proprietaire';
+  const t = user?.user_metadata?.account_type;
+  if (['proprietaire', 'agence', 'entreprise', 'locataire', 'employe', 'admin'].includes(t)) return t;
+  return 'proprietaire';
 }
 
 function sessionPayload(user, session) {
@@ -137,7 +142,7 @@ async function requireMfaFor(user, supabaseToken) {
   return factors;
 }
 
-async function finalizeLogin(res, user, session, userAgent) {
+async function finalizeLogin(res, user, session, userAgent, ip) {
   const accountType = accountTypeOf(user);
 
   const token = signToken(sessionPayload(user, session));
@@ -145,7 +150,7 @@ async function finalizeLogin(res, user, session, userAgent) {
   setAuthCookie(res, token);
 
   await linkTenantAccount(user, session?.access_token);
-  await logSession(user.id, 'login', session?.access_token, userAgent);
+  await logSession(user.id, 'login', session?.access_token, userAgent, ip);
   gitAutoBackup(`Sauvegarde auto : connexion de ${user.email}`);
 
   const profile = await profileOf(user.id);
@@ -276,7 +281,7 @@ router.post('/register', async (req, res) => {
   setAuthCookie(res, signToken(sessionPayload(user, data.session)));
 
   await linkTenantAccount(user, data.session?.access_token);
-  await logSession(user.id, 'register', data.session?.access_token, req.headers['user-agent']);
+  await logSession(user.id, 'register', data.session?.access_token, req.headers['user-agent'], req.ip);
 
   res.status(201).json({
     success: true,
@@ -298,10 +303,10 @@ router.post('/login', async (req, res) => {
   const account = await lookupAuthUserByEmail(email);
 
   if (account && isBannedValue(account.banned_until)) {
-    return res.status(403).json({
+    return res.status(401).json({
       success: false,
-      code: 'ACCOUNT_SUSPENDED',
-      message: 'Votre compte a été suspendu.',
+      code: 'INVALID_CREDENTIALS',
+      message: 'Email ou mot de passe incorrect.',
     });
   }
 
@@ -329,7 +334,7 @@ router.post('/login', async (req, res) => {
     // GoTrue refuse la connexion d'un utilisateur banni (user_banned) :
     // on le traduit en suspension, pas en mauvais identifiants.
     if (error?.code === 'user_banned' || msg.includes('banned')) {
-      return res.status(403).json({ success: false, code: 'ACCOUNT_SUSPENDED', message: 'Votre compte a été suspendu.' });
+      return res.status(401).json({ success: false, code: 'INVALID_CREDENTIALS', message: 'Email ou mot de passe incorrect.' });
     }
 
     if (isTransient(error)) {
@@ -352,10 +357,10 @@ router.post('/login', async (req, res) => {
   if (['proprietaire', 'agence', 'entreprise'].includes(accountType)) {
     const expired = await subscriptionExpiredFor(data.user.id, accountType);
     if (expired) {
-      return res.status(403).json({
+      return res.status(401).json({
         success: false,
-        code: 'ACCOUNT_SUSPENDED',
-        message: 'Votre compte a été suspendu.',
+        code: 'INVALID_CREDENTIALS',
+        message: 'Email ou mot de passe incorrect.',
       });
     }
   }
@@ -368,10 +373,10 @@ router.post('/login', async (req, res) => {
       (await ownerSuspendedFor(data.user.id, accountType)) ||
       (await subscriptionExpiredFor(data.user.id, accountType));
     if (ownerSuspended) {
-      return res.status(403).json({
+      return res.status(401).json({
         success: false,
-        code: 'ACCOUNT_SUSPENDED',
-        message: 'Votre compte a été suspendu.',
+        code: 'INVALID_CREDENTIALS',
+        message: 'Email ou mot de passe incorrect.',
       });
     }
   }
@@ -404,7 +409,7 @@ router.post('/login', async (req, res) => {
     });
   }
 
-  const result = await finalizeLogin(res, data.user, data.session, req.headers['user-agent']);
+  const result = await finalizeLogin(res, data.user, data.session, req.headers['user-agent'], req.ip);
 
   res.json({
     success: true,
@@ -413,7 +418,7 @@ router.post('/login', async (req, res) => {
   });
 });
 
-router.post('/verify-2fa', async (req, res) => {
+router.post('/verify-2fa', mfaVerifyRateLimit, async (req, res) => {
   const pending = req.cookies?.mim_mfa_pending;
 
   if (!pending) {
@@ -463,7 +468,7 @@ router.post('/verify-2fa', async (req, res) => {
       expires_at: verified.expires_at ?? Math.floor(Date.now() / 1000) + (verified.expires_in || 3600),
     };
 
-    const result = await finalizeLogin(res, verified.user, session, req.headers['user-agent']);
+    const result = await finalizeLogin(res, verified.user, session, req.headers['user-agent'], req.ip);
 
     res.json({
       success: true,
@@ -664,6 +669,33 @@ router.get('/callback', async (req, res) => {
 
     const session = data.session;
     const user = session.user;
+    const accountType = accountTypeOf(user);
+
+    // Même vérification que le login classique : compte banni, abonnement
+    // expiré, propriétaire suspendu (pour locataire/employé).
+    const ownBan = await banStatusOf(user.id);
+    if (ownBan === 'deleted') {
+      return res.redirect(`${APP_URL}/PartPublic/connexion.html?oauth_error=account_deleted`);
+    }
+    if (ownBan === 'suspended') {
+      return res.redirect(`${APP_URL}/PartPublic/connexion.html?oauth_error=suspended`);
+    }
+
+    if (['proprietaire', 'agence', 'entreprise'].includes(accountType)) {
+      const expired = await subscriptionExpiredFor(user.id, accountType);
+      if (expired) {
+        return res.redirect(`${APP_URL}/PartPublic/connexion.html?oauth_error=suspended`);
+      }
+    }
+
+    if (accountType === 'locataire' || accountType === 'employe') {
+      const ownerSusp =
+        (await ownerSuspendedFor(user.id, accountType)) ||
+        (await subscriptionExpiredFor(user.id, accountType));
+      if (ownerSusp) {
+        return res.redirect(`${APP_URL}/PartPublic/connexion.html?oauth_error=suspended`);
+      }
+    }
 
     const factors = await requireMfaFor(user, session.access_token);
 
@@ -679,7 +711,7 @@ router.get('/callback', async (req, res) => {
       return res.redirect(`${APP_URL}/PartPublic/2fa.html`);
     }
 
-    const result = await finalizeLogin(res, user, session, req.headers['user-agent']);
+    const result = await finalizeLogin(res, user, session, req.headers['user-agent'], req.ip);
     return res.redirect(`${APP_URL}/${result.redirect}`);
   } catch (err) {
     console.error('[oauth callback]', err.message);
@@ -699,7 +731,7 @@ router.post('/logout', authenticate, async (req, res) => {
   }
 
   if (req.user?.id) {
-    await closeSession(req.user.id, supabaseToken);
+    await closeSession(req.user.id, supabaseToken, req.headers['user-agent']);
     gitAutoBackup(`Sauvegarde auto : déconnexion utilisateur ${req.user.id}`);
   }
 
@@ -789,6 +821,33 @@ router.put('/change-password', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Impossible de modifier le mot de passe.' });
     }
 
+    // Invalidation des autres sessions : après changement de mot de passe,
+    // tous les anciens jetons Supabase sont révoqués.
+    try {
+      await supabase.auth.admin.signOut(req.user.id, 'global');
+    } catch (signOutErr) {
+      console.warn('[change-password] signOut global :', signOutErr.message);
+    }
+
+    // Re-login de la session courante pour obtenir un nouveau refresh token.
+    try {
+      const { data: freshSession } = await supabase.auth.signInWithPassword({
+        email: account.user.email,
+        password,
+      });
+      if (freshSession?.session) {
+        setAuthCookie(res, signToken({
+          id: req.user.id,
+          account_type: req.user.account_type,
+          supabase_token: freshSession.session.access_token,
+          refresh_token: freshSession.session.refresh_token,
+          supabase_expires_at: freshSession.session.expires_at,
+        }));
+      }
+    } catch (reErr) {
+      console.warn('[change-password] re-login :', reErr.message);
+    }
+
     const { error: profileError } = await serviceClient()
       .from('profiles')
       .update({ must_change_password: false })
@@ -799,6 +858,13 @@ router.put('/change-password', authenticate, async (req, res) => {
     }
 
     gitAutoBackup(`Sauvegarde auto : changement de mot de passe ${req.user.id}`);
+
+    await auditLog({
+      userId: req.user.id,
+      action: 'auth.password_change',
+      level: LEVELS.WARN,
+      ip: req.ip,
+    });
 
     res.json({ success: true, message: 'Mot de passe modifié avec succès.' });
   } catch (err) {
@@ -975,7 +1041,7 @@ router.get('/username-available', authenticate, async (req, res) => {
   }
 });
 
-router.post('/forgot', async (req, res) => {
+router.post('/forgot', forgotPasswordRateLimit, async (req, res) => {
   const { email } = req.body;
 
   if (!email || !emailIsValid(email)) {
@@ -1087,6 +1153,16 @@ router.post('/reset-password', async (req, res) => {
   if (updateError) {
     console.error('[reset-password]', updateError.message);
     return res.status(400).json({ success: false, message: 'Impossible de réinitialiser le mot de passe.' });
+  }
+
+  // Invalidation de toutes les sessions existantes après réinitialisation.
+  try {
+    const userId = session?.user?.id;
+    if (userId) {
+      await supabase.auth.admin.signOut(userId, 'global');
+    }
+  } catch (signOutErr) {
+    console.warn('[reset-password] signOut global :', signOutErr.message);
   }
 
   gitAutoBackup('Sauvegarde auto : réinitialisation de mot de passe');
