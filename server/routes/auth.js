@@ -23,6 +23,7 @@ const PAGE_BY_TYPE = {
   entreprise: 'PartProprietaires/dashboard.html',
   locataire: 'PartLocataires/LocaDash.html',
   admin: 'PartAdmin/admin.html',
+  ultra_admin: 'PartUltraAdmin/ultra.html',
   employe: 'PartEmployes/employe.html',
 };
 
