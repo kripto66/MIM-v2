@@ -208,6 +208,7 @@ function enableTilt() {
 // ============================================================
 
 async function apiRequest(path, options = {}) {
+  await MIM._csrfReady;
   const csrf = MIM.csrfHeader();
   const res = await fetch(`${API}${path}`, {
     credentials: "include",
@@ -407,10 +408,10 @@ async function dashboard() {
   const stats = statsData.data || statsData;
   const auditLogs = (auditData.data || auditData || []);
 
-  const saasActive = stats.saasStatus === "active";
+  const saasActive = !stats.saasSuspended;
 
   app.innerHTML = `
-  <div class="cards">
+  <div class="stat-grid">
     ${statCard({ label: "Propriétaires", icon: "👥", raw: stats.proprietaires || 0, sub: "Comptes propriétaires", d: 0 })}
     ${statCard({ label: "Locataires", icon: "👤", raw: stats.locataires || 0, sub: "Comptes locataires", d: 0.04 })}
     ${statCard({ label: "Biens", icon: "🏢", raw: stats.biens || 0, sub: "Biens enregistrés", d: 0.08 })}
@@ -420,8 +421,8 @@ async function dashboard() {
   </div>
 
   <div class="panel" style="margin-top:1rem">
-    <div class="saas-status-banner ${saasActive ? "active" : "suspended"}">
-      <div class="saas-status-dot"></div>
+    <div class="saas-banner ${saasActive ? "active" : "suspended"}">
+      <div class="saas-dot"></div>
       <div>
         <h3>SaaS ${saasActive ? "Actif" : "Suspendu"}</h3>
         <p>${saasActive ? "La plateforme fonctionne normalement pour tous les utilisateurs." : "La plateforme est en mode suspension. Les utilisateurs ne peuvent pas se connecter."}</p>
@@ -578,32 +579,35 @@ function renderUsersTableInner(list) {
 
 async function saas() {
   app.innerHTML = skeleton();
-  const { data } = await apiRequest("/ultra-admin/saas/status");
-  const status = data?.status || data?.saasStatus || "active";
-  const isActive = status === "active";
+  const { stats } = await apiRequest("/ultra-admin/stats").catch(() => ({}));
+  let isActive = true;
+  try {
+    const { suspended } = await apiRequest("/ultra-admin/saas/status");
+    isActive = !suspended;
+  } catch {}
 
   app.innerHTML = `
   <div class="panel" style="margin-bottom:1.5rem">
-    <div class="saas-status-banner ${isActive ? "active" : "suspended"}">
-      <div class="saas-status-dot"></div>
+    <div class="saas-banner ${isActive ? "active" : "suspended"}">
+      <div class="saas-dot"></div>
       <div>
-        <h3>SaaS ${isActive ? "Actif" : "Suspendu"}</h3>
-        <p>${isActive
+        <h3 style="margin:0 0 4px">SaaS ${isActive ? "Actif" : "Suspendu"}</h3>
+        <p style="margin:0;font-size:13px">${isActive
           ? "La plateforme fonctionne normalement. Tous les utilisateurs ont accès."
           : "La plateforme est en mode suspension. Les utilisateurs ne peuvent pas se connecter."}</p>
       </div>
     </div>
   </div>
 
-  <div class="cards" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
-    <div class="stat-card" data-tilt style="--d:0s;border-color:rgba(251,113,133,0.35)">
-      <div class="stat-head"><span>Suspendre le SaaS</span><span class="stat-icon">⏸️</span></div>
-      <div class="stat-sub" style="margin:0.75rem 0;line-height:1.5">Désactive temporairement l'accès à la plateforme pour tous les utilisateurs. Les propriétaires et locataires ne pourront plus se connecter.</div>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+    <div class="stat-card" style="flex-direction:column;align-items:flex-start;gap:10px">
+      <div class="stat-head"><span>Suspendre le SaaS</span><span class="stat-icon red">⏸️</span></div>
+      <p style="margin:0;font-size:13px;color:var(--dim);line-height:1.5">Désactive l'accès à la plateforme pour tous les utilisateurs non-admin.</p>
       <button class="btn danger" data-action="ultraSuspendSaas" ${!isActive ? "disabled" : ""}>Suspendre le SaaS</button>
     </div>
-    <div class="stat-card" data-tilt style="--d:0.04s;border-color:rgba(52,211,153,0.35)">
-      <div class="stat-head"><span>Réactiver le SaaS</span><span class="stat-icon">▶️</span></div>
-      <div class="stat-sub" style="margin:0.75rem 0;line-height:1.5">Restaure l'accès à la plateforme pour tous les utilisateurs après une suspension.</div>
+    <div class="stat-card" style="flex-direction:column;align-items:flex-start;gap:10px">
+      <div class="stat-head"><span>Réactiver le SaaS</span><span class="stat-icon green">▶️</span></div>
+      <p style="margin:0;font-size:13px;color:var(--dim);line-height:1.5">Restaure l'accès à la plateforme pour tous les utilisateurs après une suspension.</p>
       <button class="btn primary" data-action="ultraReactivateSaas" ${isActive ? "disabled" : ""}>Réactiver le SaaS</button>
     </div>
   </div>`;
