@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { serviceClient } from '../app.js';
 import { auditLog, LEVELS } from '../utils/audit.js';
 import { notify } from '../utils/notifications.js';
+import { isSaasSuspended, invalidateSaasCache } from '../utils/saasStatus.js';
 
 const router = Router();
 
@@ -338,36 +339,21 @@ router.patch('/users/:id', async (req, res) => {
 
 // ─── GESTION DU SaaS ─────────────────────────────────────────────
 
-let saasSuspended = false;
-
-async function getSystemConfig(key) {
-  try {
-    const { data, error } = await sb().from('system_config').select('value').eq('key', key).maybeSingle();
-    if (error) return null;
-    return data?.value || null;
-  } catch { return null; }
-}
-
-async function setSystemConfig(key, value) {
-  try {
-    const { error } = await sb().from('system_config').upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-    if (error) throw error;
-    return true;
-  } catch { return false; }
-}
-
 // GET /api/ultra-admin/saas/status — Statut du SaaS
 router.get('/saas/status', async (req, res) => {
-  const dbValue = await getSystemConfig('saas_suspended');
-  if (dbValue !== null) saasSuspended = dbValue === 'true';
-  res.json({ success: true, suspended: saasSuspended });
+  const suspended = await isSaasSuspended();
+  res.json({ success: true, suspended });
 });
 
 // POST /api/ultra-admin/saas/suspend — Suspendre le SaaS
 router.post('/saas/suspend', async (req, res) => {
   try {
-    const ok = await setSystemConfig('saas_suspended', 'true');
-    if (!ok) saasSuspended = true; // fallback mémoire
+    const { error } = await sb().from('system_config').upsert(
+      { key: 'saas_suspended', value: 'true', updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    );
+    if (error) throw error;
+    invalidateSaasCache();
 
     await auditLog({
       userId: req.user.id,
@@ -386,8 +372,12 @@ router.post('/saas/suspend', async (req, res) => {
 // POST /api/ultra-admin/saas/reactivate — Réactiver le SaaS
 router.post('/saas/reactivate', async (req, res) => {
   try {
-    const ok = await setSystemConfig('saas_suspended', 'false');
-    if (!ok) saasSuspended = false;
+    const { error } = await sb().from('system_config').upsert(
+      { key: 'saas_suspended', value: 'false', updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    );
+    if (error) throw error;
+    invalidateSaasCache();
 
     await auditLog({
       userId: req.user.id,
@@ -761,8 +751,7 @@ router.get('/stats', async (req, res) => {
     counts.criticalAuditWeek = criticalCount || 0;
 
     // SaaS status
-    const dbValue = await getSystemConfig('saas_suspended');
-    const saasSuspended = dbValue === 'true';
+    const saasSuspended = await isSaasSuspended();
 
     res.json({ success: true, stats: { ...counts, saasSuspended } });
   } catch (e) {
