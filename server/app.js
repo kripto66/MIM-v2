@@ -24,7 +24,7 @@ import moyensPaiementRoutes from './routes/moyensPaiement.js';
 import importRoutes from './routes/import.js';
 import uploadRoutes from './routes/upload.js';
 import { createCrudRouter } from './routes/crud.js';
-import { authenticate, requireActive, requireAdmin, requireRole, authenticatePage, requireZone } from './middleware/auth.js';
+import { authenticate, requireActive, requireAdmin, requireUltraAdmin, requireRole, authenticatePage, requireZone } from './middleware/auth.js';
 import { authRateLimit, apiRateLimit } from './middleware/rateLimit.js';
 import { validateCsrfToken, csrfInitRoute } from './middleware/csrf.js';
 
@@ -157,7 +157,7 @@ app.use('/api/stats', authenticate, requireActive, requireRole('proprietaire', '
 app.use('/api/git', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise', 'admin'), gitRoutes);
 app.use('/api/locataire', authenticate, requireActive, requireRole('locataire'), locataireRoutes);
 app.use('/api/admin', authenticate, requireActive, requireAdmin, adminRoutes);
-app.use('/api/ultra-admin', authenticate, requireActive, requireAdmin, ultraAdminRoutes);
+app.use('/api/ultra-admin', authenticate, requireActive, requireUltraAdmin, ultraAdminRoutes);
 app.use('/api/subscription', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), subscriptionRoutes);
 app.use('/api/employes', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), employesRoutes);
 app.use('/api/tasks', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), tasksRoutes);
