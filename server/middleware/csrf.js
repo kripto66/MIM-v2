@@ -16,7 +16,7 @@ export function generateCsrfToken(req, res) {
     sameSite: 'strict',
     secure: process.env.NODE_ENV === 'production',
     path: '/',
-    maxAge: CSRF_EXPIRY / 1000,
+    maxAge: CSRF_EXPIRY,
   });
   return token;
 }

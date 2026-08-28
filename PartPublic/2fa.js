@@ -25,9 +25,10 @@ form.addEventListener("submit", async (e) => {
     button.textContent = "Vérification...";
 
     try {
+        await MIM._csrfReady;
         const response = await fetch(API + "/auth/verify-2fa", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...MIM.csrfHeader() },
             credentials: "include",
             body: JSON.stringify({ code })
         });

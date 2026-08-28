@@ -69,9 +69,10 @@ form.addEventListener("submit", async function(event) {
     button.textContent = "Création du compte...";
 
     try {
+        await MIM._csrfReady;
         const response = await fetch(API + "/auth/register", {
             method: "POST",
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...MIM.csrfHeader() },
             credentials: "include",
             body: JSON.stringify(payload)
         });

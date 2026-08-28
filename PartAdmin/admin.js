@@ -121,7 +121,7 @@ async function ultraVerify(password) {
     setUltraMode(true);
     closeUltraModal();
     showToast("Mode Ultra-Admin activé");
-    navigate("ultra-system");
+    await navigate("ultra-system");
     return true;
   } catch {
     hideProgress();
@@ -901,14 +901,17 @@ async function ultraSystem() {
 async function ultraDeleteAll() {
   if (!ultraMode || !ultraPassword) { showToast("Ultra-admin requis."); return; }
   const card = document.querySelector(".ultra-card:last-child .confirm-danger-zone");
+  if (!card) return;
   if (!card.classList.contains("visible")) {
     card.classList.add("visible");
-    card.querySelector("input").focus();
+    const inp = card.querySelector("input");
+    if (inp) inp.focus();
     return;
   }
   const input = card.querySelector("input");
-  if (input.value !== "SUPPRIMER TOUT") {
-    card.querySelector(".err").textContent = 'Tapez exactement "SUPPRIMER TOUT" pour confirmer.';
+  if (!input || input.value !== "SUPPRIMER TOUT") {
+    const errEl = card.querySelector(".err");
+    if (errEl) errEl.textContent = 'Tapez exactement "SUPPRIMER TOUT" pour confirmer.';
     return;
   }
   showProgress("Suppression de toutes les données…", "danger");
@@ -992,7 +995,7 @@ async function ultraDanger() {
   </div>`;
 }
 
-const RENDERERS = { dashboard, proprietaires, locataires, biens, paiements, abonnements, incidents, activite, paydunya, ultraSystem, ultraDanger };
+const RENDERERS = { dashboard, proprietaires, locataires, biens, paiements, abonnements, incidents, activite, paydunya, "ultra-system": ultraSystem, "ultra-danger": ultraDanger };
 
 // ============================================================
 // Navigation & actions
@@ -1070,33 +1073,43 @@ async function init() {
   }
 
   document.querySelectorAll(".nav-item").forEach((b) => b.addEventListener("click", () => navigate(b.dataset.section)));
-  document.getElementById("refreshBtn").addEventListener("click", () => {
-    const active = document.querySelector(".nav-item.active").dataset.section;
-    navigate(active);
-    showToast("Actualisé");
-  });
+
+  const refreshBtn = document.getElementById("refreshBtn");
+  if (refreshBtn) {
+    refreshBtn.addEventListener("click", () => {
+      const active = document.querySelector(".nav-item.active");
+      if (active) navigate(active.dataset.section);
+      showToast("Actualisé");
+    });
+  }
 
   // Ultra-admin toggle
-  document.getElementById("ultraToggle").addEventListener("click", () => {
-    if (ultraMode) {
-      setUltraMode(false);
-      ultraPassword = null;
-      showToast("Mode Ultra-Admin désactivé");
-      navigate("dashboard");
-    } else {
-      openUltraModal();
-    }
-  });
+  const ultraToggle = document.getElementById("ultraToggle");
+  if (ultraToggle) {
+    ultraToggle.addEventListener("click", () => {
+      if (ultraMode) {
+        setUltraMode(false);
+        ultraPassword = null;
+        showToast("Mode Ultra-Admin désactivé");
+        navigate("dashboard");
+      } else {
+        openUltraModal();
+      }
+    });
+  }
 
   // Ultra-admin modal
   document.querySelectorAll("[data-ultra-close]").forEach((el) =>
     el.addEventListener("click", closeUltraModal)
   );
-  document.getElementById("ultraForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const pwd = document.getElementById("ultraPassword").value;
-    await ultraVerify(pwd);
-  });
+  const ultraForm = document.getElementById("ultraForm");
+  if (ultraForm) {
+    ultraForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const pwd = document.getElementById("ultraPassword").value;
+      await ultraVerify(pwd);
+    });
+  }
 
   const subModal = document.getElementById("subModal");
   if (subModal) {

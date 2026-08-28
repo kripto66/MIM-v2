@@ -47,9 +47,10 @@ form.addEventListener("submit", async (e) => {
     button.textContent = "Réinitialisation...";
 
     try {
+        await MIM._csrfReady;
         const response = await fetch(API + "/auth/reset-password", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...MIM.csrfHeader() },
             body: JSON.stringify({ code, token_hash, type, access_token, refresh_token, password, password_confirm })
         });
 
