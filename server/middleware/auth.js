@@ -189,8 +189,15 @@ export function signToken(payload, expiresIn = '7d') {
 }
 
 export function requireAdmin(req, res, next) {
-  if (req.user?.account_type !== 'admin') {
+  if (req.user?.account_type !== 'admin' && req.user?.account_type !== 'ultra_admin') {
     return res.status(403).json({ success: false, code: 'FORBIDDEN', message: "Accès réservé à l'administration." });
+  }
+  next();
+}
+
+export function requireUltraAdmin(req, res, next) {
+  if (req.user?.account_type !== 'ultra_admin') {
+    return res.status(403).json({ success: false, code: 'FORBIDDEN', message: 'Accès réservé au Super Admin.' });
   }
   next();
 }

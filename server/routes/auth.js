@@ -85,7 +85,7 @@ function setPendingMfaCookie(res, token) {
 
 function accountTypeOf(user) {
   const t = user?.user_metadata?.account_type;
-  if (['proprietaire', 'agence', 'entreprise', 'locataire', 'employe', 'admin'].includes(t)) return t;
+  if (['proprietaire', 'agence', 'entreprise', 'locataire', 'employe', 'admin', 'ultra_admin'].includes(t)) return t;
   return 'proprietaire';
 }
 

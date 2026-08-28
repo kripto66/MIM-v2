@@ -12,6 +12,7 @@ import gitRoutes from './routes/git.js';
 import locataireRoutes from './routes/locataire.js';
 import notificationsRoutes from './routes/notifications.js';
 import adminRoutes from './routes/admin.js';
+import ultraAdminRoutes from './routes/ultra-admin.js';
 import subscriptionRoutes from './routes/subscription.js';
 import employesRoutes from './routes/employes.js';
 import tasksRoutes from './routes/tasks.js';
@@ -135,7 +136,8 @@ app.use('/PartPublic', express.static(path.join(ROOT, 'PartPublic')));
 // uniquement sur le JavaScript du navigateur.
 app.use('/PartProprietaires', authenticatePage(), requireZone('proprietaire', 'agence', 'entreprise'), express.static(path.join(ROOT, 'PartProprietaires')));
 app.use('/PartLocataires', authenticatePage(), requireZone('locataire'), express.static(path.join(ROOT, 'PartLocataires')));
-app.use('/PartAdmin', authenticatePage(), requireZone('admin'), express.static(path.join(ROOT, 'PartAdmin')));
+app.use('/PartAdmin', authenticatePage(), requireZone('admin', 'ultra_admin'), express.static(path.join(ROOT, 'PartAdmin')));
+app.use('/PartUltraAdmin', authenticatePage(), requireZone('ultra_admin'), express.static(path.join(ROOT, 'PartUltraAdmin')));
 app.use('/PartEmployes', authenticatePage(), requireZone('employe'), express.static(path.join(ROOT, 'PartEmployes')));
 app.use('/images', express.static(path.join(ROOT, 'images')));
 
@@ -155,6 +157,7 @@ app.use('/api/stats', authenticate, requireActive, requireRole('proprietaire', '
 app.use('/api/git', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise', 'admin'), gitRoutes);
 app.use('/api/locataire', authenticate, requireActive, requireRole('locataire'), locataireRoutes);
 app.use('/api/admin', authenticate, requireActive, requireAdmin, adminRoutes);
+app.use('/api/ultra-admin', authenticate, requireActive, requireAdmin, ultraAdminRoutes);
 app.use('/api/subscription', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), subscriptionRoutes);
 app.use('/api/employes', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), employesRoutes);
 app.use('/api/tasks', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), tasksRoutes);
