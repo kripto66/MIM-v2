@@ -99,8 +99,9 @@ router.post('/admins', async (req, res) => {
     if (createErr) throw createErr;
     const userId = authUser.user.id;
 
-    // Créer le profil
-    const { error: profileErr } = await sb().from('profiles').insert({
+    // Le trigger handle_new_user() crée le profil automatiquement.
+    // On utilise upsert pour mettre à jour si le trigger a déjà créé une entrée.
+    const { error: profileErr } = await sb().from('profiles').upsert({
       id: userId,
       account_type: 'admin',
       name: name.trim(),
@@ -108,7 +109,7 @@ router.post('/admins', async (req, res) => {
       phone: '',
       role: 'admin',
       username: username?.trim() || null,
-    });
+    }, { onConflict: 'id' });
 
     if (profileErr) throw profileErr;
 
