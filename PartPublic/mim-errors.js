@@ -26,7 +26,8 @@ MIM.MESSAGES = {
   UNAUTHENTICATED: "Votre session a expiré. Reconnectez-vous.",
   RATE_LIMIT: "Trop de tentatives. Réessayez dans un instant.",
   SERVICE_UNAVAILABLE: "Service temporairement indisponible. Réessayez dans un instant.",
-  VALIDATION: "Veuillez vérifier les informations saisies."
+  VALIDATION: "Veuillez vérifier les informations saisies.",
+  SAAS_SUSPENDED: "Le service est temporairement indisponible. Veuillez réessayer plus tard."
 };
 
 MIM.httpFallback = {

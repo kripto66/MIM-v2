@@ -10,6 +10,7 @@ import { resolveLoginEmail, tenantEmailFor, usernameIsValid, TENANT_EMAIL_DOMAIN
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { subscriptionExpiredFor } from '../utils/subscription.js';
 import { auditLog, LEVELS } from '../utils/audit.js';
+import { isSaasSuspended, isAllowedDuringSuspension } from '../utils/saasStatus.js';
 
 const router = Router();
 
@@ -213,6 +214,16 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Type de compte invalide. Les comptes locataires sont créés par votre propriétaire.' });
   }
 
+  // Bloquer l'inscription si le SaaS est suspendu (admin/ultra_admin autorisés)
+  const saasSuspended = await isSaasSuspended();
+  if (saasSuspended && !isAllowedDuringSuspension(account_type)) {
+    return res.status(503).json({
+      success: false,
+      code: 'SAAS_SUSPENDED',
+      message: 'Le service est temporairement indisponible. Veuillez réessayer plus tard.',
+    });
+  }
+
   if (!emailIsValid(email)) {
     return res.status(400).json({ success: false, message: 'Adresse email invalide.' });
   }
@@ -318,6 +329,16 @@ router.post('/login', async (req, res) => {
       success: false,
       code: 'INVALID_CREDENTIALS',
       message: 'Email ou mot de passe incorrect.',
+    });
+  }
+
+  // Bloquer la connexion si le SaaS est suspendu (admin/ultra_admin autorisés)
+  const saasSuspended = await isSaasSuspended();
+  if (saasSuspended && !isAllowedDuringSuspension(account.user_metadata?.account_type)) {
+    return res.status(503).json({
+      success: false,
+      code: 'SAAS_SUSPENDED',
+      message: 'Le service est temporairement indisponible. Veuillez réessayer plus tard.',
     });
   }
 
@@ -696,6 +717,12 @@ router.get('/callback', async (req, res) => {
       if (ownerSusp) {
         return res.redirect(`${APP_URL}/PartPublic/connexion.html?oauth_error=suspended`);
       }
+    }
+
+    // Bloquer l'OAuth si le SaaS est suspendu (admin/ultra_admin autorisés)
+    const saasSuspended = await isSaasSuspended();
+    if (saasSuspended && !isAllowedDuringSuspension(accountType)) {
+      return res.redirect(`${APP_URL}/PartPublic/connexion.html?oauth_error=saas_suspended`);
     }
 
     const factors = await requireMfaFor(user, session.access_token);

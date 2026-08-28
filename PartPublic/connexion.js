@@ -9,6 +9,9 @@ if (oauthError) {
         expired: 'La session de connexion Google a expiré. Veuillez réessayer.',
         exchange: 'Impossible de finaliser la connexion Google.',
         server: 'Une erreur est survenue lors de la connexion Google.',
+        suspended: 'Votre compte a été suspendu.',
+        account_deleted: 'Votre compte a été supprimé.',
+        saas_suspended: 'Le service est temporairement indisponible. Veuillez réessayer plus tard.',
     };
     loginMessage.textContent = messages[oauthError] || 'La connexion Google a échoué.';
     loginMessage.className = 'error';
