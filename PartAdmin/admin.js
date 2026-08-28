@@ -4,6 +4,132 @@ const API = (() => {
   return (isLocal ? "http://localhost:3000" : origin) + "/api";
 })();
 
+// ============================================================
+// Progress Bar System (actions longues)
+// ============================================================
+
+let progressActive = false;
+let progressTimer = null;
+
+function showProgress(label, color) {
+  const container = document.getElementById("progressContainer");
+  const bar = document.getElementById("progressBar");
+  const lbl = document.getElementById("progressLabel");
+  if (!container || !bar || !lbl) return;
+  progressActive = true;
+  bar.style.width = "0%";
+  bar.removeAttribute("data-color");
+  if (color) bar.setAttribute("data-color", color);
+  container.classList.add("active");
+  lbl.textContent = label || "Chargement…";
+  lbl.classList.add("active");
+  let progress = 0;
+  clearInterval(progressTimer);
+  progressTimer = setInterval(() => {
+    if (!progressActive) return;
+    progress += Math.random() * 12 + 3;
+    if (progress >= 90) progress = 90;
+    bar.style.width = progress + "%";
+  }, 200);
+}
+
+function updateProgress(pct, label) {
+  const bar = document.getElementById("progressBar");
+  const lbl = document.getElementById("progressLabel");
+  if (bar) bar.style.width = Math.min(pct, 99) + "%";
+  if (lbl && label) lbl.textContent = label;
+}
+
+function hideProgress() {
+  const container = document.getElementById("progressContainer");
+  const bar = document.getElementById("progressBar");
+  const lbl = document.getElementById("progressLabel");
+  progressActive = false;
+  clearInterval(progressTimer);
+  if (bar) bar.style.width = "100%";
+  setTimeout(() => {
+    if (container) container.classList.remove("active");
+    if (lbl) lbl.classList.remove("active");
+    if (bar) bar.style.width = "0%";
+  }, 400);
+}
+
+// Event delegation sécurisée — remplace les onclick inline.
+document.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const action = btn.dataset.action;
+  if (action === 'setStatut') setStatut(btn.dataset.id, btn.dataset.statut);
+  else if (action === 'openSubModal') openSubModal(btn.dataset.userId);
+  else if (action === 'pdRetry') pdRetry(btn.dataset.id);
+  else if (action === 'ultraDeleteAll') ultraDeleteAll();
+  else if (action === 'ultraSuspendSaas') ultraSuspendSaas();
+  else if (action === 'ultraReactivateSaas') ultraReactivateSaas();
+});
+
+// ============================================================
+// Ultra-Admin : mode et vérification
+// ============================================================
+
+let ultraMode = false;
+let ultraPassword = null;
+
+function setUltraMode(active) {
+  ultraMode = active;
+  const badge = document.getElementById("ultraBadge");
+  const toggle = document.getElementById("ultraToggle");
+  if (badge) badge.textContent = active ? "ON" : "OFF";
+  if (toggle) toggle.classList.toggle("active", active);
+  document.querySelectorAll(".ultra-only").forEach((el) => {
+    el.classList.toggle("visible", active);
+  });
+  if (active) {
+    const navLabel = document.querySelector(".nav-section-label");
+    if (navLabel) navLabel.style.color = "#fbbf24";
+  }
+}
+
+function openUltraModal() {
+  const modal = document.getElementById("ultraModal");
+  const errEl = document.getElementById("ultraVerifyError");
+  if (errEl) errEl.textContent = "";
+  if (modal) modal.hidden = false;
+  const input = document.getElementById("ultraPassword");
+  if (input) { input.value = ""; input.focus(); }
+}
+
+function closeUltraModal() {
+  const modal = document.getElementById("ultraModal");
+  if (modal) modal.hidden = true;
+}
+
+async function ultraVerify(password) {
+  showProgress("Vérification ultra-admin…", "warning");
+  try {
+    const r = await fetch(`${API}/admin/ultra-verify`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password }),
+    }).then((r) => r.json());
+    hideProgress();
+    if (!r.success) {
+      document.getElementById("ultraVerifyError").textContent = r.message || "Mot de passe incorrect.";
+      return false;
+    }
+    ultraPassword = password;
+    setUltraMode(true);
+    closeUltraModal();
+    showToast("Mode Ultra-Admin activé");
+    navigate("ultra-system");
+    return true;
+  } catch {
+    hideProgress();
+    document.getElementById("ultraVerifyError").textContent = "Erreur de connexion.";
+    return false;
+  }
+}
+
 const ICONS = {
   dashboard: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>',
   users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
@@ -86,7 +212,7 @@ function badge(value) {
           : v.includes("retard") || v.includes("suspend") || v.includes("attente") || v.includes("validation") || v.includes("maintenance") || v.includes("planifiée") || v.includes("expiré") ? "warning"
           : v.includes("incident") || v.includes("nouveau") || v.includes("en cours") || v.includes("inactif") || v.includes("refusé") ? "danger"
           : v.includes("confirmer") ? "info" : "info";
-  return `<span class="badge ${cls}">${label(value)}</span>`;
+  return `<span class="badge ${cls}">${escapeHtml(label(value))}</span>`;
 }
 
 function money(n) {
@@ -377,7 +503,10 @@ async function initSystemStatus() {
 // ============================================================
 
 function activity(title, text, time) {
-  return `<div class="activity-row"><i class="dot"></i><div><strong>${title}</strong>${text ? `<small>${text}</small>` : ""}${time ? `<small>${time}</small>` : ""}</div></div>`;
+  const safeTitle = typeof title === "string" ? escapeHtml(title) : (title ?? "");
+  const safeText = typeof text === "string" ? escapeHtml(text) : (text ?? "");
+  const safeTime = typeof time === "string" ? escapeHtml(time) : (time ?? "");
+  return `<div class="activity-row"><i class="dot"></i><div><strong>${safeTitle}</strong>${safeText ? `<small>${safeText}</small>` : ""}${safeTime ? `<small>${safeTime}</small>` : ""}</div></div>`;
 }
 
 function tablePage(title, data, columns, headers, actions, onAction) {
@@ -394,7 +523,12 @@ function tablePage(title, data, columns, headers, actions, onAction) {
 function rows(data, columns, actions, onAction) {
   if (!data || !data.length) return `<tr><td colspan="99" class="empty">Aucune donnée.</td></tr>`;
   const badgeCells = new Set(["statut", "status"]);
-  return data.map((r) => `<tr>${columns.map((k) => `<td class="${k === "montant" ? "num" : ""}">${badgeCells.has(k) ? badge(r[k]) : (r[k] ?? "—")}</td>`).join("")}${actions && onAction ? `<td>${onAction(r)}</td>` : ""}</tr>`).join("");
+  return data.map((r) => `<tr>${columns.map((k) => {
+    if (badgeCells.has(k)) return `<td>${badge(r[k])}</td>`;
+    if (k === "montant") return `<td class="num">${money(r[k])}</td>`;
+    const val = r[k];
+    return `<td>${val != null ? escapeHtml(String(val)) : "—"}</td>`;
+  }).join("")}${actions && onAction ? `<td>${onAction(r)}</td>` : ""}</tr>`).join("");
 }
 
 function bindSearch() {
@@ -462,7 +596,7 @@ async function dashboard() {
   <div class="grid-2">
     <div class="panel"><div class="panel-header"><h2>Paiements récents</h2><button class="btn secondary" onclick="navigate('paiements')">Voir tout</button></div>
       <div class="table-wrap"><table class="table"><thead><tr><th>Locataire</th><th>Période</th><th>Montant</th><th>Statut</th></tr></thead>
-      <tbody>${recentPayments.map((r) => `<tr><td>${r.locataire}</td><td>${r.periode}</td><td class="num">${money(r.montant)}</td><td>${badge(r.statut)}</td></tr>`).join("")}</tbody></table></div>
+      <tbody>${recentPayments.map((r) => `<tr><td>${escapeHtml(r.locataire)}</td><td>${escapeHtml(r.periode)}</td><td class="num">${money(r.montant)}</td><td>${badge(r.statut)}</td></tr>`).join("")}</tbody></table></div>
     </div>
     <div class="panel"><div class="panel-header"><h2>Incidents</h2><button class="btn secondary" onclick="navigate('incidents')">Voir tout</button></div>
       <div class="activity">${recentIncidents.map((r) => activity(r.titre, `${r.logement} — ${r.locataire}`, badge(r.statut))).join("") || `<div class="empty">Aucun incident.</div>`}</div>
@@ -496,7 +630,7 @@ async function proprietaires() {
     ["ID", "Nom", "Email", "Biens", "Statut", "Abonnement", "Dernière connexion"],
     true,
     (r) =>
-      `<button class="btn ${r.statut === "suspendu" ? "secondary" : "danger"}" onclick="setStatut('${r.id}','${r.statut}')">${r.statut === "suspendu" ? "Réactiver" : "Suspendre"}</button>`
+      `<button class="btn ${r.statut === "suspendu" ? "secondary" : "danger"}" data-action="setStatut" data-id="${escapeHtml(r.id)}" data-statut="${escapeHtml(r.statut)}">${r.statut === "suspendu" ? "Réactiver" : "Suspendre"}</button>`
   );
   bindSearch();
 }
@@ -506,7 +640,8 @@ function rowCells(r, columns) {
     .map((k) => {
       if (k === "statut") return `<td>${badge(r[k])}</td>`;
       if (k === "montant") return `<td class="num">${money(r[k])}</td>`;
-      return `<td>${r[k] ?? "—"}</td>`;
+      const val = r[k];
+      return `<td>${val != null ? escapeHtml(String(val)) : "—"}</td>`;
     })
     .join("");
 }
@@ -532,7 +667,7 @@ async function abonnements() {
     </tr></thead>
     <tbody id="tableBody">${
       rowsData.length
-        ? rowsData.map((r) => `<tr>${rowCells(r, ["proprietaire", "plan", "montant", "date_paiement", "date_debut", "date_expiration", "joursRestants", "statut"])}<td><button class="btn primary" onclick="openSubModal('${r.user_id}')">Encaisser</button></td></tr>`).join("")
+        ? rowsData.map((r) => `<tr>${rowCells(r, ["proprietaire", "plan", "montant", "date_paiement", "date_debut", "date_expiration", "joursRestants", "statut"])}<td><button class="btn primary" data-action="openSubModal" data-user-id="${escapeHtml(r.user_id)}">Encaisser</button></td></tr>`).join("")
         : `<tr><td colspan="99" class="empty">Aucun abonnement enregistré.</td></tr>`
     }</tbody></table></div>
   </div>`;
@@ -652,14 +787,14 @@ function pdRedistributionsTable(list) {
     <th>ID</th><th>Source</th><th>Destinataire</th><th>Canal</th><th>Montant</th><th>Statut</th><th>Transaction</th><th>Tentatives</th><th>Dernier essai</th><th>Actions</th>
   </tr></thead><tbody>${list
     .map((r) => `<tr>
-      <td>${r.id}</td><td>${PD_SRC_LABELS[r.source] || r.source}</td>
+      <td>${r.id}</td><td>${escapeHtml(PD_SRC_LABELS[r.source] || r.source)}</td>
       <td>${escapeHtml(r.recipient_alias)}${r.response?.message ? `<div class="muted" title="${escapeHtml(String(r.response.message))}">${escapeHtml(String(r.response.message).slice(0, 60))}…</div>` : ""}</td>
-      <td>${PD_WITHDRAW_LABELS[r.withdraw_mode] || r.withdraw_mode || "Compte PayDunya"}</td>
+      <td>${escapeHtml(PD_WITHDRAW_LABELS[r.withdraw_mode] || r.withdraw_mode || "Compte PayDunya")}</td>
       <td class="num">${money(r.amount)}</td>
       <td>${badge(PD_RED_STATUS[r.status] || r.status)}</td>
       <td>${escapeHtml(r.transaction_id || "—")}</td><td>${r.attempt_count || 0}</td>
       <td>${fmtDateTime(r.last_attempt_at)}</td>
-      <td>${r.status === "success" ? "" : `<button class="btn primary" onclick="pdRetry('${r.id}')">Relancer</button>`}</td>
+      <td>${r.status === "success" ? "" : `<button class="btn primary" data-action="pdRetry" data-id="${escapeHtml(r.id)}">Relancer</button>`}</td>
     </tr>`).join("")}</tbody></table></div>`;
 }
 
@@ -694,16 +829,170 @@ async function paydunya() {
 }
 
 async function pdRetry(id) {
+  showProgress("Relance de la redistribution…");
   try {
     const r = await apiRequest(`/paydunya/redistributions/${id}/retry`, { method: "POST" });
     showToast(r.message);
     paydunya();
   } catch (err) {
     MIM.showError(MIM.userMessage(err));
+  } finally {
+    hideProgress();
   }
 }
 
-const RENDERERS = { dashboard, proprietaires, locataires, biens, paiements, abonnements, incidents, activite, paydunya };
+// ============================================================
+// Ultra-Admin : Sections
+// ============================================================
+
+const ultraSections = {
+  "ultra-system": ["Système", "Contrôle avancé de la plateforme MIM."],
+  "ultra-danger": ["Zone dangereuse", "Actions irréversibles sur la base de données."],
+};
+
+Object.assign(sections, ultraSections);
+
+function ultraSuspendIcon() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>`;
+}
+
+function ultraTrashIcon() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
+}
+
+function ultraKeyIcon() {
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>`;
+}
+
+async function ultraSystem() {
+  if (!ultraMode) { navigate("dashboard"); return; }
+  app.innerHTML = `<div class="ultra-grid">
+    <div class="ultra-card">
+      <div class="ultra-card-icon">${ultraSuspendIcon()}</div>
+      <h3>Suspendre le SaaS</h3>
+      <p>Désactive temporairement l'accès à la plateforme pour tous les utilisateurs. Les propriétaires et locataires ne pourront plus se connecter.</p>
+      <button class="btn danger" data-action="ultraSuspendSaas">Suspendre le SaaS</button>
+    </div>
+    <div class="ultra-card">
+      <div class="ultra-card-icon" style="color:var(--success);border-color:rgba(52,211,153,0.25);background:linear-gradient(135deg,rgba(52,211,153,0.2),rgba(34,211,238,0.15))">${ultraKeyIcon()}</div>
+      <h3>Réactiver le SaaS</h3>
+      <p>Restaure l'accès à la plateforme pour tous les utilisateurs après une suspension.</p>
+      <button class="btn primary" data-action="ultraReactivateSaas">Réactiver le SaaS</button>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><h2>Statut du SaaS</h2><span class="panel-tag">système</span></div>
+    <div id="saasStatusBanner" class="saas-status-banner active">
+      <div class="saas-status-dot"></div>
+      <div><h3>SaaS Actif</h3><p>La plateforme fonctionne normalement pour tous les utilisateurs.</p></div>
+    </div>
+  </div>`;
+  try {
+    const r = await fetch(`${API}/health`, { credentials: "include" }).then((r) => r.json()).catch(() => null);
+    const banner = document.getElementById("saasStatusBanner");
+    if (banner && r && !r.success) {
+      banner.className = "saas-status-banner suspended";
+      banner.querySelector("h3").textContent = "SaaS Hors Ligne";
+      banner.querySelector("p").textContent = "Le serveur ne répond pas.";
+    }
+  } catch {}
+}
+
+async function ultraDeleteAll() {
+  if (!ultraMode || !ultraPassword) { showToast("Ultra-admin requis."); return; }
+  const card = document.querySelector(".ultra-card:last-child .confirm-danger-zone");
+  if (!card.classList.contains("visible")) {
+    card.classList.add("visible");
+    card.querySelector("input").focus();
+    return;
+  }
+  const input = card.querySelector("input");
+  if (input.value !== "SUPPRIMER TOUT") {
+    card.querySelector(".err").textContent = 'Tapez exactement "SUPPRIMER TOUT" pour confirmer.';
+    return;
+  }
+  showProgress("Suppression de toutes les données…", "danger");
+  try {
+    const r = await fetch(`${API}/admin/ultra/delete-all`, {
+      method: "DELETE",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: ultraPassword, confirm: input.value }),
+    }).then((r) => r.json());
+    hideProgress();
+    if (!r.success) {
+      MIM.showError(r.message || "Erreur lors de la suppression.");
+      return;
+    }
+    showToast("Toutes les données ont été supprimées.");
+    navigate("dashboard");
+  } catch (err) {
+    hideProgress();
+    MIM.showError(MIM.userMessage(err));
+  }
+}
+
+async function ultraSuspendSaas() {
+  if (!ultraMode || !ultraPassword) { showToast("Ultra-admin requis."); return; }
+  showProgress("Suspension du SaaS…", "danger");
+  try {
+    const r = await fetch(`${API}/admin/ultra/suspend-saas`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: ultraPassword }),
+    }).then((r) => r.json());
+    hideProgress();
+    if (!r.success) { MIM.showError(r.message || "Erreur."); return; }
+    showToast(r.message);
+    ultraSystem();
+  } catch (err) {
+    hideProgress();
+    MIM.showError(MIM.userMessage(err));
+  }
+}
+
+async function ultraReactivateSaas() {
+  if (!ultraMode || !ultraPassword) { showToast("Ultra-admin requis."); return; }
+  showProgress("Réactivation du SaaS…", "success");
+  try {
+    const r = await fetch(`${API}/admin/ultra/reactivate-saas`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password: ultraPassword }),
+    }).then((r) => r.json());
+    hideProgress();
+    if (!r.success) { MIM.showError(r.message || "Erreur."); return; }
+    showToast(r.message);
+    ultraSystem();
+  } catch (err) {
+    hideProgress();
+    MIM.showError(MIM.userMessage(err));
+  }
+}
+
+async function ultraDanger() {
+  if (!ultraMode) { navigate("dashboard"); return; }
+  app.innerHTML = `<div class="ultra-grid">
+    <div class="ultra-card" style="border-color:rgba(251,113,133,0.35)">
+      <div class="ultra-card-icon" style="color:var(--danger);border-color:rgba(251,113,133,0.3);background:linear-gradient(135deg,rgba(251,113,133,0.2),rgba(244,63,94,0.15))">${ultraTrashIcon()}</div>
+      <h3>Supprimer toutes les données</h3>
+      <p>Supprime définitivement TOUS les comptes utilisateurs, biens, logements, locataires, paiements, incidents, interventions, sessions et abonnements. Cette action est IRRÉVERSIBLE.</p>
+      <button class="btn danger" data-action="ultraDeleteAll">Supprimer tout</button>
+      <div class="confirm-danger-zone" id="deleteConfirm">
+        <label>⚠ Tapez "SUPPRIMER TOUT" pour confirmer :</label>
+        <input type="text" placeholder="SUPPRIMER TOUT" autocomplete="off">
+        <div class="err" style="color:#fda4af;font-size:12px;margin-top:4px"></div>
+        <div class="btn-row">
+          <button class="btn secondary" onclick="document.getElementById('deleteConfirm').classList.remove('visible')">Annuler</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+const RENDERERS = { dashboard, proprietaires, locataires, biens, paiements, abonnements, incidents, activite, paydunya, ultraSystem, ultraDanger };
 
 // ============================================================
 // Navigation & actions
@@ -717,25 +1006,32 @@ async function navigate(section) {
     if (active) b.setAttribute("aria-current", "page");
     else b.removeAttribute("aria-current");
   });
-  document.getElementById("pageTitle").textContent = sections[section][0];
-  document.getElementById("pageSubtitle").textContent = sections[section][1];
+  const title = sections[section] ? sections[section][0] : section;
+  const subtitle = sections[section] ? sections[section][1] : "";
+  document.getElementById("pageTitle").textContent = title;
+  document.getElementById("pageSubtitle").textContent = subtitle;
   document.getElementById("sidebar").classList.remove("open");
+  showProgress(`Chargement ${title.toLowerCase()}…`);
   try {
     await RENDERERS[section]();
   } catch (err) {
     const msg = MIM.userMessage(err);
     MIM.showError(msg);
-    app.innerHTML = `<div class="panel" role="alert"><div class="empty" style="color:#fda4af">${msg}</div></div>`;
+    app.innerHTML = `<div class="panel" role="alert"><div class="empty" style="color:#fda4af">${escapeHtml(msg)}</div></div>`;
+  } finally {
+    hideProgress();
   }
 }
 
 async function setStatut(id, statut) {
   const next = statut === "suspendu" ? "actif" : "suspendu";
+  showProgress(statut === "suspendu" ? "Réactivation du compte…" : "Suspension du compte…", statut === "suspendu" ? "success" : "danger");
   try {
     const r = await apiRequest(`/admin/proprietaires/${id}`, { method: "PATCH", body: JSON.stringify({ statut: next }) });
     showToast(r.message);
     navigate("proprietaires");
   } catch (err) {
+    hideProgress();
     MIM.showError(MIM.userMessage(err));
   }
 }
@@ -780,6 +1076,28 @@ async function init() {
     showToast("Actualisé");
   });
 
+  // Ultra-admin toggle
+  document.getElementById("ultraToggle").addEventListener("click", () => {
+    if (ultraMode) {
+      setUltraMode(false);
+      ultraPassword = null;
+      showToast("Mode Ultra-Admin désactivé");
+      navigate("dashboard");
+    } else {
+      openUltraModal();
+    }
+  });
+
+  // Ultra-admin modal
+  document.querySelectorAll("[data-ultra-close]").forEach((el) =>
+    el.addEventListener("click", closeUltraModal)
+  );
+  document.getElementById("ultraForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const pwd = document.getElementById("ultraPassword").value;
+    await ultraVerify(pwd);
+  });
+
   const subModal = document.getElementById("subModal");
   if (subModal) {
     document.querySelectorAll("[data-sub-close]").forEach((el) =>
@@ -792,7 +1110,7 @@ async function init() {
       if (resultEl) resultEl.innerHTML = "";
       submit.disabled = true;
       const original = submit.textContent;
-      submit.textContent = "Génération du lien...";
+      showProgress("Génération de la facture PayDunya…");
       try {
         const r = await apiRequest("/admin/subscriptions/register", {
           method: "POST",
@@ -808,7 +1126,7 @@ async function init() {
         let html = "";
         if (d.payment_url) {
           html += `<p class="ok">Lien de paiement PayDunya généré (l'abonnement sera activé après confirmation) :</p>
-            <a href="${d.payment_url}" target="_blank" rel="noopener">${escapeHtml(d.payment_url)}</a>`;
+            <a href="${escapeHtml(d.payment_url)}" target="_blank" rel="noopener">${escapeHtml(d.payment_url)}</a>`;
         }
         if (d.reference) {
           html += `<p class="ref">Réf. PayDunya : ${escapeHtml(d.reference)}</p>`;
@@ -820,6 +1138,7 @@ async function init() {
       } finally {
         submit.disabled = false;
         submit.textContent = original;
+        hideProgress();
       }
     });
   }

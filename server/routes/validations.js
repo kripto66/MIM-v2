@@ -48,10 +48,10 @@ router.get('/en-attente', async (req, res) => {
 
     const [locataires, logements] = await Promise.all([
       locatairesIds.length
-        ? sb().from('locataires').select('id, nom').in('id', locatairesIds)
+        ? sb().from('locataires').select('id, nom').in('id', locatairesIds).eq('user_id', req.user.id)
         : Promise.resolve({ data: [] }),
       logementsIds.length
-        ? sb().from('logements').select('id, nom').in('id', logementsIds)
+        ? sb().from('logements').select('id, nom').in('id', logementsIds).eq('user_id', req.user.id)
         : Promise.resolve({ data: [] }),
     ]);
 

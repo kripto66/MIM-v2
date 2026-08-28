@@ -1607,3 +1607,10 @@ input.pw-strong {
     font-weight: 600;
     cursor: pointer;
 }
+/*Partlocataire navbar*/
+#tok {
+
+
+    font-size: clamp(24px, 2rem, 30px);
+
+}

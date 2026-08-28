@@ -460,12 +460,15 @@ router.post('/test-ipn', async (req, res) => {
     }
 
     const target = `http://${req.headers.host}/api/paydunya/webhook`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     const webhookRes = await fetch(target, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: form.toString(),
-      timeout: 15000,
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     const body = await webhookRes.json().catch(() => null);
     res.status(webhookRes.status).json({ success: webhookRes.ok, payload: data, webhook: body });
   } catch (err) {

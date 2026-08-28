@@ -430,8 +430,8 @@ export async function retryRedistribution(id) {
           return data;
         }
         // 'failed' définitif : nouvelle tentative complète ci-dessous.
-      } catch {
-        /* soumission impossible : nouvelle tentative ci-dessous */
+      } catch (submitErr) {
+        console.warn('[redistribution] soumission impossible, nouvelle tentative :', submitErr.message);
       }
     }
     // 'failed', statut inconnu ou erreur API : on retente proprement
@@ -456,8 +456,8 @@ export async function retryRedistribution(id) {
       if (pe?.employe_id) resolved = await recipientTargetOfEmploye(pe.employe_id);
     }
     if (resolved?.alias) target = resolved;
-  } catch {
-    /* résolution impossible : on retente avec la cible connue */
+  } catch (resolveErr) {
+    console.warn('[redistribution] résolution destinataire impossible :', resolveErr.message);
   }
 
   // --- 3) Nouvelle tentative de versement.

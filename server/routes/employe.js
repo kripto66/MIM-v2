@@ -72,7 +72,7 @@ function currentMonth() {
 // ============================================================
 // Profil de l'employé connecté.
 // ============================================================
-router.get('/me', async (req, res) => {
+router.get('/me', requireEmploye, async (req, res) => {
   const sb = serviceClient();
 
   try {
@@ -181,7 +181,7 @@ router.get('/dashboard', requireEmploye, async (req, res) => {
 // ============================================================
 // Tâches assignées à l'employé.
 // ============================================================
-router.get('/tasks', async (req, res) => {
+router.get('/tasks', requireEmploye, async (req, res) => {
   const sb = serviceClient();
 
   try {
@@ -418,7 +418,7 @@ router.get('/locataires', requireEmploye, async (req, res) => {
 // ============================================================
 // Notifications de l'employé.
 // ============================================================
-router.get('/notifications', async (req, res) => {
+router.get('/notifications', requireEmploye, async (req, res) => {
   const sb = serviceClient();
 
   try {
@@ -447,7 +447,7 @@ router.get('/notifications', async (req, res) => {
   }
 });
 
-router.post('/notifications/read-all', async (req, res) => {
+router.post('/notifications/read-all', requireEmploye, async (req, res) => {
   const sb = serviceClient();
 
   try {
@@ -791,7 +791,7 @@ router.delete('/moyens-paiement/:id', requireEmploye, async (req, res) => {
 // ============================================================
 // Mise à jour du profil (nom, username, email d'affichage).
 // ============================================================
-router.put('/profile', async (req, res) => {
+router.put('/profile', requireEmploye, async (req, res) => {
   const sb = serviceClient();
   const uid = req.user.id;
 
@@ -869,7 +869,7 @@ router.put('/profile', async (req, res) => {
 // ============================================================
 // Changement de mot de passe.
 // ============================================================
-router.put('/password', async (req, res) => {
+router.put('/password', requireEmploye, async (req, res) => {
   const { current_password, new_password } = req.body;
 
   const pwError = passwordRuleError(new_password);

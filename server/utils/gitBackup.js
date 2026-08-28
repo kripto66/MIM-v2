@@ -23,7 +23,6 @@ const exec = promisify(execFile);
 const GIT_CANDIDATES = [
   process.env.GIT_BIN,
   'git',
-  'C:\\Users\\EsNova\\AppData\\Local\\Programs\\Git\\cmd\\git.exe',
 ].filter(Boolean);
 
 const IS_PROD = process.env.NODE_ENV === 'production';

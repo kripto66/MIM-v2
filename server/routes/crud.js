@@ -83,12 +83,14 @@ function validateResource(tableName, body, partial = false) {
       check('nombre_chambres', () => present('nombre_chambres') && Number(body.nombre_chambres) < 1, 'Le nombre de chambres doit être au moins 1.');
       check('adresse', () => !present('adresse'), 'L\'adresse est obligatoire.');
       check('loyer_mensuel', () => !present('loyer_mensuel') || Number(body.loyer_mensuel) <= 0, 'Le loyer mensuel doit être supérieur à 0.');
+      check('statut', () => present('statut') && !['libre', 'occupe', 'maintenance'].includes(body.statut), 'Statut invalide.');
       break;
 
     case 'locataires':
       check('nom', () => !present('nom'), 'Le nom est obligatoire.');
       check('email', () => present('email') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email), 'Adresse email invalide.');
       check('jour_echeance', () => present('jour_echeance') && (Number(body.jour_echeance) < 1 || Number(body.jour_echeance) > 31), 'Le jour d\'échéance doit être entre 1 et 31.');
+      check('statut', () => present('statut') && !['actif', 'inactif'].includes(body.statut), 'Statut invalide.');
       break;
 
     case 'paiements':
@@ -614,8 +616,8 @@ export function createCrudRouter(tableName) {
 if (createdLogementId) {
         try {
           await admin.from('logements').delete().eq('id', createdLogementId);
-        } catch {
-          /* déjà supprimé */
+        } catch (cleanupErr) {
+          console.warn('[createTenant] nettoyage logement échec :', cleanupErr.message);
         }
       }
         console.error('[createTenant] échéance initiale :', echeance.error);
@@ -901,6 +903,23 @@ if (createdLogementId) {
 
     if (!existing) {
       return res.status(404).json({ success: false, message: 'Introuvable.' });
+    }
+
+    // Impossible de supprimer un bien encore pourvu de logements :
+    // on évite de laisser des logements orphelins.
+    if (tableName === 'biens') {
+      const { data: ref } = await admin
+        .from('logements')
+        .select('id')
+        .eq('bien_id', id)
+        .maybeSingle();
+
+      if (ref) {
+        return res.status(400).json({
+          success: false,
+          message: 'Ce bien contient des logements. Supprimez d\'abord les logements.',
+        });
+      }
     }
 
     // Impossible de supprimer un logement encore occupé par un locataire :

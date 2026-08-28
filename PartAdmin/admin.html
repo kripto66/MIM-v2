@@ -67,6 +67,26 @@
       </button>
     </nav>
 
+    <hr class="nav-divider">
+    <p class="nav-section-label">Contrôle avancé</p>
+
+    <button class="ultra-toggle" id="ultraToggle" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+      <span>Ultra-Admin</span>
+      <span class="ultra-badge" id="ultraBadge">OFF</span>
+    </button>
+
+    <nav aria-label="Navigation Ultra-Admin">
+      <button class="nav-item ultra-only" data-section="ultra-system">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span>Système</span>
+      </button>
+      <button class="nav-item ultra-only" data-section="ultra-danger">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="7.86 2 16.14 2 22 7.86 22 16.14 16.14 22 7.86 22 2 16.14 2 7.86 7.86 2"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>Zone dangereuse</span>
+      </button>
+    </nav>
+
     <div class="sidebar-bottom">
       <div class="admin-mini">
         <div class="avatar" id="adminAvatar">AD</div>
@@ -116,6 +136,11 @@
 
   <div id="toast" class="toast"></div>
 
+  <div class="progress-container" id="progressContainer">
+    <div class="progress-bar" id="progressBar" style="width:0%"></div>
+  </div>
+  <div class="progress-label" id="progressLabel"></div>
+
   <div id="subModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="subModalTitle">
     <div class="modal-backdrop" data-sub-close></div>
     <div class="modal-panel">
@@ -151,6 +176,30 @@
         <div class="modal-actions">
           <button type="button" class="btn secondary" data-sub-close>Fermer</button>
           <button type="submit" class="btn primary">Générer le lien de paiement</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="ultraModal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="ultraModalTitle">
+    <div class="modal-backdrop" data-ultra-close></div>
+    <div class="modal-panel">
+      <div class="modal-header">
+        <h3 id="ultraModalTitle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fbbf24" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:20px;height:20px;display:inline;vertical-align:middle;margin-right:6px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Vérification Ultra-Admin
+        </h3>
+        <button type="button" class="icon-btn" data-ultra-close aria-label="Fermer">✕</button>
+      </div>
+      <form id="ultraForm">
+        <label class="field"><span>Mot de passe Ultra-Admin</span>
+          <input id="ultraPassword" type="password" required placeholder="Entrez le mot de passe ultra-admin" autocomplete="off">
+        </label>
+        <p class="field-note" style="color:#fda4af">⚠ Ce mot de passe est différent du mot de passe admin. Il donne accès à des fonctions critiques.</p>
+        <div id="ultraVerifyError" style="color:#fda4af;font-weight:600;font-size:13px;margin-top:8px"></div>
+        <div class="modal-actions">
+          <button type="button" class="btn secondary" data-ultra-close>Annuler</button>
+          <button type="submit" class="btn" style="background:linear-gradient(135deg,#fbbf24,#f59e0b);color:#000;box-shadow:0 0 14px rgba(251,191,36,0.4)">Vérifier</button>
         </div>
       </form>
     </div>

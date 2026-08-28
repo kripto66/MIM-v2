@@ -10,6 +10,7 @@ import { invalidateSubscriptionCache } from '../utils/subscription.js';
 import { isBannedValue } from '../middleware/auth.js';
 import { methodeLabel } from '../utils/paiementMethodes.js';
 import { initiatePaydunyaInvoice } from '../utils/paydunyaCheckouts.js';
+import { auditLog, LEVELS } from '../utils/audit.js';
 
 const router = Router();
 
@@ -586,14 +587,14 @@ router.patch('/proprietaires/:id', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Statut invalide. Attendu : actif ou suspendu.' });
   }
 
-  const sb = serviceClient();
-  const { data: profile } = await sb.from('profiles').select('id, name, email').eq('id', id).maybeSingle();
-
-  if (!profile) {
-    return res.status(404).json({ success: false, message: 'Propriétaire introuvable.' });
-  }
-
   try {
+    const sb = serviceClient();
+    const { data: profile } = await sb.from('profiles').select('id, name, email').eq('id', id).maybeSingle();
+
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Propriétaire introuvable.' });
+    }
+
     const ban_duration = statut === 'suspendu' ? '8760h' : 'none';
     const { error } = await sb.auth.admin.updateUserById(id, { ban_duration });
     if (error) {
@@ -602,6 +603,15 @@ router.patch('/proprietaires/:id', async (req, res) => {
     }
 
     invalidatePlatformCache();
+    await auditLog({
+      userId: req.user.id,
+      action: statut === 'suspendu' ? 'admin.suspend_owner' : 'admin.reactivate_owner',
+      target: id,
+      targetType: 'user',
+      level: LEVELS.CRITICAL,
+      meta: { name: profile.name, email: profile.email },
+      ip: req.ip,
+    });
     const message =
       statut === 'suspendu'
         ? `Compte de ${profile.name} suspendu.`
@@ -610,6 +620,112 @@ router.patch('/proprietaires/:id', async (req, res) => {
   } catch (err) {
     console.error('[admin/suspend]', err.message);
     res.status(500).json({ success: false, message: 'Erreur lors de la mise à jour du compte.' });
+  }
+});
+
+// ============================================================
+// Ultra-Admin : vérification de mot de passe + actions critiques
+// ============================================================
+
+const ULTRA_PASSWORD = process.env.ULTRA_ADMIN_PASSWORD || 'Mim@Ultra2026!';
+
+router.post('/ultra-verify', (req, res) => {
+  const { password } = req.body || {};
+  if (!password || password !== ULTRA_PASSWORD) {
+    return res.status(401).json({ success: false, message: 'Mot de passe ultra-admin incorrect.' });
+  }
+  res.json({ success: true, message: 'Ultra-admin vérifié.' });
+});
+
+router.post('/ultra/suspend-saas', async (req, res) => {
+  const { password } = req.body || {};
+  if (!password || password !== ULTRA_PASSWORD) {
+    return res.status(401).json({ success: false, message: 'Mot de passe ultra-admin incorrect.' });
+  }
+  try {
+    const sb = serviceClient();
+    const { error } = await sb.from('system_config').upsert(
+      { key: 'saas_suspended', value: 'true', updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    );
+    if (error) throw error;
+    invalidatePlatformCache();
+    await auditLog({
+      userId: req.user.id,
+      action: 'ultra.suspend_saas',
+      level: LEVELS.CRITICAL,
+      ip: req.ip,
+    });
+    res.json({ success: true, message: 'Le SaaS a été suspendu.' });
+  } catch (err) {
+    console.error('[admin/ultra/suspend-saas]', err.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de la suspension du SaaS.' });
+  }
+});
+
+router.post('/ultra/reactivate-saas', async (req, res) => {
+  const { password } = req.body || {};
+  if (!password || password !== ULTRA_PASSWORD) {
+    return res.status(401).json({ success: false, message: 'Mot de passe ultra-admin incorrect.' });
+  }
+  try {
+    const sb = serviceClient();
+    const { error } = await sb.from('system_config').upsert(
+      { key: 'saas_suspended', value: 'false', updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    );
+    if (error) throw error;
+    invalidatePlatformCache();
+    await auditLog({
+      userId: req.user.id,
+      action: 'ultra.reactivate_saas',
+      level: LEVELS.CRITICAL,
+      ip: req.ip,
+    });
+    res.json({ success: true, message: 'Le SaaS a été réactivé.' });
+  } catch (err) {
+    console.error('[admin/ultra/reactivate-saas]', err.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de la réactivation du SaaS.' });
+  }
+});
+
+router.delete('/ultra/delete-all', async (req, res) => {
+  const { password, confirm } = req.body || {};
+  if (!password || password !== ULTRA_PASSWORD) {
+    return res.status(401).json({ success: false, message: 'Mot de passe ultra-admin incorrect.' });
+  }
+  if (confirm !== 'SUPPRIMER TOUT') {
+    return res.status(400).json({ success: false, message: 'Confirmation requise : tapez "SUPPRIMER TOUT".' });
+  }
+  try {
+    const sb = serviceClient();
+    const tables = ['interventions', 'incidents', 'paiements', 'locataires', 'logements', 'biens', 'abonnement_paiements', 'subscriptions', 'sessions'];
+    const deleted = {};
+    for (const table of tables) {
+      const { count, error } = await sb.from(table).delete({ count: 'exact', head: true });
+      if (error) throw new Error(`${table}: ${error.message}`);
+      deleted[table] = count || 0;
+    }
+    const { data: profiles } = await sb.from('profiles').select('id');
+    if (profiles && profiles.length) {
+      for (const p of profiles) {
+        await sb.auth.admin.deleteUser(p.id).catch(() => {});
+      }
+    }
+    const { count: profileCount } = await sb.from('profiles').delete({ count: 'exact', head: true });
+    deleted['profiles'] = profileCount || 0;
+    invalidatePlatformCache();
+    await auditLog({
+      userId: req.user.id,
+      action: 'ultra.delete_all',
+      level: LEVELS.CRITICAL,
+      meta: { deleted },
+      ip: req.ip,
+    });
+    res.json({ success: true, message: 'Toutes les données ont été supprimées.', deleted });
+  } catch (err) {
+    console.error('[admin/ultra/delete-all]', err.message);
+    res.status(500).json({ success: false, message: 'Erreur lors de la suppression : ' + err.message });
   }
 });
 
