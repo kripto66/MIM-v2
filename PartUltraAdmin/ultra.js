@@ -63,10 +63,10 @@ function hideProgress() {
 const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function skeleton() {
-  const cards = Array(6).fill('<div class="sk-card"></div>').join("");
-  return `<div class="sk-cards">${cards}</div>
-    <div class="sk-panels"><div class="sk-panel"></div><div class="sk-panel"></div></div>
-    <div class="sk-panels"><div class="sk-panel"></div><div class="sk-panel"></div></div>`;
+  const cards = Array(8).fill('<div class="skeleton-card"></div>').join("");
+  return `<div class="skeleton-grid">${cards}</div>
+    <div class="skeleton-panel"></div>
+    <div class="skeleton-panel"></div>`;
 }
 
 function badge(value) {
