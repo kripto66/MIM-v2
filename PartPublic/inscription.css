@@ -20,13 +20,12 @@ body {
 
     font-family: Arial, sans-serif;
 
-    background:
-        linear-gradient(
-            135deg,
-            #5717a5,
-            #490767,
-            #c50974
-        );
+    background: linear-gradient(
+        45deg,
+        #e3d8ef,
+        #f3e8f8,
+        #e8e5e6
+    );
 
     color: #222;
 }

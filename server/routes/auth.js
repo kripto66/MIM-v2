@@ -129,6 +129,28 @@ async function profileOf(userId) {
   return data;
 }
 
+// Résout le type de compte d'un utilisateur OAuth en cherchant le profil
+// existant par email. Quand un compte a été créé manuellement (email/mot
+// de passe) puis que l'utilisateur se connecte avec Google, Supabase crée
+// un nouvel UUID sans account_type dans user_metadata. Cette fonction
+// retrouve le bon type enconsultant la table profiles.
+async function resolveOAuthAccountType(user) {
+  const email = user.email;
+  if (!email) return null;
+
+  try {
+    const { data: profile } = await serviceClient()
+      .from('profiles')
+      .select('account_type')
+      .ilike('email', email)
+      .maybeSingle();
+
+    return profile?.account_type || null;
+  } catch {
+    return null;
+  }
+}
+
 async function requireMfaFor(user, supabaseToken) {
   let factors = verifiedFactorsOf(user);
 
@@ -691,7 +713,15 @@ router.get('/callback', async (req, res) => {
 
     const session = data.session;
     const user = session.user;
-    const accountType = accountTypeOf(user);
+
+    // Quand un compte a déjà été créé manuellement (email/mot de passe)
+    // puis que l'utilisateur se connecte avec Google, Supabase crée un
+    // nouvel UUID sans account_type dans user_metadata. On retrouve le
+    // bon type enconsultant la table profiles par email.
+    const accountType = await resolveOAuthAccountType(user) || accountTypeOf(user);
+
+    // Injecte le bon account_type dans le user pour finalizeLogin
+    user.user_metadata = { ...user.user_metadata, account_type: accountType };
 
     // Même vérification que le login classique : compte banni, abonnement
     // expiré, propriétaire suspendu (pour locataire/employé).
@@ -730,7 +760,7 @@ router.get('/callback', async (req, res) => {
     if (factors.length > 0) {
       setPendingMfaCookie(res, signToken({
         id: user.id,
-        account_type: accountTypeOf(user),
+        account_type: accountType,
         supabase_token: session.access_token,
         mfa_pending: true,
         factorId: factors[0].id,
@@ -759,7 +789,7 @@ router.post('/logout', authenticate, async (req, res) => {
   }
 
   if (req.user?.id) {
-    await closeSession(req.user.id, supabaseToken, req.headers['user-agent']);
+    await closeSession(req.user.id);
     gitAutoBackup(`Sauvegarde auto : déconnexion utilisateur ${req.user.id}`);
   }
 
