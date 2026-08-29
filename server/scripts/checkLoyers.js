@@ -28,6 +28,22 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// Lecture de l'offset de simulation depuis system_config
+async function getSimulationOffset() {
+  try {
+    const { data } = await supabase
+      .from('system_config')
+      .select('value')
+      .eq('key', 'simulation_offset_days')
+      .maybeSingle();
+    return parseInt(data?.value, 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 // Cohérence avec utils/echeances.js : TOUT est calculé en UTC
 // (sinon le cron et la chaîne « mois payé + 1 » peuvent diverger
 // à la frontière d'un mois selon le fuseau du serveur).
@@ -36,7 +52,8 @@ function monthOf(d) {
 }
 
 async function main() {
-  const now = new Date();
+  const simOffset = await getSimulationOffset();
+  const now = new Date(Date.now() + simOffset * DAY_MS);
   const currentMonth = monthOf(now);
   // Jour du mois en UTC (même référence que currentMois()).
   const nowUtcDay = now.getUTCDate();

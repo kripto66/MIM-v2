@@ -3,6 +3,7 @@ import { serviceClient } from '../app.js';
 import { auditLog, LEVELS } from '../utils/audit.js';
 import { notify } from '../utils/notifications.js';
 import { isSaasSuspended, invalidateSaasCache } from '../utils/saasStatus.js';
+import { getSimulationStatus, advanceDay, resetSimulation } from '../utils/simulation.js';
 
 const router = Router();
 
@@ -757,6 +758,61 @@ router.get('/stats', async (req, res) => {
   } catch (e) {
     console.warn('[ultra-admin] stats error:', e.message);
     err(res, 500, 'SERVER_ERROR', 'Erreur lors des statistiques.');
+  }
+});
+
+// ─── SIMULATION TEMPORELLE ──────────────────────────────────────────
+
+// GET /api/ultra-admin/simulation — État actuel de la simulation
+router.get('/simulation', async (req, res) => {
+  try {
+    const status = await getSimulationStatus();
+    res.json({ success: true, data: status });
+  } catch (e) {
+    console.warn('[ultra-admin] simulation status error:', e.message);
+    err(res, 500, 'SERVER_ERROR', 'Erreur lors de la lecture de la simulation.');
+  }
+});
+
+// POST /api/ultra-admin/simulation/advance-day — Avancer d'1 jour
+router.post('/simulation/advance-day', async (req, res) => {
+  try {
+    const result = await advanceDay();
+    if (!result.success) return err(res, 500, 'SERVER_ERROR', result.error);
+
+    await auditLog({
+      userId: req.user.id,
+      action: 'ultra.advance_day',
+      level: LEVELS.WARN,
+      meta: { offset: result.offset, simulatedDate: result.simulatedDate },
+      ip: req.ip,
+    });
+
+    res.json(result);
+  } catch (e) {
+    console.warn('[ultra-admin] advance day error:', e.message);
+    err(res, 500, 'SERVER_ERROR', "Erreur lors de l'avancement du jour.");
+  }
+});
+
+// POST /api/ultra-admin/simulation/reset — Réinitialiser la simulation
+router.post('/simulation/reset', async (req, res) => {
+  try {
+    const result = await resetSimulation();
+    if (!result.success) return err(res, 500, 'SERVER_ERROR', result.error);
+
+    await auditLog({
+      userId: req.user.id,
+      action: 'ultra.reset_simulation',
+      level: LEVELS.WARN,
+      meta: { message: 'Simulation réinitialisée' },
+      ip: req.ip,
+    });
+
+    res.json(result);
+  } catch (e) {
+    console.warn('[ultra-admin] reset simulation error:', e.message);
+    err(res, 500, 'SERVER_ERROR', 'Erreur lors de la réinitialisation.');
   }
 });
 
