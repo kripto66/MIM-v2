@@ -892,7 +892,8 @@ function renderAuditTableInner(list) {
 
 async function simulation() {
   app.innerHTML = skeleton();
-  const status = await apiRequest("/ultra-admin/simulation");
+  const res = await apiRequest("/ultra-admin/simulation");
+  const status = res.data || res;
 
   const isActive = status.isActive;
   const offset = status.offset || 0;
