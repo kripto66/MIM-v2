@@ -1,8 +1,8 @@
-import { authedClient } from '../app.js';
+import { serviceClient } from '../app.js';
 
 export async function logSession(userId, action, supabaseToken, userAgent = '', ip = '') {
   try {
-    const sb = authedClient(supabaseToken);
+    const sb = serviceClient();
     const ua = String(userAgent || '').slice(0, 200);
     const ipStr = String(ip || '').slice(0, 45);
 
@@ -21,16 +21,15 @@ export async function logSession(userId, action, supabaseToken, userAgent = '', 
 }
 
 export async function closeSession(userId, supabaseToken, userAgent = '') {
-  if (!supabaseToken) {
-    console.warn('[session] close ignoré : supabaseToken manquant');
+  if (!userId) {
+    console.warn('[session] close ignoré : userId manquant');
     return;
   }
   try {
-    const sb = authedClient(supabaseToken);
-    const ua = String(userAgent || '').slice(0, 200);
+    const sb = serviceClient();
 
     // Ferme uniquement la session la plus récente correspondant à cet
-    // user_agent, pour ne pas affecter les autres appareils connectés.
+    // user_id, pour ne pas affecter les autres appareils connectés.
     const { data: sessions } = await sb
       .from('sessions')
       .select('id')
