@@ -370,6 +370,7 @@ const sections = {
   events: ["Événements", "Gestion des événements de la plateforme."],
   featured: ["Mise en avant", "Éléments mis en avant sur la plateforme."],
   audit: ["Journal d'audit", "Historique des actions critiques de la plateforme."],
+  simulation: ["Simulation", "Avancer le temps pour tester échéances et abonnements."],
 };
 
 const LABELS = {
@@ -886,6 +887,66 @@ function renderAuditTableInner(list) {
 }
 
 // ============================================================
+// Section: Simulation
+// ============================================================
+
+async function simulation() {
+  app.innerHTML = skeleton();
+  const status = await apiRequest("/ultra-admin/simulation");
+
+  const isActive = status.isActive;
+  const offset = status.offset || 0;
+  const realDate = fmtDateTime(status.realDate);
+  const simulatedDate = fmtDateTime(status.simulatedDate);
+
+  app.innerHTML = `
+  <div class="panel" style="margin-bottom:1.5rem">
+    <div class="sim-banner ${isActive ? "active" : "idle"}">
+      <div class="sim-dot"></div>
+      <div>
+        <h3 style="margin:0 0 4px">Simulation ${isActive ? "Active" : "Inactive"}</h3>
+        <p style="margin:0;font-size:13px">${isActive
+          ? `Le temps est décalé de ${offset} jour(s). La date simulée est ${simulatedDate}.`
+          : "Le système utilise la date réelle. Aucun décalage actif."}</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-bottom:1.5rem">
+    <div class="stat-card" style="flex-direction:column;align-items:flex-start;gap:10px">
+      <div class="stat-head"><span>Date réelle</span><span class="stat-icon blue">📅</span></div>
+      <div style="font-size:18px;font-weight:700">${realDate}</div>
+      <div style="font-size:12px;color:var(--dim)">Heure serveur actuelle</div>
+    </div>
+    <div class="stat-card" style="flex-direction:column;align-items:flex-start;gap:10px">
+      <div class="stat-head"><span>Date simulée</span><span class="stat-icon ${isActive ? "gold" : ""}">⏰</span></div>
+      <div style="font-size:18px;font-weight:700">${simulatedDate}</div>
+      <div style="font-size:12px;color:var(--dim)">${offset > 0 ? `+${offset} jour(s) par rapport à la réalité` : "Identique à la date réelle"}</div>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px">
+    <div class="stat-card" style="flex-direction:column;align-items:flex-start;gap:10px">
+      <div class="stat-head"><span>Avancer d'1 jour</span><span class="stat-icon gold">⏩</span></div>
+      <p style="margin:0;font-size:13px;color:var(--dim);line-height:1.5">
+        Décale la date du système d'un jour. Les échéances locataires seront plus proches,
+        les abonnements expireront plus tôt.
+      </p>
+      <button class="btn primary" data-action="advanceDay">Avancer d'1 jour</button>
+    </div>
+    <div class="stat-card" style="flex-direction:column;align-items:flex-start;gap:10px">
+      <div class="stat-head"><span>Réinitialiser</span><span class="stat-icon green">🔄</span></div>
+      <p style="margin:0;font-size:13px;color:var(--dim);line-height:1.5">
+        Restaure la date réelle du système. Annule tout décalage précédemment appliqué.
+      </p>
+      <button class="btn secondary" data-action="resetSimulation" ${!isActive ? "disabled" : ""}>Réinitialiser</button>
+    </div>
+  </div>`;
+
+  enableTilt();
+}
+
+// ============================================================
 // Renderers map
 // ============================================================
 
@@ -900,6 +961,7 @@ const RENDERERS = {
   events,
   featured,
   audit,
+  simulation,
 };
 
 // ============================================================
@@ -1129,6 +1191,34 @@ document.addEventListener("click", async (e) => {
       const r = await apiRequest("/ultra-admin/saas/reactivate", { method: "POST" });
       showToast(r.message || "SaaS réactivé.");
       saas();
+    } catch (err) { MIM.showError(MIM.userMessage(err)); }
+    finally { hideProgress(); }
+  }
+
+  // --- Simulation ---
+  if (action === "advanceDay") {
+    const ok = await confirmAction(
+      "Avancer d'1 jour",
+      "Voulez-vous avancer la date simulée d'un jour ? Les échéances et abonnements seront affectés."
+    );
+    if (!ok) return;
+    showProgress("Avancement du jour…", "gold");
+    try {
+      const r = await apiRequest("/ultra-admin/simulation/advance-day", { method: "POST" });
+      showToast(r.message || "Jour avancé.");
+      simulation();
+    } catch (err) { MIM.showError(MIM.userMessage(err)); }
+    finally { hideProgress(); }
+  }
+
+  if (action === "resetSimulation") {
+    const ok = await confirmAction("Réinitialiser la simulation", "Voulez-vous restaurer la date réelle du système ?");
+    if (!ok) return;
+    showProgress("Réinitialisation…", "success");
+    try {
+      const r = await apiRequest("/ultra-admin/simulation/reset", { method: "POST" });
+      showToast(r.message || "Simulation réinitialisée.");
+      simulation();
     } catch (err) { MIM.showError(MIM.userMessage(err)); }
     finally { hideProgress(); }
   }

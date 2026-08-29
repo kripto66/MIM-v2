@@ -11,6 +11,7 @@
 // ============================================================
 
 import { serviceClient } from '../app.js';
+import { getNow } from './simulation.js';
 
 const OWNER_TYPES = ['proprietaire', 'agence', 'entreprise'];
 
@@ -25,7 +26,7 @@ export function invalidateSubscriptionCache() {
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-function computeStatus(sub) {
+async function computeStatus(sub) {
   if (!sub) {
     return {
       statut: 'aucun',
@@ -41,7 +42,7 @@ function computeStatus(sub) {
     };
   }
 
-  const now = Date.now();
+  const now = await getNow();
   const exp = new Date(sub.date_expiration).getTime();
   const expired = !Number.isNaN(exp) && exp <= now;
 
@@ -115,5 +116,6 @@ export async function subscriptionExpiredFor(userId, accountType) {
   if (!sub) return false;
 
   const exp = new Date(sub.date_expiration).getTime();
-  return !Number.isNaN(exp) && exp <= Date.now();
+  const now = await getNow();
+  return !Number.isNaN(exp) && exp <= now;
 }
