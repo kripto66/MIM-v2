@@ -4,15 +4,23 @@
 // Permet d'avancer le temps du système pour tester les
 // échéances, abonnements, et autres vérifications temporelles.
 // L'offset est stocké en DB (system_config) et mis en cache.
+//
+// NOTE : Ce module crée son propre client Supabase pour éviter
+// une dépendance circulaire (app.js → auth.js → subscription.js
+// → simulation.js → app.js).
 // ============================================================
 
-import { serviceClient } from '../app.js';
+import { createClient } from '@supabase/supabase-js';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const CACHE_TTL_MS = 2000;
 
 let cachedOffset = null;
 let cacheTimestamp = 0;
+
+function sb() {
+  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
 
 // Lit l'offset depuis la DB (avec cache court)
 async function readOffset() {
@@ -22,7 +30,7 @@ async function readOffset() {
   }
 
   try {
-    const { data, error } = await serviceClient()
+    const { data, error } = await sb()
       .from('system_config')
       .select('value')
       .eq('key', 'simulation_offset_days')
@@ -49,7 +57,7 @@ async function readOffset() {
 // Écrit l'offset en DB
 async function writeOffset(days) {
   try {
-    const { error } = await serviceClient()
+    const { error } = await sb()
       .from('system_config')
       .upsert(
         { key: 'simulation_offset_days', value: String(days), updated_at: new Date().toISOString() },
