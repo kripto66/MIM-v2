@@ -27,6 +27,7 @@ import { createCrudRouter } from './routes/crud.js';
 import { authenticate, requireActive, requireAdmin, requireUltraAdmin, requireRole, authenticatePage, requireZone } from './middleware/auth.js';
 import { authRateLimit, apiRateLimit } from './middleware/rateLimit.js';
 import { validateCsrfToken, csrfInitRoute } from './middleware/csrf.js';
+import { PUBLIC_BASE_URL, SITE_NAME, SITE_DESCRIPTION, SITE_LOCALE, PUBLIC_PAGES } from './seo-config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -79,6 +80,12 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+
+  // X-Robots-Tag : noindex pour les zones protégées
+  const protectedPrefixes = ['/PartProprietaires', '/PartLocataires', '/PartAdmin', '/PartUltraAdmin', '/PartEmployes', '/api'];
+  if (protectedPrefixes.some(p => req.path.startsWith(p))) {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  }
 
   // Content-Security-Policy : défense en profondeur contre XSS.
   // 'unsafe-inline' est nécessaire pour les scripts inline du frontend vanilla JS.
@@ -140,6 +147,47 @@ app.use('/PartAdmin', authenticatePage(), requireZone('admin', 'ultra_admin'), e
 app.use('/PartUltraAdmin', authenticatePage(), requireZone('ultra_admin'), express.static(path.join(ROOT, 'PartUltraAdmin')));
 app.use('/PartEmployes', authenticatePage(), requireZone('employe'), express.static(path.join(ROOT, 'PartEmployes')));
 app.use('/images', express.static(path.join(ROOT, 'images')));
+
+// ─── SEO ROUTES ────────────────────────────────────────────────────
+
+// robots.txt dynamique
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  res.send(`User-agent: *
+Allow: /
+Disallow: /PartProprietaires/
+Disallow: /PartLocataires/
+Disallow: /PartAdmin/
+Disallow: /PartUltraAdmin/
+Disallow: /PartEmployes/
+Disallow: /api/
+
+# Sitemap (remplacer le domaine quand le nom définitif sera choisi)
+Sitemap: ${PUBLIC_BASE_URL}/sitemap.xml
+`);
+});
+
+// sitemap.xml dynamique
+app.get('/sitemap.xml', (req, res) => {
+  const urls = PUBLIC_PAGES.map((page) => {
+    const lastmod = new Date().toISOString().split('T')[0];
+    return `  <url>
+    <loc>${PUBLIC_BASE_URL}${page.path}</loc>
+    <lastmod>${lastmod}</lastmod>
+    <changefreq>${page.changefreq}</changefreq>
+    <priority>${page.priority}</priority>
+  </url>`;
+  }).join('\n');
+
+  res.type('application/xml');
+  res.send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urls}
+</urlset>
+`);
+});
+
+// ─── END SEO ROUTES ────────────────────────────────────────────────
 
 app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'MIM API OK' });
