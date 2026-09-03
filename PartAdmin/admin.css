@@ -34,6 +34,7 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -332,6 +333,7 @@ svg {
 .main {
   margin-left: var(--sidebar-w);
   min-height: 100dvh;
+  overflow-x: hidden;
 }
 
 .topbar {
@@ -344,6 +346,7 @@ svg {
   justify-content: space-between;
   gap: 14px;
   padding: 0 30px;
+  overflow: hidden;
   background: rgba(8, 3, 18, 0.6);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -490,6 +493,7 @@ svg {
   padding: 28px 30px 48px;
   max-width: 1560px;
   margin: auto;
+  overflow-x: hidden;
 }
 
 .mobile-only {
@@ -874,8 +878,9 @@ svg {
    ============================================================ */
 
 .table-wrap {
-  overflow: auto;
+  overflow-x: auto;
   border-radius: 10px;
+  max-width: 100%;
 }
 
 .table {
