@@ -29,6 +29,7 @@ import { runSalaires } from './salaires.test.js';
 import { runVierge } from './vierge.test.js';
 import { runSimplif } from './simplif.test.js';
 import { runComplet, runMatrice } from './complet.test.js';
+import { runCsrfValidation } from './csrf-validation.test.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.join(__dirname, '..', '..');
@@ -60,6 +61,7 @@ const SUITES = [
   ['simplif', runSimplif],
   ['complet', runComplet],
   ['matrice', runMatrice],
+  ['csrf-validation', runCsrfValidation],
 ];
 
 const runner = new Runner();

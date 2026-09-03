@@ -26,7 +26,10 @@ import uploadRoutes from './routes/upload.js';
 import { createCrudRouter } from './routes/crud.js';
 import { authenticate, requireActive, requireAdmin, requireUltraAdmin, requireRole, authenticatePage, requireZone } from './middleware/auth.js';
 import { authRateLimit, apiRateLimit } from './middleware/rateLimit.js';
-import { validateCsrfToken, csrfInitRoute } from './middleware/csrf.js';
+// Le CSRF est supprimé : le cookie mim_token utilise SameSite=Lax,
+// ce qui empêche les envois cross-origin de cookies dans les mutations.
+// Les requêtes fetchSame-Site (même origine + credentials:include) sont
+// les seules à inclure le cookie, et CORS bloque les origines tierces.
 import { PUBLIC_BASE_URL, SITE_NAME, SITE_DESCRIPTION, SITE_LOCALE, PUBLIC_PAGES } from './seo-config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -193,13 +196,11 @@ app.get('/api/health', (req, res) => {
   res.json({ success: true, message: 'MIM API OK' });
 });
 
-app.get('/api/csrf-token', csrfInitRoute);
-
 // Les fonctionnalités métier exigent un compte ACTIF (ni suspendu, ni
 // dépendant d'un propriétaire suspendu). Les routes /api/auth restent
 // ouvertes aux comptes suspendus : profil, mot de passe, déconnexion, 2FA.
-// Le CSRF est appliqué aux routes POST/PUT/DELETE/PATCH de mutation.
-app.use('/api/auth', authRateLimit, validateCsrfToken, authRoutes);
+// SameSite=Lax sur mim_token protège contre les attaques CSRF.
+app.use('/api/auth', authRateLimit, authRoutes);
 app.use('/api', apiRateLimit);
 app.use('/api/stats', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), statsRoutes);
 app.use('/api/git', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise', 'admin'), gitRoutes);
