@@ -1,11 +1,15 @@
 // ============================================================
 // MIM - Échéances (logique serveur partagée)
 //
-// La nouvelle échéance est créée UNIQUEMENT après validation du
-// propriétaire (le locataire a réellement payé). La logique de
-// mois suivant est centralisée ici pour éviter toute duplication
-// (checkLoyers.js crée l'échéance du mois courant ; la validation
-// crée celle du mois suivant).
+// Une échéance n'existe que pour un mois DÉJÀ COMMENCÉ : on ne crée
+// jamais d'échéance pour un mois strictement futur (sinon le locataire
+// devrait payer en avance et les échéances ne correspondraient pas au
+// mois affiché). Le mois courant — ou le mois d'entrée si celui-ci est
+// futur — est assuré par creerEcheanceInitiale (création locataire +
+// auto-assurance au chargement du dashboard locataire) et par le cron
+// checkLoyers.js. La validation d'un paiement ne crée le mois suivant
+// que si ce mois a commencé (mois payé + 1) ; sinon le locataire reste
+// « à jour » jusqu'au mois suivant.
 // ============================================================
 
 // Mois suivant au format AAAA-MM (gère mois courts, changement d'année).
@@ -65,6 +69,14 @@ export async function creerEcheanceInitiale(sb, { userId, locataireId, logementI
 export async function creerEcheanceSuivante(sb, paiement) {
   const moisSuivant = nextMois(paiement.mois);
   if (!moisSuivant) return { created: false, mois: null, error: 'mois invalide' };
+
+  // L'échéance du mois suivant n'est créée que lorsque ce mois a commencé :
+  // valider le loyer de septembre le 4 septembre ne doit PAS faire « payer
+  // octobre » aussitôt. Le mois suivant, l'échéance sera assurée par le
+  // dashboard locataire et/ou le cron checkLoyers.
+  if (moisSuivant > currentMois()) {
+    return { created: false, mois: moisSuivant, error: null, future: true };
+  }
 
   const { data: logement } = await sb
     .from('logements')

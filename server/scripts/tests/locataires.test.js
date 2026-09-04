@@ -343,26 +343,28 @@ export async function runLocataires(r, ctx) {
       r.fail(S, 'propriétaire notifié de la déclaration', JSON.stringify(notif.data).slice(0, 300));
     }
 
-    // Validation par le propriétaire → paiement payé + échéance suivante.
+// Validation par le propriétaire → paiement payé. L'échéance du mois
+    // suivant n'est PAS créée prématurément (mois strictement futur) : le
+    // locataire reste sur le mois courant (assurance à l'ouverture du dashboard).
     const val = await api(`/paiements-validation/${ech.id}/valider`, { method: 'POST', jar });
-    if (expectSuccess(r, val, S, r) && val.data.data?.statut === 'paye') {
+    if (expectSuccess(r, val, S, 'validation propriétaire → paiement payé') && val.data.data?.statut === 'paye') {
       r.pass(S, 'validation propriétaire → paiement payé');
     } else {
       r.fail(S, 'validation propriétaire', JSON.stringify(val.data));
     }
 
     const moisSuivant = nextMois(moisCourant);
+    if (val.data.echeance == null) r.pass(S, `échéance future (${moisSuivant}) non annoncée`);
+    else r.fail(S, 'échéance future non annoncée', JSON.stringify(val.data.echeance));
+
     const { data: suiv } = await service
       .from('paiements')
       .select('id, mois, montant, statut')
       .eq('locataire_id', fiche.id)
       .eq('mois', moisSuivant)
       .maybeSingle();
-    if (suiv && suiv.statut === 'attente' && Number(suiv.montant) === 175000) {
-      r.pass(S, `échéance suivante créée (${moisSuivant}, 175 000)`);
-    } else {
-      r.fail(S, 'échéance suivante créée', JSON.stringify(suiv));
-    }
+    if (!suiv) r.pass(S, `aucune échéance prématurée (${moisSuivant}) en base`);
+    else r.fail(S, 'aucune échéance prématurée en base', JSON.stringify(suiv));
   });
 
   // ----------------------------------------------------------

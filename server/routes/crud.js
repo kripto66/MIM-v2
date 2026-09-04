@@ -598,8 +598,8 @@ export function createCrudRouter(tableName) {
 
     // Échéance initiale : créée uniquement en mode automatique (formulaire
     // unique). En mode manuel (username/password fournis par le propriétaire),
-    // le comportement historique est conservé : l'échéance du mois courant
-    // est créée par le cron checkLoyers.
+    // l'échéance du mois courant est assurée à l'ouverture du dashboard
+    // locataire (auto-création) ou par le cron checkLoyers.
     let echeance = null;
     if (autoAccount && logementId && logementLoyer != null) {
       echeance = await creerEcheanceInitiale(admin, {
