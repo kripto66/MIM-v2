@@ -260,8 +260,6 @@ export async function runDeclarations(r, ctx) {
     if (notPending.status === 400) r.pass(S, 'validation d\'un paiement payé rejetée (400)');
     else r.fail(S, 'validation d\'un paiement payé rejetée (400)', `statut ${notPending.status}`);
 
-    const loyer = Number(log1.loyer_mensuel);
-
     // Le mois courant possède déjà des paiements : la validation du mois
     // précédent ne doit PAS créer d'échéance supplémentaire (anti-doublon,
     // robuste même si plusieurs paiements existent pour ce mois).
@@ -286,22 +284,21 @@ export async function runDeclarations(r, ctx) {
     if (again.status === 400 || again.status === 409) r.pass(S, 'double validation rejetée');
     else r.fail(S, 'double validation rejetée', `statut ${again.status}`);
 
-    // Validation du mois courant : la nouvelle échéance (mois suivant) est
-    // créée avec le montant relu en base (loyer_mensuel du logement).
+    // Validation du mois courant : le mois suivant est STRICTEMENT futur,
+    // aucune échéance prématurée n'est donc créée (le locataire reste
+    // « à jour » ; l'échéance sera assurée à l'ouverture de son dashboard).
     const valCourant = await api(`/paiements-validation/${P.p1.id}/valider`, { method: 'POST', jar });
     if (!expectSuccess(r, valCourant, S, 'validation du mois courant')) return;
-    if (valCourant.data.echeance?.mois !== nextMonth) r.fail(S, 'nouvelle échéance annoncée', JSON.stringify(valCourant.data.echeance));
-    else r.pass(S, 'nouvelle échéance annoncée');
+    if (valCourant.data.echeance?.mois === nextMonth) r.fail(S, 'nouvelle échéance non annoncée (mois futur)', JSON.stringify(valCourant.data.echeance));
+    else r.pass(S, 'échéance du mois suivant non annoncée (mois futur)');
 
     const echeance = await payOf(loc1.id, nextMonth);
-    if (!echeance) r.fail(S, 'nouvelle échéance créée (mois suivant)');
-    else if (echeance.statut !== 'attente') r.fail(S, 'nouvelle échéance en attente', echeance.statut);
-    else if (Number(echeance.montant) !== loyer) r.fail(S, 'montant de l\'échéance relu en base', `${echeance.montant} != ${loyer}`);
-    else r.pass(S, `nouvelle échéance ${nextMonth} créée (montant relu ${loyer})`);
+    if (echeance) r.fail(S, `aucune échéance prématurée en base (${nextMonth})`, JSON.stringify(echeance).slice(0, 200));
+    else r.pass(S, `aucune échéance prématurée en base (${nextMonth})`);
 
     const { data: echs } = await service.from('paiements').select('id').eq('locataire_id', loc1.id).eq('mois', nextMonth);
-    if (echs.length === 1) r.pass(S, 'échéance unique (anti-doublon)');
-    else r.fail(S, 'échéance unique (anti-doublon)', `len=${echs.length}`);
+    if (echs.length === 0) r.pass(S, 'échéance future absente (anti-doublon)');
+    else r.fail(S, 'échéance future absente (anti-doublon)', `len=${echs.length}`);
 
     // Un paiement désormais paye n'est plus déclarable par le locataire.
     const t1 = await loginTenant(loc1.username);
@@ -381,8 +378,8 @@ export async function runDeclarations(r, ctx) {
     else r.fail(S, '2 validations simultanées', `winners=${vWinners} losers=${vLosers} (${v1.status}, ${v2.status})`);
 
     const { data: echs } = await service.from('paiements').select('id').eq('locataire_id', loc21.id).eq('mois', nextMonth);
-    if (echs.length === 1) r.pass(S, 'échéance suivante unique après double validation');
-    else r.fail(S, 'échéance suivante unique', `len=${echs.length}`);
+    if (echs.length === 0) r.pass(S, 'aucune échéance prématurée après double validation');
+    else r.fail(S, 'aucune échéance prématurée après double validation', `len=${echs.length}`);
   });
 
   // ----------------------------------------------------------

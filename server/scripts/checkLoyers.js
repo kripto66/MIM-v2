@@ -60,7 +60,7 @@ async function main() {
 
   const { data: locataires, error: locError } = await supabase
     .from('locataires')
-    .select('id, user_id, account_uid, logement_id, jour_echeance')
+    .select('id, user_id, account_uid, logement_id, jour_echeance, date_entree')
     .eq('statut', 'actif')
     .not('logement_id', 'is', null);
 
@@ -77,6 +77,13 @@ async function main() {
       .maybeSingle();
 
     if (lgError || !logement) continue;
+
+    // Un locataire qui n'est pas encore entré (date_entree future) ne doit
+    // PAS recevoir d'échéance pour le mois courant : son échéance sera
+    // créée au mois de son entrée (creerEcheanceInitiale l'assure déjà,
+    // et le cron la créera naturellement à ce moment-là).
+    const entryMonth = locataire.date_entree ? String(locataire.date_entree).slice(0, 7) : null;
+    if (entryMonth && entryMonth > currentMonth) continue;
 
     const { data: existing } = await supabase
       .from('paiements')
@@ -114,6 +121,11 @@ async function main() {
   for (const paiement of attente) {
     const tenant = tenantById.get(paiement.locataire_id);
     if (!tenant) continue;
+
+    // Échéances antérieures à la date d'entrée (données historiques
+    // incohérentes) : on ne les passe pas en retard.
+    const entryMonth = tenant.date_entree ? String(tenant.date_entree).slice(0, 7) : null;
+    if (entryMonth && paiement.mois < entryMonth) continue;
 
     const jourEcheance = tenant.jour_echeance ?? 1;
     let overdue = paiement.mois < currentMonth;

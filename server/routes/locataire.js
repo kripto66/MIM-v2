@@ -4,6 +4,7 @@ import { gitAutoBackup } from '../utils/gitBackup.js';
 import { notify, logementNomOf } from '../utils/notifications.js';
 import { TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
 import { formatMois } from '../utils/mois.js';
+import { creerEcheanceInitiale } from '../utils/echeances.js';
 
 const router = Router();
 
@@ -427,6 +428,25 @@ router.get('/dashboard', async (req, res) => {
           .maybeSingle();
 
         if (!bErr && b) bien = b;
+      }
+    }
+
+    // Auto-assurance (idempotente) de l'échéance en cours : l'application ne
+    // dépend pas d'un cron externe. Un locataire actif retrouve l'échéance du
+    // mois courant (ou du mois de son entrée si celui-ci est futur) à chaque
+    // ouverture du tableau de bord. Respecte creerEcheanceInitiale : jamais de
+    // mois strictement futur après son entrée.
+    if (logement && locataire.statut === 'actif' && Number.isFinite(Number(logement.loyer_mensuel))) {
+      try {
+        await creerEcheanceInitiale(serviceClient(), {
+          userId: logement.user_id,
+          locataireId: locataire.id,
+          logementId: logement.id,
+          montant: logement.loyer_mensuel,
+          dateEntree: locataire.date_entree,
+        });
+      } catch (autoE) {
+        console.warn('[locataire/dashboard] auto-échéance :', autoE.message);
       }
     }
 
