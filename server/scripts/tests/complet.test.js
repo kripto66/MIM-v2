@@ -30,17 +30,6 @@ export async function runComplet(r, ctx) {
     } catch (e) {
       r.fail(S, 'GET /api/health → 200', e.message);
     }
-
-    for (const page of ['paiement-succes', 'paiement-annule']) {
-      try {
-        const res = await fetch(`${WEB}/${page}`, { redirect: 'manual', signal: AbortSignal.timeout(5000) });
-        const ct = res.headers.get('content-type') || '';
-        if (res.status === 200 && ct.includes('text/html')) r.pass(S, `page publique /${page} servie`);
-        else r.fail(S, `page publique /${page} servie`, `statut ${res.status} type ${ct}`);
-      } catch (e) {
-        r.fail(S, `page publique /${page} servie`, e.message);
-      }
-    }
   });
 
   await r.section('PUT /auth/update-profile', async () => {
@@ -74,16 +63,6 @@ export async function runComplet(r, ctx) {
       r.pass(S, 'mois-courant renvoie le mois courant');
     } else if (mc.data?.mois !== currentMonth()) {
       r.fail(S, 'mois-courant renvoie le mois courant', String(mc.data?.mois));
-    }
-
-    const tm = await api('/paydunya/test-mode', { jar });
-    if (
-      expectSuccess(r, tm, S, 'GET /paydunya/test-mode') &&
-      typeof tm.data.testMode === 'boolean'
-    ) {
-      r.pass(S, 'test-mode renvoie un booléen');
-    } else if (typeof tm.data?.testMode !== 'boolean') {
-      r.fail(S, 'test-mode renvoie un booléen', JSON.stringify(tm.data).slice(0, 120));
     }
 
     for (const base of ['import', 'onboarding']) {
@@ -526,11 +505,6 @@ export async function runMatrice(r, ctx) {
     {
       name: 'GET /notifications (tous rôles authentifiés)',
       path: '/notifications',
-      exp: expectedFor({ anon: 401, owner: 200, locataire: 200, employe: 200, admin: 200 }),
-    },
-    {
-      name: 'GET /paydunya/test-mode (tous rôles authentifiés)',
-      path: '/paydunya/test-mode',
       exp: expectedFor({ anon: 401, owner: 200, locataire: 200, employe: 200, admin: 200 }),
     },
   ];

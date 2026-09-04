@@ -205,39 +205,6 @@
         </div>
     </div>
 
-    <!-- Modal « Payer par mobile money » (CinetPay) -->
-    <div class="modal-overlay" id="cinetpayModal" style="display:none;">
-        <div class="modal">
-            <h2>Payer par mobile money</h2>
-            <p class="payer-note">
-                Choisissez votre wallet et saisissez le numéro qui recevra la demande de paiement :
-                vous n'avez besoin d'AUCUN compte, seulement de votre wallet (Orange Money, Wave…).
-            </p>
-            <div class="form-group" style="margin-top:12px;">
-                <label for="cinetpayWallet">Wallet</label>
-                <select id="cinetpayWallet">
-                    <option value="">Choisir au moment de valider…</option>
-                    <option value="orange">Orange Money</option>
-                    <option value="wave">Wave</option>
-                    <option value="free">Free Money</option>
-                    <option value="mtn">MTN MoMo</option>
-                    <option value="moov">Moov Money</option>
-                </select>
-            </div>
-            <div class="form-group">
-                <label for="cinetpayPhone">Numéro de téléphone</label>
-                <input type="tel" id="cinetpayPhone" placeholder="77 123 45 67" autocomplete="tel">
-                <small>La demande de paiement arrive sur ce numéro (push USSD / notification). Gardez votre téléphone à portée de main.</small>
-            </div>
-            <div id="cinetpayError" class="tenant-message danger" style="display:none;"></div>
-            <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" id="cinetpayCancel">Annuler</button>
-                <button type="button" class="btn btn-primary" id="cinetpayConfirm">Continuer vers le paiement</button>
-            </div>
-        </div>
-    </div>
-
-    <script src="../PartPublic/pay-status.js"></script>
     <script src="LocaDash.js"></script>
     <script>
         // ============================================================
@@ -447,15 +414,8 @@
                     </div>
                     <div class="payer-amount">${fmtFCFA(pending.montant)}</div>
                     <p class="payer-meta">Échéance : ${formatDate(new Date(Number(String(pending.mois).split("-")[0]), Number(String(pending.mois).split("-")[1]) - 1, jourEcheance))}</p>
-                    <button type="button" class="primary-button cinetpay-btn" data-cinetpay-pay="${pending.id}"${cinetpayAvailable ? "" : ' style="display:none"'}>
-                        📱 Payer par Orange Money / Wave
-                    </button>
-                    <button type="button" class="primary-button paydunya-btn" data-paydunya-pay="${pending.id}"${cinetpayAvailable ? ' style="display:none"' : ""}>
-                        💳 Payer en ligne (PayDunya)
-                    </button>
-                    <p class="payer-note">Payez depuis votre téléphone (Orange Money, Wave, Free Money…) : validez la demande reçue sur votre numéro, votre loyer sera marqué payé automatiquement. Aucun compte à créer.</p>
                     <div class="payer-methods">
-                        <h4>Ou payez directement votre propriétaire</h4>
+                        <h4>Payez directement votre propriétaire</h4>
                         <p class="payer-note">Utilisez l'un des moyens ci-dessous, puis revenez déclarer votre paiement ici.</p>
                         ${moyensHtml}
                     </div>
@@ -499,52 +459,6 @@
         }
 
         let currentPending = null;
-        let cinetpayAvailable = false;
-        let cinetpayTarget = null;
-
-        function openCinetpayModal(paiementId) {
-            cinetpayTarget = paiementId;
-            document.getElementById("cinetpayPhone").value = "";
-            document.getElementById("cinetpayWallet").value = "";
-            document.getElementById("cinetpayError").style.display = "none";
-            document.getElementById("cinetpayModal").style.display = "flex";
-        }
-
-        async function submitCinetpay() {
-            const btn = document.getElementById("cinetpayConfirm");
-            const errBox = document.getElementById("cinetpayError");
-            if (!cinetpayTarget || btn.disabled) return;
-
-            const phone = document.getElementById("cinetpayPhone").value.trim();
-            if (phone.replace(/\D/g, "").length < 8) {
-                errBox.textContent = "Saisissez un numéro valide (8 chiffres minimum).";
-                errBox.style.display = "block";
-                return;
-            }
-
-            btn.disabled = true;
-            btn.textContent = "Création du paiement...";
-            try {
-                const res = await tenantRequest("/cinetpay/initiate", {
-                    method: "POST",
-                    body: JSON.stringify({
-                        paiement_id: Number(cinetpayTarget),
-                        phone,
-                        wallet: document.getElementById("cinetpayWallet").value || null,
-                    }),
-                });
-                const url = res.data?.payment_url;
-                if (!url) throw new Error(res.message || "Aucun lien de paiement reçu.");
-                // Redirection DANS LE MÊME ONGLET : indispensable pour le
-                // retour depuis le guichet (push USSD / application wallet).
-                window.location.href = url;
-            } catch (err) {
-                errBox.textContent = err.message;
-                errBox.style.display = "block";
-                btn.disabled = false;
-                btn.textContent = "Continuer vers le paiement";
-            }
-        }
 
         async function reloadPage() {
             const data = await tenantRequest("/locataire/dashboard");
@@ -589,57 +503,9 @@
 
         document.addEventListener("DOMContentLoaded", async () => {
             try {
-                // Disponibilité CinetPay (clés configurées côté serveur) :
-                // détermine le bouton affiché dans renderPayer.
-                try {
-                    const enabled = await tenantRequest("/cinetpay/enabled");
-                    cinetpayAvailable = Boolean(enabled.data?.enabled);
-                } catch {
-                    cinetpayAvailable = false;
-                }
-
                 await reloadPage();
 
                 document.getElementById("payerContent").addEventListener("click", (e) => {
-                    const cinetpayBtn = e.target.closest("[data-cinetpay-pay]");
-                    if (cinetpayBtn) {
-                        openCinetpayModal(Number(cinetpayBtn.dataset.cinetpayPay));
-                        return;
-                    }
-                    const paydunyaBtn = e.target.closest("[data-paydunya-pay]");
-                    if (paydunyaBtn) {
-                        if (paydunyaBtn.disabled) return;
-                        paydunyaBtn.disabled = true;
-                        paydunyaBtn.textContent = "Génération du lien de paiement...";
-                        tenantRequest("/paydunya/initiate", {
-                            method: "POST",
-                            body: JSON.stringify({ source: "loyer", paiement_id: Number(paydunyaBtn.dataset.paydunyaPay) }),
-                        })
-                            .then((res) => {
-                                const url = res.data?.payment_url;
-                                if (!url) throw new Error(res.message || "Aucun lien de paiement reçu.");
-                                window.open(url, "_blank", "noopener");
-                                showTenantError("Lien de paiement ouvert : finalisez le paiement dans le nouvel onglet.", true);
-                                reloadPage();
-                                // Suivi automatique : la liste se rafraîchit
-                                // dès la confirmation du paiement.
-                                const token = res.data?.token;
-                                if (token && typeof pollPaydunyaStatus === "function") {
-                                    pollPaydunyaStatus(token).then((invoice) => {
-                                        if (invoice?.status === "completed") {
-                                            showTenantError("Paiement confirmé avec succès : votre loyer est à jour.", true);
-                                            reloadPage();
-                                        }
-                                    });
-                                }
-                            })
-                            .catch((err) => {
-                                paydunyaBtn.disabled = false;
-                                paydunyaBtn.textContent = "💳 Payer en ligne (PayDunya)";
-                                showTenantError(err.message);
-                            });
-                        return;
-                    }
                     const btn = e.target.closest(".declare-btn");
                     if (btn) {
                         openDeclareModal(btn.dataset.method);
@@ -661,18 +527,6 @@
                     if (e.target.id === "declareModal") {
                         document.getElementById("declareModal").style.display = "none";
                         document.getElementById("declareConfirm").disabled = false;
-                    }
-                });
-
-                document.getElementById("cinetpayCancel").addEventListener("click", () => {
-                    document.getElementById("cinetpayModal").style.display = "none";
-                    cinetpayTarget = null;
-                });
-                document.getElementById("cinetpayConfirm").addEventListener("click", submitCinetpay);
-                document.getElementById("cinetpayModal").addEventListener("click", (e) => {
-                    if (e.target.id === "cinetpayModal") {
-                        document.getElementById("cinetpayModal").style.display = "none";
-                        cinetpayTarget = null;
                     }
                 });
             } catch (err) {

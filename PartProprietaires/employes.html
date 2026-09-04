@@ -263,11 +263,7 @@
 
                 <input type="hidden" id="pay_statut" name="pay_statut" value="paye">
 
-<p class="paydunya-ok" id="payFlowNote">Paiement en ligne : MIM encaisse via PayDunya puis redistribue le salaire à l'employé. Vous pouvez aussi verser directement à l'employé (hors MIM) et enregistrer le versement ci-dessous.</p>
-
-                <button type="button" class="btn btn-primary" id="payPaydunyaBtn" style="margin-bottom:12px;">💳 Payer en ligne (PayDunya)</button>
-
-                <div id="paydunyaResult" class="paydunya-block" style="display:none;"></div>
+<p class="pay-note-ok" id="payFlowNote">Vous versez le salaire directement à l'employé (hors MIM, sur le moyen qu'il a configuré) puis enregistrez le versement ci-dessous.</p>
 
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="cancelPayModal">Fermer</button>
@@ -334,7 +330,6 @@
 
     <script src="../PartPublic/form-utils.js"></script>
     <script src="../PartPublic/password-strength.js"></script>
-    <script src="../PartPublic/pay-status.js"></script>
     <script src="api.js"></script>
     <script src="crud.js"></script>
     <script>
@@ -665,86 +660,9 @@ const lab = p.statut === "paye" ? "Payé" : "En attente";
             form.pay_montant.value = Number(emp.salaire || 0) || "";
             form.pay_statut.value = "paye";
             form.pay_date.value = now.toISOString().slice(0, 10);
-el("paydunyaResult").style.display = "none";
-            el("paydunyaResult").innerHTML = "";
-            const paydunyaBtn = el("payPaydunyaBtn");
-            paydunyaBtn.disabled = false;
-            paydunyaBtn.textContent = "💳 Payer en ligne (PayDunya)";
             el("payHistory").innerHTML = '<div class="empty-state">Chargement...</div>';
             el("payModal").style.display = "flex";
             await loadPayHistory(id);
-        }
-
-        async function submitPaydunyaPayment() {
-            const form = el("payForm");
-            const btn = el("payPaydunyaBtn");
-            const resultEl = el("paydunyaResult");
-            if (btn.disabled) return;
-            clearFormErrors(form);
-
-            const errors = validateFields(form, [
-                { name: "pay_montant", test: (i) => i.value === "" || Number(i.value) <= 0, message: "Le montant doit être supérieur à 0." },
-                { name: "pay_mois", test: (i) => !i.value, message: "Le mois est obligatoire." },
-            ]);
-            if (Object.keys(errors).length) {
-                applyServerErrors(form, errors);
-                return;
-            }
-
-            const originalLabel = btn.textContent;
-            btn.disabled = true;
-            btn.textContent = "Génération du lien de paiement...";
-            try {
-                // 1) Enregistre le versement (statut « attente ») : le salaire
-                //    ne passera « paye » qu'après confirmation du paiement PayDunya.
-                const created = await apiRequest(`/employes/${payEmployeeId}/paiements`, {
-                    method: "POST",
-                    body: JSON.stringify({
-                        montant: form.pay_montant.value,
-                        mois: form.pay_mois.value,
-                        statut: "attente",
-                        date_paiement: null,
-                        methode_paiement: "paydunya",
-                        reference: null,
-                    }),
-                });
-                // 2) Initie la facture PayDunya (MIM encaisse puis redistribue).
-                const res = await apiRequest("/paydunya/initiate", {
-                    method: "POST",
-                    body: JSON.stringify({ source: "salaire", paiement_employe_id: created.data.id }),
-                });
-                const url = res.data?.payment_url;
-                if (!url) throw new Error(res.message || "Aucun lien de paiement reçu.");
-                window.open(url, "_blank", "noopener");
-                resultEl.innerHTML = '<p class="ok">Lien de paiement ouvert : le salaire sera marqué payé après confirmation du paiement, puis MIM redistribuera à l\'employé.</p>';
-                resultEl.style.display = "block";
-                await loadAll();
-                await loadPayHistory(payEmployeeId);
-                // Suivi automatique : dès que le paiement est confirmé
-                // (webhook ou réconciliation via le polling), la page
-                // se rafraîchit d'elle-même.
-                const token = res.data?.token;
-                if (token && typeof pollPaydunyaStatus === "function") {
-                    resultEl.innerHTML = '<p class="ok">Lien de paiement ouvert : cette page se mettra à jour automatiquement dès la confirmation du paiement.</p>';
-                    const payId = payEmployeeId;
-                    pollPaydunyaStatus(token).then((invoice) => {
-                        if (invoice?.status === "completed") {
-                            showToast("Paiement PayDunya confirmé : salaire marqué payé.", "success");
-                            loadAll();
-                            if (el("payModal").style.display !== "none" && payEmployeeId === payId) {
-                                loadPayHistory(payId);
-                                resultEl.innerHTML = '<p class="ok">Paiement confirmé : le salaire est marqué payé et MIM redistribue à l\'employé.</p>';
-                            }
-                        }
-                    });
-                }
-            } catch (err) {
-                applyServerErrors(form, err.errors);
-                showToast(err.message, "error");
-            } finally {
-                btn.disabled = false;
-                btn.textContent = originalLabel;
-            }
         }
 
         async function submitPayment(e) {
@@ -771,7 +689,6 @@ el("paydunyaResult").style.display = "none";
                 methode_paiement: form.pay_methode.value || "especes",
                 reference: form.pay_reference.value || null,
             };
-            const resultEl = el("paydunyaResult");
 
             const originalLabel = btn.textContent;
             btn.disabled = true;
@@ -782,7 +699,6 @@ el("paydunyaResult").style.display = "none";
                 showToast(res.message);
                 form.pay_mois.value = nextMonthOf(payload.mois);
                 form.pay_reference.value = "";
-                resultEl.style.display = "none";
                 await loadAll();
                 await loadPayHistory(payEmployeeId);
             } catch (err) {
@@ -913,7 +829,6 @@ el("paydunyaResult").style.display = "none";
 
 el("employeeForm").addEventListener("submit", submitEmployee);
             el("payForm").addEventListener("submit", submitPayment);
-            el("payPaydunyaBtn").addEventListener("click", submitPaydunyaPayment);
             el("taskForm").addEventListener("submit", submitTask);
 
             el("emp_username").addEventListener("blur", async () => {

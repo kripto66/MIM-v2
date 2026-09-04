@@ -11,7 +11,7 @@ import { gitAutoBackup } from '../utils/gitBackup.js';
 import { tenantEmailFor, usernameIsValid, uniqueUsername, splitFullName, INITIAL_PASSWORD } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { notify } from '../utils/notifications.js';
-import { methodePaiementError, TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paydunyaAliasError, pourVersementError, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
+import { methodePaiementError, TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
 import { auditLog, LEVELS } from '../utils/audit.js';
 
 const router = Router();
@@ -481,9 +481,7 @@ router.get('/:id/paiements', async (req, res) => {
 // Flux actuel : le propriétaire DÉCLARE avoir versé (statut
 // « attente ») ; l'employé confirme la réception (statut « paye »).
 // Le propriétaire ne peut PAS passer seul un paiement à « paye » :
-// seul l'employé confirme. Compatibilité conservée : statut « paye »
-// reste accepté pour les versements vérifiés hors flux (ex. PayDunya :
-// le salaire est marqué payé par l'IPN après encaissement).
+// seul l'employé confirme.
 // ============================================================
 router.post('/:id/paiements', async (req, res) => {
   const sb = serviceClient();
@@ -543,33 +541,6 @@ router.post('/:id/paiements', async (req, res) => {
   const methodeError = methodePaiementError(effectiveMethode);
   if (methodeError) {
     return res.status(400).json({ success: false, message: methodeError, errors: { methode_paiement: methodeError } });
-  }
-
-  // PayDunya : une seule ligne de paiement par employé + mois. Un
-  // double-clic (ou un re-essai) reprend la déclaration existante au
-  // lieu d'en créer une seconde — la facture en attente sera de toute
-  // façon réutilisée à l'initiation.
-  if (effectiveMethode === 'paydunya') {
-    const { data: existing } = await sb
-      .from('paiements_employes')
-      .select('*')
-      .eq('user_id', ownerId)
-      .eq('employe_id', employe.id)
-      .eq('mois', mois)
-      .eq('methode_paiement', 'paydunya')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (existing?.statut === 'attente' || existing?.statut === 'paye') {
-      return res.status(200).json({
-        success: true,
-        data: existing,
-        message:
-          existing.statut === 'paye'
-            ? 'Ce salaire a déjà été payé.'
-            : 'Un versement PayDunya est déjà déclaré pour ce mois.',
-      });
-    }
   }
 
   const { data, error } = await sb
@@ -678,14 +649,6 @@ router.post('/:id/moyens-paiement', async (req, res) => {
   }
 
   const clean = sanitizeMoyenBody(type, req.body);
-  const aliasError = paydunyaAliasError(clean.paydunya_alias);
-  if (aliasError) {
-    return res.status(400).json({ success: false, message: aliasError, errors: { paydunya_alias: aliasError } });
-  }
-  const pvError = pourVersementError(type, clean);
-  if (pvError) {
-    return res.status(400).json({ success: false, message: pvError });
-  }
   const { data, error } = await sb
     .from('moyens_paiement_employes')
     .insert({ employe_uid: employe.account_uid, type, ...clean })
@@ -695,14 +658,6 @@ router.post('/:id/moyens-paiement', async (req, res) => {
   if (error) {
     console.error('[employes/moyens-paiement] insert :', error.message);
     return res.status(400).json({ success: false, message: 'Erreur lors de l\'enregistrement.' });
-  }
-  if (clean.pour_versement === true) {
-    // Un seul moyen de réception des versements par employé.
-    await sb
-      .from('moyens_paiement_employes')
-      .update({ pour_versement: false })
-      .eq('employe_uid', employe.account_uid)
-      .neq('id', data.id);
   }
   res.status(201).json({ success: true, data, message: 'Moyen de paiement enregistré.' });
 });

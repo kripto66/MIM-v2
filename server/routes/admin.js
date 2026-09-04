@@ -9,7 +9,6 @@ import { notify } from '../utils/notifications.js';
 import { invalidateSubscriptionCache } from '../utils/subscription.js';
 import { isBannedValue } from '../middleware/auth.js';
 import { methodeLabel } from '../utils/paiementMethodes.js';
-import { initiatePaydunyaInvoice } from '../utils/paydunyaCheckouts.js';
 import { auditLog, LEVELS } from '../utils/audit.js';
 
 const router = Router();
@@ -310,12 +309,11 @@ router.get('/subscriptions', async (req, res) => {
 });
 
 // Enregistrement d'un paiement d'abonnement MIM par l'admin.
-// Via PayDunya, l'admin crée une facture ; le propriétaire paie sur la
-// page PayDunya (Wave, Orange Money, carte…). L'abonnement n'est activé
-// QUE par l'IPN vérifié (hash SHA-512) + confirmation de la facture.
+// Flux manuel : l'admin enregistre l'encaissement (moyen déclaré par
+// le propriétaire) ; l'abonnement est activé immédiatement.
 // La nouvelle échéance est TOUJOURS calculée côté serveur.
 router.post('/subscriptions/register', async (req, res) => {
-  const { userId, plan, montant, dureeMois } = req.body || {};
+  const { userId, plan, montant, dureeMois, methode_paiement, reference, date_paiement } = req.body || {};
 
   if (!userId || typeof userId !== 'string') {
     return res.status(400).json({ success: false, message: 'Propriétaire requis.' });
@@ -351,19 +349,21 @@ router.post('/subscriptions/register', async (req, res) => {
       : now;
     const newExpiration = addMonths(base, duree);
     const dateDebut = existing?.data?.date_debut || now.toISOString();
+    const methode = String(methode_paiement || '').trim() || 'especes';
+    const ref = reference != null ? String(reference).slice(0, 120).trim() || null : null;
+    const payeLe = date_paiement ? new Date(date_paiement).toISOString() : now.toISOString();
 
-    // Paiement d'abonnement en ATTENTE (il ne devient payé que via
-    // l'IPN vérifié). L'échéance est déjà calculée : elle prend effet
-    // uniquement à la confirmation.
+    // Enregistrement du paiement d'abonnement reçu (hors ligne, directement
+    // vers l'administrateur) : l'abonnement est activé immédiatement.
     const { data: hist, error: histErr } = await sb
       .from('abonnement_paiements')
       .insert({
         user_id: userId,
         plan: String(plan || 'standard').trim() || 'standard',
         montant: Number(montant),
-        date_paiement: null,
-        methode_paiement: 'paydunya',
-        reference: null,
+        date_paiement: payeLe,
+        methode_paiement: methode,
+        reference: ref,
         date_debut: dateDebut,
         date_expiration: newExpiration.toISOString(),
       })
@@ -371,26 +371,34 @@ router.post('/subscriptions/register', async (req, res) => {
       .single();
     if (histErr) throw histErr;
 
-    // Initiation de la facture PayDunya (le propriétaire est le payeur).
-    const invoice = await initiatePaydunyaInvoice({
-      source: 'abonnement',
-      userId,
-      amount: Number(montant),
-      description: `MIM-ABONNEMENT-${hist.id}`,
-      items: [
+    // Activation / renouvellement de l'abonnement (échéance côté serveur).
+    await sb
+      .from('subscriptions')
+      .upsert(
         {
-          name: `Abonnement MIM ${hist.plan} — ${duree} mois`,
-          quantity: 1,
-          unit_price: Number(montant),
-          total_price: Number(montant),
+          user_id: userId,
+          plan: hist.plan,
+          statut: 'actif',
+          date_debut: dateDebut,
+          date_expiration: newExpiration.toISOString(),
+          date_paiement: payeLe,
+          montant: Number(montant),
+          methode_paiement: methode,
+          reference: ref,
+          updated_at: now.toISOString(),
         },
-      ],
-      customData: { source: 'abonnement', abonnement_paiement_id: hist.id },
-      abonnementPaiementId: hist.id,
-    });
+        { onConflict: 'user_id' }
+      );
 
-    // Token PayDunya enregistré dès l'initiation (audit).
-    await sb.from('abonnement_paiements').update({ reference: invoice.token }).eq('id', hist.id);
+    await invalidateSubscriptionCache();
+    const { invalidatePlatformCache } = await import('./admin.js');
+    invalidatePlatformCache();
+
+    try {
+      await notify(userId, 'abonnement', `Votre abonnement MIM est actif (${hist.plan}). Merci pour votre paiement.`);
+    } catch (e) {
+      console.warn('[admin/register_subscription] notification :', e.message);
+    }
 
     await auditLog({
       userId: req.user.id,
@@ -398,34 +406,31 @@ router.post('/subscriptions/register', async (req, res) => {
       target: String(hist.id),
       targetType: 'abonnement_paiement',
       level: LEVELS.INFO,
-      meta: { owner_id: userId, plan, montant: Number(montant), dureeMois: duree },
+      meta: { owner_id: userId, plan, montant: Number(montant), dureeMois: duree, methode_paiement: methode },
       ip: req.ip,
     });
 
     res.status(201).json({
       success: true,
-      message: 'Facture de paiement créée. L\'abonnement sera activé dès le paiement confirmé.',
+      message: `Abonnement activé (${duree} mois). Paiement enregistré.`,
       data: {
         abonnementPaiementId: hist.id,
-        checkout: invoice,
-        payment_url: invoice.payment_url,
-        reference: invoice.token,
         subscription: {
           plan: hist.plan,
-          statut: 'attente',
+          statut: 'actif',
           date_debut: dateDebut,
           date_expiration: newExpiration.toISOString(),
-          date_paiement: null,
+          date_paiement: payeLe,
           montant: Number(montant),
-          methode_paiement: 'paydunya',
-          reference: null,
+          methode_paiement: methode,
+          reference: ref,
           joursRestants: Math.max(0, Math.ceil((newExpiration.getTime() - Date.now()) / 86400000)),
         },
       },
     });
   } catch (err) {
     console.error('[admin/subscriptions/register]', err.message);
-    res.status(502).json({ success: false, message: err.message || 'Erreur lors de la création du paiement.' });
+    res.status(502).json({ success: false, message: err.message || 'Erreur lors de l\'enregistrement du paiement.' });
   }
 });
 

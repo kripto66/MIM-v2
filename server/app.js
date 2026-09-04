@@ -17,8 +17,6 @@ import subscriptionRoutes from './routes/subscription.js';
 import employesRoutes from './routes/employes.js';
 import tasksRoutes from './routes/tasks.js';
 import employeRoutes from './routes/employe.js';
-import paydunyaRoutes, { webhookRouter, disburseCallbackRouter } from './routes/paydunya.js';
-import cinetpayRoutes, { webhookRouter as cinetpayWebhookRouter, transferNotifyRouter } from './routes/cinetpay.js';
 import validationsRoutes from './routes/validations.js';
 import moyensPaiementRoutes from './routes/moyensPaiement.js';
 import importRoutes from './routes/import.js';
@@ -115,29 +113,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// Le webhook PayDunya est monté AVANT express.json : il doit recevoir
-// le corps urlencoded brut des notifications IPN PayDunya.
-app.use('/api/paydunya/webhook', webhookRouter);
-// Callback des décaissements (statuts finaux des versements wallets) :
-// même logique, corps urlencoded brut, route publique signée par hash.
-app.use('/api/paydunya/disburse-callback', disburseCallbackRouter);
-
-// Webhooks CinetPay : mêmes contraintes que PayDunya (corps urlencoded
-// brut, montés AVANT express.json). Notification Checkout + notification
-// Transferts (reversements) — routes publiques authentifiées par HMAC.
-app.use('/api/cinetpay/webhook', cinetpayWebhookRouter);
-app.use('/api/cinetpay/payout-notify', transferNotifyRouter);
+// Le paiement est entièrement manuel : le propriétaire définit ses moyens
+// de paiement et le locataire paie directement, déclare, puis le
+// propriétaire valide. Aucun fournisseur de paiement en ligne (MIM
+// n'encaisse rien). Il n'y a donc ni webhook ni page de retour.
 
 app.use(express.json({ limit: '4mb' }));
 app.use(cookieParser());
 
 const ROOT = path.join(__dirname, '..');
-
-// Pages de retour PayDunya (URLs propres sans extension .html : ce sont
-// les success_url / cancel_url configurées dans paydunyaCheckouts.js).
-const payReturnPage = (file) => (req, res) => res.sendFile(path.join(ROOT, 'PartPublic', file));
-app.get('/paiement-succes', payReturnPage('paiement-succes.html'));
-app.get('/paiement-annule', payReturnPage('paiement-annule.html'));
 
 app.use(express.static(path.join(ROOT, 'PartPublic')));
 app.use('/PartPublic', express.static(path.join(ROOT, 'PartPublic')));
@@ -211,8 +195,6 @@ app.use('/api/subscription', authenticate, requireActive, requireRole('proprieta
 app.use('/api/employes', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), employesRoutes);
 app.use('/api/tasks', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), tasksRoutes);
 app.use('/api/employe', authenticate, requireActive, requireRole('employe'), employeRoutes);
-app.use('/api/paydunya', authenticate, requireActive, paydunyaRoutes);
-app.use('/api/cinetpay', authenticate, requireActive, cinetpayRoutes);
 app.use('/api/paiements-validation', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), validationsRoutes);
 app.use('/api/moyens-paiement', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), moyensPaiementRoutes);
 app.use('/api/import', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), importRoutes);

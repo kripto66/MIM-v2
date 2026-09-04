@@ -56,10 +56,11 @@ export async function wipeTestData(service) {
     }
   }
 
-  // Purge complète des artefacts de paiement en ligne (sessions, journal IPN,
-  // redistributions) : sans user_id fiable, elles ne sont pas rattrapées par
-  // la suppression des comptes et pollueraient les tests suivants (dédup).
-  for (const t of ['paydunya_invoices', 'paydunya_webhooks', 'paydunya_redistributions', 'unitech_checkouts', 'unitech_webhooks']) {
+  // Purge complète des artefacts de paiement en ligne (legacy, tables supprimées
+  // en base mais tolérées ici au cas où une ancienne migration serait encore là) :
+  // sans user_id fiable, elles ne sont pas rattrapées par la suppression des
+  // comptes et pollueraient les tests suivants (dédup).
+  for (const t of ['paydunya_invoices', 'paydunya_webhooks', 'paydunya_redistributions', 'cinetpay_payments', 'cinetpay_payouts', 'cinetpay_webhooks', 'unitech_checkouts', 'unitech_webhooks']) {
     try {
       await service.from(t).delete().gte('id', 0);
     } catch {

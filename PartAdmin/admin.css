@@ -1323,17 +1323,10 @@ svg {
   min-width: 110px;
 }
 
-/* Résultat de la génération du lien de paiement PayDunya dans la modale. */
 .modal .ok {
   color: #34d399;
   font-weight: 600;
   margin: 10px 0 4px;
-}
-
-.modal .ref {
-  color: #9fb0cc;
-  font-size: 13px;
-  margin-top: 6px;
 }
 
 .modal .err {
@@ -1348,11 +1341,6 @@ svg {
   overflow-wrap: anywhere;
   color: #22d3ee;
   font-weight: 600;
-}
-
-.modal .paydunya-qr {
-  border: 1px solid var(--border, #26324d);
-  border-radius: 8px;
 }
 
 @media (max-width: 480px) {

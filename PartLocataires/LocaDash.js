@@ -196,9 +196,8 @@ document.addEventListener("DOMContentLoaded", () => {
   })();
 });
 
-// Les boutons de paiement en ligne vivent dans paiements.html
-// (modale mobile money CinetPay / repli PayDunya) : le dashboard
-// y renvoie simplement le locataire.
+// La page « Mes paiements » (paiements.html) gère le flux
+// « payer mon loyer » : le dashboard y renvoie le locataire.
 
 function renderDashboard(data) {
   const unlinked = document.getElementById("unlinkedMessage");

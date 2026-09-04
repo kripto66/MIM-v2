@@ -241,7 +241,7 @@
                     <input type="month" id="mois" name="mois" required>
                 </div>
 
-                <p class="paydunya-ok" id="flowNote">Le paiement est créé « En attente » : votre locataire peut le régler en ligne via PayDunya (le loyer vous est redistribué) ou directement (hors MIM) avec le moyen indiqué, puis déclarer son paiement que vous validez après vérification de votre compte.</p>
+                <p class="pay-note-ok" id="flowNote">Le paiement est créé « En attente » : votre locataire paie directement (hors MIM) avec le moyen indiqué, puis déclare son paiement que vous validez après vérification.</p>
 
                 <div class="form-row">
                     <div class="form-group">
@@ -317,20 +317,6 @@
                 <div class="form-group" data-mfield="instructions">
                     <label for="moyen_instructions">Instructions (optionnel)</label>
                     <textarea id="moyen_instructions" name="instructions" maxlength="200" rows="2" placeholder="Précisions utiles pour le paiement…"></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="moyen_alias">Compte PayDunya (optionnel)</label>
-                    <input type="text" id="moyen_alias" name="paydunya_alias" maxlength="200" placeholder="Email ou n° mobile du compte PayDunya">
-                    <p class="pay-hint">Utilisé pour recevoir vos loyers payés en ligne via PayDunya. Laissez vide pour utiliser le téléphone/email de votre profil.</p>
-                </div>
-
-                <div class="form-group">
-                    <label style="display:flex;align-items:center;gap:8px;">
-                        <input type="checkbox" id="moyen_pour_versement" name="pour_versement">
-                        <span>Recevoir les versements automatiques sur ce moyen</span>
-                    </label>
-                    <p class="pay-hint">Chaque loyer ou salaire encaissé via PayDunya vous est reversé directement sur ce wallet (Wave, Orange Money) ou ce compte PayDunya. Un seul moyen de réception à la fois : choisir celui-ci désactive les autres.</p>
                 </div>
 
                 <div class="modal-actions">
@@ -679,8 +665,6 @@
                 const el = form[field];
                 payload[field] = el ? String(el.value || "").trim() : "";
             }
-            payload.paydunya_alias = form.paydunya_alias ? String(form.paydunya_alias.value || "").trim() : "";
-            if (form.pour_versement) payload.pour_versement = form.pour_versement.checked;
             return payload;
         }
 
@@ -700,8 +684,6 @@
                     if (m.banque) lines.push(`<p><span>Banque :</span> <strong>${escapeHtml(m.banque)}</strong></p>`);
                     if (m.num_compte) lines.push(`<p><span>Compte :</span> <strong>${escapeHtml(m.num_compte)}</strong></p>`);
                     if (m.lien_paiement) lines.push(`<p><span>Lien :</span> <a href="${escapeAttr(m.lien_paiement)}" target="_blank" rel="noopener">ouvrir</a></p>`);
-                    if (m.paydunya_alias) lines.push(`<p><span>PayDunya :</span> <strong>${escapeHtml(m.paydunya_alias)}</strong> <span class="pay-hint">(loyers en ligne)</span></p>`);
-                    if (m.pour_versement) lines.push(`<p><strong>✅ Réception des versements PayDunya</strong> <span class="pay-hint">(reversement automatique)</span></p>`);
                     if (m.instructions) lines.push(`<p class="moyen-instructions">${escapeHtml(m.instructions)}</p>`);
                     return `
                         <div class="moyen-card ${m.actif ? "" : "moyen-inactif"}">
@@ -773,8 +755,6 @@
                     for (const field of TYPE_FIELDS[m.type] || []) {
                         if (form[field]) form[field].value = m[field] || "";
                     }
-                    if (form.paydunya_alias) form.paydunya_alias.value = m.paydunya_alias || "";
-                    if (form.pour_versement) form.pour_versement.checked = m.pour_versement === true;
                     document.getElementById("moyenModal").style.display = "flex";
                 } catch (err) {
                     alert(err.message);
@@ -923,7 +903,7 @@
                             <label for="payemp_ref">Référence (optionnel)</label>
                             <input type="text" id="payemp_ref" maxlength="80" placeholder="N° de transaction…">
                         </div>
-                        <p class="paydunya-ok">Vous indiquez avoir effectué ce paiement directement à l'employé (hors MIM). L'employé recevra une notification et devra <strong>confirmer la réception</strong>. Astuce : depuis la page Employés, le paiement en ligne via PayDunya est plus rapide (redistribution automatique).</p>
+                        <p class="pay-note-ok">Vous indiquez avoir effectué ce paiement directement à l'employé (hors MIM). L'employé recevra une notification et devra <strong>confirmer la réception</strong>.</p>
                         <div class="modal-actions">
                             <button type="button" class="btn btn-secondary" id="payEmpCancel">Annuler</button>
                             <button type="submit" class="btn btn-primary">Paiement versé</button>
