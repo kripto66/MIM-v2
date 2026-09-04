@@ -11,19 +11,9 @@ import { gitAutoBackup } from '../utils/gitBackup.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { tenantEmailFor, usernameIsValid } from '../utils/tenantAccount.js';
 import { notify } from '../utils/notifications.js';
-import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paydunyaAliasError, pourVersementError, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
+import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
 
 const router = Router();
-
-// Un seul moyen de réception des versements à la fois pour un employé.
-async function exclusivePourVersementEmploye(employeUid, keepId) {
-  const sb = serviceClient();
-  await sb
-    .from('moyens_paiement_employes')
-    .update({ pour_versement: false })
-    .eq('employe_uid', employeUid)
-    .neq('id', keepId);
-}
 
 // Charge la fiche employé + le propriétaire qui l'emploie (ou null),
 // ainsi que ses biens affectés (employes_biens) et les logements
@@ -690,14 +680,6 @@ router.post('/moyens-paiement', requireEmploye, async (req, res) => {
     }
 
     const clean = sanitizeMoyenBody(type, req.body);
-    const aliasError = paydunyaAliasError(clean.paydunya_alias);
-    if (aliasError) {
-      return res.status(400).json({ success: false, message: aliasError, errors: { paydunya_alias: aliasError } });
-    }
-    const pvError = pourVersementError(type, clean);
-    if (pvError) {
-      return res.status(400).json({ success: false, message: pvError });
-    }
     const { data, error } = await sb
       .from('moyens_paiement_employes')
       .insert({ employe_uid: req.user.id, type, ...clean })
@@ -708,7 +690,6 @@ router.post('/moyens-paiement', requireEmploye, async (req, res) => {
       console.error('[employe/moyens-paiement] insert :', error.message);
       return res.status(400).json({ success: false, message: 'Erreur lors de l\'enregistrement.' });
     }
-    if (clean.pour_versement === true) await exclusivePourVersementEmploye(req.user.id, data.id);
     gitAutoBackup(`Sauvegarde auto : moyen de paiement employé ${req.user.id}`);
     res.status(201).json({ success: true, data, message: 'Moyen de paiement enregistré.' });
   } catch (err) {
@@ -734,16 +715,6 @@ router.put('/moyens-paiement/:id', requireEmploye, async (req, res) => {
     }
 
     const clean = sanitizeMoyenBody(existing.type, req.body);
-    const aliasError = paydunyaAliasError(clean.paydunya_alias);
-    if (aliasError) {
-      return res.status(400).json({ success: false, message: aliasError, errors: { paydunya_alias: aliasError } });
-    }
-    // Validation sur l'état FINAL (champs non fournis conservés).
-    const merged = { ...existing, ...clean };
-    const pvError = pourVersementError(existing.type, merged);
-    if (pvError) {
-      return res.status(400).json({ success: false, message: pvError });
-    }
     const { data, error } = await sb
       .from('moyens_paiement_employes')
       .update(clean)
@@ -756,7 +727,6 @@ router.put('/moyens-paiement/:id', requireEmploye, async (req, res) => {
       console.error('[employe/moyens-paiement] update :', error.message);
       return res.status(400).json({ success: false, message: 'Erreur lors de la mise à jour.' });
     }
-    if (clean.pour_versement === true) await exclusivePourVersementEmploye(req.user.id, data.id);
     res.json({ success: true, data, message: 'Moyen de paiement mis à jour.' });
   } catch (err) {
     console.error('[employe/moyens-paiement]', err.message);

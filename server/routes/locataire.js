@@ -115,8 +115,7 @@ router.post('/incidents', async (req, res) => {
 // Flux « déclaration + validation propriétaire » : le locataire paie
 // directement le propriétaire (hors MIM), déclare son paiement et le
 // confirme ici (« en_validation ») ; le propriétaire réalise la
-// validation métier. Le flux PayDunya (paiement en ligne MIM) passe
-// directement à « paye » via l'IPN et n'utilise pas cette route.
+// validation métier.
 // La fiche locataire est DÉDUITE de account_uid : on ne fait jamais
 // confiance à un id envoyé par le frontend, et un locataire ne peut
 // confirmer qu'un paiement rattaché à SA fiche. La mise à jour est

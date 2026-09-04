@@ -103,8 +103,6 @@ async function loadMoyens() {
                     ${m.numero ? `<p class="pay-methode">${escapeHtml(m.numero)}</p>` : ""}
                     ${m.banque ? `<p class="pay-methode">${escapeHtml(m.banque)}${m.num_compte ? " — " + escapeHtml(m.num_compte) : ""}</p>` : ""}
 ${m.lien_paiement ? `<p><a href="${escapeAttr(m.lien_paiement)}" target="_blank" rel="noopener">${escapeHtml(m.lien_paiement)}</a></p>` : ""}
-                    ${m.paydunya_alias ? `<p class="pay-methode">PayDunya : ${escapeHtml(m.paydunya_alias)}</p>` : ""}
-                    ${m.pour_versement ? `<p class="pay-hint">✅ Réception des versements PayDunya</p>` : ""}
                     ${m.instructions ? `<p class="pay-hint">${escapeHtml(m.instructions)}</p>` : ""}
                     <p class="pay-hint">${m.actif ? "Actif" : "Inactif"}</p>
                 </div>
@@ -145,8 +143,6 @@ function openMoyenModal(moyen) {
     document.getElementById("moyenBanque").value = moyen?.banque || "";
     document.getElementById("moyenCompte").value = moyen?.num_compte || "";
     document.getElementById("moyenInstructions").value = moyen?.instructions || "";
-    document.getElementById("moyenAlias").value = moyen?.paydunya_alias || "";
-    document.getElementById("moyenPourVersement").checked = moyen?.pour_versement === true;
     applyTypeVisibility(document.getElementById("moyenType").value);
     document.getElementById("moyenModal").style.display = "flex";
 }
@@ -163,8 +159,6 @@ async function saveMoyen(e) {
         banque: document.getElementById("moyenBanque").value.trim() || null,
 num_compte: document.getElementById("moyenCompte").value.trim() || null,
         instructions: document.getElementById("moyenInstructions").value.trim() || null,
-        paydunya_alias: document.getElementById("moyenAlias").value.trim() || null,
-        pour_versement: document.getElementById("moyenPourVersement").checked,
     };
     try {
         const res = await apiRequest(id ? `/moyens-paiement/${id}` : "/moyens-paiement", {

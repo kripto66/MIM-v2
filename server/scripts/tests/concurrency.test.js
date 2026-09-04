@@ -3,13 +3,12 @@
 // ============================================================
 
 import { api, newJar, expectSuccess } from './lib.js';
-import { sendPaydunyaIpn, markMockInvoicePaid } from './paydunya.test.js';
 
 const S = 'concurrence';
 
-// Crée un loyer en attente puis initie une facture PayDunya côté locataire.
-// Retourne { pid, token, tenantJar }.
-async function setupPaydunyaLoyer(ctx, o1, locIndex, amount) {
+// Crée un loyer en attente pour le locataire locIndex d'o1.
+// Retourne { pid, jarT }.
+async function setupLoyer(ctx, o1, locIndex, amount) {
   const loc = o1.locataires[locIndex];
   const p = await api('/paiements', {
     method: 'POST',
@@ -22,11 +21,7 @@ async function setupPaydunyaLoyer(ctx, o1, locIndex, amount) {
   const jarT = newJar();
   const login = await api('/auth/login', { method: 'POST', jar: jarT, body: { identifier: loc.username, password: 'Test1234!' } });
   if (login.status !== 200) throw new Error(`connexion locataire : ${login.status}`);
-
-  const init = await api('/paydunya/initiate', { method: 'POST', jar: jarT, body: { source: 'loyer', paiement_id: pid } });
-  if (init.status !== 201 || !init.data?.data?.token) throw new Error(`initiate : ${init.status} ${JSON.stringify(init.data)}`);
-
-  return { pid, token: init.data.data.token, jarT };
+  return { pid, jarT };
 }
 
 export async function runConcurrency(r, ctx) {
@@ -154,83 +149,68 @@ export async function runConcurrency(r, ctx) {
   });
 
   // ----------------------------------------------------------
-  // IPN identiques en parallèle : un seul traitement (dédup atomique).
+  // Déclarations manuelles en parallèle : une seule passe (mise à jour
+  // conditionnelle sur le statut attendu).
   // ----------------------------------------------------------
-  await r.section('IPN jumeaux en parallèle (dédup atomique)', async () => {
-    const { pid, token } = await setupPaydunyaLoyer(ctx, o1, 6, 55000);
+  await r.section('déclarations parallèles (dédup atomique)', async () => {
+    const { pid } = await setupLoyer(ctx, o1, 6, 55000);
+    const { data: moyens } = await ctx.service.from('moyens_paiement').select('id').eq('user_id', o1.id);
+    const moyen = (moyens || [])[0];
+    if (!moyen) return r.blocked(S, 'déclarations parallèles', 'aucun moyen de paiement configuré pour o1');
 
-    const notifBefore = (await ctx.service.from('notifications').select('id').eq('user_id', o1.id).like('message', 'Loyer%encaissé via PayDunya%')).data.length;
+    const jarT = newJar();
+    const login = await api('/auth/login', { method: 'POST', jar: jarT, body: { identifier: o1.locataires[6].username, password: 'Test1234!' } });
+    if (login.status !== 200) return r.blocked(S, 'déclarations parallèles', 'connexion locataire');
 
-    await markMockInvoicePaid(token, 55000);
-    const payload = { token, status: 'completed', amount: 55000 };
-    const before = (await ctx.service.from('paydunya_webhooks').select('id').eq('token', token)).data.length;
-
-    const t0 = performance.now();
-    const [w1, w2] = await Promise.all([sendPaydunyaIpn(payload), sendPaydunyaIpn(payload)]);
-    const ms = Math.round(performance.now() - t0);
-
-    const all200 = w1.status === 200 && w2.status === 200;
-    const oneCompleted = [w1, w2].filter((w) => w.data?.result === 'completed').length === 1;
-    const oneDuplicated = [w1, w2].filter((w) => w.data?.duplicated === true).length === 1;
-    if (all200 && oneCompleted && oneDuplicated) r.pass(S, `2 IPN parallèles -> 1 complet + 1 doublon (${ms} ms)`);
-    else r.fail(S, '2 IPN parallèles -> 1 complet + 1 doublon', JSON.stringify({ w1: w1.data, w2: w2.data }));
-
-    const after = (await ctx.service.from('paydunya_webhooks').select('id').eq('token', token)).data.length;
-    if (after === before + 1) r.pass(S, `une seule ligne de webhook (${before} -> ${after})`);
-    else r.fail(S, 'une seule ligne de webhook', `${before} -> ${after}`);
-
-    const { data: pays } = await ctx.service.from('paiements').select('statut').eq('id', pid).single();
-    if (pays.statut === 'paye') r.pass(S, 'loyer -> paye (pas de double traitement)');
-    else r.fail(S, 'loyer -> paye', pays.statut);
-
-    const notifs = await ctx.service.from('notifications').select('id').eq('user_id', o1.id).like('message', 'Loyer%encaissé via PayDunya%');
-    if (notifs.data?.length === notifBefore + 1) r.pass(S, 'une seule notification propriétaire en plus (dédup)');
-    else r.fail(S, 'une seule notification propriétaire en plus (dédup)', `${notifBefore} → ${notifs.data?.length}`);
-  });
-
-  // ----------------------------------------------------------
-  // IPN complet + lecture de statut simultanés : aucun état incohérent.
-  // ----------------------------------------------------------
-  await r.section('IPN complet + lecture de statut simultanés', async () => {
-    const loc = o1.locataires[7];
-    const { pid, token, jarT } = await setupPaydunyaLoyer(ctx, o1, 7, 60000);
-
-    await markMockInvoicePaid(token, 60000);
-    const [w, s] = await Promise.all([
-      sendPaydunyaIpn({ token, status: 'completed', amount: 60000 }),
-      api(`/paydunya/status/${token}`, { jar: jarT }),
+    const body = { moyen_paiement_id: moyen.id, reference: 'PAR-001' };
+    const [d1, d2] = await Promise.all([
+      api(`/locataire/paiements/${pid}/declarer`, { method: 'POST', jar: jarT, body }),
+      api(`/locataire/paiements/${pid}/declarer`, { method: 'POST', jar: jarT, body }),
     ]);
-    if (w.status === 200) r.pass(S, 'IPN traité (200)');
-    else r.fail(S, 'IPN traité (200)', `statut ${w.status} ${JSON.stringify(w.data)}`);
+
+    const oneOk = [d1, d2].filter((x) => x.status === 200).length === 1;
+    const oneConflict = [d1, d2].filter((x) => x.status === 409).length === 1;
+    if (oneOk && oneConflict) r.pass(S, '2 déclarations parallèles -> 1 OK + 1 conflit');
+    else r.fail(S, '2 déclarations parallèles -> 1 OK + 1 conflit', JSON.stringify({ d1: { s: d1.status, b: d1.data }, d2: { s: d2.status, b: d2.data } }));
 
     const { data: pays } = await ctx.service.from('paiements').select('statut').eq('id', pid).single();
-    if (pays.statut === 'paye') r.pass(S, 'état final cohérent (paye)');
-    else r.fail(S, 'état final cohérent', `statut ${pays.statut} — IPN=${w.status} ${JSON.stringify(w.data)} status=${s.status} ${JSON.stringify(s.data)}`);
-
-    if (loc?.account_uid) {
-      const notifs = await ctx.service.from('notifications').select('id').eq('user_id', loc.account_uid).like('message', 'Votre loyer de%');
-      if (notifs.data?.length === 1) r.pass(S, `notification locataire cohérente (${notifs.data?.length})`);
-      else r.fail(S, 'notification locataire cohérente', `${notifs.data?.length}`);
-    }
+    if (pays.statut === 'en_validation') r.pass(S, 'paiement -> en_validation (une seule écriture)');
+    else r.fail(S, 'paiement -> en_validation', pays.statut);
   });
 
   // ----------------------------------------------------------
-  // IPN dupliqué séquentiel : idempotence totale (aucune écriture double).
+  // Validations en parallèle : une seule validation gagne.
   // ----------------------------------------------------------
-  await r.section('IPN dupliqué séquentiel (idempotence)', async () => {
-    const { pid, token } = await setupPaydunyaLoyer(ctx, o1, 8, 65000);
+  await r.section('validations parallèles (dédup atomique)', async () => {
+    const { pid } = await setupLoyer(ctx, o1, 7, 60000);
+    const { data: moyens } = await ctx.service.from('moyens_paiement').select('id').eq('user_id', o1.id);
+    const moyen = (moyens || [])[0];
+    if (!moyen) return r.blocked(S, 'validations parallèles', 'aucun moyen de paiement configuré pour o1');
 
-    await markMockInvoicePaid(token, 65000);
-    const w1 = await sendPaydunyaIpn({ token, status: 'completed', amount: 65000 });
-    if (w1.status !== 200) return r.fail(S, 'premier IPN', JSON.stringify(w1.data));
+    const jarT = newJar();
+    const login = await api('/auth/login', { method: 'POST', jar: jarT, body: { identifier: o1.locataires[7].username, password: 'Test1234!' } });
+    if (login.status !== 200) return r.blocked(S, 'validations parallèles', 'connexion locataire');
 
-    const w2 = await sendPaydunyaIpn({ token, status: 'completed', amount: 65000 });
-    if (w2.data?.duplicated === true) r.pass(S, 'IPN rejoué -> doublon (idempotent)');
-    else r.fail(S, 'IPN rejoué -> doublon (idempotent)', JSON.stringify(w2.data));
+    const decl = await api(`/locataire/paiements/${pid}/declarer`, {
+      method: 'POST',
+      jar: jarT,
+      body: { moyen_paiement_id: moyen.id, reference: 'VAL-001' },
+    });
+    if (decl.status !== 200) return r.fail(S, 'validations parallèles', 'déclaration préalable');
+
+    const [v1, v2] = await Promise.all([
+      api(`/paiements-validation/${pid}/valider`, { method: 'POST', jar: o1.jar, body: {} }),
+      api(`/paiements-validation/${pid}/valider`, { method: 'POST', jar: o1.jar, body: {} }),
+    ]);
+
+    const oneOk = [v1, v2].filter((x) => x.status === 200).length === 1;
+    const oneConflict = [v1, v2].filter((x) => x.status === 409).length === 1;
+    if (oneOk && oneConflict) r.pass(S, '2 validations parallèles -> 1 OK + 1 conflit');
+    else r.fail(S, '2 validations parallèles -> 1 OK + 1 conflit', JSON.stringify({ v1: { s: v1.status, b: v1.data }, v2: { s: v2.status, b: v2.data } }));
 
     const { data: pays } = await ctx.service.from('paiements').select('statut').eq('id', pid).single();
-    if (pays.statut === 'paye') r.pass(S, 'loyer -> paye (une seule écriture)');
-    else r.fail(S, 'loyer -> paye', pays.statut);
+    if (pays.statut === 'paye') r.pass(S, 'paiement -> paye (une seule écriture)');
+    else r.fail(S, 'paiement -> paye', pays.statut);
   });
 
   // ----------------------------------------------------------

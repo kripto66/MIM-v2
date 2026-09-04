@@ -89,7 +89,6 @@ const MOYEN_TYPE_LABELS = {
   orange_money: "Orange Money",
   virement: "Virement bancaire",
   especes: "Espèces",
-  paydunya: "PayDunya",
 };
 
 const MOYEN_TYPE_ICONS = { wave: "🟣", orange_money: "🟠", virement: "🏦", especes: "💵" };
@@ -103,14 +102,13 @@ const MOYEN_FIELD_LABELS = {
   iban: "IBAN",
   bic: "BIC",
   instructions: "Instructions",
-  paydunya_alias: "Compte PayDunya (email ou n° mobile)",
 };
 
 const MOYEN_FIELDS = {
-  wave: [["nom_titulaire"], ["numero"], ["lien_paiement"], ["instructions"], ["paydunya_alias"]],
-  orange_money: [["nom_titulaire"], ["numero"], ["lien_paiement"], ["instructions"], ["paydunya_alias"]],
-  virement: [["banque"], ["nom_titulaire"], ["num_compte"], ["iban"], ["bic"], ["instructions"], ["paydunya_alias"]],
-  especes: [["instructions"], ["paydunya_alias"]],
+  wave: [["nom_titulaire"], ["numero"], ["lien_paiement"], ["instructions"]],
+  orange_money: [["nom_titulaire"], ["numero"], ["lien_paiement"], ["instructions"]],
+  virement: [["banque"], ["nom_titulaire"], ["num_compte"], ["iban"], ["bic"], ["instructions"]],
+  especes: [["instructions"]],
 };
 
 function empty(id, m = "Aucune donnée.") {
@@ -252,16 +250,14 @@ function renderMoyens(list) {
   }
   el.innerHTML = list
     .map((m) => {
-      const keys = ["nom_titulaire", "numero", "lien_paiement", "banque", "num_compte", "iban", "bic", "paydunya_alias"];
+      const keys = ["nom_titulaire", "numero", "lien_paiement", "banque", "num_compte", "iban", "bic"];
       const details = keys
         .filter((k) => m[k])
         .map((k) => `<span>${MOYEN_FIELD_LABELS[k]} : ${esc(m[k])}</span>`)
         .join("<br>");
       return `<div class="card moyen ${m.actif === false ? "inactif" : ""}"><b>${MOYEN_TYPE_ICONS[m.type] || ""} ${
         esc(MOYEN_TYPE_LABELS[m.type] || m.type)
-      }</b> ${m.actif === false ? '<span class="status st-non_recu">Inactif</span>' : ""}${
-        m.pour_versement ? '<span class="status st-recu">Réception des versements</span>' : ""
-      }<div class="muted small">${
+      }</b> ${m.actif === false ? '<span class="status st-non_recu">Inactif</span>' : ""}<div class="muted small">${
         details || "—"
       }</div>${m.instructions ? `<div class="muted small">${esc(m.instructions)}</div>` : ""}<div class="sal-actions"><button class="secondary small" data-edit="${
         m.id
@@ -354,7 +350,6 @@ function openMoyenModal(m) {
   } else {
     $("#moyenActif").checked = true;
   }
-  $("#moyenPourVersement").checked = m?.pour_versement === true;
   $("#moyenOverlay").classList.remove("hidden");
 }
 $("#moyenType").onchange = (e) => {
@@ -363,7 +358,7 @@ $("#moyenType").onchange = (e) => {
 $("#addMoyenBtn").onclick = () => openMoyenModal(null);
 $("#moyenSave").onclick = async () => {
   const type = $("#moyenType").value;
-  const body = { type, actif: $("#moyenActif").checked, pour_versement: $("#moyenPourVersement").checked };
+  const body = { type, actif: $("#moyenActif").checked };
   for (const k of (MOYEN_FIELDS[type] || []).map((x) => x[0])) {
     const v = $(`[data-field="${k}"]`)?.value.trim();
     if (v) body[k] = v;

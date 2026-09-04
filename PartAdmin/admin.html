@@ -95,14 +95,6 @@
         </svg>
         <span>Activité</span>
       </button>
-      <button class="nav-item" data-section="paydunya">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
-        stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/>
-        <path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/>
-        <path d="M18 12a2 2 0 0 0 0 4h4v-4z"/></svg>
-        <span>PayDunya</span>
-      </button>
     </nav>
 
     <hr class="nav-divider">
@@ -229,12 +221,12 @@
             </select>
           </label>
         </div>
-        <p class="field-note">Une facture PayDunya est générée : le propriétaire 
-          paie en ligne (Wave, Orange Money, carte…). L'abonnement sera activé après confirmation du paiement.</p>
-        <div id="paydunyaResult"></div>
+        <p class="field-note">Paiement manuel : le propriétaire paie directement
+          (Wave, Orange Money, virement, espèces…). L'abonnement est activé immédiatement.</p>
+        <div id="subResult"></div>
         <div class="modal-actions">
           <button type="button" class="btn secondary" data-sub-close>Fermer</button>
-          <button type="submit" class="btn primary">Générer le lien de paiement</button>
+          <button type="submit" class="btn primary">Enregistrer le paiement</button>
         </div>
       </form>
     </div>

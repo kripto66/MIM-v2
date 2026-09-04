@@ -9,7 +9,6 @@
 // ============================================================
 
 import { api, newJar, expectSuccess } from './lib.js';
-import { sendPaydunyaIpn, markMockInvoicePaid } from './paydunya.test.js';
 
 const S = 'abonnement';
 const ADMIN_PASSWORD = 'Admin1234!';
@@ -71,10 +70,10 @@ export async function runAbonnement(r, ctx) {
   });
 
   // ----------------------------------------------------------
-  // 2. L'admin crée une session PayDunya : abonnement en attente,
-  //    activé UNIQUEMENT par l'IPN vérifié (hash SHA-512) + confirmation.
+  // 2. L'admin enregistre un paiement manuel reçu : l'abonnement est
+  //    activé immédiatement (MIM n'encaisse rien).
   // ----------------------------------------------------------
-  await r.section('abonnement : paiement PayDunya + activation', async () => {
+  await r.section('abonnement : paiement manuel + activation immédiate', async () => {
     const res = await api('/admin/subscriptions/register', {
       method: 'POST',
       jar: adminJar,
@@ -83,42 +82,32 @@ export async function runAbonnement(r, ctx) {
         plan: 'standard',
         montant: 100000,
         dureeMois: 12,
+        methode_paiement: 'wave',
+        reference: 'SUB-MANUAL-001',
       },
     });
-    if (!expectSuccess(r, res, S, 'création de la session de paiement (register)')) return;
+    if (!expectSuccess(r, res, S, 'enregistrement du paiement manuel (register)')) return;
 
     const d = res.data.data;
-    if (d.payment_url && d.reference && d.abonnementPaiementId) {
-      r.pass(S, 'session PayDunya créée : lien + référence + paiement d\'abonnement');
+    if (d.abonnementPaiementId && d.subscription?.statut === 'actif') {
+      r.pass(S, 'paiement manuel enregistré → abonnement activé (statut actif)');
     } else {
-      r.fail(S, 'session PayDunya créée : lien + référence + paiement d\'abonnement', JSON.stringify(d));
+      r.fail(S, 'paiement manuel enregistré → abonnement activé (statut actif)', JSON.stringify(d));
     }
-    if (d.subscription?.statut === 'attente') r.pass(S, 'abonnement affiché « en attente »');
-    else r.fail(S, 'abonnement affiché « en attente »', JSON.stringify(d.subscription));
 
     const me = await api('/subscription/me', { jar: ownerJar });
-    if (me.data?.subscription === null) r.pass(S, 'pas encore actif avant l\'IPN');
-    else r.fail(S, 'pas encore actif avant l\'IPN', JSON.stringify(me.data));
-
-    // IPN PayDunya vérifié (hash SHA-512) -> activation.
-    await markMockInvoicePaid(d.reference, 100000);
-    const w = await sendPaydunyaIpn({ token: d.reference, status: 'completed', amount: 100000 });
-    if (w.status === 200 && w.data?.result === 'completed') r.pass(S, 'IPN validé par MIM');
-    else r.fail(S, 'IPN validé par MIM', `statut ${w.status} ${JSON.stringify(w.data)}`);
-
-    const me2 = await api('/subscription/me', { jar: ownerJar });
-    if (me2.data?.subscription?.statut === 'actif' && Number(me2.data.subscription.montant) === 100000) {
-      r.pass(S, 'le propriétaire voit son abonnement actif');
+    if (me.data?.subscription?.statut === 'actif' && Number(me.data.subscription.montant) === 100000) {
+      r.pass(S, 'le propriétaire voit son abonnement actif sans IPN');
     } else {
-      r.fail(S, 'le propriétaire voit son abonnement actif', JSON.stringify(me2.data));
+      r.fail(S, 'le propriétaire voit son abonnement actif sans IPN', JSON.stringify(me.data));
     }
 
     const hist = await service.from('abonnement_paiements').select('*').eq('user_id', owner.id);
-    const row = (hist.data || []).find((h) => h.reference === d.reference);
-    if (row?.date_paiement && row?.methode_paiement === 'paydunya') {
-      r.pass(S, 'paiement d\'abonnement horodaté + méthode paydunya + référence');
+    const row = (hist.data || []).find((h) => h.reference === 'SUB-MANUAL-001');
+    if (row?.date_paiement && row?.methode_paiement === 'wave') {
+      r.pass(S, 'paiement manuel horodaté + méthode wave + référence');
     } else {
-      r.fail(S, 'paiement d\'abonnement horodaté + méthode paydunya + référence', JSON.stringify(row));
+      r.fail(S, 'paiement manuel horodaté + méthode wave + référence', JSON.stringify(row));
     }
   });
 
@@ -154,18 +143,15 @@ export async function runAbonnement(r, ctx) {
     const res = await api('/admin/subscriptions/register', {
       method: 'POST',
       jar: adminJar,
-      body: { userId: owner.id, montant: 10000, dureeMois: 1 },
+      body: { userId: owner.id, montant: 10000, dureeMois: 1, methode_paiement: 'especes' },
     });
     if (!expectSuccess(r, res, S, 'renouvellement d\'un mois')) return;
 
-    // Nouvelle échéance calculée dès la session (base = échéance en cours).
+    // Nouvelle échéance calculée côté serveur dès l'enregistrement.
     const pendingExp = new Date(res.data.data?.subscription?.date_expiration).getTime();
     const pendingDelta = (pendingExp - exp1) / 86400000;
-    if (pendingDelta >= 27 && pendingDelta <= 32) r.pass(S, 'échéance calculée côté serveur dès la session (~1 mois)');
-    else r.fail(S, 'échéance calculée côté serveur dès la session (~1 mois)', `delta ${pendingDelta.toFixed(1)} j`);
-
-    await markMockInvoicePaid(res.data.data?.reference, 10000);
-    await sendPaydunyaIpn({ token: res.data.data?.reference, status: 'completed', amount: 10000 });
+    if (pendingDelta >= 27 && pendingDelta <= 32) r.pass(S, 'échéance calculée côté serveur dès l\'enregistrement (~1 mois)');
+    else r.fail(S, 'échéance calculée côté serveur dès l\'enregistrement (~1 mois)', `delta ${pendingDelta.toFixed(1)} j`);
 
     const after = await api('/subscription/me', { jar: ownerJar });
     const exp2 = new Date(after.data?.subscription?.date_expiration).getTime();
@@ -240,11 +226,9 @@ export async function runAbonnement(r, ctx) {
     const res = await api('/admin/subscriptions/register', {
       method: 'POST',
       jar: adminJar,
-      body: { userId: owner.id, montant: 150000, dureeMois: 12 },
+      body: { userId: owner.id, montant: 150000, dureeMois: 12, methode_paiement: 'virement' },
     });
     if (!expectSuccess(r, res, S, 'réenregistrement (réactivation)')) return;
-    await markMockInvoicePaid(res.data.data?.reference, 150000);
-    await sendPaydunyaIpn({ token: res.data.data?.reference, status: 'completed', amount: 150000 });
 
     const login = await api('/auth/login', {
       method: 'POST',
@@ -349,11 +333,9 @@ export async function runAbonnement(r, ctx) {
     const res = await api('/admin/subscriptions/register', {
       method: 'POST',
       jar: adminJar,
-      body: { userId: owner.id, montant: 150000, dureeMois: 12 },
+      body: { userId: owner.id, montant: 150000, dureeMois: 12, methode_paiement: 'wave' },
     });
     if (!expectSuccess(r, res, S, 'réactivation de fin')) return;
-    await markMockInvoicePaid(res.data.data?.reference, 150000);
-    await sendPaydunyaIpn({ token: res.data.data?.reference, status: 'completed', amount: 150000 });
 
     const login = await api('/auth/login', {
       method: 'POST',

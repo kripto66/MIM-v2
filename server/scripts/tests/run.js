@@ -20,8 +20,6 @@ import { runConcurrency } from './concurrency.test.js';
 import { runFinal } from './final.test.js';
 import { runAdmin } from './admin.test.js';
 import { runAbonnement } from './abonnement.test.js';
-import { runPaydunya, startPaydunyaMock, stopPaydunyaMock } from './paydunya.test.js';
-import { runCinetpay, startCinetpayMock, stopCinetpayMock } from './cinetpay.test.js';
 import { runDeclarations } from './declarations.test.js';
 import { runImport } from './import.test.js';
 import { runLocataires } from './locataires.test.js';
@@ -51,8 +49,6 @@ const SUITES = [
   ['final', runFinal],
   ['admin', runAdmin],
   ['abonnement', runAbonnement],
-  ['paydunya', runPaydunya],
-  ['cinetpay', runCinetpay],
   ['declarations', runDeclarations],
   ['import', runImport],
   ['locataires', runLocataires],
@@ -85,11 +81,8 @@ async function waitForHealth(port, timeoutMs = 30000) {
 let serverProc = null;
 
 async function startServer() {
-  // Pendant les tests, les appels PayDunya sont redirigés vers un mock
-  // local (aucun paiement réel, aucune clé exposée au frontend).
-  // Idem pour CinetPay (Checkout v2 + Transfer v1).
-  await startPaydunyaMock();
-  await startCinetpayMock();
+  // Paiement 100% manuel : aucun fournisseur en ligne (MIM n'encaisse rien),
+  // donc aucun mock de provider à démarrer.
 
   const env = {
     ...process.env,
@@ -99,15 +92,6 @@ async function startServer() {
     GIT_BACKUP: 'false',
     NODE_ENV: '',
     TEST_BASE: BASE,
-    PAYDUNYA_API_URL: 'http://127.0.0.1:64330/sandbox-api/v1',
-    PAYDUNYA_DISBURSE_API_URL: 'http://127.0.0.1:64330/api/v2',
-    CINETPAY_API_KEY: 'test-cp-key',
-    CINETPAY_SITE_ID: 'test-cp-site',
-    CINETPAY_WEBHOOK_SECRET: 'test-cp-webhook-secret',
-    CINETPAY_TRANSFER_PASSWORD: 'test-cp-transfer-pwd',
-    CINETPAY_CHECKOUT_API_URL: 'http://127.0.0.1:64331/v2',
-    CINETPAY_TRANSFER_API_URL: 'http://127.0.0.1:64331/v1',
-    CINETPAY_TEST_MODE: 'true',
   };
   serverProc = spawn(process.execPath, ['server.js'], {
     cwd: SERVER_DIR,
@@ -164,14 +148,10 @@ async function main() {
 main()
   .then(() => {
     if (serverProc) serverProc.kill();
-    stopPaydunyaMock();
-    stopCinetpayMock();
     process.exit(0);
   })
   .catch((err) => {
     console.error('[run]', err);
     if (serverProc) serverProc.kill();
-    stopPaydunyaMock();
-    stopCinetpayMock();
     process.exit(1);
   });

@@ -61,7 +61,6 @@ document.addEventListener('click', (e) => {
   const action = btn.dataset.action;
   if (action === 'setStatut') setStatut(btn.dataset.id, btn.dataset.statut);
   else if (action === 'openSubModal') openSubModal(btn.dataset.userId);
-  else if (action === 'pdRetry') pdRetry(btn.dataset.id);
   else if (action === 'ultraDeleteAll') ultraDeleteAll();
   else if (action === 'ultraSuspendSaas') ultraSuspendSaas();
   else if (action === 'ultraReactivateSaas') ultraReactivateSaas();
@@ -177,7 +176,6 @@ const sections = {
   abonnements: ["Abonnements", "Suivi des abonnements MIM des propriétaires."],
   incidents: ["Incidents", "Incidents et interventions."],
   activite: ["Activité", "Historique des événements de la plateforme."],
-  paydunya: ["PayDunya", "Sessions de paiement et redistributions PayDunya."],
 };
 
 const LABELS = {
@@ -747,101 +745,6 @@ async function activite() {
 }
 
 // ============================================================
-// PayDunya : sessions de paiement + redistributions (admin)
-// ============================================================
-
-const PD_SRC_LABELS = { abonnement: "Abonnement", loyer: "Loyer", salaire: "Salaire" };
-const PD_INV_STATUS = { pending: "En attente", completed: "Payée", cancelled: "Annulée", failed: "Échouée" };
-const PD_RED_STATUS = { pending: "En attente", success: "Versé", failed: "Échec" };
-const PD_WITHDRAW_LABELS = {
-  paydunya: "Compte PayDunya",
-  "wave-senegal": "Wave",
-  "orange-money-senegal": "Orange Money",
-};
-
-let pdTab = "sessions";
-
-function pdLinkedId(inv) {
-  if (inv.paiement_id != null) return "Paiement #" + inv.paiement_id;
-  if (inv.paiement_employe_id != null) return "Salaire #" + inv.paiement_employe_id;
-  if (inv.abonnement_paiement_id != null) return "Abonnement #" + inv.abonnement_paiement_id;
-  return "—";
-}
-
-function pdSessionsTable(list) {
-  if (!list.length) return `<div class="empty">Aucune session de paiement PayDunya.</div>`;
-  return `<div class="table-wrap"><table class="table"><thead><tr>
-    <th>ID</th><th>Source</th><th>Token</th><th>Statut</th><th>Montant</th><th>Rattaché à</th><th>Lien</th><th>Créée le</th>
-  </tr></thead><tbody>${list
-    .map((i) => `<tr>
-      <td>${i.id}</td><td>${PD_SRC_LABELS[i.source] || i.source}</td><td title="${escapeHtml(i.token)}">${escapeHtml(String(i.token).slice(0, 12))}…</td>
-      <td>${badge(PD_INV_STATUS[i.status] || i.status)}</td><td class="num">${money(i.amount)}</td><td>${pdLinkedId(i)}</td>
-      <td>${i.payment_url ? `<a href="${escapeHtml(i.payment_url)}" target="_blank" rel="noopener">ouvrir</a>` : "—"}</td>
-      <td>${fmtDateTime(i.created_at)}</td>
-    </tr>`).join("")}</tbody></table></div>`;
-}
-
-function pdRedistributionsTable(list) {
-  if (!list.length) return `<div class="empty">Aucune redistribution PayDunya.</div>`;
-  return `<div class="table-wrap"><table class="table"><thead><tr>
-    <th>ID</th><th>Source</th><th>Destinataire</th><th>Canal</th><th>Montant</th><th>Statut</th><th>Transaction</th><th>Tentatives</th><th>Dernier essai</th><th>Actions</th>
-  </tr></thead><tbody>${list
-    .map((r) => `<tr>
-      <td>${r.id}</td><td>${escapeHtml(PD_SRC_LABELS[r.source] || r.source)}</td>
-      <td>${escapeHtml(r.recipient_alias)}${r.response?.message ? `<div class="muted" title="${escapeHtml(String(r.response.message))}">${escapeHtml(String(r.response.message).slice(0, 60))}…</div>` : ""}</td>
-      <td>${escapeHtml(PD_WITHDRAW_LABELS[r.withdraw_mode] || r.withdraw_mode || "Compte PayDunya")}</td>
-      <td class="num">${money(r.amount)}</td>
-      <td>${badge(PD_RED_STATUS[r.status] || r.status)}</td>
-      <td>${escapeHtml(r.transaction_id || "—")}</td><td>${r.attempt_count || 0}</td>
-      <td>${fmtDateTime(r.last_attempt_at)}</td>
-      <td>${r.status === "success" ? "" : `<button class="btn primary" data-action="pdRetry" data-id="${escapeHtml(r.id)}">Relancer</button>`}</td>
-    </tr>`).join("")}</tbody></table></div>`;
-}
-
-async function paydunya() {
-  app.innerHTML = skeleton();
-  const [sessions, redists] = await Promise.all([
-    apiRequest("/paydunya/checkouts"),
-    apiRequest("/paydunya/redistributions"),
-  ]);
-  const s = sessions.data || [];
-  const r = redists.data || [];
-  app.innerHTML = `<div class="panel">
-    <div class="toolbar">
-      <button class="btn ${pdTab === "sessions" ? "primary" : "secondary"}" data-pdtab="sessions">Sessions (${s.length})</button>
-      <button class="btn ${pdTab === "redistributions" ? "primary" : "secondary"}" data-pdtab="redistributions">Redistributions (${r.length})</button>
-      <button class="btn secondary" onclick="exportCSV()">Exporter CSV</button>
-    </div>
-    <div id="pdSessions">${pdSessionsTable(s)}</div>
-    <div id="pdRedistributions" style="display:${pdTab === "redistributions" ? "" : "none"}">${pdRedistributionsTable(r)}</div>
-  </div>`;
-  document.querySelectorAll("[data-pdtab]").forEach((b) =>
-    b.addEventListener("click", () => {
-      pdTab = b.dataset.pdtab;
-      document.querySelectorAll("[data-pdtab]").forEach((x) => {
-        x.classList.toggle("primary", x.dataset.pdtab === pdTab);
-        x.classList.toggle("secondary", x.dataset.pdtab !== pdTab);
-      });
-      document.getElementById("pdSessions").style.display = pdTab === "sessions" ? "" : "none";
-      document.getElementById("pdRedistributions").style.display = pdTab === "redistributions" ? "" : "none";
-    })
-  );
-}
-
-async function pdRetry(id) {
-  showProgress("Relance de la redistribution…");
-  try {
-    const r = await apiRequest(`/paydunya/redistributions/${id}/retry`, { method: "POST" });
-    showToast(r.message);
-    paydunya();
-  } catch (err) {
-    MIM.showError(MIM.userMessage(err));
-  } finally {
-    hideProgress();
-  }
-}
-
-// ============================================================
 // Ultra-Admin : Sections
 // ============================================================
 
@@ -995,7 +898,7 @@ async function ultraDanger() {
   </div>`;
 }
 
-const RENDERERS = { dashboard, proprietaires, locataires, biens, paiements, abonnements, incidents, activite, paydunya, "ultra-system": ultraSystem, "ultra-danger": ultraDanger };
+const RENDERERS = { dashboard, proprietaires, locataires, biens, paiements, abonnements, incidents, activite, "ultra-system": ultraSystem, "ultra-danger": ultraDanger };
 
 // ============================================================
 // Navigation & actions
@@ -1119,11 +1022,11 @@ async function init() {
     document.getElementById("subForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const submit = e.target.querySelector("button[type=submit]");
-      const resultEl = document.getElementById("paydunyaResult");
+      const resultEl = document.getElementById("subResult");
       if (resultEl) resultEl.innerHTML = "";
       submit.disabled = true;
       const original = submit.textContent;
-      showProgress("Génération de la facture PayDunya…");
+      showProgress("Enregistrement du paiement…");
       try {
         const r = await apiRequest("/admin/subscriptions/register", {
           method: "POST",
@@ -1135,16 +1038,9 @@ async function init() {
           }),
         });
         showToast(r.message);
-        const d = r.data || {};
-        let html = "";
-        if (d.payment_url) {
-          html += `<p class="ok">Lien de paiement PayDunya généré (l'abonnement sera activé après confirmation) :</p>
-            <a href="${escapeHtml(d.payment_url)}" target="_blank" rel="noopener">${escapeHtml(d.payment_url)}</a>`;
-        }
-        if (d.reference) {
-          html += `<p class="ref">Réf. PayDunya : ${escapeHtml(d.reference)}</p>`;
-        }
-        if (resultEl) resultEl.innerHTML = html;
+        if (resultEl) resultEl.innerHTML = `<p class="ok">${escapeHtml(r.message)}</p>`;
+        closeSubModal();
+        navigate("abonnements");
       } catch (err) {
         if (resultEl) resultEl.innerHTML = `<p class="err">${escapeHtml(MIM.userMessage(err))}</p>`;
         MIM.showError(MIM.userMessage(err));

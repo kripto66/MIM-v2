@@ -38,8 +38,6 @@ export const NOINDEX_PATHS = [
   '/reset',
   '/change-password',
   '/2fa',
-  '/paiement-succes',
-  '/paiement-annule',
   '/PartProprietaires',
   '/PartLocataires',
   '/PartAdmin',
