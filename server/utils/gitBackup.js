@@ -25,10 +25,15 @@ const GIT_CANDIDATES = [
   'git',
 ].filter(Boolean);
 
+// Sauvegarde/push strictement OPT-IN : désactivé par défaut, même en
+// développement. Tout geste (login, logout, écriture…) committait et
+// poussait automatiquement l'intégralité du workspace, ce qui a déjà
+// exposé des identifiants dans l'historique git et le dépôt distant.
+// Activer explicitement avec GIT_BACKUP=true si un backup git est voulu.
 const IS_PROD = process.env.NODE_ENV === 'production';
 const ENABLED =
   Boolean(process.env.GIT_REPO_PATH) &&
-  (process.env.GIT_BACKUP === 'true' || !IS_PROD);
+  process.env.GIT_BACKUP === 'true';
 
 // File d'attente : empêche deux backups de tourner en même temps.
 let pipeline = Promise.resolve();

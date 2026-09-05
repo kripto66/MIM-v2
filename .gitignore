@@ -29,6 +29,13 @@ server/.env
 
 # OS temporaires
 *.tmp
+*.tmp.*
+*.log.err
+
+# Sécurité : artefacts de test générés contenant des identifiants/tokens
+server/scripts/loadtest/state.json
+server/scripts/loadtest/results-phases.json
+server/scripts/loadtest/REPORT-LOADTEST.md
 
 .vercel
 .env*
