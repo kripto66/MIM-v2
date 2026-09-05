@@ -79,6 +79,10 @@
                     <h2>Liste des locataires</h2>
                 </div>
 
+                <div class="search-bar">
+                    <input type="search" id="tenantSearch" placeholder="🔎 Rechercher un locataire (nom, username, téléphone, email)…">
+                </div>
+
                 <div id="locatairesList">
                     <div class="empty-state">Chargement...</div>
                 </div>
@@ -201,9 +205,10 @@
                     </div>
                 </div>
 
-                <div class="form-hint tenant-auto-hint" id="autoAccountHint">
-                    Le compte de connexion du locataire sera créé automatiquement
-                    (username généré, mot de passe initial 1234 à changer à la première connexion).
+<div class="form-hint tenant-auto-hint" id="autoAccountHint">
+                    Le compte de connexion du locataire sera créé automatiquement.
+                    Un username imprévisible et un mot de passe initial temporaire
+                    seront générés (à changer à la première connexion).
                 </div>
 
                 <div class="modal-actions">
@@ -268,11 +273,15 @@ const LOCATAIRE_STATUS = {
             inactif: ["Inactif", "status-danger"],
         };
 
-        const state = { tenants: [], logements: [], biens: [] };
+        const state = { tenants: [], logements: [], biens: [], search: "" };
         let tenantEditId = null;
         let _confirmPwdResolve = null;
 
         const el = (id) => document.getElementById(id);
+
+        function escapeAttr(v) {
+            return String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
 
         function confirmPassword(message) {
             return new Promise((resolve) => {
@@ -412,20 +421,32 @@ async function loadAll() {
             }
         }
 
-        function renderLocataires() {
+function renderLocataires() {
             const list = el("locatairesList");
-            if (!state.tenants.length) {
-                list.innerHTML = '<div class="empty-state">Aucun locataire pour le moment.</div>';
+            const needle = (state.search || "").trim().toLowerCase();
+            const filtered = needle
+                ? state.tenants.filter((t) => {
+                    const hay = `${t.nom || ""} ${t.username || ""} ${t.phone || ""} ${t.email || ""}`.toLowerCase();
+                    return hay.includes(needle);
+                })
+                : state.tenants;
+            if (!filtered.length) {
+                list.innerHTML = state.tenants.length
+                    ? '<div class="empty-state">Aucun locataire ne correspond à cette recherche.</div>'
+                    : '<div class="empty-state">Aucun locataire pour le moment.</div>';
                 return;
             }
-            list.innerHTML = state.tenants.map((t) => {
+            list.innerHTML = filtered.map((t) => {
                 const lg = state.logements.find((l) => String(l.id) === String(t.logement_id));
                 const [label, cls] = LOCATAIRE_STATUS[t.statut] || [t.statut, "status-info"];
                 const typeLabel = lg && lg.type === "chambre" ? "Chambre" : "Appartement";
+                const avatar = t.avatar_url
+                    ? `<img src="${escapeAttr(t.avatar_url)}" alt="" class="avatar-sm-card">`
+                    : "";
                 return `
                     <div class="crud-card">
                         <div>
-                            <h3>${escapeHtml(t.nom)}</h3>
+                            <h3>${avatar}${escapeHtml(t.nom)}</h3>
                             <p>${t.username ? "Username : " + escapeHtml(t.username) + " · " : ""}${escapeHtml(t.phone || "")}${t.email ? " — " + escapeHtml(t.email) : ""}</p>
                             ${lg
                                 ? `<p class="logement-chip"><strong>Logement :</strong> ${escapeHtml(lg.nom)} · ${typeLabel} · ${Number(lg.loyer_mensuel).toLocaleString("fr-FR")} FCFA/mois · ${escapeHtml(lg.adresse || "")}</p>`
@@ -696,6 +717,10 @@ async function deleteTenant(id) {
             el("logement_id").addEventListener("change", onLogementSelectChange);
             el("bien_id").addEventListener("change", onBienChange);
             el("lg_type").addEventListener("change", toggleChambresLg);
+            el("tenantSearch").addEventListener("input", (e) => {
+                state.search = e.target.value;
+                renderLocataires();
+            });
 
             el("locatairesList").addEventListener("click", (e) => {
                 const editBtn = e.target.closest("[data-edit-t]");

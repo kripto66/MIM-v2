@@ -130,10 +130,14 @@ export async function runIsolation(r, ctx) {
     else r.fail(S, 'locataire sur logement de o1 rejeté', `statut ${l1.status} — référence croisée acceptée !`);
 
     // PUT : changer le locataire_id d'un paiement de o2 vers un locataire de o1.
+    // Mois libre (anti-doublon : l'échéance de ownLoc existe déjà pour le mois du seed).
+    const [iy, im] = ctx.seed.month.split('-').map(Number);
+    const idi = new Date(Date.UTC(iy, im - 3, 1));
+    const moisLibre = `${idi.getUTCFullYear()}-${String(idi.getUTCMonth() + 1).padStart(2, '0')}`;
     const created = await api('/paiements', {
       method: 'POST',
       jar: o2.jar,
-      body: { locataire_id: ownLoc.id, logement_id: ownLg.id, montant: 1000, mois: ctx.seed.month, statut: 'attente' },
+      body: { locataire_id: ownLoc.id, logement_id: ownLg.id, montant: 1000, mois: moisLibre, statut: 'attente' },
     });
     if (expectSuccess(r, created, S, r, [201])) {
       const pid = created.data.data.id;

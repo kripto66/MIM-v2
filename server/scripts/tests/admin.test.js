@@ -219,8 +219,8 @@ export async function runAdmin(r, ctx) {
       jar: badJar,
       body: { identifier: target.email, password: target.password },
     });
-    if (banned.status === 403 && banned.data?.code === 'ACCOUNT_SUSPENDED') r.pass(S, 'compte suspendu → login refusé (403 ACCOUNT_SUSPENDED)');
-    else r.fail(S, 'compte suspendu → login refusé (403 ACCOUNT_SUSPENDED)', `statut ${banned.status} ${JSON.stringify(banned.data)}`);
+    if (banned.status === 401 && banned.data?.code === 'INVALID_CREDENTIALS') r.pass(S, 'compte suspendu → login refusé (401, anti-énumération)');
+    else r.fail(S, 'compte suspendu → login refusé (401, anti-énumération)', `statut ${banned.status} ${JSON.stringify(banned.data)}`);
 
     const activate = await api(`/admin/proprietaires/${target.id}`, {
       method: 'PATCH',

@@ -287,23 +287,24 @@ const text = await res.text();
         r.fail(S, 'profil locataire : must_change_password=true + username', JSON.stringify(profile));
       }
 
-      // Connexion avec le mot de passe initial 1234 → changement forcé demandé.
+// Connexion avec le mot de passe initial retourné par l'import → changement forcé demandé.
       const jarT = newJar();
+      const initialPw = cat.accounts[0]?.password;
       const login = await api('/auth/login', {
         method: 'POST',
         jar: jarT,
-        body: { identifier: fiche.username, password: '1234' },
+        body: { identifier: fiche.username, password: initialPw },
       });
       if (expectSuccess(r, login, S, r) && login.data.mustChangePassword === true) {
-        r.pass(S, 'login locataire avec 1234 → mustChangePassword');
+        r.pass(S, 'login locataire (mdp initial) → mustChangePassword');
       } else {
-        r.fail(S, 'login locataire avec 1234 → mustChangePassword', JSON.stringify(login.data));
+        r.fail(S, 'login locataire (mdp initial) → mustChangePassword', JSON.stringify(login.data));
       }
 
       // Le mot de passe n'est JAMAIS stocké en clair dans auth.users.
       const { data: authUser } = await service.auth.admin.getUserById(fiche.account_uid);
       const userJson = JSON.stringify(authUser || {});
-      if (authUser?.user && !userJson.includes('1234')) {
+      if (authUser?.user && initialPw && !userJson.includes(initialPw)) {
         r.pass(S, 'mot de passe initial non stocké en clair');
       } else {
         r.fail(S, 'mot de passe initial non stocké en clair', userJson.slice(0, 200));
@@ -424,17 +425,18 @@ const text = await res.text();
         r.fail(S, 'profil employé : must_change_password=true + type employe', JSON.stringify(profile));
       }
 
-      // Login employé avec 1234 ? changement forcé demandé (exigence mission).
+// Login employé avec le mot de passe initial retourné → changement forcé demandé (exigence mission).
       const jarE = newJar();
+      const initialPw = cat.accounts[0]?.password;
       const login = await api('/auth/login', {
         method: 'POST',
         jar: jarE,
-        body: { identifier: fiche.username, password: '1234' },
+        body: { identifier: fiche.username, password: initialPw },
       });
       if (expectSuccess(r, login, S, r) && login.data.mustChangePassword === true) {
-        r.pass(S, 'login employé avec 1234 ? mustChangePassword');
+        r.pass(S, 'login employé (mdp initial) → mustChangePassword');
       } else {
-        r.fail(S, 'login employé avec 1234 ? mustChangePassword', JSON.stringify(login.data));
+        r.fail(S, 'login employé (mdp initial) → mustChangePassword', JSON.stringify(login.data));
       }
     }
 

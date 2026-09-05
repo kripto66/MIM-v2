@@ -368,7 +368,7 @@ export async function prepareImport(sb, ownerId, payload) {
       }
 
       if (generated) {
-        report.accounts.push({ line, username: generated, account_type: cat === 'locataires' ? 'locataire' : 'employe' });
+        report.accounts.push({ line, username: generated, password: INITIAL_PASSWORD, account_type: cat === 'locataires' ? 'locataire' : 'employe' });
         const sampleRow = report.sample.find((s) => s.line === line);
         if (sampleRow) sampleRow.username = generated;
       }
@@ -1219,7 +1219,7 @@ async function importLocataire(sb, ownerId, ctx) {
   await notify(accountUid, 'info', 'Votre compte locataire a été créé par votre propriétaire. À votre première connexion, vous devrez choisir un nouveau mot de passe.');
 
   result.created++;
-  result.accounts.push({ line, username: final, account_type: 'locataire', nom });
+  result.accounts.push({ line, username: final, password: INITIAL_PASSWORD, account_type: 'locataire', nom });
 }
 
 async function importEmploye(sb, ownerId, ctx) {
@@ -1375,5 +1375,5 @@ async function importEmploye(sb, ownerId, ctx) {
   await notify(accountUid, 'info', 'Votre compte employé a été créé par votre employeur. À votre première connexion, vous devrez choisir un nouveau mot de passe.');
 
   result.created++;
-  result.accounts.push({ line, username: final, account_type: 'employe', nom });
+  result.accounts.push({ line, username: final, password: INITIAL_PASSWORD, account_type: 'employe', nom });
 }

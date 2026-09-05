@@ -24,10 +24,24 @@ export function resolveLoginEmail(identifier) {
 }
 
 // ------------------------------------------------------------
-// Génération des usernames (convention : prenom.nom, puis 2, 3, …)
-// Utilisée par l'import CSV et par la création d'un locataire
-// depuis le formulaire unique.
+// Génération des usernames (préfixe lisible + jeton aléatoire).
+// Le username ne doit JAMAIS être prévisible (nom.nom, nom.nom2…) :
+// comme le mot de passe initial, il est généré de façon aléatoire
+// afin qu'on ne puisse pas deviner l'identifiant d'un compte.
+// Utilisée par l'import CSV et par la création d'un locataire /
+// employé depuis les formulaires uniques.
 // ------------------------------------------------------------
+
+// Alphabet sans caractères ambigus (pas de 0/O, 1/l) ni majuscules.
+const USERNAME_TOKEN_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
+
+function randomToken(length) {
+  let out = '';
+  for (let i = 0; i < length; i++) {
+    out += USERNAME_TOKEN_CHARS[Math.floor(Math.random() * USERNAME_TOKEN_CHARS.length)];
+  }
+  return out;
+}
 
 function slugBase(prenom, nom) {
   const strip = (s) =>
@@ -50,14 +64,23 @@ async function usernameTaken(sb, username) {
 }
 
 export async function uniqueUsername(sb, prenom, nom) {
-  const base = slugBase(prenom, nom);
-  if (!(await usernameTaken(sb, base))) return base;
-  for (let i = 2; i <= 99; i++) {
-    const candidate = `${base}${i}`.slice(0, 32);
+  // Préfixe limité pour laisser la place au jeton aléatoire
+  // (le username complet doit rester ≤ 32 caractères).
+  const prefix = slugBase(prenom, nom).slice(0, 18);
+
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const tokenLength = 6 + (attempt % 3); // 6, 7 puis 8 caractères
+    const candidate = `${prefix}.${randomToken(tokenLength)}`.slice(0, 32);
     if (usernameIsValid(candidate) && !(await usernameTaken(sb, candidate))) return candidate;
   }
-  const fallback = `${base}${Date.now() % 10000}`.slice(0, 32);
-  return usernameIsValid(fallback) ? fallback : `utilisateur${Date.now() % 100000}`;
+
+  // Sécurité ultime : jeton aléatoire sans préfixe du nom.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const candidate = `u.${randomToken(10)}`.slice(0, 32);
+    if (usernameIsValid(candidate) && !(await usernameTaken(sb, candidate))) return candidate;
+  }
+
+  return null;
 }
 
 // Découpe un nom complet en { prenom, nom } : le premier mot est le

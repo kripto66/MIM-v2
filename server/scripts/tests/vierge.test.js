@@ -105,11 +105,12 @@ export async function runVierge(r, ctx) {
       return;
     }
     const username = res.data.account?.username;
-    if (res.data.autoAccount !== true || !username || res.data.account?.password !== '1234') {
+    const password = res.data.account?.password;
+    if (res.data.autoAccount !== true || !username || !password) {
       r.fail(S, 'username généré + mot de passe initial', JSON.stringify(res.data.account));
       return;
     }
-    r.pass(S, `locataire auto créé → username ${username} + mdp initial 1234`);
+    r.pass(S, `locataire auto créé → username ${username} + mdp aléatoire`);
 
     // En base : fiche locataire + profil auth.
     const { data: fiche } = await service
@@ -134,13 +135,13 @@ export async function runVierge(r, ctx) {
       r.fail(S, 'profil auth : username + must_change_password=true', JSON.stringify(profile));
     }
 
-    // Connexion avec 1234 → changement forcé.
+    // Connexion avec le mot de passe initial retourné (aléatoire) → changement forcé.
     const jarT = newJar();
-    const login = await api('/auth/login', { method: 'POST', jar: jarT, body: { identifier: username, password: '1234' } });
+    const login = await api('/auth/login', { method: 'POST', jar: jarT, body: { identifier: username, password } });
     if (login.status === 200 && login.data.mustChangePassword === true) {
-      r.pass(S, 'connexion locataire avec 1234 → mustChangePassword');
+      r.pass(S, 'connexion locataire (mdp initial) → mustChangePassword');
     } else {
-      r.fail(S, 'connexion locataire avec 1234 → mustChangePassword', `statut ${login.status} ${JSON.stringify(login.data).slice(0, 150)}`);
+      r.fail(S, 'connexion locataire (mdp initial) → mustChangePassword', `statut ${login.status} ${JSON.stringify(login.data).slice(0, 150)}`);
     }
   });
 
@@ -180,11 +181,12 @@ export async function runVierge(r, ctx) {
       return;
     }
     const username = res.data.account?.username;
-    if (res.data.autoAccount !== true || !username || res.data.account?.password !== '1234') {
+    const password = res.data.account?.password;
+    if (res.data.autoAccount !== true || !username || !password) {
       r.fail(S, 'username employé généré + mdp initial', JSON.stringify(res.data.account));
       return;
     }
-    r.pass(S, `employé auto créé → username ${username} + mdp initial 1234`);
+    r.pass(S, `employé auto créé → username ${username} + mdp aléatoire`);
 
     // En base : fiche employé + profil auth.
     const { data: fiche } = await service
@@ -209,13 +211,13 @@ export async function runVierge(r, ctx) {
       r.fail(S, 'profil auth : username + must_change_password=true', JSON.stringify(profile));
     }
 
-    // Connexion avec 1234 → changement forcé.
+    // Connexion avec le mot de passe initial retourné (aléatoire) → changement forcé.
     const jarE = newJar();
-    const login = await api('/auth/login', { method: 'POST', jar: jarE, body: { identifier: username, password: '1234' } });
+    const login = await api('/auth/login', { method: 'POST', jar: jarE, body: { identifier: username, password } });
     if (login.status === 200 && login.data.mustChangePassword === true) {
-      r.pass(S, 'connexion employé avec 1234 → mustChangePassword');
+      r.pass(S, 'connexion employé (mdp initial) → mustChangePassword');
     } else {
-      r.fail(S, 'connexion employé avec 1234 → mustChangePassword', `statut ${login.status} ${JSON.stringify(login.data).slice(0, 150)}`);
+      r.fail(S, 'connexion employé (mdp initial) → mustChangePassword', `statut ${login.status} ${JSON.stringify(login.data).slice(0, 150)}`);
     }
 
     // Parcours complet : changement du mot de passe, re-connexion, flag levé.

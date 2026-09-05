@@ -2,8 +2,9 @@
 // MIM - Suite « Locataire en une seule étape »
 //
 // Vérifie le formulaire unique : le POST /api/locataires (mode
-// autoAccount) crée logement + compte + échéance en une requête,
-// avec username généré et mot de passe initial 1234.
+// autoAccount) crée logement + compte + échéance en une requête.
+// Username imprévisible et mot de passe initial aléatoire : tous
+// deux sont retournés par le serveur (compte + fiche liée).
 // ============================================================
 
 import { api, expectSuccess, newJar } from './lib.js';
@@ -31,6 +32,7 @@ export async function runLocataires(r, ctx) {
   const moisCourant = currentMoisUTC();
 
   const createdLocataires = [];
+  const createdAccounts = [];
 
   // ----------------------------------------------------------
   await r.section('création unique : logement + compte + échéance', async () => {
@@ -60,11 +62,19 @@ export async function runLocataires(r, ctx) {
       r.fail(S, 'création en une requête', JSON.stringify(res.data));
       return;
     }
-    if (res.data.autoAccount !== true || res.data.account?.username !== 'amadou.diop' || res.data.account?.password !== '1234') {
+    const username = res.data.account?.username;
+    const password = res.data.account?.password;
+    if (
+      res.data.autoAccount !== true ||
+      !username ||
+      !password ||
+      !/^[a-z0-9._-]{3,32}$/.test(username)
+    ) {
       r.fail(S, 'création en une requête', `autoAccount/account inattendus : ${JSON.stringify(res.data.account)}`);
     } else {
-      r.pass(S, 'création en une requête (201, autoAccount, username amadou.diop, mdp 1234)');
+      r.pass(S, `création en une requête (201, autoAccount, username ${username}, mdp aléatoire)`);
     }
+    createdAccounts.push(res.data.account);
 
     const fiche = res.data.data;
     createdLocataires.push(fiche);
@@ -79,7 +89,7 @@ export async function runLocataires(r, ctx) {
       row &&
       row.user_id === owner1.id &&
       row.account_uid &&
-      row.username === 'amadou.diop' &&
+      row.username === username &&
       row.logement_id &&
       row.jour_echeance === 5 &&
       row.statut === 'actif'
@@ -132,15 +142,15 @@ export async function runLocataires(r, ctx) {
       r.fail(S, 'profil : must_change_password=true', JSON.stringify(profile));
     }
 
-    // Login avec 1234 possible (mot de passe initial fonctionnel).
+    // Login avec le mot de passe initial retourné (aléatoire) : fonctionnel.
     const login = await api('/auth/login', {
       method: 'POST',
-      body: { identifier: 'amadou.diop', password: '1234' },
+      body: { identifier: username, password },
     });
     if (login.status === 200 && login.data.mustChangePassword === true) {
-      r.pass(S, 'login avec 1234 → mustChangePassword renvoyé');
+      r.pass(S, 'login avec le mot de passe initial → mustChangePassword renvoyé');
     } else {
-      r.fail(S, 'login avec 1234 → mustChangePassword renvoyé', `statut ${login.status} ${JSON.stringify(login.data).slice(0, 200)}`);
+      r.fail(S, 'login avec le mot de passe initial → mustChangePassword renvoyé', `statut ${login.status} ${JSON.stringify(login.data).slice(0, 200)}`);
     }
   });
 
@@ -175,9 +185,9 @@ export async function runLocataires(r, ctx) {
     }
 
     const unique = new Set(usernames);
-    const expected = ['amadou.diop2', 'amadou.diop3', 'amadou.diop4'];
-    if (usernames.length === 3 && unique.size === 3 && usernames.every((u, i) => u === expected[i])) {
-      r.pass(S, 'usernames distincts : ' + usernames.join(', '));
+    const okFormat = usernames.every((u) => /^[a-z0-9._-]{3,32}$/.test(u ?? ''));
+    if (usernames.length === 3 && unique.size === 3 && okFormat) {
+      r.pass(S, 'usernames distincts (imprévisibles) : ' + usernames.join(', '));
     } else {
       r.fail(S, 'usernames distincts', JSON.stringify(usernames));
     }
@@ -209,20 +219,21 @@ export async function runLocataires(r, ctx) {
     }
     const fiche = res.data.data;
     const baseUsername = res.data.account?.username || 'fatou.ba';
+    const basePassword = res.data.account?.password || '';
     const newUsername = `${baseUsername}x`.slice(0, 32);
     createdLocataires.push(fiche);
 
-    // Connexion avec le mot de passe initial.
+    // Connexion avec le mot de passe initial retourné (aléatoire).
     const jarT = newJar();
     const login = await api('/auth/login', {
       method: 'POST',
       jar: jarT,
-      body: { identifier: baseUsername, password: '1234' },
+      body: { identifier: baseUsername, password: basePassword },
     });
     if (login.status === 200 && login.data.mustChangePassword === true) {
-      r.pass(S, 'connexion initiale (1234) → changement forcé');
+      r.pass(S, 'connexion initiale (mdp aléatoire) → changement forcé');
     } else {
-      r.fail(S, 'connexion initiale (1234) → changement forcé', `statut ${login.status}`);
+      r.fail(S, 'connexion initiale (mdp aléatoire) → changement forcé', `statut ${login.status}`);
       return;
     }
 
@@ -277,7 +288,7 @@ export async function runLocataires(r, ctx) {
     // L'ancien username ne fonctionne plus.
     const oldLogin = await api('/auth/login', {
       method: 'POST',
-      body: { identifier: baseUsername, password: '1234' },
+      body: { identifier: baseUsername, password: basePassword },
     });
     if (oldLogin.status === 401) r.pass(S, 'ancien username refusé');
     else r.fail(S, 'ancien username refusé', `statut ${oldLogin.status}`);
@@ -311,7 +322,11 @@ export async function runLocataires(r, ctx) {
 
     // Le locataire voit les moyens du propriétaire.
     const jarT = newJar();
-    const login = await api('/auth/login', { method: 'POST', jar: jarT, body: { identifier: 'amadou.diop', password: '1234' } });
+    const login = await api('/auth/login', {
+      method: 'POST',
+      jar: jarT,
+      body: { identifier: createdAccounts[0].username, password: createdAccounts[0].password },
+    });
     if (login.status !== 200) {
       r.fail(S, 'login locataire pour le paiement', `statut ${login.status}`);
       return;
@@ -452,7 +467,10 @@ export async function runLocataires(r, ctx) {
       r.fail(S, 'locataire supprimé', JSON.stringify(del.data));
     }
 
-    const login = await api('/auth/login', { method: 'POST', body: { identifier: 'amadou.diop', password: '1234' } });
+    const login = await api('/auth/login', {
+      method: 'POST',
+      body: { identifier: createdAccounts[0].username, password: createdAccounts[0].password },
+    });
     if (login.status === 401) r.pass(S, 'compte désactivé après suppression');
     else r.fail(S, 'compte désactivé après suppression', `statut ${login.status}`);
 

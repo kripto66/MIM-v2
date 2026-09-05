@@ -139,8 +139,35 @@ export function createCrudRouter(tableName) {
       return res.status(500).json({ success: false, message: 'Erreur lors du chargement.' });
     }
 
-    res.json({ success: true, data });
+    const enriched = await enrichWithAvatars(tableName, data || []);
+
+    res.json({ success: true, data: enriched });
   });
+
+  // ============================================================
+  // Enrichissement : avatar du profil (RLS n'autorise pas le
+  // propriétaire à lire profiles des autres). Passer par un client
+  // service permet d'afficher le nom + avatar réels sur les fiches.
+  // ============================================================
+  async function enrichWithAvatars(tableName, rows) {
+    if (tableName !== 'locataires') return rows;
+    const uids = [...new Set(rows.map((r) => r.account_uid).filter(Boolean))];
+    if (!uids.length) return rows;
+    try {
+      const { data: profs } = await serviceClient()
+        .from('profiles')
+        .select('id, avatar_url')
+        .in('id', uids);
+      const avatars = (profs || []).reduce((acc, p) => {
+        acc[p.id] = p.avatar_url || null;
+        return acc;
+      }, {});
+      for (const r of rows) r.avatar_url = avatars[r.account_uid] || null;
+    } catch (err) {
+      console.warn('[enrichWithAvatars]', err.message);
+    }
+    return rows;
+  }
 
   // ============================================================
   // Notifications à la création
@@ -401,10 +428,11 @@ export function createCrudRouter(tableName) {
   //   - mode manuel (historique) : le propriétaire fournit lui-même
   //     username + mot de passe (et le compte est créé tel quel) ;
   //   - mode automatique (formulaire unique « Ajouter un locataire ») :
-  //     MIM génère le username (amadou.diop, amadou.diop2, …), le mot
-  //     de passe initial (1234, must_change_password = true), crée le
-  //     logement embarqué si demandé, l'échéance du mois courant et
-  //     renvoie un résumé des identifiants au propriétaire.
+  //     MIM génère le username (préfixe lisible + jeton aléatoire, pour
+  //     que l'identifiant soit imprévisible), le mot de passe initial
+  //     (aléatoire, must_change_password = true), crée le logement
+  //     embarqué si demandé, l'échéance du mois courant et renvoie un
+  //     résumé des identifiants au propriétaire.
   //
   // Les données sensibles (user_id, loyer) ne proviennent JAMAIS du
   // client : user_id vient de la session, le loyer de l'échéance est
@@ -697,6 +725,55 @@ if (createdLogementId) {
     // Un paiement confirmé (« paye ») sans date renseignée est daté du jour.
     if (tableName === 'paiements' && body.statut === 'paye' && !body.date_paiement) {
       body.date_paiement = new Date().toISOString().slice(0, 10);
+    }
+
+    const incomingStatus = body.statut || 'attente';
+
+    // Anti-doublon : un locataire n'a droit qu'à UNE ligne de paiement par
+    // mois (l'index unique paiements_locataire_mois_uidx le garantit aussi
+    // en base). On transforme la ligne existante au lieu d'en créer une
+    // seconde — c'est la cause du « même locataire affiché deux fois ».
+    if (tableName === 'paiements' && body.locataire_id && body.mois) {
+      const { data: existing } = await serviceClient()
+        .from('paiements')
+        .select('id, statut')
+        .eq('user_id', userId(req))
+        .eq('locataire_id', body.locataire_id)
+        .eq('mois', body.mois)
+        .maybeSingle();
+
+      if (existing) {
+        if (existing.statut === 'paye') {
+          return res.status(409).json({ success: false, message: `Loyer de ${body.mois} déjà payé pour ce locataire.` });
+        }
+        if (existing.statut === 'en_validation') {
+          return res.status(409).json({
+            success: false,
+            message: 'Une déclaration de ce locataire est en attente pour ce mois. Validez-la depuis la liste « Paiements à valider ».',
+          });
+        }
+        if (existing.statut === incomingStatus) {
+          return res.status(409).json({ success: false, message: `Une échéance existe déjà pour ${body.mois} avec le statut ${incomingStatus}.` });
+        }
+
+        if (body.statut === 'paye' && !body.date_paiement) {
+          body.date_paiement = new Date().toISOString().slice(0, 10);
+        }
+        const { data: updated, error: upErr } = await serviceClient()
+          .from('paiements')
+          .update(body)
+          .eq('id', existing.id)
+          .select()
+          .single();
+
+        if (upErr) {
+          console.error('[paiements upsert]', upErr.message);
+          return res.status(400).json({ success: false, message: 'Erreur lors de l\u2019enregistrement du paiement.' });
+        }
+
+        gitAutoBackup('Sauvegarde auto : mise à jour paiement (anti-doublon)');
+        return res.status(200).json({ success: true, data: updated, merged: true });
+      }
     }
 
     if (Object.keys(body).length <= 1) {

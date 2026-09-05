@@ -486,8 +486,6 @@
                             <p>${formatMois(p.mois)} — ${escapeHtml(p.logement_nom || "")}</p>
                             <p><span class="status status-warning">En attente de validation</span></p>
                             <p class="pay-methode">${METHODE_LABELS[p.methode_paiement] || p.methode_paiement || "—"}${p.reference ? ` — réf. déclarée : ${escapeHtml(p.reference)}` : ""}</p>
-                            <p class="pay-hint">Demande de validation reçue : ${formatDateTime(p.validation_requested_at)}</p>
-                            <p class="pay-hint">⚠️ Vérifiez la réception du paiement sur votre compte avant de valider.</p>
                         </div>
                         <div class="card-amount">
                             <strong>${fmtFCFA(p.montant)}</strong>
@@ -617,30 +615,28 @@
                 const [label, cls] = PAIEMENT_STATUS[p.statut] || [p.statut, "status-info"];
                 const locataire = locatairesCache.find((t) => String(t.id) === String(p.locataire_id));
                 const logement = logementsCache.find((l) => String(l.id) === String(p.logement_id));
-                const methode = METHODE_LABELS[p.methode_paiement];
-                const awaiting = p.statut === "en_validation";
+                const avatar = locataire && locataire.avatar_url
+                    ? `<img src="${escapeAttr(locataire.avatar_url)}" alt="" class="avatar-sm-card">`
+                    : "";
                 return `
                     <div class="crud-card">
                         <div>
-                            <h3>${locataire ? escapeHtml(locataire.nom) : "Locataire inconnu"}</h3>
+                            <h3>${avatar}${locataire ? escapeHtml(locataire.nom) : "Locataire"}</h3>
                             <p>${formatMois(p.mois)} — ${logement ? escapeHtml(logement.nom) : ""}</p>
                             <p><span class="status ${cls}">${label}</span></p>
-                            ${methode ? `<p class="pay-methode">${methode}${p.reference ? ` — ${escapeHtml(p.reference)}` : ""}</p>` : ""}
-                            ${p.statut === "en_validation" ? '<p class="pay-hint">Le locataire déclare avoir payé — vérifiez votre compte puis validez.</p>' : ""}
                         </div>
                         <div class="card-amount">
                             <strong>${fmtFCFA(p.montant)}</strong>
                             <div class="card-actions">
-                                ${awaiting ? `
-                                    <button class="btn btn-pay" data-pvalidate="${p.id}">Valider le paiement</button>
-                                    <button class="btn btn-delete" data-prefuse="${p.id}">Refuser</button>
-                                ` : ""}
                                 <button class="btn btn-edit" data-edit="${p.id}">Modifier</button>
                                 <button class="btn btn-delete" data-delete="${p.id}">Supprimer</button>
                             </div>
                         </div>
                     </div>`;
-            }
+            },
+            // Les déclarations « en attente de validation » s'affichent dans
+            // « Paiements à valider » uniquement — on ne les répète pas ici.
+            filter: (p) => p.statut !== "en_validation"
         });
 
         // Validation / refus d'une déclaration (historique aussi).

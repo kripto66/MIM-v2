@@ -216,10 +216,29 @@ export async function runCrud(r, ctx) {
     if (badMontant.status === 400) r.pass(S, 'montant <= 0 → 400');
     else r.fail(S, 'montant <= 0 → 400', `statut ${badMontant.status}`);
 
+    // L'échéance du mois existe déjà (créée à la création du locataire) :
+    // le POST ne crée JAMAIS de doublon → mise à jour de l'échéance (merged).
     const paye = await api('/paiements', { method: 'POST', jar, body: { locataire_id: loc.id, logement_id: lg.id, montant: loyer, mois: ctx.seed.month, statut: 'paye' } });
-    if (expectSuccess(r, paye, S, r, [201]) && paye.data.data.date_paiement) r.pass(S, 'paiement payé → date_paiement auto');
-    else r.fail(S, 'paiement payé → date_paiement auto', JSON.stringify(paye.data));
+    if (paye.status === 200 && paye.data.success && paye.data.merged === true && paye.data.data?.date_paiement) {
+      r.pass(S, 'paiement payé → échéance mise à jour (anti-doublon) + date_paiement auto');
+    } else {
+      r.fail(S, 'paiement payé → échéance mise à jour (anti-doublon) + date_paiement auto', JSON.stringify(paye.data));
+    }
     const pid = paye.data.data.id;
+
+    // Re-POST du même mois → refusé (anti-doublon).
+    const dup = await api('/paiements', { method: 'POST', jar, body: { locataire_id: loc.id, logement_id: lg.id, montant: loyer, mois: ctx.seed.month, statut: 'paye' } });
+    if (dup.status === 409) r.pass(S, 'anti-doublon : re-POST du même mois → 409');
+    else r.fail(S, 'anti-doublon : re-POST du même mois → 409', `statut ${dup.status} ${JSON.stringify(dup.data)}`);
+
+    // Mois sans échéance (mois précédent) : création d'un vrai paiement → 201.
+    const nouveau = await api('/paiements', { method: 'POST', jar, body: { locataire_id: loc.id, logement_id: lg.id, montant: loyer, mois: ctx.seed.prev, statut: 'paye' } });
+    if (expectSuccess(r, nouveau, S, r, [201]) && nouveau.data.data.date_paiement) {
+      r.pass(S, 'création paiement (mois sans échéance) → 201 + date_paiement auto');
+    } else {
+      r.fail(S, 'création paiement (mois sans échéance) → 201 + date_paiement auto', JSON.stringify(nouveau.data));
+    }
+    const nid = nouveau.data.data.id;
 
     const upd = await api(`/paiements/${pid}`, { method: 'PUT', jar, body: { statut: 'retard' } });
     if (expectSuccess(r, upd, S, r) && upd.data.data.statut === 'retard') r.pass(S, 'paiement modifié → retard');
@@ -228,6 +247,9 @@ export async function runCrud(r, ctx) {
     const del = await api(`/paiements/${pid}`, { method: 'DELETE', jar });
     if (expectSuccess(r, del, S, r)) r.pass(S, 'paiement supprimé');
     else r.fail(S, 'paiement supprimé', JSON.stringify(del.data));
+
+    const del2 = await api(`/paiements/${nid}`, { method: 'DELETE', jar });
+    expectSuccess(r, del2, S, 'création anti-doublon supprimée');
   });
 
   // ----------------------------------------------------------
