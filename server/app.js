@@ -51,6 +51,12 @@ export function serviceClient() {
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
+// Origines autorisées pour <img> : les avatars sont hébergés sur Supabase
+// Storage (URL http://127.0.0.1:64321/storage/... en local, *.supabase.co
+// en production). Sans cela, la CSP bloque le chargement des photos.
+const supabaseOrigin = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+const imageOrigins = [supabaseOrigin, 'https://*.supabase.co'].filter(Boolean);
+
 const corsOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
   : [];
@@ -95,7 +101,7 @@ app.use((req, res, next) => {
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline'",           // scripts inline dans les HTML
     "style-src 'self' 'unsafe-inline'",            // styles inline + Google Fonts si besoin
-    "img-src 'self' data: blob:",                  // images base64 (avatars), fichiers locaux
+    "img-src 'self' data: blob: " + imageOrigins.join(' '),  // base64 + Supabase Storage (avatars)
     "font-src 'self' data:",                       // polices embarquées
     "connect-src 'self' http://127.0.0.1:64321 https://*.supabase.co wss://*.supabase.co",  // API Supabase
     "frame-ancestors 'none'",                      // pas de framing (renforce X-Frame-Options)

@@ -5,7 +5,7 @@ import { tenantEmailFor, usernameIsValid, uniqueUsername, splitFullName, INITIAL
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { notify, tenantUidOfLogement, tenantUidOfLocataire, logementNomOf } from '../utils/notifications.js';
 import { methodePaiementError } from '../utils/paiementMethodes.js';
-import { creerEcheanceInitiale, syncMontantEcheancesOuvertes } from '../utils/echeances.js';
+import { creerEcheanceInitiale, syncMontantEcheancesOuvertes, currentMois } from '../utils/echeances.js';
 
 const SCHEMAS = {
   biens: {
@@ -729,6 +729,18 @@ if (createdLogementId) {
 
     const incomingStatus = body.statut || 'attente';
 
+    // Une échéance ne concerne jamais un mois strictement futur : le
+    // locataire ne peut pas devoir un loyer pour un mois non commencé,
+    // et une échéance future créerait un décalage entre le mois posé par
+    // le propriétaire et l'échéance affichée sur le dashboard locataire.
+    if (tableName === 'paiements' && body.mois && body.mois > currentMois()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Le mois concerné ne peut pas être dans le futur. Choisissez le mois courant ou un mois passé.',
+        errors: { mois: 'Le mois concerné ne peut pas être dans le futur. Choisissez le mois courant ou un mois passé.' },
+      });
+    }
+
     // Anti-doublon : un locataire n'a droit qu'à UNE ligne de paiement par
     // mois (l'index unique paiements_locataire_mois_uidx le garantit aussi
     // en base). On transforme la ligne existante au lieu d'en créer une
@@ -887,6 +899,18 @@ if (createdLogementId) {
 
     if (!prev) {
       return res.status(404).json({ success: false, message: 'Introuvable.' });
+    }
+
+    // Ne jamais reporter une échéance sur un mois strictement futur.
+    if (tableName === 'paiements') {
+      const targetMois = body.mois ?? prev.mois;
+      if (targetMois && String(targetMois) > currentMois()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Le mois concerné ne peut pas être dans le futur. Choisissez le mois courant ou un mois passé.',
+          errors: { mois: 'Le mois concerné ne peut pas être dans le futur. Choisissez le mois courant ou un mois passé.' },
+        });
+      }
     }
 
     // Références croisées : toute référence doit appartenir au propriétaire.

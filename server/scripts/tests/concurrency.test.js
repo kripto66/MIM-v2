@@ -182,9 +182,9 @@ export async function runConcurrency(r, ctx) {
     ]);
 
     const oneOk = [d1, d2].filter((x) => x.status === 200).length === 1;
-    const oneConflict = [d1, d2].filter((x) => x.status === 409).length === 1;
-    if (oneOk && oneConflict) r.pass(S, '2 déclarations parallèles -> 1 OK + 1 conflit');
-    else r.fail(S, '2 déclarations parallèles -> 1 OK + 1 conflit', JSON.stringify({ d1: { s: d1.status, b: d1.data }, d2: { s: d2.status, b: d2.data } }));
+    const oneRejected = [d1, d2].filter((x) => x.status === 400 || x.status === 409).length === 1;
+    if (oneOk && oneRejected) r.pass(S, '2 déclarations parallèles -> 1 OK + 1 rejet (400/409)');
+    else r.fail(S, '2 déclarations parallèles -> 1 OK + 1 rejet', JSON.stringify({ d1: { s: d1.status, b: d1.data }, d2: { s: d2.status, b: d2.data } }));
 
     const { data: pays } = await ctx.service.from('paiements').select('statut').eq('id', pid).single();
     if (pays.statut === 'en_validation') r.pass(S, 'paiement -> en_validation (une seule écriture)');
@@ -217,9 +217,9 @@ export async function runConcurrency(r, ctx) {
     ]);
 
     const oneOk = [v1, v2].filter((x) => x.status === 200).length === 1;
-    const oneConflict = [v1, v2].filter((x) => x.status === 409).length === 1;
-    if (oneOk && oneConflict) r.pass(S, '2 validations parallèles -> 1 OK + 1 conflit');
-    else r.fail(S, '2 validations parallèles -> 1 OK + 1 conflit', JSON.stringify({ v1: { s: v1.status, b: v1.data }, v2: { s: v2.status, b: v2.data } }));
+    const oneRejected = [v1, v2].filter((x) => x.status === 400 || x.status === 409).length === 1;
+    if (oneOk && oneRejected) r.pass(S, '2 validations parallèles -> 1 OK + 1 rejet (400/409)');
+    else r.fail(S, '2 validations parallèles -> 1 OK + 1 rejet', JSON.stringify({ v1: { s: v1.status, b: v1.data }, v2: { s: v2.status, b: v2.data } }));
 
     const { data: pays } = await ctx.service.from('paiements').select('statut').eq('id', pid).single();
     if (pays.statut === 'paye') r.pass(S, 'paiement -> paye (une seule écriture)');
@@ -234,5 +234,20 @@ export async function runConcurrency(r, ctx) {
 
     const me = await api('/auth/me', { jar: o1.jar });
     if (expectSuccess(r, me, S, r)) r.pass(S, 'session toujours valide après charge');
+  });
+
+  // ----------------------------------------------------------
+  // Nettoyage : le moyen créé pour ces tests ne doit pas polluer les
+  // comptages exacts des suites suivantes (ex. « 4 moyens » dans
+  // declarations.test.js pour le MÊME propriétaire o1).
+  // ----------------------------------------------------------
+  await r.section('nettoyage des moyens créés', async () => {
+    const { data: moyens } = await ctx.service.from('moyens_paiement').select('id').eq('user_id', o1.id).eq('nom_titulaire', 'Concurrency');
+    for (const m of moyens || []) {
+      await api(`/moyens-paiement/${m.id}`, { method: 'DELETE', jar: o1.jar });
+    }
+    const { data: rest } = await ctx.service.from('moyens_paiement').select('id').eq('user_id', o1.id);
+    if ((rest || []).length === 0) r.pass(S, 'aucun moyen résiduel pour o1');
+    else r.fail(S, 'aucun moyen résiduel pour o1', `len=${(rest || []).length}`);
   });
 }

@@ -26,9 +26,17 @@ body {
         #f3e8f8,
         #e8e5e6
     );*/
-    background : #251951;
+    background : linear-gradient(
+        45deg,
+        #1f0101,
+        #1b0027,
+        #1f000b
+    );
 
     color: #222;
+}
+a:hover{
+    text-decoration: none;
 }
 
 

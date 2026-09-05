@@ -593,8 +593,8 @@
                 },
                 {
                     name: "mois",
-                    test: (i) => !i.value,
-                    message: "Indiquez le mois concerné.",
+                    test: (i) => !i.value || i.value > currentMonth(),
+                    message: "Indiquez le mois concerné (mois courant ou mois passé, jamais un mois futur).",
                 },
                 {
                     name: "montant",
