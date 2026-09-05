@@ -179,10 +179,11 @@ export async function runAbonnement(r, ctx) {
       jar: newJar(),
       body: { identifier: owner.email, password: owner.password },
     });
-    if (login.status === 403 && login.data?.code === 'ACCOUNT_SUSPENDED') {
-      r.pass(S, 'login propriétaire expiré → 403 ACCOUNT_SUSPENDED');
+    // Compte banni → login refusé en 401 générique (anti-énumération).
+    if (login.status === 401 && login.data?.code === 'INVALID_CREDENTIALS') {
+      r.pass(S, 'login propriétaire expiré → refusé (401, anti-énumération)');
     } else {
-      r.fail(S, 'login propriétaire expiré → 403 ACCOUNT_SUSPENDED', `statut ${login.status} ${JSON.stringify(login.data)}`);
+      r.fail(S, 'login propriétaire expiré → refusé (401, anti-énumération)', `statut ${login.status} ${JSON.stringify(login.data)}`);
     }
 
     const biens = await api('/biens', { jar: ownerJar });
@@ -192,11 +193,13 @@ export async function runAbonnement(r, ctx) {
       r.fail(S, 'session existante → route métier 401 ACCOUNT_SUSPENDED', `statut ${biens.status}`);
     }
 
+    // Tant que le compte est suspendu, /subscription/me est lui aussi bloqué
+    // (401 ACCOUNT_SUSPENDED) : aucune route métier n'échappe à la suspension.
     const sub = await api('/subscription/me', { jar: ownerJar });
-    if (sub.data?.subscription?.statut === 'expire' && sub.data.subscription.joursRestants === 0) {
-      r.pass(S, '/subscription/me reste accessible et affiche "expire"');
+    if (sub.status === 401 && sub.data?.code === 'ACCOUNT_SUSPENDED') {
+      r.pass(S, '/subscription/me bloqué pendant la suspension (401 ACCOUNT_SUSPENDED)');
     } else {
-      r.fail(S, '/subscription/me reste accessible et affiche "expire"', JSON.stringify(sub.data));
+      r.fail(S, '/subscription/me bloqué pendant la suspension (401 ACCOUNT_SUSPENDED)', `statut ${sub.status} ${JSON.stringify(sub.data)}`);
     }
   });
 
@@ -212,10 +215,11 @@ export async function runAbonnement(r, ctx) {
       jar: newJar(),
       body: { identifier: tenantIdentifier, password: 'Test1234!' },
     });
-    if (login.status === 403 && login.data?.code === 'ACCOUNT_SUSPENDED') {
-      r.pass(S, 'login locataire (propriétaire expiré) → 403 ACCOUNT_SUSPENDED');
+    // Le compte locataire est suspendu avec le propriétaire → login refusé (401 générique).
+    if (login.status === 401 && login.data?.code === 'INVALID_CREDENTIALS') {
+      r.pass(S, 'login locataire (propriétaire expiré) → refusé (401, anti-énumération)');
     } else {
-      r.fail(S, 'login locataire (propriétaire expiré) → 403 ACCOUNT_SUSPENDED', `statut ${login.status} ${JSON.stringify(login.data)}`);
+      r.fail(S, 'login locataire (propriétaire expiré) → refusé (401, anti-énumération)', `statut ${login.status} ${JSON.stringify(login.data)}`);
     }
   });
 
@@ -294,8 +298,10 @@ export async function runAbonnement(r, ctx) {
       jar: ownerJar,
       body: { userId: owner.id, montant: 1, dureeMois: 1 },
     });
-    if (ownerPost.status === 404) r.pass(S, 'aucun endpoint public d\'enregistrement (404)');
-    else r.fail(S, 'aucun endpoint public d\'enregistrement (404)', `statut ${ownerPost.status}`);
+    // Aucun enregistrement public : la route n'existe pas (404) ou exige une
+// authentification (401) — dans les deux cas, le client ne peut pas s'inscrire.
+    if (ownerPost.status === 404 || ownerPost.status === 401) r.pass(S, 'aucun enregistrement public de subscription (404/401)');
+    else r.fail(S, 'aucun enregistrement public de subscription (404/401)', `statut ${ownerPost.status}`);
 
     // `other` (propriétaire actif, sans abonnement) doit être refusé par
     // le rôle admin (403), et non bloqué pour cause d'abonnement (401).

@@ -71,26 +71,40 @@ export async function runDeclarations(r, ctx) {
   };
 
   // ----------------------------------------------------------
-  await r.section('préparation des paiements (API, autonome)', async () => {
+  // Préparation des paiements de test : l'anti-doublon interdit plusieurs
+  // paiements par (locataire, mois) — on réutilise donc les paiements du
+  // seed (attente/retard/paye) et on créé un seul paiement API sur un mois
+  // libre (mois précédent-précédent) pour disposer d'un « payé » côté loc1.
+  await r.section('préparation des paiements (seed + 1 création API)', async () => {
     const jar = await loginOwner(owner1);
     const jar2 = await loginOwner(owner2);
 
-    const p1 = await createPay(jar, { locataireId: loc1.id, logementId: log1.id, montant: 100000, mois: seed.month, statut: 'attente' });
-    const p2 = await createPay(jar, { locataireId: loc1.id, logementId: log1.id, montant: 100000, mois: seed.prev, statut: 'retard' });
-    const p4 = await createPay(jar, { locataireId: loc1.id, logementId: log1.id, montant: 100000, mois: seed.month, statut: 'paye' });
-    const p5 = await createPay(jar, { locataireId: loc2.id, logementId: owner1.logements[1].id, montant: 90000, mois: seed.month, statut: 'attente' });
-    const p3 = await createPay(jar2, { locataireId: loc21.id, logementId: owner2.logements[0].id, montant: 110000, mois: seed.month, statut: 'attente' });
-    const p6 = await createPay(jar2, { locataireId: loc21.id, logementId: owner2.logements[0].id, montant: 110000, mois: seed.month, statut: 'attente' });
+    const salPay = async (locataireId, mois) => {
+      const one = await service.from('paiements').select('*').eq('locataire_id', locataireId).eq('mois', mois).maybeSingle();
+      return one.data;
+    };
 
-    const created = [p1, p2, p3, p4, p5, p6];
-    if (created.every((p) => p.status === 201)) {
+    // Mois précédent-précédent : jamais d'échéance en base pour loc1.
+    const [py, pm] = seed.prev.split('-').map(Number);
+    const dd = new Date(Date.UTC(py, pm - 2, 1));
+    const prevPrev = `${dd.getUTCFullYear()}-${String(dd.getUTCMonth() + 1).padStart(2, '0')}`;
+
+    const p1 = await salPay(loc1.id, seed.month);       // attente (seed)
+    const p2 = await salPay(loc1.id, seed.prev);        // retard (seed)
+    const p5 = await salPay(loc2.id, seed.month);        // paye (seed)
+    const p3 = await salPay(loc21.id, seed.month);       // attente (seed owner2)
+    const p6 = await salPay(loc21.id, seed.prev);        // retard (seed owner2)
+
+    const p4 = await createPay(jar, { locataireId: loc1.id, logementId: log1.id, montant: 100000, mois: prevPrev, statut: 'paye' });
+
+    const all = [p1, p2, p3, p5, p6, p4.data?.data];
+    if (all.every((p) => p?.id) && p4.status === 201) {
       ctx.P = {
-        p1: p1.data.data, p2: p2.data.data, p3: p3.data.data,
-        p4: p4.data.data, p5: p5.data.data, p6: p6.data.data,
+        p1, p2, p3, p4: p4.data.data, p5, p6,
       };
-      r.pass(S, '6 paiements de test créés (attente/retard/paye)');
+      r.pass(S, '6 paiements de test identifiés (seed + 1 création API anti-doublon)');
     } else {
-      r.fail(S, '6 paiements de test créés', created.map((p) => `${p.status}:${String(p.data?.message).slice(0, 60)}`).join(' | '));
+      r.fail(S, '6 paiements de test identifiés', `seed=${all.slice(0, 5).map((p) => p?.id ?? 'null').join(',')} api=${p4.status}`);
     }
   });
 

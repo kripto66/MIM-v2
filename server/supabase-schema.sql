@@ -1,3 +1,7 @@
+--
+-- PostgreSQL database dump
+--
+
 -- ============================================================
 -- MyImmoManagement - Schéma Supabase (référence)
 -- Généré par pg_dump 17.6 depuis la base de développement
@@ -7,10 +11,6 @@
 -- Pour appliquer : Supabase SQL Editor → New query (ou psql).
 -- À régénérer après toute migration.
 -- ============================================================
-
---
--- PostgreSQL database dump
---
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 17.6
@@ -1395,6 +1395,13 @@ CREATE INDEX idx_platform_events_date ON public.platform_events USING btree (eve
 --
 
 CREATE INDEX idx_platform_events_status ON public.platform_events USING btree (status);
+
+
+--
+-- Name: paiements_locataire_mois_uidx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE UNIQUE INDEX paiements_locataire_mois_uidx ON public.paiements USING btree (user_id, locataire_id, mois) WHERE (locataire_id IS NOT NULL);
 
 
 --
@@ -3055,5 +3062,5 @@ ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON T
 -- PostgreSQL database dump complete
 --
 
-\unrestrict tfK58Aw0wHzfDDK59cFFXmKCOWQ3faydUlyJjf5lERIubbpAEEZy4Uus5e8MfeR
+\unrestrict bwUxgSygjgq3DBRgZDldh5DBYLRZXkRnHeUwv5fPCFrWiFED6CxmxZ7YHHJbeIk
 

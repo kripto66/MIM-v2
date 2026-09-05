@@ -244,14 +244,15 @@ export async function runSimplif(runner, ctx) {
     });
     if (!expectSuccess(runner, created, S, 'création employé (username auto)')) return;
     const username = created.data.account.username;
+    const password = created.data.account.password;
 
     const ejar = newJar();
     const login = await api('/auth/login', {
       method: 'POST',
       jar: ejar,
-      body: { identifier: username, password: '1234' },
+      body: { identifier: username, password },
     });
-    if (!expectSuccess(runner, login, S, 'première connexion (1234)')) return;
+    if (!expectSuccess(runner, login, S, 'première connexion (mdp initial)')) return;
     if (login.data.mustChangePassword === true) runner.pass(S, 'mustChangePassword renvoyé au premier login');
     else runner.fail(S, 'mustChangePassword renvoyé au premier login', String(login.data.mustChangePassword));
 
@@ -265,7 +266,7 @@ export async function runSimplif(runner, ctx) {
       const relog = await api('/auth/login', {
         method: 'POST',
         jar: newJar(),
-        body: { identifier: 'simplif.renomme', password: '1234' },
+        body: { identifier: 'simplif.renomme', password },
       });
       if (relog.status === 200) runner.pass(S, 'connexion avec le nouveau username');
       else runner.fail(S, 'connexion avec le nouveau username', `statut ${relog.status}`);
@@ -464,7 +465,7 @@ export async function runSimplif(runner, ctx) {
     const login = await api('/auth/login', {
       method: 'POST',
       jar: ejar,
-      body: { identifier: created.data.account.username, password: '1234' },
+      body: { identifier: created.data.account.username, password: created.data.account.password },
     });
     if (!expectSuccess(runner, login, S, 'connexion de l\'employé résolveur')) return;
 
@@ -529,7 +530,7 @@ export async function runSimplif(runner, ctx) {
     const login2 = await api('/auth/login', {
       method: 'POST',
       jar: ejar2,
-      body: { identifier: created2.data.account.username, password: '1234' },
+      body: { identifier: created2.data.account.username, password: created2.data.account.password },
     });
     if (expectSuccess(runner, login2, S, 'connexion de l\'employé étranger')) {
       const tryA2 = await api(`/employe/incidents/${incA.id}/resoudre`, { method: 'POST', jar: ejar2, body: {} });
@@ -631,7 +632,7 @@ export async function runSimplif(runner, ctx) {
     const elogin = await api('/auth/login', {
       method: 'POST',
       jar: ejar,
-      body: { identifier: created.data.account.username, password: '1234' },
+      body: { identifier: created.data.account.username, password: created.data.account.password },
     });
     if (!expectSuccess(runner, elogin, S, 'connexion de l\'employé (flux incident)')) return;
 

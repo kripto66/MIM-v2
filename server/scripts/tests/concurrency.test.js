@@ -8,12 +8,18 @@ const S = 'concurrence';
 
 // Crée un loyer en attente pour le locataire locIndex d'o1.
 // Retourne { pid, jarT }.
+// Le mois du seed possède déjà une échéance (créée à la création du
+// locataire) → l'anti-doublon refuse un second paiement pour ce mois ;
+// on utilise donc un mois libre (mois précédent-précédent).
 async function setupLoyer(ctx, o1, locIndex, amount) {
   const loc = o1.locataires[locIndex];
+  const [py, pm] = ctx.seed.month.split('-').map(Number);
+  const dd = new Date(Date.UTC(py, pm - 3, 1));
+  const freeMonth = `${dd.getUTCFullYear()}-${String(dd.getUTCMonth() + 1).padStart(2, '0')}`;
   const p = await api('/paiements', {
     method: 'POST',
     jar: o1.jar,
-    body: { locataire_id: loc.id, logement_id: o1.logements[locIndex].id, montant: amount, mois: ctx.seed.month, statut: 'attente' },
+    body: { locataire_id: loc.id, logement_id: o1.logements[locIndex].id, montant: amount, mois: freeMonth, statut: 'attente' },
   });
   if (p.status !== 201) throw new Error(`création paiement : ${p.status} ${JSON.stringify(p.data)}`);
   const pid = p.data.data.id;
@@ -154,6 +160,13 @@ export async function runConcurrency(r, ctx) {
   // ----------------------------------------------------------
   await r.section('déclarations parallèles (dédup atomique)', async () => {
     const { pid } = await setupLoyer(ctx, o1, 6, 55000);
+    // Aucun moyen configuré par le seed → on en crée un pour o1.
+    const uw = await api('/moyens-paiement', {
+      method: 'POST',
+      jar: o1.jar,
+      body: { type: 'wave', nom_titulaire: 'Concurrency', numero: '+221772222222', instructions: 'Test' },
+    });
+    if (uw.status !== 201) return r.blocked(S, 'déclarations parallèles', `création moyen ${uw.status}`);
     const { data: moyens } = await ctx.service.from('moyens_paiement').select('id').eq('user_id', o1.id);
     const moyen = (moyens || [])[0];
     if (!moyen) return r.blocked(S, 'déclarations parallèles', 'aucun moyen de paiement configuré pour o1');

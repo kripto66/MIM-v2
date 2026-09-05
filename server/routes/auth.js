@@ -1068,6 +1068,20 @@ router.put('/update-profile', authenticate, async (req, res) => {
     return res.status(400).json({ success: false, message: 'Erreur lors de la mise à jour du profil.' });
   }
 
+  // Synchroniser le nom dans la fiche (locataires / employés) afin que la
+  // fiche affichée là où le propriétaire la voit reflète le profil.
+  try {
+    const syncedName = name.trim();
+    const syncedPhone = phone ? phone.trim() : '';
+    if (req.user.account_type === 'locataire') {
+      await serviceClient().from('locataires').update({ nom: syncedName, phone: syncedPhone }).eq('account_uid', req.user.id);
+    } else if (req.user.account_type === 'employe') {
+      await serviceClient().from('employes').update({ nom: syncedName, phone: syncedPhone }).eq('account_uid', req.user.id);
+    }
+  } catch (err) {
+    console.warn('[update-profile] fiche non synchronisée', err.message);
+  }
+
   gitAutoBackup(`Sauvegarde auto : mise à jour du profil ${req.user.id}`);
 
   res.json({ success: true, message: 'Profil mis à jour avec succès.' });

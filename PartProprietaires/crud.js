@@ -48,6 +48,8 @@ const CrudPage = {
   render(items) {
     this._currentItems = items;
 
+    if (this.config.filter) items = items.filter((item) => this.config.filter(item));
+
     if (!items.length) {
       this.listEl.innerHTML = '<div class="empty-state">Aucun élément pour le moment.</div>';
       return;

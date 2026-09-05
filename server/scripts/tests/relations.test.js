@@ -157,7 +157,7 @@ export async function runRelations(r, ctx) {
   });
 
   // ----------------------------------------------------------
-  await r.section('suppression bien avec logements (FK SET NULL)', async () => {
+  await r.section('suppression bien avec logements (refus sécurisé)', async () => {
     const bien = await api('/biens', { method: 'POST', jar, body: { nom: 'Rel Bien', type: 'villa' } });
     if (!expectSuccess(r, bien, S, r, [201])) return;
     const bienId = bien.data.data.id;
@@ -170,13 +170,17 @@ export async function runRelations(r, ctx) {
     if (!expectSuccess(r, lg, S, r, [201])) return;
     const lgId = lg.data.data.id;
 
+    // Un bien contenant des logements ne se supprime PAS (garde serveur) :
+    // éviter la dérive de données (logements sans bien).
+    const blocked = await api(`/biens/${bienId}`, { method: 'DELETE', jar });
+    if (blocked.status === 400) r.pass(S, 'bien avec logements → suppression refusée (400)');
+    else r.fail(S, 'bien avec logements → suppression refusée (400)', `statut ${blocked.status}`);
+
+    // Après suppression des logements, la suppression du bien réussit.
+    const delLg = await api(`/logements/${lgId}`, { method: 'DELETE', jar });
+    if (!expectSuccess(r, delLg, S, r)) return;
     const delBien = await api(`/biens/${bienId}`, { method: 'DELETE', jar });
-    if (expectSuccess(r, delBien, S, r)) r.pass(S, 'bien supprimé (avec logement attaché)');
-
-    const { data: after } = await service.from('logements').select('id, bien_id').eq('id', lgId).single();
-    if (after && after.bien_id === null) r.pass(S, 'logement conservé avec bien_id NULL (FK SET NULL)');
-    else r.fail(S, 'logement conservé avec bien_id NULL (FK SET NULL)', JSON.stringify(after));
-
-    await api(`/logements/${lgId}`, { method: 'DELETE', jar });
+    if (expectSuccess(r, delBien, S, r)) r.pass(S, 'bien supprimé après suppression des logements');
+    else r.fail(S, 'bien supprimé après suppression des logements', JSON.stringify(delBien.data));
   });
 }

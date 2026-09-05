@@ -84,6 +84,10 @@
                     <h2>Liste des employés</h2>
                 </div>
 
+                <div class="search-bar">
+                    <input type="search" id="employeSearch" placeholder="🔎 Rechercher un employé (nom, username, poste, téléphone)…">
+                </div>
+
                 <div id="employesList">
                     <div class="empty-state">Chargement...</div>
                 </div>
@@ -135,7 +139,7 @@
                 </div>
                 <div class="form-hint" id="empAutoHint">
                     Laissez ces deux champs vides : MIM générera automatiquement le username
-                    (ex : prenom.nom) et un mot de passe initial temporaire (1234) à changer
+                    (imprévisible) et un mot de passe initial temporaire à changer
                     à la première connexion.
                 </div>
 
@@ -344,7 +348,7 @@
             termine: ["Terminée", "status-success"],
         };
 
-        const state = { employes: [], taches: [], biens: [], tab: "employes" };
+        const state = { employes: [], taches: [], biens: [], tab: "employes", search: "" };
         let employeeEditId = null;
         let taskEditId = null;
 
@@ -357,6 +361,10 @@
         function formatFCFA(value) {
             const n = Number(value || 0);
             return n.toLocaleString("fr-FR") + " FCFA";
+        }
+
+        function escapeAttr(v) {
+            return String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         }
 
         // Mois suivant (format YYYY-MM) pour pré-remplir un salaire mensuel.
@@ -402,17 +410,29 @@ async function loadAll() {
 
         function renderEmployes() {
             const list = el("employesList");
-            if (!state.employes.length) {
-                list.innerHTML = '<div class="empty-state">Aucun employé pour le moment. Créez le premier compte avec le bouton « + Ajouter un employé ».</div>';
+            const needle = (state.search || "").trim().toLowerCase();
+            const filtered = needle
+                ? state.employes.filter((e) => {
+                    const hay = `${e.nom || ""} ${e.username || ""} ${e.poste || ""} ${e.phone || ""} ${e.email || ""}`.toLowerCase();
+                    return hay.includes(needle);
+                })
+                : state.employes;
+            if (!filtered.length) {
+                list.innerHTML = state.employes.length
+                    ? '<div class="empty-state">Aucun employé ne correspond à cette recherche.</div>'
+                    : '<div class="empty-state">Aucun employé pour le moment. Créez le premier compte avec le bouton « + Ajouter un employé ».</div>';
                 return;
             }
-list.innerHTML = state.employes.map((e) => {
+list.innerHTML = filtered.map((e) => {
                 const [label, cls] = EMPLOYE_STATUS[e.statut] || [e.statut, "status-info"];
                 const biens = (e.biens || []).map((b) => escapeHtml(b.nom)).filter(Boolean).join(", ");
+                const avatar = e.avatar_url
+                    ? `<img src="${escapeAttr(e.avatar_url)}" alt="" class="avatar-sm-card">`
+                    : "";
                 return `
                     <div class="crud-card">
                         <div>
-                            <h3>${escapeHtml(e.nom)}</h3>
+                            <h3>${avatar}${escapeHtml(e.nom)}</h3>
                             <p>${e.poste ? escapeHtml(e.poste) + " · " : ""}${e.account_uid ? "Compte actif" : "Sans compte"}${e.phone ? " · " + escapeHtml(e.phone) : ""}${e.email ? " — " + escapeHtml(e.email) : ""}</p>
                             <p><strong>${formatFCFA(e.salaire)}</strong> / mois</p>
                             <p>${biens ? "<span class=\"logement-chip\">Biens : " + biens + "</span>" : ""}</p>
@@ -830,6 +850,11 @@ const lab = p.statut === "paye" ? "Payé" : "En attente";
 el("employeeForm").addEventListener("submit", submitEmployee);
             el("payForm").addEventListener("submit", submitPayment);
             el("taskForm").addEventListener("submit", submitTask);
+
+            el("employeSearch").addEventListener("input", (e) => {
+                state.search = e.target.value;
+                renderEmployes();
+            });
 
             el("emp_username").addEventListener("blur", async () => {
                 const input = el("emp_username");

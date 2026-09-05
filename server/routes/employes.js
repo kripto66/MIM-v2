@@ -121,6 +121,16 @@ router.get('/', async (req, res) => {
       };
     });
 
+    // Enrichissement : avatar réel du profil. La RLS empêche le
+    // propriétaire de lire profiles des autres → client service.
+    const uids = [...new Set((employes || []).map((e) => e.account_uid).filter(Boolean))];
+    const avatars = {};
+    if (uids.length) {
+      const { data: profs } = await sb.from('profiles').select('id, avatar_url').in('id', uids);
+      for (const p of profs || []) avatars[p.id] = p.avatar_url || null;
+    }
+    for (const e of data) e.avatar_url = avatars[e.account_uid] || null;
+
     res.json({ success: true, data });
   } catch (err) {
     console.error('[employes]', err.message);
@@ -136,9 +146,9 @@ router.post('/', async (req, res) => {
   const ownerId = req.user.id;
 
   // Mode automatique (comme pour les locataires) : quand le propriétaire ne
-  // fournit ni username ni mot de passe, MIM génère le username depuis le
-  // nom complet (ex. amadou.diop, amadou.diop2, …) et le mot de passe
-  // initial temporaire (1234, must_change_password = true).
+  // fournit ni username ni mot de passe, MIM génère le username (préfixe
+  // lisible + jeton aléatoire, imprévisible) et le mot de passe initial
+  // temporaire (aléatoire, must_change_password = true).
   const autoAccount = !req.body?.username && !req.body?.password;
   const username = String(req.body.username || '').trim().toLowerCase();
   const password = autoAccount ? INITIAL_PASSWORD : String(req.body.password || '');

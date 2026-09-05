@@ -69,14 +69,17 @@ export async function runComplet(r, ctx) {
       const meta = await api(`/${base}/meta`, { jar });
       const cats = Array.isArray(meta.data?.categories) ? meta.data.categories : [];
       const okCats = ['biens', 'logements', 'locataires', 'employes'].every((c) => cats.includes(c));
+      const okPw =
+        typeof meta.data?.initialPassword === 'string' &&
+        /^Mim@[A-Za-z0-9]{6}!$/.test(meta.data.initialPassword);
       if (
         expectSuccess(r, meta, S, `GET /${base}/meta`) &&
         okCats &&
-        meta.data.initialPassword === '1234'
+        okPw
       ) {
-        r.pass(S, `${base}/meta : catégories complètes + mot de passe initial 1234`);
-      } else if (!okCats || meta.data?.initialPassword !== '1234') {
-        r.fail(S, `${base}/meta : catégories complètes + mot de passe initial 1234`, cats.join(','));
+        r.pass(S, `${base}/meta : catégories complètes + mot de passe initial aléatoire`);
+      } else if (!okCats || !okPw) {
+        r.fail(S, `${base}/meta : catégories complètes + mot de passe initial aléatoire`, cats.join(','));
       }
     }
   });
@@ -134,15 +137,16 @@ export async function runComplet(r, ctx) {
     });
     if (!expectSuccess(r, created, S, 'création employé auto')) return;
     const username = created.data.account.username;
+    const password = created.data.account.password;
     const empId = created.data.data.id;
 
     const ejar = newJar();
     const login = await api('/auth/login', {
       method: 'POST',
       jar: ejar,
-      body: { identifier: username, password: '1234' },
+      body: { identifier: username, password },
     });
-    if (!expectSuccess(r, login, S, 'première connexion employé (1234)')) return;
+    if (!expectSuccess(r, login, S, 'première connexion employé (mdp initial)')) return;
     if (login.data.mustChangePassword === true) r.pass(S, 'mustChangePassword au premier login');
     else r.fail(S, 'mustChangePassword au premier login', String(login.data.mustChangePassword));
 
@@ -408,7 +412,7 @@ export async function runMatrice(r, ctx) {
   const logE = await api('/auth/login', {
     method: 'POST',
     jar: jars.employe,
-    body: { identifier: emp.data.account.username, password: '1234' },
+    body: { identifier: emp.data.account.username, password: emp.data.account.password },
   });
   if (logE.status !== 200) {
     r.fail(M, 'connexion employé', `statut ${logE.status}`);

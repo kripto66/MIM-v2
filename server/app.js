@@ -198,6 +198,7 @@ app.use('/api/employe', authenticate, requireActive, requireRole('employe'), emp
 app.use('/api/paiements-validation', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), validationsRoutes);
 app.use('/api/moyens-paiement', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), moyensPaiementRoutes);
 app.use('/api/import', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), importRoutes);
+app.use('/api/onboarding', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), importRoutes);
 app.use('/api/upload', authenticate, requireActive, uploadRoutes);
 
 const ownerOnly = requireRole('proprietaire', 'agence', 'entreprise');

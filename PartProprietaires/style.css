@@ -1009,6 +1009,20 @@ tr:last-child td {
     color: #333;
 }
 
+.crud-card h3 .avatar-sm-card {
+    width: 28px;
+
+    height: 28px;
+
+    margin-right: 8px;
+
+    border-radius: 50%;
+
+    object-fit: cover;
+
+    vertical-align: middle;
+}
+
 .crud-card p {
     margin-bottom: 4px;
 
