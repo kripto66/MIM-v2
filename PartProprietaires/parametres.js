@@ -44,6 +44,11 @@ async function loadSubscription() {
                 '<p class="muted">Aucun abonnement enregistré. Contactez l\'administration MIM pour souscrire.</p>';
             return;
         }
+        const pending = subscription.paiement && subscription.paiement.overlay;
+        const pendingHtml = pending
+            ? '<p class="pay-hint">Paiement ' + escapeHtml(subscription.paiement.statut || "en attente") +
+              ' (ref. ' + escapeHtml(subscription.reference_abonnement || "") + ") en cours de validation…</p>"
+            : "";
         const badge =
             subscription.statut === "actif"
                 ? '<span class="sub-badge sub-ok">Abonnement actif</span>'
@@ -51,17 +56,21 @@ async function loadSubscription() {
         panel.innerHTML =
             '<div class="sub-card">' +
             '<div class="sub-head">' + badge +
-            "<span>Plan : <strong>" + (subscription.plan || "standard") + "</strong></span>" +
+            "<span>Plan : <strong>" + escapeHtml(subscription.planNom || subscription.plan || "standard") + "</strong></span>" +
             "<span>Jours restants : <strong>" + subscription.joursRestants + "</strong></span>" +
-            "</div>" +
+            "</div>" + pendingHtml +
             "<ul class='sub-list'>" +
+            "<li>Limite d'immeubles : <strong>" + (subscription.immeubles ? subscription.immeubles.count + " / " + (subscription.immeubles.max ?? "∞") : "—") + "</strong></li>" +
             "<li>Début : " + fmtDateFR(subscription.date_debut) + "</li>" +
             "<li>Expiration : " + fmtDateFR(subscription.date_expiration) + "</li>" +
             "<li>Dernier paiement : " + fmtDateFR(subscription.date_paiement) + "</li>" +
             "<li>Montant : " + (subscription.montant != null ? subscription.montant.toLocaleString("fr-FR") + " FCFA" : "—") + "</li>" +
             "<li>Méthode : " + (subscription.methode_paiement || "—") + "</li>" +
             "<li>Référence : " + (subscription.reference || "—") + "</li>" +
-            "</ul></div>";
+            "</ul>" +
+            '<a class="btn btn-primary" href="abonnements.html">Renouveler / gérer en ligne</a>' +
+            "</div>" +
+            '<p class="pay-hint">Paiement en ligne sécurisé Bictorys.</p>';
     } catch (err) {
         panel.innerHTML = "<p class='muted'>Impossible de charger l'abonnement : " + escapeHtml(err.message) + "</p>";
     }

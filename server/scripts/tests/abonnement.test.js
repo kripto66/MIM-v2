@@ -161,7 +161,10 @@ export async function runAbonnement(r, ctx) {
   });
 
   // ----------------------------------------------------------
-  // 6 + 7. Expiration → login bloqué + routes métier bloquées.
+  // 6 + 7. Expiration → le login RENOUVELABLE est autorisé (l'abonné
+  //         se reconnecte pour payer en ligne), les routes métier
+  //         restent bloquées (les locataires d'un autre propriétaire,
+  //         eux, restent refusés au login).
   // ----------------------------------------------------------
   await r.section('abonnement : expiration du propriétaire', async () => {
     const { error } = await service
@@ -174,16 +177,25 @@ export async function runAbonnement(r, ctx) {
     }
     await sleep(CACHE_SLEEP_MS);
 
+    // Le propriétaire expiré PEUT se reconnecter pour renouveler en ligne.
     const login = await api('/auth/login', {
       method: 'POST',
       jar: newJar(),
       body: { identifier: owner.email, password: owner.password },
     });
-    // Compte banni → login refusé en 401 générique (anti-énumération).
-    if (login.status === 401 && login.data?.code === 'INVALID_CREDENTIALS') {
-      r.pass(S, 'login propriétaire expiré → refusé (401, anti-énumération)');
+    if (login.status === 200) {
+      r.pass(S, 'login propriétaire expiré → autorisé (renouvellement en ligne)');
     } else {
-      r.fail(S, 'login propriétaire expiré → refusé (401, anti-énumération)', `statut ${login.status} ${JSON.stringify(login.data)}`);
+      r.fail(S, 'login propriétaire expiré → autorisé (renouvellement en ligne)', `statut ${login.status} ${JSON.stringify(login.data)}`);
+    }
+
+    // L'auto-service /subscription est disponible pendant l'expiration :
+    // statut calculé côté serveur = 'expire', aucune autre route ne l'est.
+    const sub = await api('/subscription/me', { jar: ownerJar });
+    if (sub.status === 200 && sub.data?.subscription?.statut === 'expire') {
+      r.pass(S, '/subscription/me disponible pendant l\'expiration → statut \'expire\'');
+    } else {
+      r.fail(S, '/subscription/me disponible pendant l\'expiration → statut \'expire\'', `statut ${sub.status} ${JSON.stringify(sub.data)}`);
     }
 
     const biens = await api('/biens', { jar: ownerJar });
@@ -191,15 +203,6 @@ export async function runAbonnement(r, ctx) {
       r.pass(S, 'session existante → route métier 401 ACCOUNT_SUSPENDED');
     } else {
       r.fail(S, 'session existante → route métier 401 ACCOUNT_SUSPENDED', `statut ${biens.status}`);
-    }
-
-    // Tant que le compte est suspendu, /subscription/me est lui aussi bloqué
-    // (401 ACCOUNT_SUSPENDED) : aucune route métier n'échappe à la suspension.
-    const sub = await api('/subscription/me', { jar: ownerJar });
-    if (sub.status === 401 && sub.data?.code === 'ACCOUNT_SUSPENDED') {
-      r.pass(S, '/subscription/me bloqué pendant la suspension (401 ACCOUNT_SUSPENDED)');
-    } else {
-      r.fail(S, '/subscription/me bloqué pendant la suspension (401 ACCOUNT_SUSPENDED)', `statut ${sub.status} ${JSON.stringify(sub.data)}`);
     }
   });
 

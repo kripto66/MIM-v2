@@ -7,6 +7,7 @@ import { Router } from 'express';
 import { serviceClient } from '../app.js';
 import { notify } from '../utils/notifications.js';
 import { invalidateSubscriptionCache } from '../utils/subscription.js';
+import { planByCode } from '../utils/plans.js';
 import { isBannedValue } from '../middleware/auth.js';
 import { methodeLabel } from '../utils/paiementMethodes.js';
 import { auditLog, LEVELS } from '../utils/audit.js';
@@ -87,6 +88,7 @@ async function loadPlatformDataUncached() {
     interventions,
     sessions,
     subscriptions,
+    abonnementPaiements,
   ] = await Promise.all([
     fetchAll('profiles', 'id, account_type, name, email, phone, username, created_at'),
     listAllUsers(),
@@ -98,6 +100,7 @@ async function loadPlatformDataUncached() {
     fetchAll('interventions', 'id, user_id, logement_id, statut, created_at'),
     fetchAll('sessions', 'id, user_id, action, created_at, logout_at, user_agent'),
     fetchAll('subscriptions', 'id, user_id, plan, statut, date_debut, date_expiration, date_paiement, montant, methode_paiement, reference'),
+    fetchAll('abonnement_paiements', 'id, user_id, plan, montant, devise, provider, statut, transaction_id, reference, methode_paiement, date_paiement, date_debut, date_expiration, created_at'),
   ]);
 
   const userById = new Map(users.map((u) => [u.id, u]));
@@ -120,6 +123,7 @@ async function loadPlatformDataUncached() {
     interventions,
     sessions,
     subscriptions,
+    abonnementPaiements,
     subByUserId,
   };
 }
@@ -308,6 +312,39 @@ router.get('/subscriptions', async (req, res) => {
   }
 });
 
+// Historique des paiements d'abonnement (toutes méthodes : manuel,
+// Bictorys…) avec le nom du propriétaire et le statut du paiement.
+router.get('/subscriptions/payments', async (req, res) => {
+  try {
+    const d = await loadPlatformData();
+
+    const data = d.abonnementPaiements
+      .map((p) => ({
+        id: p.id,
+        user_id: p.user_id,
+        proprietaire: d.ownerName(p.user_id),
+        plan: p.plan,
+        montant: Number(p.montant),
+        devise: p.devise || 'XOF',
+        provider: p.provider || 'manuel',
+        statut: p.statut,
+        methode_paiement: p.methode_paiement || null,
+        reference: p.reference || null,
+        transactionId: p.transaction_id || null,
+        date_paiement: p.date_paiement || null,
+        date_debut: p.date_debut || null,
+        date_expiration: p.date_expiration || null,
+        created_at: p.created_at || null,
+      }))
+      .sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('[admin/subscriptions/payments]', err.message);
+    res.status(500).json({ success: false, message: 'Erreur lors du chargement des paiements d\'abonnement.' });
+  }
+});
+
 // Enregistrement d'un paiement d'abonnement MIM par l'admin.
 // Flux manuel : l'admin enregistre l'encaissement (moyen déclaré par
 // le propriétaire) ; l'abonnement est activé immédiatement.
@@ -366,10 +403,16 @@ router.post('/subscriptions/register', async (req, res) => {
         reference: ref,
         date_debut: dateDebut,
         date_expiration: newExpiration.toISOString(),
+        provider: 'manuel',
+        statut: 'paid',
+        updated_at: now.toISOString(),
       })
       .select('*')
       .single();
     if (histErr) throw histErr;
+
+    // Plan du catalogue associé (limite d'immeubles appliquée côté serveur).
+    const planRef = await planByCode(hist.plan);
 
     // Activation / renouvellement de l'abonnement (échéance côté serveur).
     await sb
@@ -378,6 +421,7 @@ router.post('/subscriptions/register', async (req, res) => {
         {
           user_id: userId,
           plan: hist.plan,
+          plan_id: planRef?.id || null,
           statut: 'actif',
           date_debut: dateDebut,
           date_expiration: newExpiration.toISOString(),
@@ -385,6 +429,7 @@ router.post('/subscriptions/register', async (req, res) => {
           montant: Number(montant),
           methode_paiement: methode,
           reference: ref,
+          duree_abonnement: planRef?.duree_abonnement || duree,
           updated_at: now.toISOString(),
         },
         { onConflict: 'user_id' }

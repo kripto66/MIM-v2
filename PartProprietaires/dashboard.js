@@ -319,7 +319,7 @@ async function loadSubscriptionBanner() {
 
   if (!subscription) {
     el.className = "sub-banner sub-banner-info";
-    el.innerHTML = "Aucun abonnement MIM enregistré. Contactez l'administration pour souscrire.";
+    el.innerHTML = "Aucun abonnement MIM enregistré. <a class='sub-link' href='abonnements.html'>Souscrire en ligne</a>.";
     el.hidden = false;
     return;
   }
@@ -328,14 +328,14 @@ async function loadSubscriptionBanner() {
 
   if (subscription.statut === "expire" || days <= 0) {
     el.className = "sub-banner sub-banner-danger";
-    el.innerHTML = `Votre abonnement MIM est <strong>expiré</strong> (le ${formatDate(subscription.date_expiration)}). Veuillez contacter l'administration pour le renouveler.`;
+    el.innerHTML = `Votre abonnement MIM est <strong>expiré</strong> (le ${formatDate(subscription.date_expiration)}). <a class='sub-link' href='abonnements.html'>Renouveler en ligne</a>.`;
     el.hidden = false;
     return;
   }
 
   if (days <= 7) {
     el.className = "sub-banner sub-banner-warning";
-    el.innerHTML = `Votre abonnement MIM expire dans <strong>${days} jour${days > 1 ? "s" : ""}</strong> (le ${formatDate(subscription.date_expiration)}). Pensez à le renouveler.`;
+    el.innerHTML = `Votre abonnement MIM expire dans <strong>${days} jour${days > 1 ? "s" : ""}</strong> (le ${formatDate(subscription.date_expiration)}). <a class='sub-link' href='abonnements.html'>Renouveler en ligne</a>.`;
     el.hidden = false;
     return;
   }

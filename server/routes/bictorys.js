@@ -1,0 +1,61 @@
+// ============================================================
+// MIM - Webhook Bictorys (paiements d'abonnement)
+//
+// Reçoit les notifications de transaction Bictorys. Seul ce point
+// d'entrée peut ACTIVER un abonnement (statut `succeeded`) :
+// aucune autre route ne met à jour date_expiration sur un paiement
+// en ligne.
+//
+// Sécurité :
+//   * le header X-Secret-Key doit être égal à BICTORYS_WEBHOOK_SECRET ;
+//   * signature HMAC optionnelle vérifiée si présente ;
+//   * traitement idempotent (journal public.bictorys_webhooks) ;
+//   * le serveur répond TOUJOURS 200 quand l'événement est reçu et
+//     vérifié, même en cas d'erreur de traitement interne (Bictorys
+//     retenterait sinon jusqu'à 3 fois).
+//
+// Le corps est traité en BRUT (Buffer) : le route est montée avant
+// express.json dans app.js pour permettre la vérification de signature.
+// ============================================================
+
+import { Router } from 'express';
+import { verifyWebhook } from '../providers/bictorys.js';
+import { processWebhook } from '../utils/subscription.js';
+
+const router = Router();
+
+router.post('/bictorys', async (req, res) => {
+  const rawBody = req.body; // Buffer (express.raw)
+
+  const check = verifyWebhook({
+    rawBody,
+    headers: req.headers || {},
+  });
+
+  if (!check.ok) {
+    // Header X-Secret-Key invalide ou absent : on refuse.
+    return res.status(401).json({ success: false, code: check.code, message: 'Webhook non autorisé.' });
+  }
+
+  let payload;
+  try {
+    payload = JSON.parse(rawBody.toString('utf8'));
+  } catch (err) {
+    // Payload illisible mais authentifié : on accuse réception pour
+    // arrêter les tentatives, et on trace l'erreur côté Bictorys.
+    console.error('[bictorys/webhook] JSON invalide :', err.message);
+    return res.status(200).json({ success: false, message: 'Payload invalide.' });
+  }
+
+  try {
+    await processWebhook(payload);
+  } catch (err) {
+    // Erreur interne : accusé de réception quand même (200), Bictorys
+    // n'a pas à retenter ; le journal bictorys_webhooks garde la trace.
+    console.error('[bictorys/webhook] traitement :', err.message);
+  }
+
+  res.status(200).json({ success: true });
+});
+
+export default router;

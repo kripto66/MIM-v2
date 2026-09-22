@@ -14,6 +14,7 @@ import notificationsRoutes from './routes/notifications.js';
 import adminRoutes from './routes/admin.js';
 import ultraAdminRoutes from './routes/ultra-admin.js';
 import subscriptionRoutes from './routes/subscription.js';
+import bictorysWebhookRoutes from './routes/bictorys.js';
 import employesRoutes from './routes/employes.js';
 import tasksRoutes from './routes/tasks.js';
 import employeRoutes from './routes/employe.js';
@@ -119,10 +120,15 @@ app.use((req, res, next) => {
   next();
 });
 
-// Le paiement est entièrement manuel : le propriétaire définit ses moyens
-// de paiement et le locataire paie directement, déclare, puis le
-// propriétaire valide. Aucun fournisseur de paiement en ligne (MIM
-// n'encaisse rien). Il n'y a donc ni webhook ni page de retour.
+// Les loyers restent entièrement manuels : le locataire paie directement
+// au propriétaire puis déclare, et le propriétaire valide. MIM n'encaisse
+// PAS les loyers.
+//
+// En revanche, l'ABONNEMENT MIM du propriétaire est payé en ligne via
+// Bictorys. Son webhook (/api/webhooks/bictorys) est le seul point
+// d'entrée capable d'activer une souscription. Le corps brut est requis
+// pour vérifier la signature : ce route est monté AVANT express.json.
+app.use('/api/webhooks', apiRateLimit, express.raw({ type: () => true, limit: '2mb' }), bictorysWebhookRoutes);
 
 app.use(express.json({ limit: '4mb' }));
 app.use(cookieParser());
@@ -190,6 +196,12 @@ app.get('/api/health', (req, res) => {
 // dépendant d'un propriétaire suspendu). Les routes /api/auth restent
 // ouvertes aux comptes suspendus : profil, mot de passe, déconnexion, 2FA.
 // SameSite=Lax sur mim_token protège contre les attaques CSRF.
+//
+// /api/subscription est monté SANS requireActive : un propriétaire dont
+// l'abonnement a expiré doit pouvoir se reconnecter, consulter les plans
+// et RENOUVELER en ligne (paiement Bictorys). Les routes /api/subscription
+// vérifient elles-mêmes que le compte n'est ni banni ni dépendant d'un
+// propriétaire suspendu.
 app.use('/api/auth', authRateLimit, authRoutes);
 app.use('/api', apiRateLimit);
 app.use('/api/stats', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), statsRoutes);
@@ -197,7 +209,7 @@ app.use('/api/git', authenticate, requireActive, requireRole('proprietaire', 'ag
 app.use('/api/locataire', authenticate, requireActive, requireRole('locataire'), locataireRoutes);
 app.use('/api/admin', authenticate, requireActive, requireAdmin, adminRoutes);
 app.use('/api/ultra-admin', authenticate, requireActive, requireUltraAdmin, ultraAdminRoutes);
-app.use('/api/subscription', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), subscriptionRoutes);
+app.use('/api/subscription', authenticate, requireRole('proprietaire', 'agence', 'entreprise'), subscriptionRoutes);
 app.use('/api/employes', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), employesRoutes);
 app.use('/api/tasks', authenticate, requireActive, requireRole('proprietaire', 'agence', 'entreprise'), tasksRoutes);
 app.use('/api/employe', authenticate, requireActive, requireRole('employe'), employeRoutes);

@@ -1,11 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="fr">
 
 <head>
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIM — Interventions</title>
+    <title>MIM â€” Interventions</title>
     <meta name="robots" content="noindex, nofollow">
     <link rel="stylesheet" href="/mim-errors.css">
     <script src="/mim-errors.js"></script>
@@ -30,22 +30,23 @@
                 <a href="dashboard.html">Tableau de bord</a>
                 <a href="biens.html">Mes biens</a>
                 <a href="locataires.html">Locataires & Logements</a>
-                <a href="employes.html">Mes employés</a>
+                <a href="employes.html">Mes employÃ©s</a>
                 <div class="nav-category">Finances</div>
                 <a href="paiements.html">Paiements</a>
+                <a href="abonnements.html">Mon abonnement</a>
                 <div class="nav-category">Suivi</div>
                 <a href="incidents.html">Incidents</a>
                 <a href="prestataires.html">Prestataires</a>
                 <a href="interventions.html" class="active">Interventions</a>
                 <a href="notifications.html">Notifications</a>
                 <div class="nav-category">Configuration</div>
-                <a href="parametres.html">Paramètres</a>
+                <a href="parametres.html">ParamÃ¨tres</a>
                 <a href="import.html">Importer / Configurer</a>
             </nav>
 
             <div class="sidebar-footer">
 
-                <button id="logoutBtn" type="button">Déconnexion</button>
+                <button id="logoutBtn" type="button">DÃ©connexion</button>
 
             </div>
 
@@ -61,7 +62,7 @@
                     aria-label="Ouvrir le menu"
                     aria-expanded="false"
                 >
-                    ☰
+                    â˜°
                 </button>
 
                 <div class="welcome">
@@ -100,20 +101,20 @@
 
                 <div class="form-group">
                     <label for="titre">Titre</label>
-                    <input type="text" id="titre" name="titre" placeholder="Ex : Réparation fuite d'eau" required>
+                    <input type="text" id="titre" name="titre" placeholder="Ex : RÃ©paration fuite d'eau" required>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="incident_id">Incident lié</label>
+                        <label for="incident_id">Incident liÃ©</label>
                         <select id="incident_id" name="incident_id">
-                            <option value="">— Aucun —</option>
+                            <option value="">â€” Aucun â€”</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="prestataire_id">Prestataire</label>
                         <select id="prestataire_id" name="prestataire_id">
-                            <option value="">— Aucun —</option>
+                            <option value="">â€” Aucun â€”</option>
                         </select>
                     </div>
                 </div>
@@ -122,21 +123,21 @@
                     <div class="form-group">
                         <label for="logement_id">Logement</label>
                         <select id="logement_id" name="logement_id">
-                            <option value="">— Aucun —</option>
+                            <option value="">â€” Aucun â€”</option>
                         </select>
                     </div>
                     <div class="form-group">
                         <label for="statut">Statut</label>
                         <select id="statut" name="statut">
-                            <option value="planifie">Planifiée</option>
+                            <option value="planifie">PlanifiÃ©e</option>
                             <option value="en_cours">En cours</option>
-                            <option value="termine">Terminée</option>
+                            <option value="termine">TerminÃ©e</option>
                         </select>
                     </div>
                 </div>
 
                 <div class="form-group">
-                    <label for="date_prevue">Date prévue</label>
+                    <label for="date_prevue">Date prÃ©vue</label>
                     <input type="date" id="date_prevue" name="date_prevue">
                 </div>
 
@@ -160,9 +161,9 @@
     <script src="crud.js"></script>
     <script>
         const INTERVENTION_STATUS = {
-            planifie: ["Planifiée", "status-info"],
+            planifie: ["PlanifiÃ©e", "status-info"],
             en_cours: ["En cours", "status-warning"],
-            termine: ["Terminée", "status-success"],
+            termine: ["TerminÃ©e", "status-success"],
         };
 
         let incidentsCache = [];
@@ -181,17 +182,17 @@
                 logementsCache = log.data;
 
                 document.getElementById("incident_id").innerHTML =
-                    '<option value="">— Aucun —</option>' + inc.data.map(
+                    '<option value="">â€” Aucun â€”</option>' + inc.data.map(
                         (i) => `<option value="${i.id}">${escapeHtml(i.titre)}</option>`
                     ).join("");
 
                 document.getElementById("prestataire_id").innerHTML =
-                    '<option value="">— Aucun —</option>' + pre.data.map(
+                    '<option value="">â€” Aucun â€”</option>' + pre.data.map(
                         (p) => `<option value="${p.id}">${escapeHtml(p.nom)}</option>`
                     ).join("");
 
                 document.getElementById("logement_id").innerHTML =
-                    '<option value="">— Aucun —</option>' + log.data.map(
+                    '<option value="">â€” Aucun â€”</option>' + log.data.map(
                         (l) => `<option value="${l.id}">${escapeHtml(l.nom)}</option>`
                     ).join("");
             } catch (err) {
@@ -223,7 +224,7 @@
                 {
                     name: "incident_id",
                     test: (i) => !i.value,
-                    message: "Choisissez l'incident concerné.",
+                    message: "Choisissez l'incident concernÃ©.",
                 },
             ]),
             renderItem: (i) => {
@@ -237,7 +238,7 @@
                             <h3>${escapeHtml(i.titre)}</h3>
                             <p>${prestataire ? "Prestataire : " + escapeHtml(prestataire.nom) : ""}</p>
                             <p>${logement ? "Logement : " + escapeHtml(logement.nom) : ""}</p>
-                            ${i.date_prevue ? `<p>Prévue le ${formatDate(i.date_prevue)}</p>` : ''}
+                            ${i.date_prevue ? `<p>PrÃ©vue le ${formatDate(i.date_prevue)}</p>` : ''}
                             <p><span class="status ${cls}">${label}</span></p>
                         </div>
                         <div class="card-actions">

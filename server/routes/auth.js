@@ -179,9 +179,21 @@ async function finalizeLogin(res, user, session, userAgent, ip) {
 
   const profile = await profileOf(user.id);
 
+  let redirect = PAGE_BY_TYPE[accountType];
+
+  // Propriétaire dont l'abonnement est expiré : le diriger directement
+  // vers la page d'abonnement pour renouveler en ligne (les routes métier
+  // restent bloquées par requireActive tant qu'il n'a pas payé).
+  if (['proprietaire', 'agence', 'entreprise'].includes(accountType)) {
+    const expired = await subscriptionExpiredFor(user.id, accountType);
+    if (expired) {
+      redirect = 'PartProprietaires/abonnements.html';
+    }
+  }
+
   return {
     user: publicUser(user, profile),
-    redirect: PAGE_BY_TYPE[accountType],
+    redirect,
     mustChangePassword: (accountType === 'locataire' || accountType === 'employe' || accountType === 'admin') && Boolean(profile?.must_change_password),
   };
 }
@@ -395,19 +407,10 @@ router.post('/login', async (req, res) => {
 
   const accountType = accountTypeOf(data.user);
 
-  // Un propriétaire dont l'abonnement MIM est expiré ne peut pas se
-  // connecter (état calculé en base à partir de date_expiration, jamais
-  // d'une valeur envoyée par le client).
-  if (['proprietaire', 'agence', 'entreprise'].includes(accountType)) {
-    const expired = await subscriptionExpiredFor(data.user.id, accountType);
-    if (expired) {
-      return res.status(401).json({
-        success: false,
-        code: 'INVALID_CREDENTIALS',
-        message: 'Email ou mot de passe incorrect.',
-      });
-    }
-  }
+  // Un propriétaire dont l'abonnement MIM est EXPIRÉ peut se connecter
+  // pour RENOUVELER en ligne (paiement Bictorys). Toutes les routes
+  // métier restent bloquées tant qu'il n'a pas payé (requireActive).
+  // Seuls les comptes bannis restent refusés (déjà gérés ci-dessus).
 
   // Un locataire/employé dont le PROPRIÉTAIRE est suspendu (ou a un
   // abonnement expiré) ne peut pas se connecter non plus (relation lue
@@ -723,21 +726,16 @@ router.get('/callback', async (req, res) => {
     // Injecte le bon account_type dans le user pour finalizeLogin
     user.user_metadata = { ...user.user_metadata, account_type: accountType };
 
-    // Même vérification que le login classique : compte banni, abonnement
-    // expiré, propriétaire suspendu (pour locataire/employé).
+    // Même vérification que le login classique : compte banni refusé,
+    // propriétaire suspendu (pour locataire/employé). Un propriétaire
+    // dont l'abonnement est EXPIRÉ reste autorisé à se connecter pour
+    // renouveler en ligne (routes métier bloquées par requireActive).
     const ownBan = await banStatusOf(user.id);
     if (ownBan === 'deleted') {
       return res.redirect(`${APP_URL}/PartPublic/connexion.html?oauth_error=account_deleted`);
     }
     if (ownBan === 'suspended') {
       return res.redirect(`${APP_URL}/PartPublic/connexion.html?oauth_error=suspended`);
-    }
-
-    if (['proprietaire', 'agence', 'entreprise'].includes(accountType)) {
-      const expired = await subscriptionExpiredFor(user.id, accountType);
-      if (expired) {
-        return res.redirect(`${APP_URL}/PartPublic/connexion.html?oauth_error=suspended`);
-      }
     }
 
     if (accountType === 'locataire' || accountType === 'employe') {

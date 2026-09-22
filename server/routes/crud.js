@@ -6,6 +6,7 @@ import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { notify, tenantUidOfLogement, tenantUidOfLocataire, logementNomOf } from '../utils/notifications.js';
 import { methodePaiementError } from '../utils/paiementMethodes.js';
 import { creerEcheanceInitiale, syncMontantEcheancesOuvertes, currentMois } from '../utils/echeances.js';
+import { enforceImmeublesLimit, enforceLogementsLimit, enforceLocatairesLimit } from '../utils/subscription.js';
 
 const SCHEMAS = {
   biens: {
@@ -503,7 +504,29 @@ export function createCrudRouter(tableName) {
       logementBienId = logement.bien_id;
     }
 
-    // Username unique dans toute l'application (messages clairs, pas d'erreur technique).
+    // Plafonds du plan appliqués CÔTÉ SERVEUR sur le formulaire composé :
+    // un nouveau logement embarqué compte pour la limite logements, le
+    // locataire créé compte pour la limite locataires.
+    if (logementNew) {
+      const logementsLimit = await enforceLogementsLimit(ownerId);
+      if (!logementsLimit.allowed) {
+        return res.status(409).json({
+          success: false,
+          code: logementsLimit.code,
+          message: logementsLimit.message,
+          errors: { logement: logementsLimit.message },
+        });
+      }
+    }
+    const locatairesLimit = await enforceLocatairesLimit(ownerId);
+    if (!locatairesLimit.allowed) {
+      return res.status(409).json({
+        success: false,
+        code: locatairesLimit.code,
+        message: locatairesLimit.message,
+        errors: { nom: locatairesLimit.message },
+      });
+    }
     if (!autoAccount) {
       const { data: existingUsername } = await admin
         .from('profiles')
@@ -693,6 +716,47 @@ if (createdLogementId) {
     const errors = validateResource(tableName, body, false);
     if (Object.keys(errors).length) {
       return res.status(400).json({ success: false, message: 'Veuillez corriger les champs en rouge.', errors });
+    }
+
+    // Plafond d'immeubles du plan (Standard 1 / Premium 3 / Pro 10 /
+    // Agence 25) : appliqué CÔTÉ SERVEUR à la création d'un bien, jamais
+    // côté frontend.
+    if (tableName === 'biens') {
+      const limit = await enforceImmeublesLimit(userId(req));
+      if (!limit.allowed) {
+        return res.status(409).json({
+          success: false,
+          code: limit.code,
+          message: limit.message,
+          errors: { nom: limit.message },
+        });
+      }
+    }
+
+    // Plafonds logements / locataires du plan (Standard 20/20,
+    // Premium 75/75, Pro 300/300, Agence 750/750), côté serveur.
+    if (tableName === 'logements') {
+      const limit = await enforceLogementsLimit(userId(req));
+      if (!limit.allowed) {
+        return res.status(409).json({
+          success: false,
+          code: limit.code,
+          message: limit.message,
+          errors: { nom: limit.message },
+        });
+      }
+    }
+
+    if (tableName === 'locataires' && !req.body?.logement_new) {
+      const limit = await enforceLocatairesLimit(userId(req));
+      if (!limit.allowed) {
+        return res.status(409).json({
+          success: false,
+          code: limit.code,
+          message: limit.message,
+          errors: { nom: limit.message },
+        });
+      }
     }
 
     if (tableName === 'logements' && !(await bienBelongsTo(serviceClient(), body.bien_id, userId(req)))) {

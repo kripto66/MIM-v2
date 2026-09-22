@@ -83,6 +83,12 @@ MIM.redirectToLogin = function (reason) {
 MIM.handleAuthError = function (err) {
   if (!err || !err.status) return false;
   if (err.status === 401 || err.status === 403) {
+    // Abonnement expiré : le propriétaire doit renouveler en ligne,
+    // pas se reconnecter (K1). Redirection vers la page d'abonnement.
+    if (err.code === "SUBSCRIPTION_EXPIRED") {
+      window.location.href = "/PartProprietaires/abonnements.html";
+      return true;
+    }
     const reason = err.code === "ACCOUNT_SUSPENDED" ? "ACCOUNT_SUSPENDED" : "";
     MIM.redirectToLogin(reason);
     return true;

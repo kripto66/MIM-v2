@@ -28,7 +28,7 @@ function prevMonth(ym) {
 // utilisateurs efface aussi profils, biens, logements, locataires, etc.
 const WIPE_EMAIL_PATTERNS = ['%@mimtest.com', '%@mim.local', 'owner.test%@example.com', 'final%@example.com', 'owner.%@mim.com'];
 const WIPE_USERNAME_PATTERNS = ['own%loc%'];
-const CHILD_TABLES = ['biens', 'logements', 'locataires', 'paiements', 'incidents', 'prestataires', 'interventions', 'notifications', 'sessions'];
+const CHILD_TABLES = ['biens', 'logements', 'locataires', 'paiements', 'incidents', 'prestataires', 'interventions', 'notifications', 'sessions', 'bictorys_webhooks', 'abonnement_paiements'];
 
 // Comptes « production » jamais supprimés par le wipe (admin + comptes réels).
 const PROTECTED_EMAILS = new Set(['admin@mim.local']);
@@ -54,6 +54,17 @@ export async function wipeTestData(service) {
     } catch {
       /* table sans colonne user_id */
     }
+  }
+
+  // Le journal bictorys_webhooks n'a pas de colonne user_id : ni la cascade
+  // des comptes ni le filtre CHILD_TABLES ne l'effacent. Il doit être purgé
+  // ENTIÈREMENT, sinon les fingerprints figés (ids d'événements réutilisés
+  // par les suites) feraient passer tous les webhooks suivants pour des
+  // « duplicats » et aucun paiement ne serait plus activé.
+  try {
+    await service.from('bictorys_webhooks').delete().gte('id', 0);
+  } catch {
+    /* table absente */
   }
 
   // Purge complète des artefacts de paiement en ligne (legacy, tables supprimées

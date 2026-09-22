@@ -2207,3 +2207,237 @@ input.pw-strong {
     }
 
 }
+
+/* ============================================================
+   PAGE ABONNEMENTS (abonnements.html + liens bandeau/dashboard)
+   ============================================================ */
+.sub-link {
+    color: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.plans-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 8px;
+}
+
+@media (max-width: 1100px) {
+    .plans-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 720px) {
+    .plans-grid { grid-template-columns: 1fr; }
+}
+
+.plan-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 24px 22px 22px;
+    border: 1px solid #e3e8ef;
+    border-radius: 16px;
+    background: #fff;
+    overflow: hidden;
+    transition:
+        transform 0.2s ease,
+        box-shadow 0.2s ease,
+        border-color 0.2s ease;
+}
+
+.plan-card::before {
+    content: "";
+    display: block;
+    height: 6px;
+    margin: -24px -22px 4px;
+    border-radius: 15px 15px 0 0;
+    flex-shrink: 0;
+}
+
+.plan-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 14px 30px rgba(20, 30, 60, 0.1);
+    border-color: #d0d7df;
+}
+
+.plan-card.plan-popular {
+    border-color: #5717a5;
+    box-shadow: 0 18px 40px rgba(87, 23, 165, 0.16);
+    transform: translateY(-6px);
+    z-index: 1;
+}
+
+.plan-card.plan-active {
+    outline: 2px solid #2c82c9;
+    outline-offset: -2px;
+}
+
+.plan-card.plan-accent-standard::before { background: linear-gradient(90deg, #2e9e6b, #57c28c); }
+.plan-card.plan-accent-premium::before  { background: linear-gradient(90deg, #5717a5, #8a4fd0); }
+.plan-card.plan-accent-pro::before      { background: linear-gradient(90deg, #e07b00, #f5b041); }
+.plan-card.plan-accent-agence::before   { background: linear-gradient(90deg, #c50974, #f76060); }
+
+@media (max-width: 900px) {
+    .plan-card.plan-popular { transform: none; }
+}
+
+.plan-top {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    text-align: center;
+}
+
+.plan-badge {
+    display: inline-block;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: #5717a5;
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+}
+
+.plan-card h3.plan-name {
+    margin: 0;
+    font-size: 14px;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    font-weight: 700;
+}
+
+.plan-card .plan-price {
+    margin-top: 4px;
+    font-size: 38px;
+    font-weight: 800;
+    color: #111827;
+    line-height: 1.1;
+}
+
+.plan-card .plan-period {
+    font-size: 15px;
+    font-weight: 600;
+    color: #6b7280;
+}
+
+.plan-card .plan-desc {
+    color: #9aa3b2;
+    font-size: 12.5px;
+}
+
+.plan-card .plan-features {
+    list-style: none;
+    padding: 14px 0 0;
+    margin: 0;
+    border-top: 1px solid #eef1f5;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    font-size: 14px;
+    color: #374151;
+}
+
+.plan-card .plan-features li {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.plan-card .plan-features li::before {
+    content: "✓";
+    color: #22a95c;
+    font-weight: 700;
+    flex-shrink: 0;
+    line-height: 1.3;
+}
+
+.plan-card .plan-features li.plan-feat-off {
+    color: #9aa3b2;
+}
+
+.plan-card .plan-features li.plan-feat-off::before {
+    content: "—";
+    color: #c3c9d4;
+}
+
+.plan-card .plan-actions {
+    margin-top: auto;
+    padding-top: 14px;
+}
+
+.plan-card .btn-plan {
+    display: block;
+    width: 100%;
+    padding: 13px 16px;
+    border: none;
+    border-radius: 10px;
+    background: #5717a5;
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition:
+        background 0.2s ease,
+        box-shadow 0.2s ease,
+        transform 0.2s ease;
+}
+
+.plan-card .btn-plan:hover:not(:disabled) {
+    background: #490767;
+    box-shadow: 0 8px 20px rgba(87, 23, 165, 0.25);
+}
+
+.plan-card .btn-plan:active:not(:disabled) {
+    transform: scale(0.98);
+}
+
+.plan-card .btn-plan:disabled {
+    background: #e5e7eb;
+    color: #9ca3af;
+    cursor: not-allowed;
+}
+
+.plan-card .plan-included {
+    font-size: 13px;
+    color: #b03a2e;
+}
+
+.payments-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+    font-size: 14px;
+}
+
+.payments-table th, .payments-table td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid #eef1f5;
+}
+
+.payments-table th {
+    color: #6b7280;
+    font-weight: 600;
+    background: #f7f9fb;
+}
+
+.status-pill {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.status-pill.ok { background: #e6f6ec; color: #1e7a45; }
+.status-pill.pending { background: #fff8e1; color: #8a6d1f; }
+.status-pill.failed { background: #fdecea; color: #b03a2e; }
+

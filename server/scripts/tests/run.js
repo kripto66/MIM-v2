@@ -20,6 +20,7 @@ import { runConcurrency } from './concurrency.test.js';
 import { runFinal } from './final.test.js';
 import { runAdmin } from './admin.test.js';
 import { runAbonnement } from './abonnement.test.js';
+import { runBictorys } from './bictorys.test.js';
 import { runDeclarations } from './declarations.test.js';
 import { runImport } from './import.test.js';
 import { runLocataires } from './locataires.test.js';
@@ -49,6 +50,7 @@ const SUITES = [
   ['final', runFinal],
   ['admin', runAdmin],
   ['abonnement', runAbonnement],
+  ['bictorys', runBictorys],
   ['declarations', runDeclarations],
   ['import', runImport],
   ['locataires', runLocataires],
@@ -92,6 +94,7 @@ async function startServer() {
     GIT_BACKUP: 'false',
     NODE_ENV: '',
     TEST_BASE: BASE,
+    BICTORYS_AUTOCONFIRM: '0', // tests = production : seule le webhook active
   };
   serverProc = spawn(process.execPath, ['server.js'], {
     cwd: SERVER_DIR,

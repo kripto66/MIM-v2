@@ -1015,7 +1015,7 @@ document.addEventListener("click", async (e) => {
     if (!ok) return;
     showProgress("Suspension de l'utilisateur…", "danger");
     try {
-      const r = await apiRequest(`/ultra-admin/users/${id}`, { method: "PATCH", body: JSON.stringify({ statut: "suspendu" }) });
+      const r = await apiRequest(`/ultra-admin/users/${id}`, { method: "PATCH", body: JSON.stringify({ action: "suspend" }) });
       showToast(r.message || "Utilisateur suspendu.");
       users();
     } catch (err) { MIM.showError(MIM.userMessage(err)); }
@@ -1025,7 +1025,7 @@ document.addEventListener("click", async (e) => {
   if (action === "reactivateUser") {
     showProgress("Réactivation de l'utilisateur…", "success");
     try {
-      const r = await apiRequest(`/ultra-admin/users/${id}`, { method: "PATCH", body: JSON.stringify({ statut: "actif" }) });
+      const r = await apiRequest(`/ultra-admin/users/${id}`, { method: "PATCH", body: JSON.stringify({ action: "reactivate" }) });
       showToast(r.message || "Utilisateur réactivé.");
       users();
     } catch (err) { MIM.showError(MIM.userMessage(err)); }
@@ -1038,7 +1038,7 @@ document.addEventListener("click", async (e) => {
     if (!ok) return;
     showProgress("Suspension de l'administrateur…", "danger");
     try {
-      const r = await apiRequest(`/ultra-admin/admins/${id}`, { method: "PATCH", body: JSON.stringify({ statut: "suspendu" }) });
+      const r = await apiRequest(`/ultra-admin/admins/${id}`, { method: "PATCH", body: JSON.stringify({ action: "suspend" }) });
       showToast(r.message || "Administrateur suspendu.");
       admins();
     } catch (err) { MIM.showError(MIM.userMessage(err)); }
@@ -1048,7 +1048,7 @@ document.addEventListener("click", async (e) => {
   if (action === "reactivateAdmin") {
     showProgress("Réactivation de l'administrateur…", "success");
     try {
-      const r = await apiRequest(`/ultra-admin/admins/${id}`, { method: "PATCH", body: JSON.stringify({ statut: "actif" }) });
+      const r = await apiRequest(`/ultra-admin/admins/${id}`, { method: "PATCH", body: JSON.stringify({ action: "reactivate" }) });
       showToast(r.message || "Administrateur réactivé.");
       admins();
     } catch (err) { MIM.showError(MIM.userMessage(err)); }

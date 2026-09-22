@@ -115,12 +115,13 @@ async function verifyToken(req) {
     if (ownStatus === 'deleted') return null;
 
     decoded.account_type = profile.account_type;
-    const suspended =
-      ownStatus === 'suspended' ||
-      (await ownerSuspendedFor(decoded.id, profile.account_type)) ||
-      (await subscriptionExpiredFor(decoded.id, profile.account_type));
+    const reasons = [];
+    if (ownStatus === 'suspended') reasons.push('banned');
+    if (await ownerSuspendedFor(decoded.id, profile.account_type)) reasons.push('owner_suspended');
+    if (await subscriptionExpiredFor(decoded.id, profile.account_type)) reasons.push('subscription_expired');
+    const suspended = reasons.length > 0;
 
-    return { user: decoded, suspended };
+    return { user: { ...decoded, suspendedReasons: reasons }, suspended };
   } catch (err) {
     console.warn('[auth] revalidation échec :', err.message);
     return null;
@@ -131,8 +132,25 @@ async function verifyToken(req) {
 // ou propriétaire suspendu pour un locataire/employé) rend la session
 // invalide pour toute fonctionnalité métier : réponse 401 avec un code
 // identifiable par le frontend, qui affiche un message clair.
+const OWNER_TYPES = ['proprietaire', 'agence', 'entreprise'];
+
 export function requireActive(req, res, next) {
   if (req.user?.suspended) {
+    const reasons = Array.isArray(req.user.suspendedReasons) ? req.user.suspendedReasons : [];
+    const onlySubscriptionExpired =
+      reasons.length > 0 && reasons.every((r) => r === 'subscription_expired');
+
+    // Un propriétaire dont l'ABONNEMENT seul est expiré peut se connecter
+    // pour renouveler en ligne : on renvoie un code dédié que le frontend
+    // traduit en redirection vers la page d'abonnement (pas vers la
+    // connexion). Un compte suspendu/banni garde le code classique.
+    if (onlySubscriptionExpired && OWNER_TYPES.includes(req.user.account_type)) {
+      return res.status(401).json({
+        success: false,
+        code: 'SUBSCRIPTION_EXPIRED',
+        message: 'Votre abonnement MIM est expiré. Renouvelez-le depuis votre espace pour continuer.',
+      });
+    }
     return res.status(401).json({
       success: false,
       code: 'ACCOUNT_SUSPENDED',
@@ -171,6 +189,20 @@ export function authenticatePage(redirectTo = PAGE_LOGIN_REDIRECT) {
     req.user = result.user;
     req.user.suspended = result.suspended;
     setAuthCookie(res, signToken(result.user));
+
+    // Propriétaire dont le SEUL motif de blocage est l'abonnement expiré :
+    // rediriger directement vers sa page d'abonnement (renouvellement en
+    // ligne), jamais vers la connexion. La page d'abonnement elle-même
+    // n'est jamais redirigée, sinon boucle infinie.
+    const reasons = Array.isArray(result.user.suspendedReasons) ? result.user.suspendedReasons : [];
+    const onlySubscriptionExpired =
+      reasons.length > 0 && reasons.every((r) => r === 'subscription_expired');
+    const isAbonnementsPage =
+      req.path === '/abonnements.html' || req.path.endsWith('/abonnements.html');
+    if (onlySubscriptionExpired && OWNER_TYPES.includes(result.user.account_type) && !isAbonnementsPage) {
+      return res.redirect('/PartProprietaires/abonnements.html');
+    }
+
     next();
   };
 }
