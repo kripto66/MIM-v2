@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Versements</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/mim-errors.css">
+    <script src="/mim-errors.js"></script>
+    <link rel="stylesheet" href="/PartProprietaires/style.css">
+    <link rel="stylesheet" href="/PartPublic/mim-ui.css">
+</head>
+
+<body data-espace="shadow">
+
+    <div class="dashboard">
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
+            <a class="logo" href="dashboard.html" data-sidebar-toggle-logo title="Mon espace délégué">MIM</a>
+            <nav class="sidebar-menu">
+                <div class="nav-category">Mon espace</div>
+                <a href="dashboard.html">Vue d'ensemble</a>
+                <a class="active" href="versements.html">Versements</a>
+                <a href="messages.html">Messagerie</a>
+                <div class="nav-category">Session</div>
+                <a href="#" id="logoutBtn">Déconnexion</a>
+            </nav>
+        </aside>
+
+        <main class="main">
+            <header class="dashboard-header">
+                <button class="menu-toggle" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">☰</button>
+                <div id="apiMessage" class="api-message" style="display:none;"></div>
+                <div class="welcome">
+                    <h1>Versements<span class="accent">.</span></h1>
+                    <p id="greetingSub">Les versements que votre agence vous doit.</p>
+                </div>
+            </header>
+
+            <section class="mim-kpi-grid" id="kpis"></section>
+
+            <section class="mim-section">
+                <header>
+                    <h2>Historique</h2>
+                    <span class="section-meta">Confirmez la réception pour clôturer un versement</span>
+                </header>
+                <div id="versementsList"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/PartPublic/mim-ui.js"></script>
+    <script src="api.js"></script>
+    <script src="versements.js"></script>
+    <script src="/PartPublic/sidebar.js"></script>
+
+</body>
+
+</html>

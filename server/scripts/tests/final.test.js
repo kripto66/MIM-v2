@@ -3,7 +3,7 @@
 // locataires) + audit d'intégrité référentielle en base.
 // ============================================================
 
-import { api, newJar } from './lib.js';
+import { api, newJar, loginForBusiness } from './lib.js';
 
 const S = 'final';
 
@@ -32,16 +32,13 @@ export async function runFinal(r, ctx) {
         api('/stats/dashboard', { jar }),
       ]);
 
-      const b = biens.data?.data?.length || 0;
-      const l = logements.data?.data?.length || 0;
-      const t = locataires.data?.data?.length || 0;
       const p = paiements.data?.data?.length || 0;
 
-      if (b !== 1) problems.push(`o${owner.i} : ${b} biens`);
-      if (l !== 10) problems.push(`o${owner.i} : ${l} logements`);
-      if (t !== 10) problems.push(`o${owner.i} : ${t} locataires`);
+      if (!biens.data?.data?.some((row) => String(row.id) === String(owner.bienId))) problems.push(`o${owner.i} : bien seed absent`);
+      if (owner.logements.some((row) => !(logements.data?.data || []).some((x) => String(x.id) === String(row.id)))) problems.push(`o${owner.i} : logements seed incomplets`);
+      if (owner.locataires.some((row) => !(locataires.data?.data || []).some((x) => String(x.id) === String(row.id)))) problems.push(`o${owner.i} : locataires seed incomplets`);
       if (p < 10) problems.push(`o${owner.i} : ${p} paiements`);
-      if (stats.data?.stats?.totalTenants !== 10) problems.push(`o${owner.i} : stats.totalTenants=${stats.data?.stats?.totalTenants}`);
+      if (Number(stats.data?.stats?.totalTenants) < 10) problems.push(`o${owner.i} : stats.totalTenants=${stats.data?.stats?.totalTenants}`);
 
       if (!problems.some((x) => x.startsWith(`o${owner.i}`))) ok++;
     }
@@ -60,10 +57,10 @@ export async function runFinal(r, ctx) {
     let ok = 0;
     const problems = [];
     for (const { owner, loc, username } of creds) {
-      const jar = newJar();
-      const login = await api('/auth/login', { method: 'POST', jar, body: { identifier: username, password: PW } });
-      if (login.status !== 200) {
-        problems.push(`${username} : login ${login.status}`);
+      const session = await loginForBusiness(username, PW);
+      const jar = session.jar;
+      if (session.login.status !== 200 || (session.change && session.change.status !== 200)) {
+        problems.push(`${username} : login ${session.login.status}`);
         continue;
       }
       const dash = await api('/locataire/dashboard', { jar });

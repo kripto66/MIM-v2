@@ -1,7 +1,6 @@
 const API = (() => {
-  const origin = window.location.origin || "http://localhost:3000";
-  const isLocal = origin.includes("localhost") || origin.includes("127.0.0.1");
-  return (isLocal ? "http://localhost:3000" : origin) + "/api";
+  const host = (window.MIM && MIM.apiHost) ? MIM.apiHost() : window.location.origin || "http://localhost:3000";
+  return host + "/api";
 })();
 
 let currentSection = "dashboard";
@@ -135,7 +134,7 @@ function tablePage(title, data, columns, headers, actions, onAction) {
 
 function buildRows(data, columns, onAction) {
   if (!data || !data.length) return `<tr><td colspan="99" class="empty">Aucune donnée.</td></tr>`;
-  const badgeCells = new Set(["statut", "status", "level", "role"]);
+  const badgeCells = new Set(["statut", "status", "level", "role", "account_type"]);
   return data.map((r) => `<tr>${columns.map((k) => {
     if (badgeCells.has(k)) return `<td>${badge(r[k])}</td>`;
     if (k === "montant") return `<td class="num">${money(r[k])}</td>`;
@@ -155,6 +154,12 @@ function bindSearch() {
   });
 }
 
+function csvCell(value) {
+  let text = String(value ?? "");
+  if (/^[\s]*[=+\-@]/.test(text)) text = "'" + text;
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
 function exportCSV() {
   const table = document.querySelector(".table");
   if (!table) return showToast("Aucune donnée à exporter.");
@@ -162,7 +167,7 @@ function exportCSV() {
     .map((tr) =>
       [...tr.querySelectorAll("th, td")]
         .filter((td) => td.textContent)
-        .map((td) => `"${td.textContent.replace(/"/g, '""')}"`)
+        .map((td) => csvCell(td.textContent))
         .join(";")
     )
     .join("\r\n");
@@ -211,11 +216,12 @@ async function apiRequest(path, options = {}) {
   await MIM._csrfReady;
   const csrf = MIM.csrfHeader();
   const res = await fetch(`${API}${path}`, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...csrf, ...(options.headers || {}) },
     ...options,
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(options.headers || {}), ...csrf },
   });
   const { ok, error, data } = await MIM.parse(res);
+  if (data && data.user && data.user.account_type) MIM.accountType = data.user.account_type;
   if (!ok) {
     MIM.handleAuthError(error);
     throw error;
@@ -366,6 +372,7 @@ const sections = {
   admins: ["Administrateurs", "Gestion des comptes administrateurs et ultra-admins."],
   users: ["Utilisateurs", "Vue globale de tous les utilisateurs de la plateforme."],
   saas: ["Gestion SaaS", "Contrôle de l'état de la plateforme SaaS."],
+  plans: ["Tarification", "Prix, capacités et durée des formules d'abonnement."],
   announcements: ["Annonces", "Gestion des annonces publiées sur la plateforme."],
   events: ["Événements", "Gestion des événements de la plateforme."],
   featured: ["Mise en avant", "Éléments mis en avant sur la plateforme."],
@@ -466,7 +473,7 @@ async function admins() {
   app.innerHTML = tablePage(
     "administrateurs",
     rows,
-    ["name", "email", "username", "role", "statut", "created_at", "last_login"],
+    ["name", "email", "username", "account_type", "statut", "created_at", "last_login"],
     ["Nom", "Email", "Username", "Rôle", "Statut", "Créé le", "Dernière connexion"],
     createBtn,
     (r) => {
@@ -476,7 +483,7 @@ async function admins() {
       } else {
         btns.push(`<button class="btn danger" data-action="suspendAdmin" data-id="${escapeHtml(r.id)}">Suspendre</button>`);
       }
-      if (r.role === "admin") {
+      if (r.account_type === "admin") {
         btns.push(`<button class="btn secondary" data-action="removeAdminRole" data-id="${escapeHtml(r.id)}" data-name="${escapeHtml(r.name)}">Retirer le rôle</button>`);
       }
       return btns.join(" ");
@@ -664,7 +671,7 @@ function openAnnouncementModal(announcement) {
   document.getElementById("announcementFormTitle").textContent = announcement ? "Modifier l'Annonce" : "Créer une Annonce";
   if (announcement) {
     document.getElementById("announcementTitle").value = announcement.title || "";
-    document.getElementById("announcementBody").value = announcement.body || "";
+    document.getElementById("announcementBody").value = announcement.content || "";
     document.getElementById("announcementAudience").value = announcement.audience || "all";
     form.dataset.editId = announcement.id;
   } else {
@@ -958,12 +965,170 @@ const RENDERERS = {
   admins,
   users,
   saas,
+  plans,
   announcements,
   events,
   featured,
   audit,
   simulation,
 };
+
+// ============================================================
+// Section: Plans (tarification)
+// ============================================================
+
+function planRow(p) {
+  const attente = p.paiementsEnAttente > 0
+    ? `<span class="badge warn">${p.paiementsEnAttente} paiement(s) en attente</span>`
+    : "";
+  return `
+    <tr data-plan="${escapeAttr(p.code)}">
+      <td>
+        <strong>${escapeHtml(p.nom)}</strong><br />
+        <small class="muted">${escapeHtml(p.code)}</small>
+      </td>
+      <td>${p.audience === "agence" ? "Agence" : "Propriétaire"}</td>
+      <td class="num" data-field="prix">${Number(p.prix).toLocaleString("fr-FR")} ${escapeHtml(p.devise)}</td>
+      <td class="num">${p.max_imbiased ?? p.max_immeubles}</td>
+      <td class="num">${p.max_logements ?? "∞"}</td>
+      <td class="num">${p.max_locataires ?? "∞"}</td>
+      <td>${p.actif ? '<span class="badge ok">Actif</span>' : '<span class="badge">Archivé</span>'}</td>
+      <td class="actions">
+        ${attente}
+        <button class="btn ghost" data-action="edit-plan" data-code="${escapeAttr(p.code)}">Modifier</button>
+      </td>
+    </tr>`;
+}
+
+async function plans() {
+  app.innerHTML = skeleton();
+  const res = await apiRequest("/ultra-admin/plans");
+  const list = (res.data && res.data.plans) || res.plans || [];
+
+  const proprios = list.filter((p) => p.audience !== "agence");
+  const agences = list.filter((p) => p.audience === "agence");
+
+  const table = (rows, title, hint) => `
+    <div class="panel">
+      <div class="panel-head">
+        <h2>${escapeHtml(title)}</h2>
+        <span class="muted">${escapeHtml(hint)}</span>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Plan</th><th>Public</th><th>Prix</th>
+              <th>Immeubles</th><th>Logements</th><th>Locataires</th>
+              <th>État</th><th></th>
+            </tr>
+          </thead>
+          <tbody>${rows.map(planRow).join("")}</tbody>
+        </table>
+      </div>
+    </div>`;
+
+  app.innerHTML = `
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Tarification</h2>
+        <button class="btn primary" data-action="new-plan">+ Nouveau plan</button>
+      </div>
+      <p class="muted">
+        Les prix s'appliquent immédiatement. Modifier le prix d'un plan bloque
+        l'activation des paiements déjà en attente pour ce plan : traitez-les avant.
+      </p>
+    </div>
+    ${table(proprios, "Formules propriétaire", "Visible par les comptes propriétaires")}
+    ${table(agences, "Formules agence", "Visible par les comptes agences uniquement")}`;
+
+  wirePlanEditor(list);
+}
+
+function wirePlanEditor(list) {
+  const modal = document.getElementById("planEditorModal");
+  if (!modal) return;
+  const form = modal.querySelector("form");
+  const codeInput = form.querySelector("[name=code]");
+  const fields = {
+    nom: form.querySelector("[name=nom]"),
+    prix: form.querySelector("[name=prix]"),
+    devise: form.querySelector("[name=devise]"),
+    audience: form.querySelector("[name=audience]"),
+    duree_abonnement: form.querySelector("[name=duree_abonnement]"),
+    max_immeubles: form.querySelector("[name=max_immeubles]"),
+    max_logements: form.querySelector("[name=max_logements]"),
+    max_locataires: form.querySelector("[name=max_locataires]"),
+    description: form.querySelector("[name=description]"),
+    actif: form.querySelector("[name=actif]"),
+  };
+
+  const open = (plan) => {
+    form.reset();
+    codeInput.value = plan ? plan.code : "";
+    codeInput.readOnly = Boolean(plan);
+    fields.nom.value = plan ? plan.nom : "";
+    fields.prix.value = plan ? plan.prix : "";
+    fields.devise.value = plan ? plan.devise : "XOF";
+    fields.audience.value = plan ? plan.audience : "agence";
+    fields.duree_abonnement.value = plan ? plan.duree_abonnement : 1;
+    fields.max_immeubles.value = plan ? plan.max_immeubles : "";
+    fields.max_logements.value = plan ? plan.max_logements ?? "" : "";
+    fields.max_locataires.value = plan ? plan.max_locataires ?? "" : "";
+    fields.description.value = plan ? plan.description ?? "" : "";
+    fields.actif.checked = plan ? Boolean(plan.actif) : true;
+    modal.classList.add("active");
+  };
+
+  document.querySelectorAll("[data-action='edit-plan']").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const code = btn.dataset.code;
+      open(list.find((p) => p.code === code) || null);
+    });
+  });
+  document.querySelectorAll("[data-action='new-plan']").forEach((btn) => {
+    btn.addEventListener("click", () => open(null));
+  });
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const submit = form.querySelector("button[type=submit]");
+    const original = submit.textContent;
+    submit.disabled = true;
+    submit.textContent = "Enregistrement…";
+    try {
+      const payload = {
+        code: codeInput.value,
+        nom: fields.nom.value,
+        prix: Number(fields.prix.value),
+        devise: fields.devise.value,
+        audience: fields.audience.value,
+        duree_abonnement: Number(fields.duree_abonnement.value),
+        max_immeubles: fields.max_immeubles.value === "" ? null : Number(fields.max_immeubles.value),
+        max_logements: fields.max_logements.value === "" ? null : Number(fields.max_logements.value),
+        max_locataires: fields.max_locataires.value === "" ? null : Number(fields.max_locataires.value),
+        description: fields.description.value,
+        actif: fields.actif.checked,
+      };
+      const isNew = !codeInput.readOnly;
+      const res = isNew
+        ? await apiRequest("/ultra-admin/plans", { method: "POST", body: JSON.stringify(payload) })
+        : await apiRequest(`/ultra-admin/plans/${encodeURIComponent(codeInput.value)}`, {
+            method: "PATCH",
+            body: JSON.stringify(payload),
+          });
+      if (res.avertissement) MIM.showError(res.avertissement);
+      MIM.showSuccess(isNew ? "Plan créé." : "Plan mis à jour.");
+      modal.classList.remove("active");
+      await plans();
+    } catch (err) {
+      MIM.showError(MIM.userMessage(err));
+    } finally {
+      submit.disabled = false;
+      submit.textContent = original;
+    }
+  });
+}
 
 // ============================================================
 // Navigation
@@ -1339,9 +1504,10 @@ function wireAnnouncementModal() {
         const editId = form.dataset.editId;
         const body = {
           title: document.getElementById("announcementTitle").value.trim(),
-          body: document.getElementById("announcementBody").value.trim(),
+          content: document.getElementById("announcementBody").value.trim(),
           audience: document.getElementById("announcementAudience").value,
         };
+        if (!editId) body.status = "published";
         let r;
         if (editId) {
           r = await apiRequest(`/ultra-admin/announcements/${editId}`, { method: "PATCH", body: JSON.stringify(body) });
@@ -1565,7 +1731,7 @@ async function init() {
   try {
     const { user } = await apiRequest("/auth/me");
     if (user.account_type !== "ultra_admin") {
-      window.location.href = "../PartPublic/connexion.html";
+      window.location.href = "/PartPublic/connexion.html";
       return;
     }
     setAdminIdentity(user);
@@ -1591,7 +1757,7 @@ async function init() {
       try {
         await apiRequest("/auth/logout", { method: "POST" });
       } catch {}
-      window.location.href = "../PartPublic/connexion.html";
+      window.location.href = "/PartPublic/connexion.html";
     });
   }
 

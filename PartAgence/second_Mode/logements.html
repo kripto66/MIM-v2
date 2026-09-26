@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Logements</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/mim-errors.css">
+    <script src="/mim-errors.js"></script>
+
+    <link rel="stylesheet" href="/PartAgence/first_Mode/style.css">
+    <link rel="stylesheet" href="/PartPublic/mim-ui.css">
+
+</head>
+
+<body data-espace="agence2">
+
+    <div class="dashboard">
+
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
+
+            <a class="logo" href="/PartAgence/first_Mode/dashboard.html" data-sidebar-toggle-logo title="Tableau de bord Agence">
+                MIM
+            </a>
+
+            <nav class="sidebar-menu">
+                <div class="nav-category">MODE 2</div>
+                <a href="/PartAgence/first_Mode/dashboard.html">
+                    ← Retour au Dashboard Agence
+                </a>
+                <div class="nav-category">Bien courant</div>
+                <a href="/PartAgence/second_Mode/bien.html" id="navBien">Le bien</a>
+                <a href="/PartAgence/second_Mode/logements.html" id="navLogements" class="active">Logements</a>
+                <a href="/PartAgence/second_Mode/locataires.html" id="navLocataires">Locataires</a>
+                <a href="/PartAgence/second_Mode/paiements.html" id="navPaiements">Paiements</a>
+                <a href="/PartAgence/second_Mode/incidents.html" id="navIncidents">Incidents</a>
+                <a href="/PartAgence/second_Mode/prestataires.html" id="navPrestataires">Prestataires</a>
+                <a href="/PartAgence/second_Mode/interventions.html" id="navInterventions">Interventions</a>
+                <div class="nav-category">Suivi</div>
+                <a href="/PartAgence/second_Mode/notifications.html" id="navNotifications">Notifications</a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button id="logoutBtn" type="button">
+                    Déconnexion
+                </button>
+            </div>
+
+        </aside>
+
+        <main class="main-content">
+
+            <header class="dashboard-header">
+
+                <button class="menu-toggle" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">
+                    ☰
+                </button>
+
+                <div id="apiMessage" class="api-message" style="display:none;"></div>
+
+                <div class="welcome">
+                    <h1>Logements<span class="accent">.</span></h1>
+                    <p>Les appartements et chambres du bien géré.</p>
+                </div>
+
+                <div class="header-actions">
+                    <a href="/PartAgence/first_Mode/dashboard.html" class="btn btn-secondary">
+                        ← Retour au Dashboard Agence
+                    </a>
+                </div>
+
+            </header>
+
+            <!-- Bandeau bien -->
+            <div id="bienBanner" class="sub-banner sub-banner-info" hidden></div>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+                    <h2>Liste des logements</h2>
+                    <button class="btn btn-primary" id="addLogementBtn">+ Ajouter un logement</button>
+                </div>
+
+                <div id="logementsList">
+                    <div class="empty-state">Chargement...</div>
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <div class="modal-overlay" id="logementModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="modalTitle">Ajouter un logement</h2>
+
+            <form id="logementForm">
+
+                <input type="hidden" id="logementId">
+
+                <div class="form-group">
+                    <label for="nom">Nom du logement</label>
+                    <input type="text" id="nom" name="nom" placeholder="Ex : Appartement 3B" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="type">Type</label>
+                        <select id="type" name="type">
+                            <option value="appartement">Appartement</option>
+                            <option value="chambre">Chambre</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="chambresGroup">
+                        <label for="nombre_chambres">Nombre de chambres</label>
+                        <input type="number" id="nombre_chambres" name="nombre_chambres" min="1" max="50" placeholder="ex : 3">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="loyer_mensuel">Loyer mensuel (FCFA)</label>
+                        <input type="number" id="loyer_mensuel" name="loyer_mensuel" min="0" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label for="statut">Statut</label>
+                        <select id="statut" name="statut">
+                            <option value="libre">Libre</option>
+                            <option value="occupe">Occupé</option>
+                            <option value="maintenance">Maintenance</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="adresse">Adresse</label>
+                    <input type="text" id="adresse" name="adresse" placeholder="Laissez vide pour reprendre celle du bien">
+                    <small class="form-hint">Vide : l'adresse du bien géré est reprise automatiquement.</small>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelModal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <script src="/PartAgence/second_Mode/scope.js"></script>
+    <script src="/PartProprietaires/api.js"></script>
+    <script src="/PartProprietaires/crud.js"></script>
+    <script src="/PartAgence/second_Mode/mode2.js"></script>
+    <script src="/PartPublic/form-utils.js"></script>
+    <script>
+        const LOGEMENT_STATUS = {
+            libre: ["Libre", "status-success"],
+            occupe: ["Occupé", "status-warning"],
+            maintenance: ["Maintenance", "status-danger"],
+        };
+
+        let logementsCache = [];
+
+        function fmtFCFA(n) {
+            return `${Number(n || 0).toLocaleString("fr-FR")} FCFA`;
+        }
+
+        function toggleChambres() {
+            const group = document.getElementById("chambresGroup");
+            if (document.getElementById("type").value === "appartement") group.style.display = "block";
+            else {
+                group.style.display = "none";
+                document.getElementById("nombre_chambres").value = "";
+            }
+        }
+
+        CrudPage.init({
+            resource: "logements",
+            listEl: "logementsList",
+            addBtnEl: "addLogementBtn",
+            modalId: "logementModal",
+            modalTitleId: "modalTitle",
+            formId: "logementForm",
+            idFieldId: "logementId",
+            cancelBtnId: "cancelModal",
+            addTitle: "Ajouter un logement",
+            onOpenAdd: () => {
+                document.getElementById("type").value = "appartement";
+                toggleChambres();
+            },
+            validate: (form) => validateFields(form, [
+                {
+                    name: "nom",
+                    test: (i) => !i.value.trim(),
+                    message: "Le nom du logement est obligatoire.",
+                },
+                {
+                    name: "nombre_chambres",
+                    test: (i) => form.type.value === "appartement" && (i.value === "" || Number(i.value) < 1),
+                    message: "Indiquez le nombre de chambres.",
+                },
+                {
+                    name: "loyer_mensuel",
+                    test: (i) => i.value === "" || Number(i.value) <= 0,
+                    message: "Saisissez un loyer mensuel valide.",
+                },
+            ]),
+            afterInit: () => {
+                document.getElementById("type").addEventListener("change", toggleChambres);
+            },
+            afterLoad: (data) => {
+                logementsCache = data;
+            },
+            renderItem: (l) => {
+                const [label, cls] = LOGEMENT_STATUS[l.statut] || [l.statut, "status-info"];
+                return `
+                    <div class="crud-card">
+                        <div>
+                            <h3>${escapeHtml(l.nom)}</h3>
+                            <p>${l.type === "chambre" ? "Chambre" : "Appartement"}${l.nombre_chambres ? " · " + escapeHtml(l.nombre_chambres) + " chambre(s)" : ""} — <strong>${fmtFCFA(l.loyer_mensuel)}</strong> / mois</p>
+                            ${l.adresse ? `<p class="muted">📍 ${escapeHtml(l.adresse)}</p>` : ""}
+                            <p><span class="status ${cls}">${label}</span></p>
+                        </div>
+                        <div class="card-actions">
+                            <button class="btn btn-edit" data-edit="${l.id}">Modifier</button>
+                            <button class="btn btn-delete" data-delete="${l.id}">Supprimer</button>
+                        </div>
+                    </div>`;
+            }
+        });
+
+    </script>
+
+    <script src="/PartPublic/sidebar.js"></script>
+
+</body>
+
+</html>

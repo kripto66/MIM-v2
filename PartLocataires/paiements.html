@@ -323,6 +323,7 @@
                         </div>
                         <p>Votre paiement de <strong>${fmtFCFA(pending.montant)}</strong> a bien été reçu. Il attend la validation de votre propriétaire.</p>
                         ${pending.date_paiement ? `<p class="payer-meta">Reçu le ${formatDate(pending.date_paiement)}</p>` : ""}
+                        <button type="button" class="declare-btn" data-confirm-legacy="${escapeAttr(pending.id)}">Confirmer la réception</button>
                     </div>`;
                 if (subtitle) subtitle.textContent = "Votre paiement est enregistré : il attend la validation du propriétaire.";
                 return;
@@ -392,7 +393,7 @@
                     if (m.numero) lines.push(`<div class="method-line"><span>Numéro</span><strong>${escapeHtml(m.numero)}</strong>${copyBtn("Copier le numéro", m.numero, fbBase + "-p", "✓ Numéro copié")}</div>`);
                     if (m.banque) lines.push(`<div class="method-line"><span>Banque</span><strong>${escapeHtml(m.banque)}</strong></div>`);
                     if (m.num_compte) lines.push(`<div class="method-line"><span>Compte</span><strong>${escapeHtml(m.num_compte)}</strong>${copyBtn("Copier le compte", m.num_compte, fbBase + "-c", "✓ Compte copié")}</div>`);
-                    if (m.lien_paiement) lines.push(`<div class="method-line"><span>Lien de paiement</span><a href="${escapeAttr(m.lien_paiement)}" target="_blank" rel="noopener">Ouvrir</a></div>`);
+                    if (m.lien_paiement && MIM.httpsUrl(m.lien_paiement)) lines.push(`<div class="method-line"><span>Lien de paiement</span><a href="${escapeAttr(MIM.httpsUrl(m.lien_paiement))}" target="_blank" rel="noopener">Ouvrir</a></div>`);
                     if (m.instructions) lines.push(`<p class="method-instructions">${escapeHtml(m.instructions)}</p>`);
 
                     return `
@@ -506,6 +507,17 @@
                 await reloadPage();
 
                 document.getElementById("payerContent").addEventListener("click", (e) => {
+                    const confirmLegacy = e.target.closest("[data-confirm-legacy]");
+                    if (confirmLegacy) {
+                        confirmLegacy.disabled = true;
+                        tenantRequest(`/locataire/paiements/${encodeURIComponent(confirmLegacy.dataset.confirmLegacy)}/confirmer`, { method: "POST" })
+                            .then(() => reloadPage())
+                            .catch((err) => {
+                                showTenantError(err.message);
+                                confirmLegacy.disabled = false;
+                            });
+                        return;
+                    }
                     const btn = e.target.closest(".declare-btn");
                     if (btn) {
                         openDeclareModal(btn.dataset.method);

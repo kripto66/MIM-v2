@@ -11,8 +11,8 @@
 -- L'ancien pack « Ultra » (10 immeubles) est archivé (actif = false).
 --
 -- Migration additive/idempotente : à appliquer sur les bases existantes
--- (supabase db push --local) ; les nouvelles installations reçoivent la
--- même définition via le fichier 20260921000000_bictorys.sql mis à jour.
+-- (supabase db push --local). Les nouvelles installations suivent
+-- également cette migration après 20260921000000_bictorys.sql.
 -- ============================================================
 
 -- 1) Nouvelles colonnes de capacité (NULL = aucune limite, fail open).

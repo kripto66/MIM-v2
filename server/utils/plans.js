@@ -1,19 +1,31 @@
 // ============================================================
-// MIM - Catalogue des plans d'abonnement propriétaire
+// MIM - Catalogue des plans d'abonnement
 //
-// Grille mensuelle : Standard 7 000 / Premium 15 000 / Pro 30 000 /
-// Agence 50 000 XOF par mois. Les capacités (immeubles, logements,
-// locataires) sont définies en base (table public.plans) et TOUJOURS
-// lues côté serveur : rien n'est décidé côté frontend. Employés et
-// prestataires restent illimités sur tous les plans.
+// Deux audiences cohabitent (colonne public.plans.audience) :
+//   * 'proprietaire' : standard 7 000 / premium 15 000 /
+//     pro 30 000 / agence 50 000 XOF par mois ;
+//   * 'agence' : Starter 15 000 / Pro 25 000 / Business 40 000.
+//
+// Un compte ne voit QUE les plans de son audience : la vérification
+// est refaite au checkout (fail-closed), pas seulement dans l'UI.
+// Les capacités (immeubles, logements, locataires) sont définies en
+// base et TOUJOURS lues côté serveur. Employés et prestataires restent
+// illimités sur tous les plans.
 // ============================================================
 
 import { serviceClient } from '../app.js';
 
-// Liste des plans (par défaut : uniquement les actifs, triés par prix).
-export async function listPlans(onlyActive = true) {
+export const AUDIENCES = ['proprietaire', 'agence'];
+
+export function audienceForAccount(accountType) {
+  return accountType === 'agence' ? 'agence' : 'proprietaire';
+}
+
+// Liste des plans (par défaut : uniquement les actifs d'une audience).
+export async function listPlans(onlyActive = true, audience = 'proprietaire') {
   let q = serviceClient().from('plans').select('*');
   if (onlyActive) q = q.eq('actif', true);
+  if (audience && AUDIENCES.includes(audience)) q = q.eq('audience', audience);
   q = q.order('prix', { ascending: true });
   const { data, error } = await q;
   if (error) throw new Error(`plans: ${error.message}`);
@@ -25,7 +37,7 @@ export async function planByCode(code, onlyActive = true) {
   let q = serviceClient().from('plans').select('*').eq('code', String(code).trim().toLowerCase());
   if (onlyActive) q = q.eq('actif', true);
   const { data, error } = await q.maybeSingle();
-  if (error) return null;
+  if (error) throw new Error(`plans: ${error.message}`);
   return data || null;
 }
 
@@ -34,7 +46,8 @@ export async function planByCode(code, onlyActive = true) {
 export async function planForSubscription(sub) {
   if (!sub) return null;
   if (sub.plan_id) {
-    const { data } = await serviceClient().from('plans').select('*').eq('id', sub.plan_id).maybeSingle();
+    const { data, error } = await serviceClient().from('plans').select('*').eq('id', sub.plan_id).maybeSingle();
+    if (error) throw new Error(`plans: ${error.message}`);
     if (data) return data;
   }
   return planByCode(sub.plan);
@@ -54,25 +67,26 @@ export function planView(plan) {
     max_logements: plan.max_logements,
     max_locataires: plan.max_locataires,
     duree_abonnement: plan.duree_abonnement,
+    audience: plan.audience || 'proprietaire',
     description: plan.description,
     actif: plan.actif,
   };
 }
 
-export const PLAN_CODES = ['standard', 'premium', 'pro', 'agence'];
+export const PLAN_CODES = ['standard', 'premium', 'pro', 'agence', 'agence_starter', 'agence_pro', 'agence_business'];
 
 // Limite d'immeubles d'un propriétaire.
 //  * Abonnement avec plan reconnu → max_immeubles du plan ;
-//  * Sans abonnement (héritage) ou plan inconnu ('agence' legacy…) →
-//    aucune limite (accès historique conservé, fail open volontaire).
+//  * Sans abonnement (héritage) ou capacité NULL → aucune limite ;
+//    les valeurs 0 sont refusées par les contraintes PostgreSQL.
 export async function maxImmeublesFor(sub) {
   if (!sub) return null;
   const plan = await planForSubscription(sub);
   return plan && plan.max_immeubles > 0 ? plan.max_immeubles : null;
 }
 
-// Même logique « fail open » pour logements et locataires (NULL = aucune
-// limite, comportement historique conservé).
+// Les capacités NULL restent sans limite pour les données legacy ; les
+// valeurs nulles ou négatives ne sont pas autorisées par le schéma.
 export async function maxLogementsFor(sub) {
   if (!sub) return null;
   const plan = await planForSubscription(sub);

@@ -1,8 +1,6 @@
 // ============================================================
 // MIM - Validation sécurité CSRF
-// Vérifie que l'architecture (SameSite=Lax + same-origin +
-// auth serveur) fournit une protection suffisante contre les
-// attaques CSRF, rendant le token CSRF dédié inutile.
+// Vérifie le token CSRF double-submit et le contrôle d'origine.
 // ============================================================
 
 import { api, newJar, expectSuccess, BASE } from './lib.js';
@@ -12,33 +10,38 @@ const PW = 'Test1234!';
 
 export async function runCsrfValidation(r, ctx) {
   const { service } = ctx;
-  const o1 = ctx.seed.owners[0];
-  const o2 = ctx.seed.owners[1];
+  const o1 = ctx.seed.owners[3];
+  const o2 = ctx.seed.owners[2];
 
-  // ===========================================================
-  // 1. CSRF — mutations sans token CSRF fonctionnent
-  // ===========================================================
-  await r.section('1. CSRF — pas de token requis', async () => {
-    // POST sans header x-csrf-token → doit fonctionner (SameSite protège)
+  await r.section('1. CSRF — token requis pour les mutations authentifiées', async () => {
     const create = await api('/biens', {
       method: 'POST',
       jar: o1.jar,
       body: { nom: 'Bien CSRF Test', type: 'villa', adresse: 'Rue CSRF', ville: 'Dakar' },
     });
-    if (create.status === 201) r.pass(S, 'POST /biens sans CSRF token → 201');
+    if (create.status === 201) r.pass(S, 'POST /biens avec CSRF token → 201');
     else r.fail(S, 'POST /biens sans CSRF token → 201', `statut ${create.status}`);
 
     const bienId = create.data?.data?.id;
 
-    // PUT sans token
+    const cookie = o1.jar.cookies.map((item) => `${item.name}=${item.value}`).join('; ');
+    const missingToken = await fetch(`${BASE}/biens`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Cookie: cookie, Origin: new URL(BASE).origin },
+      body: JSON.stringify({ nom: 'CSRF sans token', type: 'villa' }),
+    });
+    if (missingToken.status === 403) r.pass(S, 'mutation authentifiée sans token CSRF → 403');
+    else r.fail(S, 'mutation authentifiée sans token CSRF → 403', `statut ${missingToken.status}`);
+
+    // PUT avec token
     if (bienId) {
       const update = await api(`/biens/${bienId}`, {
         method: 'PUT',
         jar: o1.jar,
         body: { nom: 'Bien CSRF Updated' },
       });
-      if (update.status === 200) r.pass(S, 'PUT /biens/:id sans CSRF token → 200');
-      else r.fail(S, 'PUT /biens/:id sans CSRF token → 200', `statut ${update.status}`);
+      if (update.status === 200) r.pass(S, 'PUT /biens/:id avec token CSRF → 200');
+      else r.fail(S, 'PUT /biens/:id avec token CSRF → 200', `statut ${update.status}`);
     }
 
     // DELETE sans token
@@ -47,8 +50,8 @@ export async function runCsrfValidation(r, ctx) {
         method: 'DELETE',
         jar: o1.jar,
       });
-      if (del.status === 200) r.pass(S, 'DELETE /biens/:id sans CSRF token → 200');
-      else r.fail(S, 'DELETE /biens/:id sans CSRF token → 200', `statut ${del.status}`);
+      if (del.status === 200) r.pass(S, 'DELETE /biens/:id avec token CSRF → 200');
+      else r.fail(S, 'DELETE /biens/:id avec token CSRF → 200', `statut ${del.status}`);
     }
   });
 
@@ -118,9 +121,8 @@ export async function runCsrfValidation(r, ctx) {
       else r.fail(S, 'cookie Secure en production', sc);
     }
 
-    // Pas de cookie XSRF-TOKEN
-    if (!/XSRF-TOKEN/i.test(sc)) r.pass(S, 'pas de cookie XSRF-TOKEN (CSRF supprimé)');
-    else r.fail(S, 'pas de cookie XSRF-TOKEN', sc);
+    if (/mim_csrf=/i.test(sc)) r.pass(S, 'cookie mim_csrf posé');
+    else r.fail(S, 'cookie mim_csrf posé', sc);
 
     // Cookie expiré / mauvais token → 401
     const badJar = { cookies: [{ name: 'mim_token', value: 'invalid.jwt.token' }] };
@@ -290,18 +292,12 @@ export async function runCsrfValidation(r, ctx) {
     else r.fail(S, 'CSP default-src self', csp);
   });
 
-  // ===========================================================
-  // 9. CSRF endpoint supprimé
-  // ===========================================================
-  await r.section('9. CSRF endpoint supprimé', async () => {
+  await r.section('9. CSRF endpoint', async () => {
     const csrf = await api('/csrf-token');
-    // Le stub retourne success: true mais csrfToken: null
-    if (csrf.status === 200 && csrf.data?.csrfToken === null) {
-      r.pass(S, '/api/csrf-token retourne csrfToken: null');
-    } else if (csrf.status === 404) {
-      r.pass(S, '/api/csrf-token supprimé (404)');
+    if (csrf.status === 200 && typeof csrf.data?.csrfToken === 'string' && csrf.data.csrfToken.length >= 32) {
+      r.pass(S, '/api/csrf-token retourne un jeton opaque');
     } else {
-      r.fail(S, '/api/csrf-token supprimé/inactif', `${csrf.status} ${JSON.stringify(csrf.data)}`);
+      r.fail(S, '/api/csrf-token retourne un jeton opaque', `${csrf.status} ${JSON.stringify(csrf.data)}`);
     }
   });
 

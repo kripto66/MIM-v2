@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 
@@ -16,17 +15,13 @@
     <link rel="stylesheet" href="/mim-errors.css">
     <script src="/mim-errors.js"></script>
 
-
-    <!--
-        CSS du dashboard.
-        Tu t'occupes entièrement du design.
-    -->
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/PartPublic/mim-ui.css">
 
 </head>
 
 
-<body>
+<body data-espace="proprietaire">
 
 
     <!-- =========================================================
@@ -43,22 +38,22 @@
         <aside class="sidebar" id="sidebar" data-breakpoint="800">
 
             <!-- Logo MIM -->
-            <div class="logo">
+            <a class="logo" href="dashboard.html" data-sidebar-toggle-logo title="Tableau de bord">
                 MIM
-            </div>
+            </a>
 
 
             <!-- Menu principal -->
             <nav class="sidebar-menu">
                 <div class="nav-category">Gestion</div>
-                <a href="dashboard.html">
+                <a class="active" href="dashboard.html">
                     Tableau de bord
                 </a>
                 <a href="biens.html">
                     Mes biens
                 </a>
                 <a href="locataires.html">
-                    Locataires & Logements
+                    Locataires &amp; Logements
                 </a>
                 <a href="employes.html">
                     Mes employés
@@ -93,9 +88,8 @@
             </nav>
 
 
-            <!-- Déconnexion -->
+            <!-- Déconnexion (câblée par PartPublic/sidebar.js) -->
             <div class="sidebar-footer">
-
 
                 <button id="logoutBtn" type="button">
                     Déconnexion
@@ -131,30 +125,39 @@
 
                 <div id="apiMessage" class="api-message" style="display:none;"></div>
 
-                <!-- Nom du propriétaire -->
+                <!-- Salutation -->
                 <div class="welcome">
 
                     <h1>
-                        Bonjour, <span id="ownerName">Propriétaire</span>
+                        <span id="greetingWord">Bonjour</span>, <span id="ownerName">Propriétaire</span><span class="accent">.</span>
                     </h1>
 
-                    <p>
+                    <p id="greetingSub">
                         Voici un aperçu de votre activité.
                     </p>
 
                 </div>
 
 
-                <!-- Notifications -->
+                <!-- Actions du header -->
                 <div class="header-actions">
 
-                    <a href="notifications.html">
+                    <span class="live-indicator" id="liveIndicator" title="Actualisation automatique">
+                        <span class="live-dot"></span>
+                        <span id="liveLabel">À jour</span>
+                    </span>
+
+                    <button class="refresh-btn" id="refreshBtn" type="button" title="Actualiser les données">
+                        <span class="refresh-ico">↻</span>
+                        <span>Actualiser</span>
+                    </button>
+
+                    <a href="notifications.html" class="header-btn" id="notifBtn">
                         Notifications
+                        <span class="notification-badge" id="notifBadge">0</span>
                     </a>
 
-
-                    <!-- Profil -->
-                    <a href="parametres.html">
+                    <a href="parametres.html" class="header-btn">
                         Mon profil
                     </a>
 
@@ -170,188 +173,113 @@
 
 
             <!-- =================================================
-                 VUE D'ENSEMBLE
+                 VUE D'ENSEMBLE (KPI)
                  ================================================= -->
 
             <section class="dashboard-overview">
 
-
                 <!-- Nombre total de logements -->
                 <article class="stat-card">
-
-                    <h3>
-                        Logements
-                    </h3>
-
-                    <!--
-                        Cette valeur sera récupérée depuis la base
-                        de données.
-                    -->
-                    <strong id="totalProperties">
-                        —
-                    </strong>
-
-                    <p>
-                        Total des logements
-                    </p>
-
+                    <span class="stat-ico">▤</span>
+                    <h3>Logements</h3>
+                    <strong class="stat-value" id="totalProperties">—</strong>
+                    <p class="stat-sub" id="propertySub">Chargement…</p>
                 </article>
 
-
-
-                <!-- Logements occupés -->
+                <!-- Locataires -->
                 <article class="stat-card">
-
-                    <h3>
-                        Occupés
-                    </h3>
-
-                    <strong id="occupiedProperties">
-                        —
-                    </strong>
-
-                    <p>
-                        Logements occupés
-                    </p>
-
+                    <span class="stat-ico">◉</span>
+                    <h3>Locataires</h3>
+                    <strong class="stat-value" id="totalTenants">—</strong>
+                    <p class="stat-sub" id="tenantSub">Chargement…</p>
                 </article>
-
-
-
-                <!-- Logements libres -->
-                <article class="stat-card">
-
-                    <h3>
-                        Libres
-                    </h3>
-
-                    <strong id="availableProperties">
-                        —
-                    </strong>
-
-                    <p>
-                        Logements disponibles
-                    </p>
-
-                </article>
-
-
 
                 <!-- Employés -->
                 <article class="stat-card">
-
-                    <h3>
-                        Employés
-                    </h3>
-
-                    <strong id="totalEmployees">
-                        —
-                    </strong>
-
-                    <p>
-                        Employés actifs
-                    </p>
-
+                    <span class="stat-ico">☰</span>
+                    <h3>Employés</h3>
+                    <strong class="stat-value" id="totalEmployees">—</strong>
+                    <p class="stat-sub" id="employeeSub">Chargement…</p>
                 </article>
 
-
-
-                <!-- Loyers attendus -->
-                <article class="stat-card">
-
-                    <h3>
-                        Loyers attendus
-                    </h3>
-
-                    <strong id="expectedRent">
-                        —
-                    </strong>
-
-                    <p>
-                        Ce mois
-                    </p>
-
+                <!-- Loyers encaissés ce mois -->
+                <article class="stat-card trend-up">
+                    <span class="stat-ico">◈</span>
+                    <h3>Loyers encaissés</h3>
+                    <strong class="stat-value accent" id="paidRent">—</strong>
+                    <p class="stat-sub" id="rentPaidSub">Ce mois</p>
+                    <div class="stat-progress">
+                        <div class="stat-progress-fill" id="rentProgress" style="width:0%"></div>
+                    </div>
                 </article>
-
-
-
-                <!-- Loyers encaissés -->
-                <article class="stat-card">
-
-                    <h3>
-                        Loyers encaissés
-                    </h3>
-
-                    <strong id="paidRent">
-                        —
-                    </strong>
-
-                    <p>
-                        Ce mois
-                    </p>
-
-                </article>
-
-
 
                 <!-- Loyers en retard -->
-                <article class="stat-card">
-
-                    <h3>
-                        Retards
-                    </h3>
-
-                    <strong id="lateRent">
-                        —
-                    </strong>
-
-                    <p>
-                        Loyers en retard
-                    </p>
-
+                <article class="stat-card trend-down kpi-danger">
+                    <span class="stat-ico">▲</span>
+                    <h3>Retards</h3>
+                    <strong class="stat-value" id="lateRent">—</strong>
+                    <p class="stat-sub" id="lateSub">Aucun loyer en retard</p>
                 </article>
-
-
 
                 <!-- Incidents -->
-                <article class="stat-card">
-
-                    <h3>
-                        Incidents
-                    </h3>
-
-                    <strong id="activeIncidents">
-                        —
-                    </strong>
-
-                    <p>
-                        Incidents en cours
-                    </p>
-
+                <article class="stat-card kpi-warn">
+                    <span class="stat-ico">●</span>
+                    <h3>Incidents</h3>
+                    <strong class="stat-value" id="activeIncidents">—</strong>
+                    <p class="stat-sub" id="incidentSub">En cours</p>
                 </article>
-
-
 
                 <!-- Interventions -->
                 <article class="stat-card">
-
-                    <h3>
-                        Interventions
-                    </h3>
-
-                    <strong id="activeInterventions">
-                        —
-                    </strong>
-
-                    <p>
-                        En cours
-                    </p>
-
+                    <span class="stat-ico">◆</span>
+                    <h3>Interventions</h3>
+                    <strong class="stat-value" id="activeInterventions">—</strong>
+                    <p class="stat-sub" id="interventionSub">Chargement…</p>
                 </article>
-
 
             </section>
 
+
+            <!-- =================================================
+                 GRAPHIQUES (donut occupation + loyers du mois)
+                 ================================================= -->
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+                    <h2>Vue d'ensemble</h2>
+                    <a href="paiements.html">Détail des paiements</a>
+                </div>
+
+                <div class="chart-grid">
+
+                    <div class="chart-box">
+                        <div>
+                            <h3>Occupation des logements</h3>
+                            <p class="chart-sub" id="occupancySub">Chargement…</p>
+                        </div>
+                        <div class="donut-wrap">
+                            <div class="donut" id="occupancyDonut" style="--val:0; --donut-color:#8b5cf6">
+                                <div class="donut-center">
+                                    <strong id="occupancyPct">—</strong>
+                                    <span>occupés</span>
+                                </div>
+                            </div>
+                            <div class="chart-legend" id="occupancyLegend"></div>
+                        </div>
+                    </div>
+
+                    <div class="chart-box">
+                        <div>
+                            <h3>Loyers du mois</h3>
+                            <p class="chart-sub" id="rentChartSub">Chargement…</p>
+                        </div>
+                        <div class="bar-chart" id="rentBars"></div>
+                    </div>
+
+                </div>
+
+            </section>
 
 
             <!-- =================================================
@@ -375,17 +303,17 @@
 
                 <div class="actions-grid" id="actionsGrid">
 
-                    <a href="paiements.html" id="actValidations" class="action-card">
+                    <a href="paiements.html#validations" id="actValidations" class="action-card">
                         <strong>—</strong>
                         <span>Paiements à valider</span>
                     </a>
 
-                    <a href="paiements.html" id="actSalaires" class="action-card">
+                    <a href="employes.html#paiements" id="actSalaires" class="action-card">
                         <strong>—</strong>
                         <span>Salaires à confirmer</span>
                     </a>
 
-                    <a href="paiements.html" id="actRetards" class="action-card">
+                    <a href="paiements.html#retards" id="actRetards" class="action-card">
                         <strong>—</strong>
                         <span>Loyers en retard</span>
                     </a>
@@ -405,200 +333,174 @@
             </section>
 
 
-
             <!-- =================================================
-                 MES BIENS
+                 GRILLE PRINCIPALE : contenu en 2 colonnes
                  ================================================= -->
 
-            <section class="dashboard-section">
-
-                <div class="section-header">
-
-                    <h2>
-                        Mes biens
-                    </h2>
-
-                    <!--
-                        Permet au propriétaire d'ajouter
-                        un nouveau bien.
-                    -->
-                    <a href="biens.html">
-                        Gérer mes biens
-                    </a>
-
-                </div>
+            <div class="dash-grid">
 
 
-                <div id="propertiesList">
+                <!-- ================= COLONNE GAUCHE ================= -->
 
-                    <!-- Les biens du propriétaire sont affichés ici dynamiquement. -->
-
-                </div>
-
-            </section>
+                <div class="dash-stack">
 
 
+                    <!-- PAIEMENTS RÉCENTS -->
+                    <section class="dashboard-section">
 
-            <!-- =================================================
-                 LOCATAIRES
-                 ================================================= -->
+                        <div class="section-header">
 
-            <section class="dashboard-section">
+                            <h2>
+                                Paiements récents
+                            </h2>
 
-                <div class="section-header">
+                            <a href="paiements.html">
+                                Voir tous les paiements
+                            </a>
 
-                    <h2>
-                        Locataires
-                    </h2>
+                        </div>
 
-                    <a href="locataires.html">
-                        Gérer les locataires
-                    </a>
+                        <div class="mini-stats" id="paymentsSummary">
+                            <div class="mini-stat">
+                                <span class="mini-label">Payés</span>
+                                <strong class="mini-val ok">—</strong>
+                            </div>
+                            <div class="mini-stat">
+                                <span class="mini-label">En attente</span>
+                                <strong class="mini-val pending">—</strong>
+                            </div>
+                            <div class="mini-stat">
+                                <span class="mini-label">En retard</span>
+                                <strong class="mini-val danger">—</strong>
+                            </div>
+                        </div>
 
-                </div>
+                        <div id="recentPayments"></div>
 
-
-                <div id="tenantsList">
-
-                    <!-- Les locataires récents sont affichés ici dynamiquement. -->
-
-                </div>
-
-            </section>
-
-
-
-            <!-- =================================================
-                 PAIEMENTS / LOYERS
-                 ================================================= -->
-
-            <section class="dashboard-section">
-
-                <div class="section-header">
-
-                    <h2>
-                        Paiements
-                    </h2>
-
-                    <a href="paiements.html">
-                        Voir tous les paiements
-                    </a>
-
-                </div>
+                    </section>
 
 
-                <div id="paymentsSummary">
+                    <!-- INCIDENTS RÉCENTS -->
+                    <section class="dashboard-section">
 
-                </div>
+                        <div class="section-header">
 
+                            <h2>
+                                Incidents récents
+                            </h2>
 
-                <!-- Historique récent -->
-                <div id="recentPayments">
+                            <a href="incidents.html">
+                                Voir tous les incidents
+                            </a>
 
-                    <!--
-                        Les derniers paiements seront
-                        affichés ici.
-                    -->
-
-                </div>
-
-            </section>
+                        </div>
 
 
+                        <div id="recentIncidents"></div>
 
-            <!-- =================================================
-                 INCIDENTS
-                 ================================================= -->
+                    </section>
 
-            <section class="dashboard-section">
 
-                <div class="section-header">
+                    <!-- INTERVENTIONS EN COURS -->
+                    <section class="dashboard-section">
 
-                    <h2>
-                        Incidents récents
-                    </h2>
+                        <div class="section-header">
 
-                    <a href="incidents.html">
-                        Voir tous les incidents
-                    </a>
+                            <h2>
+                                Interventions en cours
+                            </h2>
+
+                            <a href="interventions.html">
+                                Voir les interventions
+                            </a>
+
+                        </div>
+
+
+                        <div id="activeInterventionsList"></div>
+
+                    </section>
 
                 </div>
 
 
-                <div id="recentIncidents">
+                <!-- ================= COLONNE DROITE ================= -->
 
-                    <!-- Les incidents récents sont affichés ici dynamiquement. -->
+                <div class="dash-stack">
+
+
+                    <!-- NOTIFICATIONS -->
+                    <section class="dashboard-section">
+
+                        <div class="section-header">
+
+                            <h2>
+                                Notifications
+                            </h2>
+
+                            <a href="notifications.html">
+                                Voir toutes
+                            </a>
+
+                        </div>
+
+
+                        <div id="recentNotifications"></div>
+
+                    </section>
+
+
+                    <!-- LOCATAIRES RÉCENTS -->
+                    <section class="dashboard-section">
+
+                        <div class="section-header">
+
+                            <h2>
+                                Locataires
+                            </h2>
+
+                            <a href="locataires.html">
+                                Gérer les locataires
+                            </a>
+
+                        </div>
+
+
+                        <div id="tenantsList"></div>
+
+                    </section>
+
+
+                    <!-- MES BIENS -->
+                    <section class="dashboard-section">
+
+                        <div class="section-header">
+
+                            <h2>
+                                Mes biens
+                            </h2>
+
+                            <a href="biens.html">
+                                Gérer mes biens
+                            </a>
+
+                        </div>
+
+
+                        <div id="propertiesList"></div>
+
+                    </section>
 
                 </div>
 
-            </section>
-
-
-
-            <!-- =================================================
-                 INTERVENTIONS
-                 ================================================= -->
-
-            <section class="dashboard-section">
-
-                <div class="section-header">
-
-                    <h2>
-                        Interventions en cours
-                    </h2>
-
-                    <a href="interventions.html">
-                        Voir les interventions
-                    </a>
-
-                </div>
-
-
-                <div id="activeInterventionsList">
-
-                    <!-- Les interventions en cours sont affichées ici dynamiquement. -->
-
-                </div>
-
-            </section>
-
-
-
-            <!-- =================================================
-                 NOTIFICATIONS RÉCENTES
-                 ================================================= -->
-
-            <section class="dashboard-section">
-
-                <div class="section-header">
-
-                    <h2>
-                        Notifications
-                    </h2>
-
-                    <a href="notifications.html">
-                        Voir toutes
-                    </a>
-
-                </div>
-
-
-                <div id="recentNotifications">
-
-                    <!--
-                        Les notifications récentes
-                        seront affichées ici.
-                    -->
-
-                </div>
-
-            </section>
+            </div>
 
 
         </main>
 
     </div>
 
+    <script src="/PartPublic/mim-ui.js"></script>
     <script src="api.js"></script>
     <script src="crud.js"></script>
     <script src="onboarding.js"></script>
@@ -609,4 +511,3 @@
 </body>
 
 </html>
-

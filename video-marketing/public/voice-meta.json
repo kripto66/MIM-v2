@@ -1,0 +1,34 @@
+[
+  {
+    "id": "01-probleme",
+    "duration": 3.912
+  },
+  {
+    "id": "02-solution",
+    "duration": 5.88
+  },
+  {
+    "id": "03-dashboard",
+    "duration": 6.432
+  },
+  {
+    "id": "04-biens",
+    "duration": 5.112
+  },
+  {
+    "id": "05-paiements",
+    "duration": 6.24
+  },
+  {
+    "id": "06-maintenance",
+    "duration": 4.776
+  },
+  {
+    "id": "07-equipe",
+    "duration": 4.32
+  },
+  {
+    "id": "08-cta",
+    "duration": 6.912
+  }
+]

@@ -88,8 +88,8 @@ form.addEventListener("submit", async function(event) {
             const redirect = data.redirect;
             const timeout = data.emailConfirmationRequired ? 1500 : 1200;
             const target = data.emailConfirmationRequired
-                ? "../PartPublic/connexion.html"
-                : "../" + redirect;
+                ? "/PartPublic/connexion.html"
+                : MIM.resolveRedirect(redirect, payload.account_type) || MIM.accountHome(payload.account_type);
 
             setTimeout(function() {
                 window.location.href = target;

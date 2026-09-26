@@ -1,13 +1,13 @@
 import { Router } from 'express';
-import jwt from 'jsonwebtoken';
-import { supabase, authedClient, serviceClient } from '../app.js';
-import { signToken, authenticate, ownerSuspendedFor, isBannedValue, banStatusOf } from '../middleware/auth.js';
+import { anonClient, authedClient, serviceClient } from '../app.js';
+import { authenticate, ownerSuspendedFor, banStatusOf, businessAccountActive, invalidateMfaCache } from '../middleware/auth.js';
 import { forgotPasswordRateLimit, mfaVerifyRateLimit } from '../middleware/rateLimit.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
-import { logSession, closeSession } from '../utils/sessions.js';
+import { createSession, revokeAllSessions, revokeSession, createMfaChallenge, claimMfaChallenge, finishMfaChallenge, decryptSessionValue } from '../utils/sessions.js';
 import { newOAuthClient, storeFlow, getFlow, deleteFlow } from '../utils/oauth.js';
 import { resolveLoginEmail, tenantEmailFor, usernameIsValid, TENANT_EMAIL_DOMAIN } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
+import { issueResetToken, tryConsumeResetToken, finalizeResetToken, releaseResetToken, generateResetToken, hashResetToken, sendResetEmail } from '../utils/passwordReset.js';
 import { subscriptionExpiredFor } from '../utils/subscription.js';
 import { auditLog, LEVELS } from '../utils/audit.js';
 import { isSaasSuspended, isAllowedDuringSuspension } from '../utils/saasStatus.js';
@@ -16,11 +16,12 @@ const router = Router();
 
 // Un locataire ne crée jamais son compte lui-même : seul le propriétaire
 // peut créer un compte locataire depuis son espace.
-const ALLOWED_TYPES = ['proprietaire', 'agence', 'entreprise'];
+const ALLOWED_TYPES = ['proprietaire', 'agence'];
+const OWNER_TYPES_FOR_LOGIN = ['proprietaire', 'agence', 'entreprise'];
 
 const PAGE_BY_TYPE = {
   proprietaire: 'PartProprietaires/dashboard.html',
-  agence: 'PartProprietaires/dashboard.html',
+  agence: 'PartAgence/first_Mode/dashboard.html',
   entreprise: 'PartProprietaires/dashboard.html',
   locataire: 'PartLocataires/LocaDash.html',
   admin: 'PartAdmin/admin.html',
@@ -46,8 +47,10 @@ function emailIsValid(email) {
 // Recherche d'un compte auth par email (endpoint admin GoTrue). Permet de
 // distinguer : compte inexistant, compte suspendu, mauvais identifiants.
 async function lookupAuthUserByEmail(email) {
+  const normalized = String(email || '').trim().toLowerCase();
   try {
-    const res = await fetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users?filter=${encodeURIComponent(email)}`, {
+    const res = await fetch(`${process.env.SUPABASE_URL}/auth/v1/admin/users?filter=${encodeURIComponent(normalized)}`, {
+      signal: typeof AbortSignal !== 'undefined' && AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined,
       headers: {
         apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
         Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
@@ -60,7 +63,7 @@ async function lookupAuthUserByEmail(email) {
     }
 
     const body = await res.json();
-    return (body?.users || []).find((u) => u.email === email) || null;
+    return (body?.users || []).find((u) => String(u.email || '').toLowerCase() === normalized) || null;
   } catch (err) {
     console.warn('[login] lookup auth users :', err.message);
     return null;
@@ -69,6 +72,38 @@ async function lookupAuthUserByEmail(email) {
 
 function verifiedFactorsOf(user) {
   return (user?.factors || []).filter((f) => f.status === 'verified');
+}
+
+// Récupération de mot de passe : recherche du compte par email (GoTrue
+// d'abord, sinon profil). Renvoie { id, email } ou null — jamais de
+// message différencié au client.
+async function findResetUserByEmail(email) {
+  const normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return null;
+  try {
+    const user = await lookupAuthUserByEmail(normalized);
+    if (user?.id) return { id: user.id, email: normalized };
+  } catch {
+  }
+  try {
+    const { data: recovery, error: recoveryError } = await serviceClient()
+      .from('account_recovery_emails')
+      .select('user_id, email')
+      .ilike('email', normalized)
+      .maybeSingle();
+    if (!recoveryError && recovery?.user_id) return { id: recovery.user_id, email: recovery.email };
+  } catch {
+  }
+  try {
+    const { data } = await serviceClient()
+      .from('profiles')
+      .select('id, email')
+      .ilike('email', normalized)
+      .maybeSingle();
+    if (data?.id) return { id: data.id, email: data.email };
+  } catch {
+  }
+  return null;
 }
 
 function setAuthCookie(res, token) {
@@ -105,10 +140,10 @@ function publicUser(user, profile) {
   const p = profile || {};
   return {
     id: user.id,
-    account_type: accountTypeOf(user),
+    account_type: p.account_type || accountTypeOf(user),
     name: user.user_metadata?.name || p.name || '',
     username: p.username || user.user_metadata?.username || '',
-    email: accountTypeOf(user) === 'locataire' ? '' : (user.email || p.email || ''),
+    email: (p.account_type || accountTypeOf(user)) === 'locataire' ? '' : (user.email || p.email || ''),
     phone: user.user_metadata?.phone || p.phone || '',
     must_change_password: Boolean(p.must_change_password),
   };
@@ -117,7 +152,7 @@ function publicUser(user, profile) {
 async function profileOf(userId) {
   const { data, error } = await serviceClient()
     .from('profiles')
-    .select('name, email, phone, username, must_change_password')
+    .select('account_type, name, email, phone, username, must_change_password')
     .eq('id', userId)
     .maybeSingle();
 
@@ -151,90 +186,85 @@ async function resolveOAuthAccountType(user) {
   }
 }
 
+async function revokeSupabaseSessions(userId, sbAdmin, scope = 'global') {
+  const { data, error } = await sbAdmin
+    .from('sessions')
+    .select('supabase_access_token, supabase_refresh_token')
+    .eq('user_id', userId)
+    .is('revoked_at', null);
+  if (error) throw new Error(error.message);
+
+  for (const stored of data || []) {
+    let token = decryptSessionValue(stored.supabase_access_token);
+    const refreshToken = decryptSessionValue(stored.supabase_refresh_token);
+    if (refreshToken) {
+      const { data: refreshed, error: refreshError } = await anonClient().auth.refreshSession({ refresh_token: refreshToken });
+      if (refreshError) {
+        if (!/session missing|invalid refresh|already logged out|not found/i.test(refreshError.message)) throw new Error(refreshError.message);
+        continue;
+      }
+      token = refreshed?.session?.access_token || token;
+    }
+    if (!token) continue;
+    const { error: signOutError } = await sbAdmin.auth.admin.signOut(token, scope);
+    if (signOutError && !/session missing|invalid refresh|already logged out|not found/i.test(signOutError.message)) {
+      throw new Error(signOutError.message);
+    }
+  }
+}
+
 async function requireMfaFor(user, supabaseToken) {
   let factors = verifiedFactorsOf(user);
 
   if (!factors.length) {
-    try {
-      const { data } = await authedClient(supabaseToken).auth.mfa.listFactors();
-      factors = (data?.all || []).filter((f) => f.status === 'verified');
-    } catch (err) {
-      console.warn('[mfa] listFactors échec :', err.message);
-    }
+    const { data, error } = await authedClient(supabaseToken).auth.mfa.listFactors();
+    if (error) throw new Error(error.message);
+    factors = (data?.all || []).filter((f) => f.status === 'verified');
   }
 
   return factors;
 }
 
+async function hasActiveMandat(userId) {
+  try {
+    const { data, error } = await serviceClient()
+      .from('agences_proprietaires')
+      .select('id')
+      .eq('proprietaire_id', userId)
+      .eq('statut', 'actif')
+      .limit(1)
+      .maybeSingle();
+    return !error && Boolean(data);
+  } catch {
+    return false;
+  }
+}
+
 async function finalizeLogin(res, user, session, userAgent, ip) {
-  const accountType = accountTypeOf(user);
-
-  const token = signToken(sessionPayload(user, session));
-
-  setAuthCookie(res, token);
-
-  await linkTenantAccount(user, session?.access_token);
-  await logSession(user.id, 'login', session?.access_token, userAgent, ip);
+  const profile = await profileOf(user.id);
+  const accountType = profile?.account_type || accountTypeOf(user);
+  const appSession = await createSession({ userId: user.id, session, userAgent, ip });
+  setAuthCookie(res, appSession.token);
   gitAutoBackup(`Sauvegarde auto : connexion de ${user.email}`);
 
-  const profile = await profileOf(user.id);
-
-  let redirect = PAGE_BY_TYPE[accountType];
-
-  // Propriétaire dont l'abonnement est expiré : le diriger directement
-  // vers la page d'abonnement pour renouveler en ligne (les routes métier
-  // restent bloquées par requireActive tant qu'il n'a pas payé).
-  if (['proprietaire', 'agence', 'entreprise'].includes(accountType)) {
-    const expired = await subscriptionExpiredFor(user.id, accountType);
-    if (expired) {
-      redirect = 'PartProprietaires/abonnements.html';
-    }
+  let redirect = PAGE_BY_TYPE[accountType] || PAGE_BY_TYPE.proprietaire;
+  if (OWNER_TYPES_FOR_LOGIN.includes(accountType) && await subscriptionExpiredFor(user.id, accountType)) {
+    redirect = accountType === 'agence' ? 'PartAgence/first_Mode/abonnements.html' : 'PartProprietaires/abonnements.html';
+  } else if (accountType === 'proprietaire' && await hasActiveMandat(user.id)) {
+    redirect = 'PartProprietairesShadow/dashboard.html';
   }
 
   return {
-    user: publicUser(user, profile),
+    user: publicUser(user, { ...(profile || {}), account_type: accountType }),
     redirect,
-    mustChangePassword: (accountType === 'locataire' || accountType === 'employe' || accountType === 'admin') && Boolean(profile?.must_change_password),
+    mustChangePassword: ['locataire', 'employe', 'admin'].includes(accountType) && Boolean(profile?.must_change_password),
   };
 }
 
 // Relie un compte 'locataire' à sa fiche s'il n'est pas encore lié.
 // Liaison par username (nouveau) puis par email (ancien fonctionnement).
-async function linkTenantAccount(user, supabaseToken) {
-  if (accountTypeOf(user) !== 'locataire') return;
-
-  const username = user.user_metadata?.username;
-  const email = user.email;
-
-  const sb = authedClient(supabaseToken);
-  let matched = false;
-
-  if (username) {
-    const { data, error } = await sb
-      .from('locataires')
-      .update({ account_uid: user.id })
-      .ilike('username', username)
-      .is('account_uid', null)
-      .select('id')
-      .maybeSingle();
-
-    if (!error && data) matched = true;
-    else if (error) console.warn('[linkTenantAccount] username :', error.message);
-  }
-
-  if (!matched && email) {
-    try {
-      const { error } = await sb
-        .from('locataires')
-        .update({ account_uid: user.id })
-        .ilike('email', email)
-        .is('account_uid', null);
-
-      if (error) console.warn('[linkTenantAccount] email :', error.message);
-    } catch (err) {
-      console.warn('[linkTenantAccount]', err.message);
-    }
-  }
+async function linkTenantAccount() {
+  return null;
 }
 
 router.post('/register', async (req, res) => {
@@ -278,61 +308,39 @@ router.post('/register', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Les mots de passe ne correspondent pas.' });
   }
 
-  const { data, error } = await supabase.auth.signUp({
-    email,
+  const normalizedEmail = email.trim().toLowerCase();
+  const { data: signUpData, error: signUpError } = await anonClient().auth.signUp({
+    email: normalizedEmail,
     password,
     options: {
       data: {
+        name: String(name).trim(),
+        phone: String(phone || '').trim(),
         account_type,
-        name,
-        phone,
-        role: account_type,
       },
     },
   });
 
-  if (error) {
-    const msg = String(error.message || '').toLowerCase();
-
-    if (msg.includes('already registered') || msg.includes('existe')) {
+  if (signUpError) {
+    const msg = String(signUpError.message || '').toLowerCase();
+    if (msg.includes('already registered') || msg.includes('already been registered') || msg.includes('already exists') || msg.includes('existe')) {
       return res.status(409).json({ success: false, code: 'EMAIL_ALREADY_EXISTS', message: 'Cette adresse email est déjà utilisée.' });
     }
-
-    if (msg.includes('rate limit') || error.status === 429) {
-      console.warn('[register]', error.message);
-      return res.status(429).json({
-        success: false,
-        message: 'Trop de demandes d\'inscription récentes. Veuillez réessayer dans quelques minutes.',
-      });
+    if (msg.includes('rate limit') || signUpError.status === 429) {
+      return res.status(429).json({ success: false, message: 'Trop de demandes d\'inscription récentes. Veuillez réessayer dans quelques minutes.' });
     }
-
-    console.error('[register]', error.message);
+    console.error('[register]', signUpError.message);
     return res.status(500).json({ success: false, message: 'Une erreur est survenue lors de la création du compte.' });
   }
 
-  const user = data.user;
-
-  if (!user) {
+  if (!signUpData?.user) {
     return res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
   }
 
-  if (!data.session) {
-    return res.status(201).json({
-      success: true,
-      message: 'Compte créé. Veuillez vérifier votre email pour confirmer.',
-      emailConfirmationRequired: true,
-    });
-  }
-
-  setAuthCookie(res, signToken(sessionPayload(user, data.session)));
-
-  await linkTenantAccount(user, data.session?.access_token);
-  await logSession(user.id, 'register', data.session?.access_token, req.headers['user-agent'], req.ip);
-
-  res.status(201).json({
+  return res.status(201).json({
     success: true,
-    message: 'Compte créé avec succès.',
-    redirect: PAGE_BY_TYPE[account_type],
+    message: 'Compte créé. Vérifiez votre adresse e-mail pour confirmer votre inscription.',
+    emailConfirmationRequired: true,
   });
 });
 
@@ -345,43 +353,15 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ success: false, code: 'VALIDATION', message: 'Veuillez remplir tous les champs.' });
   }
 
-  // Distinction compte inexistant / compte suspendu / mauvais identifiants.
-  const account = await lookupAuthUserByEmail(email);
-
-  if (account && isBannedValue(account.banned_until)) {
-    return res.status(401).json({
-      success: false,
-      code: 'INVALID_CREDENTIALS',
-      message: 'Email ou mot de passe incorrect.',
-    });
-  }
-
-  if (!account) {
-    // Même réponse que pour un mauvais mot de passe (anti-énumération) :
-    // on ne révèle pas l'existence du compte.
-    return res.status(401).json({
-      success: false,
-      code: 'INVALID_CREDENTIALS',
-      message: 'Email ou mot de passe incorrect.',
-    });
-  }
-
   // Bloquer la connexion si le SaaS est suspendu (admin/ultra_admin autorisés)
-  const saasSuspended = await isSaasSuspended();
-  if (saasSuspended && !isAllowedDuringSuspension(account.user_metadata?.account_type)) {
-    return res.status(503).json({
-      success: false,
-      code: 'SAAS_SUSPENDED',
-      message: 'Le service est temporairement indisponible. Veuillez réessayer plus tard.',
-    });
-  }
+  // Cette vérification est effectuée après l'authentification afin de ne pas
+  // révéler l'existence d'un compte et d'éviter une requête Auth admin par login.
+  const { data, error } = await anonClient().auth.signInWithPassword({ email, password });
 
   const isTransient = (e) => {
     const status = Number(e?.status);
     return !status || status >= 500;
   };
-
-  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error || !data.user || !data.session) {
     const status = Number(error?.status);
@@ -405,9 +385,21 @@ router.post('/login', async (req, res) => {
     return res.status(401).json({ success: false, code: 'INVALID_CREDENTIALS', message: 'Email ou mot de passe incorrect.' });
   }
 
-  const accountType = accountTypeOf(data.user);
+  const profile = await profileOf(data.user.id);
+  const accountType = profile?.account_type || accountTypeOf(data.user);
+  const saasSuspended = await isSaasSuspended();
+  const accessType = profile?.account_type || accountTypeOf(data.user);
+  if (saasSuspended && !isAllowedDuringSuspension(accessType)) {
+    return res.status(503).json({
+      success: false,
+      code: 'SAAS_SUSPENDED',
+      message: 'Le service est temporairement indisponible. Veuillez réessayer plus tard.',
+    });
+  }
 
-  // Un propriétaire dont l'abonnement MIM est EXPIRÉ peut se connecter
+  if (!profile || (['locataire', 'employe'].includes(accountType) && !(await businessAccountActive(data.user.id, accountType)))) {
+    return res.status(401).json({ success: false, code: 'INVALID_CREDENTIALS', message: 'Email ou mot de passe incorrect.' });
+  }
   // pour RENOUVELER en ligne (paiement Bictorys). Toutes les routes
   // métier restent bloquées tant qu'il n'a pas payé (requireActive).
   // Seuls les comptes bannis restent refusés (déjà gérés ci-dessus).
@@ -428,16 +420,22 @@ router.post('/login', async (req, res) => {
     }
   }
 
-  const factors = await requireMfaFor(data.user, data.session.access_token);
+  let factors;
+  try {
+    factors = await requireMfaFor(data.user, data.session.access_token);
+  } catch {
+    return res.status(503).json({ success: false, code: 'MFA_UNAVAILABLE', message: 'La vérification de sécurité est indisponible.' });
+  }
 
   if (factors.length > 0) {
-    setPendingMfaCookie(res, signToken({
-      id: data.user.id,
-      account_type: accountTypeOf(data.user),
-      supabase_token: data.session.access_token,
-      mfa_pending: true,
+    const challenge = await createMfaChallenge({
+      userId: data.user.id,
+      session: data.session,
       factorId: factors[0].id,
-    }, '10m'));
+      userAgent: req.headers['user-agent'],
+      ip: req.ip,
+    });
+    setPendingMfaCookie(res, challenge.token);
 
     // Le drapeau must_change_password doit survivre à l'étape 2FA :
     // sans lui, un locataire/employé avec 2FA activée contournerait le
@@ -456,7 +454,13 @@ router.post('/login', async (req, res) => {
     });
   }
 
-  const result = await finalizeLogin(res, data.user, data.session, req.headers['user-agent'], req.ip);
+  let result;
+  try {
+    result = await finalizeLogin(res, data.user, data.session, req.headers['user-agent'], req.ip);
+  } catch (err) {
+    console.error('[login] finalisation session :', err.message);
+    return res.status(503).json({ success: false, code: 'SESSION_UNAVAILABLE', message: 'Service temporairement indisponible. Réessayez dans un instant.' });
+  }
 
   res.json({
     success: true,
@@ -472,43 +476,49 @@ router.post('/verify-2fa', mfaVerifyRateLimit, async (req, res) => {
     return res.status(401).json({ success: false, message: 'Session de vérification expirée.' });
   }
 
-  let decoded;
-  try {
-    decoded = jwt.verify(pending, process.env.JWT_SECRET);
-  } catch (err) {
-    return res.status(401).json({ success: false, message: 'Session de vérification expirée.' });
-  }
-
   const code = String(req.body?.code || '').trim();
   if (!/^\d{6}$/.test(code)) {
     return res.status(400).json({ success: false, message: 'Code invalide.' });
   }
 
+  let challenge;
   try {
-    const sb = authedClient(decoded.supabase_token);
+    challenge = await claimMfaChallenge(pending);
+  } catch (err) {
+    console.error('[verify-2fa] challenge :', err.message);
+    return res.status(503).json({ success: false, message: 'Service temporairement indisponible.' });
+  }
+  if (!challenge?.supabase_access_token || !challenge.mfa_factor_id) {
+    return res.status(401).json({ success: false, message: 'Session de vérification expirée.' });
+  }
 
-    const { data: challenge, error: challengeError } = await sb.auth.mfa.challenge({
-      factorId: decoded.factorId,
+  try {
+    const sb = authedClient(challenge.supabase_access_token);
+
+    const { data: mfaChallenge, error: challengeError } = await sb.auth.mfa.challenge({
+      factorId: challenge.mfa_factor_id,
     });
 
     if (challengeError) {
+      await finishMfaChallenge(challenge, false).catch(() => {});
       console.error('[verify-2fa]', challengeError.message);
       return res.status(400).json({ success: false, message: 'Impossible de créer le défi de vérification.' });
     }
 
     const { data: verified, error: verifyError } = await sb.auth.mfa.verify({
-      factorId: decoded.factorId,
-      challengeId: challenge.id,
+      factorId: challenge.mfa_factor_id,
+      challengeId: mfaChallenge.id,
       code,
     });
 
     if (verifyError || !verified) {
+      await finishMfaChallenge(challenge, false).catch(() => {});
       return res.status(400).json({ success: false, message: 'Code de vérification incorrect.' });
     }
 
+    await finishMfaChallenge(challenge, true);
     res.clearCookie('mim_mfa_pending');
 
-    // mfa.verify renvoie access_token/refresh_token/expires_in (pas expires_at).
     const session = {
       access_token: verified.access_token,
       refresh_token: verified.refresh_token || null,
@@ -523,6 +533,7 @@ router.post('/verify-2fa', mfaVerifyRateLimit, async (req, res) => {
       ...result,
     });
   } catch (err) {
+    await finishMfaChallenge(challenge, false).catch(() => {});
     console.error('[verify-2fa]', err.message);
     res.status(500).json({ success: false, message: 'Une erreur est survenue lors de la vérification.' });
   }
@@ -533,6 +544,7 @@ router.get('/mfa/status', authenticate, async (req, res) => {
     const { data, error } = await authedClient(req.user.supabase_token).auth.mfa.listFactors();
 
     if (error) {
+      console.error('[mfa/status]', error.message);
       return res.status(500).json({ success: false, message: 'Impossible de lire la configuration 2FA.' });
     }
 
@@ -561,6 +573,7 @@ router.post('/mfa/enroll', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Impossible de démarrer l’enrôlement 2FA.' });
     }
 
+    invalidateMfaCache(req.user.id);
     res.json({
       success: true,
       factorId: data.id,
@@ -598,13 +611,19 @@ router.post('/mfa/confirm', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Code incorrect.' });
     }
 
-    setAuthCookie(res, signToken({
-      id: req.user.id,
-      account_type: req.user.account_type,
-      supabase_token: verified.access_token,
+    const freshSession = {
+      access_token: verified.access_token,
       refresh_token: verified.refresh_token || null,
-      supabase_expires_at: verified.expires_at ?? Math.floor(Date.now() / 1000) + (verified.expires_in || 3600),
-    }));
+      expires_at: verified.expires_at ?? Math.floor(Date.now() / 1000) + (verified.expires_in || 3600),
+    };
+    invalidateMfaCache(req.user.id);
+    const { error: revokeError } = await serviceClient().auth.admin.signOut(verified.access_token, 'others');
+    if (revokeError) {
+      return res.status(503).json({ success: false, code: 'SESSION_REVOCATION_FAILED', message: 'La 2FA est active, mais les anciennes sessions n\'ont pas pu être révoquées.' });
+    }
+    await revokeAllSessions(req.user.id, null, 'mfa_enabled');
+    const appSession = await createSession({ userId: req.user.id, session: freshSession, userAgent: req.headers['user-agent'], ip: req.ip, action: 'mfa' });
+    setAuthCookie(res, appSession.token);
 
     res.json({ success: true, message: 'Double authentification activée.' });
   } catch (err) {
@@ -645,6 +664,7 @@ router.post('/mfa/disable', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Impossible de désactiver la 2FA.' });
     }
 
+    invalidateMfaCache(req.user.id);
     res.json({ success: true, message: 'Double authentification désactivée.' });
   } catch (err) {
     console.error('[mfa/disable]', err.message);
@@ -721,7 +741,8 @@ router.get('/callback', async (req, res) => {
     // puis que l'utilisateur se connecte avec Google, Supabase crée un
     // nouvel UUID sans account_type dans user_metadata. On retrouve le
     // bon type enconsultant la table profiles par email.
-    const accountType = await resolveOAuthAccountType(user) || accountTypeOf(user);
+    const oauthProfile = await profileOf(user.id);
+    const accountType = oauthProfile?.account_type || (await resolveOAuthAccountType(user)) || accountTypeOf(user);
 
     // Injecte le bon account_type dans le user pour finalizeLogin
     user.user_metadata = { ...user.user_metadata, account_type: accountType };
@@ -740,6 +761,7 @@ router.get('/callback', async (req, res) => {
 
     if (accountType === 'locataire' || accountType === 'employe') {
       const ownerSusp =
+        !(await businessAccountActive(user.id, accountType)) ||
         (await ownerSuspendedFor(user.id, accountType)) ||
         (await subscriptionExpiredFor(user.id, accountType));
       if (ownerSusp) {
@@ -753,16 +775,22 @@ router.get('/callback', async (req, res) => {
       return res.redirect(`${APP_URL}/PartPublic/connexion.html?oauth_error=saas_suspended`);
     }
 
-    const factors = await requireMfaFor(user, session.access_token);
+    let factors;
+    try {
+      factors = await requireMfaFor(user, session.access_token);
+    } catch {
+      return res.redirect(`${APP_URL}/PartPublic/connexion.html?oauth_error=mfa`);
+    }
 
     if (factors.length > 0) {
-      setPendingMfaCookie(res, signToken({
-        id: user.id,
-        account_type: accountType,
-        supabase_token: session.access_token,
-        mfa_pending: true,
+      const challenge = await createMfaChallenge({
+        userId: user.id,
+        session,
         factorId: factors[0].id,
-      }, '10m'));
+        userAgent: req.headers['user-agent'],
+        ip: req.ip,
+      });
+      setPendingMfaCookie(res, challenge.token);
 
       return res.redirect(`${APP_URL}/PartPublic/2fa.html`);
     }
@@ -775,25 +803,69 @@ router.get('/callback', async (req, res) => {
   }
 });
 
-router.post('/logout', authenticate, async (req, res) => {
-  const supabaseToken = req.user?.supabase_token;
-
+router.post('/tenant-invitations', authenticate, async (req, res) => {
+  if (!['proprietaire', 'agence', 'entreprise'].includes(req.user.account_type)) {
+    return res.status(403).json({ success: false, code: 'FORBIDDEN', message: 'Réservé à un propriétaire.' });
+  }
+  const locataireId = Number(req.body?.locataire_id);
+  if (!Number.isInteger(locataireId) || locataireId <= 0) {
+    return res.status(400).json({ success: false, message: 'Fiche locataire invalide.' });
+  }
   try {
-    if (supabaseToken) {
-      await authedClient(supabaseToken).auth.signOut();
-    }
+    const rawToken = generateResetToken();
+    const { data, error } = await serviceClient().rpc('create_tenant_invitation', {
+      p_user_id: req.user.id,
+      p_locataire_id: locataireId,
+      p_token_hash: hashResetToken(rawToken),
+      p_expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      p_max_uses: 1,
+    });
+    if (error || !data) throw new Error(error?.message || 'Invitation impossible.');
+    res.status(201).json({ success: true, invitation: { id: data, token: rawToken, expires_in: 7 * 24 * 60 * 60 } });
   } catch (err) {
-    console.warn('[logout] signOut échec :', err.message);
+    console.error('[tenant-invitations]', err.message);
+    res.status(400).json({ success: false, message: 'Impossible de créer l\'invitation.' });
+  }
+});
+
+router.post('/claim-invitation', authenticate, async (req, res) => {
+  if (req.user.account_type !== 'locataire') {
+    return res.status(403).json({ success: false, code: 'FORBIDDEN', message: 'Compte locataire requis.' });
+  }
+  const rawToken = String(req.body?.token || '').trim();
+  if (!rawToken) return res.status(400).json({ success: false, message: 'Invitation manquante.' });
+  try {
+    const { data, error } = await serviceClient().rpc('consume_tenant_invitation', {
+      p_token_hash: hashResetToken(rawToken),
+      p_account_uid: req.user.id,
+    });
+    if (error || !data) throw new Error(error?.message || 'Invitation invalide.');
+    res.json({ success: true, invitation_id: data[0]?.invitation_id || null });
+  } catch (err) {
+    console.warn('[claim-invitation]', err.message);
+    res.status(400).json({ success: false, message: 'Invitation invalide ou expirée.' });
+  }
+});
+
+router.post('/logout', authenticate, async (req, res) => {
+  let authRevoked = true;
+  try {
+    if (req.user?.supabase_token) {
+      const result = await authedClient(req.user.supabase_token).auth.signOut();
+      authRevoked = !result?.error;
+    }
+    if (req.user?.session_id) await revokeSession(req.user.session_id, req.user.id, 'logout');
+  } catch (err) {
+    authRevoked = false;
+    console.warn('[logout] révocation :', err.message);
   }
 
-  if (req.user?.id) {
-    await closeSession(req.user.id);
-    gitAutoBackup(`Sauvegarde auto : déconnexion utilisateur ${req.user.id}`);
-  }
-
-  res.clearCookie('mim_token');
-  res.clearCookie('mim_mfa_pending');
-  res.json({ success: true, message: 'Déconnexion réussie.' });
+  res.clearCookie('mim_token', { path: '/' });
+  res.clearCookie('mim_mfa_pending', { path: '/' });
+  res.clearCookie('mim_csrf', { path: '/' });
+  if (!authRevoked) return res.status(503).json({ success: false, code: 'LOGOUT_RETRY', message: 'La session locale a été révoquée, mais Supabase doit être recontacté.' });
+  if (req.user?.id) gitAutoBackup(`Sauvegarde auto : déconnexion utilisateur ${req.user.id}`);
+  return res.json({ success: true, message: 'Déconnexion réussie.' });
 });
 
 router.get('/me', authenticate, async (req, res) => {
@@ -860,7 +932,7 @@ router.put('/change-password', authenticate, async (req, res) => {
 
     if (!isForcedChange) {
       // Vérifie le mot de passe actuel avant toute modification.
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await anonClient().auth.signInWithPassword({
         email: account.user.email,
         password: current_password,
       });
@@ -877,32 +949,22 @@ router.put('/change-password', authenticate, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Impossible de modifier le mot de passe.' });
     }
 
-    // Invalidation des autres sessions : après changement de mot de passe,
-    // tous les anciens jetons Supabase sont révoqués.
     try {
-      await supabase.auth.admin.signOut(req.user.id, 'global');
-    } catch (signOutErr) {
-      console.warn('[change-password] signOut global :', signOutErr.message);
+      await revokeSupabaseSessions(req.user.id, serviceClient());
+    } catch (signOutError) {
+      return res.status(503).json({ success: false, code: 'SESSION_REVOCATION_FAILED', message: 'Mot de passe modifié, mais la révocation des sessions a échoué. Reconnectez-vous.' });
     }
+    await revokeAllSessions(req.user.id, null, 'password_change');
 
-    // Re-login de la session courante pour obtenir un nouveau refresh token.
-    try {
-      const { data: freshSession } = await supabase.auth.signInWithPassword({
-        email: account.user.email,
-        password,
-      });
-      if (freshSession?.session) {
-        setAuthCookie(res, signToken({
-          id: req.user.id,
-          account_type: req.user.account_type,
-          supabase_token: freshSession.session.access_token,
-          refresh_token: freshSession.session.refresh_token,
-          supabase_expires_at: freshSession.session.expires_at,
-        }));
-      }
-    } catch (reErr) {
-      console.warn('[change-password] re-login :', reErr.message);
+    const { data: freshSession, error: freshError } = await anonClient().auth.signInWithPassword({
+      email: account.user.email,
+      password,
+    });
+    if (freshError || !freshSession?.session) {
+      return res.status(503).json({ success: false, code: 'SESSION_REISSUE_FAILED', message: 'Mot de passe modifié. Reconnectez-vous pour continuer.' });
     }
+    const appSession = await createSession({ userId: req.user.id, session: freshSession.session, userAgent: req.headers['user-agent'], ip: req.ip, action: 'password_change' });
+    setAuthCookie(res, appSession.token);
 
     const { error: profileError } = await serviceClient()
       .from('profiles')
@@ -910,7 +972,7 @@ router.put('/change-password', authenticate, async (req, res) => {
       .eq('id', req.user.id);
 
     if (profileError) {
-      console.warn('[change-password] mise à jour du profil :', profileError.message);
+      return res.status(503).json({ success: false, code: 'PROFILE_UPDATE_FAILED', message: 'Mot de passe modifié, mais le statut de rotation n\'a pas été mis à jour.' });
     }
 
     gitAutoBackup(`Sauvegarde auto : changement de mot de passe ${req.user.id}`);
@@ -947,7 +1009,7 @@ router.post('/verify-password', authenticate, async (req, res) => {
     return res.status(401).json({ success: false, message: 'Session expirée, reconnectez-vous.' });
   }
 
-  const { error: signInError } = await supabase.auth.signInWithPassword({
+  const { error: signInError } = await anonClient().auth.signInWithPassword({
     email: account.user.email,
     password,
   });
@@ -1118,22 +1180,28 @@ router.post('/forgot', forgotPasswordRateLimit, async (req, res) => {
     return res.status(400).json({ success: false, message: 'Adresse email invalide.' });
   }
 
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${APP_URL}/PartPublic/reset.html`,
-  });
+  // Réponse identique que le compte existe ou non (anti-énumération).
+  const generic = {
+    success: true,
+    message: 'Si un compte correspond à cette adresse, un e-mail de réinitialisation vous sera envoyé.',
+  };
 
-  if (error) {
-    console.error('[forgot]', error.message);
+  const target = await findResetUserByEmail(email);
+  if (!target) return res.json(generic);
+
+  try {
+    const rawToken = await issueResetToken(target.id);
+    await sendResetEmail({ email: target.email, rawToken });
+  } catch (err) {
+    // Jamais de jeton ni de mot de passe dans les logs : erreur technique seule.
+    console.error('[forgot]', err.message);
   }
 
-  res.json({
-    success: true,
-    message: 'Si cette adresse est enregistrée, un lien de réinitialisation a été envoyé.',
-  });
+  res.json(generic);
 });
 
 router.post('/reset-password', async (req, res) => {
-  const { password, password_confirm, code, token_hash, access_token, refresh_token } = req.body;
+  const { token, password, password_confirm } = req.body;
 
   const pwError = passwordRuleError(password);
   if (pwError) {
@@ -1144,95 +1212,54 @@ router.post('/reset-password', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Les mots de passe ne correspondent pas.' });
   }
 
-  // Le jeton du lien de récupération PRIME sur toute session existante :
-  // un utilisateur connecté qui clique un lien de réinitialisation émis pour
-  // un autre compte ne doit pas modifier SON mot de passe (audit m16).
-  let supabaseToken = null;
-  let session = null;
-
-  // 1) Flow implicite : le lien de récupération contient access_token
-  // (+ refresh_token) dans le fragment d'URL.
-  if (access_token) {
-    try {
-      const sbTemp = authedClient(access_token);
-      await sbTemp.auth.setSession({
-        access_token,
-        refresh_token: refresh_token || '',
-      });
-      const { data: sess } = await sbTemp.auth.getSession();
-      if (sess?.session) {
-        session = sess.session;
-        supabaseToken = session.access_token;
-      }
-    } catch (err) {
-      console.warn('[reset-password] session fragment :', err.message);
-    }
+  if (!token) {
+    return res.status(400).json({ success: false, message: 'Jeton de réinitialisation manquant.' });
   }
 
-  // 2) Flow classique : token_hash (lien email) ou code PKCE.
-  if (!supabaseToken) {
-    const candidate = token_hash || code;
-
-    if (candidate) {
-      const { data: otpData, error: otpError } = await supabase.auth.verifyOtp({
-        type: 'recovery',
-        token_hash: candidate,
-      });
-
-      if (!otpError && otpData?.session) {
-        session = otpData.session;
-      }
-
-      if (!session && code) {
-        try {
-          const { data: exchangeData, error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-          if (!exchangeError && exchangeData?.session) {
-            session = exchangeData.session;
-          }
-        } catch (err) {
-          console.warn('[reset-password] échange PKCE impossible :', err.message);
-        }
-      }
-    }
-
-    if (session) {
-      supabaseToken = session.access_token;
-    } else if (candidate) {
-      console.error('[reset-password]', 'verifyOtp échec pour le lien fourni');
-    }
+  // Consommation ATOMIQUE du jeton : inconnu, expiré OU déjà utilisé →
+  // même réponse générique, et le jeton ne peut pas être rejoué.
+  // Le jeton du lien de récupération prime sur toute session existante :
+  // le mot de passe du compte lié au jeton est modifié, jamais celui
+  // d'une autre session (audit m16).
+  let claim = null;
+  try {
+    claim = await tryConsumeResetToken(token);
+  } catch (err) {
+    console.warn('[reset-password] jeton invalide :', err.message);
+  }
+  if (!claim?.userId || !claim?.tokenHash) {
+    return res.status(400).json({ success: false, message: 'Lien de réinitialisation invalide ou expiré.' });
   }
 
-  if (!supabaseToken) {
-    if (code || token_hash || access_token) {
-      return res.status(400).json({ success: false, message: 'Lien de réinitialisation invalide ou expiré.' });
-    }
-    return res.status(401).json({ success: false, message: 'Jeton de réinitialisation manquant.' });
-  }
-
-  const sb = authedClient(supabaseToken);
-
-  if (session?.refresh_token) {
-    await sb.auth.setSession({
-      access_token: session.access_token,
-      refresh_token: session.refresh_token,
-    });
-  }
-
-  const { error: updateError } = await sb.auth.updateUser({ password });
-
+  // Mise à jour via Supabase Auth : EXACTEMENT le même système de hash
+  // que pour l'inscription / le changement de mot de passe (bcrypt GoTrue).
+  // Admin → client service-role (le client `supabase` d'app.js est ANON).
+  const sbAdmin = serviceClient();
+  const { error: updateError } = await sbAdmin.auth.admin.updateUserById(claim.userId, { password });
   if (updateError) {
     console.error('[reset-password]', updateError.message);
+    await releaseResetToken(claim.tokenHash);
     return res.status(400).json({ success: false, message: 'Impossible de réinitialiser le mot de passe.' });
   }
 
-  // Invalidation de toutes les sessions existantes après réinitialisation.
   try {
-    const userId = session?.user?.id;
-    if (userId) {
-      await supabase.auth.admin.signOut(userId, 'global');
-    }
-  } catch (signOutErr) {
-    console.warn('[reset-password] signOut global :', signOutErr.message);
+    await finalizeResetToken(claim.tokenHash);
+  } catch (finalizeError) {
+    console.error('[reset-password] finalisation du jeton :', finalizeError.message);
+    return res.status(503).json({ success: false, message: 'Mot de passe réinitialisé, mais la demande doit être clôturée manuellement.' });
+  }
+
+  let supabaseRevocationError = null;
+  try {
+    await revokeSupabaseSessions(claim.userId, sbAdmin);
+  } catch (signOutError) {
+    supabaseRevocationError = signOutError;
+    console.error('[reset-password] révocation Auth :', signOutError.message);
+  } finally {
+    await revokeAllSessions(claim.userId, null, 'password_reset');
+  }
+  if (supabaseRevocationError) {
+    return res.status(503).json({ success: false, code: 'SESSION_REVOCATION_FAILED', message: 'Mot de passe réinitialisé, mais la révocation des sessions a échoué.' });
   }
 
   gitAutoBackup('Sauvegarde auto : réinitialisation de mot de passe');

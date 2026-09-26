@@ -2,14 +2,17 @@
 // MIM - Seeder de test : 10 propriétaires x 10 locataires
 // ============================================================
 
-import { api, newJar } from './lib.js';
+import { api, assertSeedAllowed, assertTestDatabaseAllowed, newJar } from './lib.js';
 
+export const TEST_MARKER = 'is_test';
 export const OWNER_COUNT = 10;
 export const TENANTS_PER_OWNER = 10;
 export const OWNER_PASSWORD = 'Test1234!';
 
-const ownerEmail = (i) => `owner${i}@mimtest.com`;
-const tenantUsername = (i, j) => `own${i}loc${j}`;
+const ownerEmail = (i) => `mim-e2e-${TEST_MARKER}-owner${i}@mimtest.com`;
+const tenantUsername = (i, j) => `mim_is_test_own${i}loc${j}`;
+const tenantEmail = (i, j) => `${TEST_MARKER}.own${i}loc${j}@mimtest.com`;
+const seedLabel = (value) => `${TEST_MARKER} ${value}`;
 
 function currentMonth() {
   const d = new Date();
@@ -22,84 +25,134 @@ function prevMonth(ym) {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
-// Supprime toutes les données des comptes de test (owners + locataires),
-// y compris les résidus d'anciennes campagnes (final/owner.test/dev).
-// Les FK user_id -> auth.users étant ON DELETE CASCADE, supprimer les
-// utilisateurs efface aussi profils, biens, logements, locataires, etc.
-const WIPE_EMAIL_PATTERNS = ['%@mimtest.com', '%@mim.local', 'owner.test%@example.com', 'final%@example.com', 'owner.%@mim.com'];
-const WIPE_USERNAME_PATTERNS = ['own%loc%'];
-const CHILD_TABLES = ['biens', 'logements', 'locataires', 'paiements', 'incidents', 'prestataires', 'interventions', 'notifications', 'sessions', 'bictorys_webhooks', 'abonnement_paiements'];
+const CHILD_TABLES = [
+  'notifications',
+  'sessions',
+  'account_recovery_emails',
+  'paiements_employes',
+  'moyens_paiement',
+  'tasks',
+  'employes_biens',
+  'interventions',
+  'incidents',
+  'prestataires',
+  'paiements',
+  'locataires',
+  'logements',
+  'biens',
+  'abonnement_paiements',
+  'subscriptions',
+  'versements',
+  'employes',
+];
 
-// Comptes « production » jamais supprimés par le wipe (admin + comptes réels).
-const PROTECTED_EMAILS = new Set(['admin@mim.local']);
+async function markedRows(service, table, select, fields) {
+  const rows = [];
+  for (const field of fields) {
+    const { data, error } = await service
+      .from(table)
+      .select(select)
+      .ilike(field, `%${TEST_MARKER}%`);
+    if (error) throw new Error(`${table}.${field} : ${error.message}`);
+    rows.push(...(data || []));
+  }
+  return [...new Map(rows.map((row) => [row.id, row])).values()];
+}
 
 export async function wipeTestData(service) {
-  const ids = [];
+  assertTestDatabaseAllowed();
+  assertSeedAllowed();
 
-  for (const pat of WIPE_EMAIL_PATTERNS) {
-    const { data } = await service.from('profiles').select('id, email').ilike('email', pat);
-    if (data) ids.push(...data.filter((p) => !PROTECTED_EMAILS.has(p.email)).map((p) => p.id));
+  const profiles = await markedRows(service, 'profiles', 'id, account_type, email, name', ['email', 'name']);
+  const { data: fixedProfiles = [], error: fixedProfilesError } = await service
+    .from('profiles')
+    .select('id, account_type, email, name')
+    .like('username', 'salaire.%');
+  if (fixedProfilesError) throw new Error(`profiles.salaire: ${fixedProfilesError.message}`);
+  const { data: fixedSimplifProfiles = [], error: fixedSimplifProfilesError } = await service
+    .from('profiles')
+    .select('id, account_type, email, name')
+    .like('username', 'simplif.%');
+  if (fixedSimplifProfilesError) throw new Error(`profiles.simplif: ${fixedSimplifProfilesError.message}`);
+  profiles.push(...fixedProfiles, ...fixedSimplifProfiles);
+  const tenants = await markedRows(service, 'locataires', 'id, user_id, account_uid, email, nom, username', ['email', 'nom', 'username']);
+  const { data: fixedTenantAccounts = [], error: fixedTenantAccountsError } = await service
+    .from('locataires')
+    .select('id, user_id, account_uid, email, nom, username')
+    .like('username', 'simplif.%');
+  if (fixedTenantAccountsError) throw new Error(`locataires.simplif: ${fixedTenantAccountsError.message}`);
+  tenants.push(...fixedTenantAccounts);
+  const employees = await markedRows(service, 'employes', 'id, user_id, account_uid, email, nom, username', ['email', 'nom', 'username']);
+  const { data: fixedEmployees = [], error: fixedEmployeesError } = await service
+    .from('employes')
+    .select('id, user_id, account_uid, email, nom, username')
+    .like('username', 'salaire.%');
+  if (fixedEmployeesError) throw new Error(`employes.salaire: ${fixedEmployeesError.message}`);
+  employees.push(...fixedEmployees);
+  const { data: fixedEmployeeAccounts = [], error: fixedEmployeeAccountsError } = await service
+    .from('employes')
+    .select('id, user_id, account_uid, email, nom, username')
+    .like('username', 'simplif.%');
+  if (fixedEmployeeAccountsError) throw new Error(`employes.simplif: ${fixedEmployeeAccountsError.message}`);
+  employees.push(...fixedEmployeeAccounts);
+  const ownerIds = new Set(
+    profiles
+      .filter((profile) => ['proprietaire', 'agence', 'entreprise'].includes(profile.account_type))
+      .map((profile) => profile.id)
+  );
+  const accountIds = new Set([
+    ...tenants.map((tenant) => tenant.account_uid).filter(Boolean),
+    ...employees.map((employee) => employee.account_uid).filter(Boolean),
+  ]);
+
+  for (const tenant of tenants) {
+    if (tenant.user_id) ownerIds.add(tenant.user_id);
   }
-  for (const pat of WIPE_USERNAME_PATTERNS) {
-    const { data } = await service.from('profiles').select('id').ilike('username', pat);
-    if (data) ids.push(...data.map((p) => p.id));
+  for (const employee of employees) {
+    if (employee.user_id) ownerIds.add(employee.user_id);
   }
 
-  const allIds = [...new Set(ids)];
+  const authIds = new Set([
+    ...profiles.map((profile) => profile.id),
+    ...accountIds,
+  ]);
 
-  // Purge des orphelins (user_id NULL) laissés par d'anciennes suppressions.
-  for (const t of CHILD_TABLES) {
-    try {
-      await service.from(t).delete().is('user_id', null);
-    } catch {
-      /* table sans colonne user_id */
+  if (ownerIds.size) {
+    const ids = [...ownerIds];
+    for (const table of CHILD_TABLES) {
+      const { error } = await service.from(table).delete().in('user_id', ids);
+      if (error) throw new Error(`${table}: ${error.message}`);
     }
   }
 
-  // Le journal bictorys_webhooks n'a pas de colonne user_id : ni la cascade
-  // des comptes ni le filtre CHILD_TABLES ne l'effacent. Il doit être purgé
-  // ENTIÈREMENT, sinon les fingerprints figés (ids d'événements réutilisés
-  // par les suites) feraient passer tous les webhooks suivants pour des
-  // « duplicats » et aucun paiement ne serait plus activé.
-  try {
-    await service.from('bictorys_webhooks').delete().gte('id', 0);
-  } catch {
-    /* table absente */
+  if (accountIds.size) {
+    const ids = [...accountIds];
+    const { error: paymentMethodError } = await service.from('moyens_paiement_employes').delete().in('employe_uid', ids);
+    if (paymentMethodError) throw new Error(`moyens_paiement_employes: ${paymentMethodError.message}`);
+    for (const table of ['notifications', 'sessions']) {
+      const { error } = await service.from(table).delete().in('user_id', ids);
+      if (error) throw new Error(`${table}: ${error.message}`);
+    }
+    const { error: tenantError } = await service.from('locataires').delete().in('account_uid', ids);
+    if (tenantError) throw new Error(`locataires: ${tenantError.message}`);
   }
 
-  // Purge complète des artefacts de paiement en ligne (legacy, tables supprimées
-  // en base mais tolérées ici au cas où une ancienne migration serait encore là) :
-  // sans user_id fiable, elles ne sont pas rattrapées par la suppression des
-  // comptes et pollueraient les tests suivants (dédup).
-  for (const t of ['paydunya_invoices', 'paydunya_webhooks', 'paydunya_redistributions', 'cinetpay_payments', 'cinetpay_payouts', 'cinetpay_webhooks', 'unitech_checkouts', 'unitech_webhooks']) {
-    try {
-      await service.from(t).delete().gte('id', 0);
-    } catch {
-      /* table absente */
+  for (const id of authIds) {
+    const { error } = await service.auth.admin.deleteUser(id);
+    if (error && !/not found|does not exist|user not found/i.test(error.message)) {
+      throw new Error(`auth.users ${id}: ${error.message}`);
     }
   }
-
-  // Suppression explicite des lignes enfants (les FK peuvent être en SET NULL).
-  if (allIds.length) {
-    for (const t of CHILD_TABLES) {
-      try {
-        await service.from(t).delete().in('user_id', allIds);
-      } catch {
-        /* ignore */
-      }
-    }
-  }
-
-  for (const id of allIds) {
-    await service.auth.admin.deleteUser(id).catch(() => {});
-  }
-  return allIds.length;
+  return authIds.size;
 }
 
 export async function seed(service) {
+  assertTestDatabaseAllowed();
+  assertSeedAllowed();
   const month = currentMonth();
   const prev = prevMonth(month);
   const state = {
+    marker: TEST_MARKER,
     month,
     prev,
     owners: [],
@@ -113,31 +166,29 @@ export async function seed(service) {
     const email = ownerEmail(i);
     const jar = newJar();
 
-    const reg = await api('/auth/register', {
-      method: 'POST',
-      jar,
-      body: {
-        account_type: 'proprietaire',
-        name: `Propriétaire ${i}`,
-        email,
-        phone: `+22177${String(i).padStart(6, '0')}`,
-        password: OWNER_PASSWORD,
-        password_confirm: OWNER_PASSWORD,
-      },
+    const { data: created, error: createError } = await service.auth.admin.createUser({
+      email,
+      password: OWNER_PASSWORD,
+      email_confirm: true,
+      user_metadata: { name: seedLabel(`Propriétaire ${i}`), phone: `+22177${String(i).padStart(6, '0')}` },
+      app_metadata: { mim_account_type: 'proprietaire' },
     });
-
-    if (reg.status !== 201 || !reg.data?.success) {
-      throw new Error(`[seed] échec register owner${i} : ${reg.status} ${JSON.stringify(reg.data).slice(0, 200)}`);
+    if (createError || !created?.user?.id) {
+      throw new Error(`[seed] création owner${i} : ${createError?.message || 'utilisateur absent'}`);
     }
 
-    const me = await api('/auth/me', { jar });
-    if (me.status !== 200 || !me.data?.user?.id) {
-      throw new Error(`[seed] échec /auth/me owner${i} : ${JSON.stringify(me.data).slice(0, 200)}`);
+    const login = await api('/auth/login', {
+      method: 'POST',
+      jar,
+      body: { email, password: OWNER_PASSWORD },
+    });
+    if (login.status !== 200 || !login.data?.success) {
+      throw new Error(`[seed] login owner${i} : ${login.status} ${JSON.stringify(login.data).slice(0, 200)}`);
     }
 
     const owner = {
       i,
-      id: me.data.user.id,
+      id: created.user.id,
       email,
       password: OWNER_PASSWORD,
       jar,
@@ -146,13 +197,14 @@ export async function seed(service) {
       locataires: [],
       incidentId: null,
       prestataireId: null,
+      isTest: true,
     };
 
     // --- Bien ---
     const bien = await api('/biens', {
       method: 'POST',
       jar,
-      body: { nom: `Bien OWNER${i}`, type: 'immeuble', adresse: `Adresse ${i}`, ville: 'Dakar', pays: 'Sénégal' },
+      body: { nom: seedLabel(`Bien OWNER${i}`), type: 'immeuble', adresse: seedLabel(`Adresse ${i}`), ville: 'Dakar', pays: 'Sénégal' },
     });
     if (bien.status !== 201) throw new Error(`[seed] bien owner${i} : ${bien.status} ${JSON.stringify(bien.data).slice(0, 200)}`);
     owner.bienId = bien.data.data.id;
@@ -166,10 +218,10 @@ export async function seed(service) {
         jar,
         body: {
           bien_id: owner.bienId,
-          nom: `Log OWNER${i}-${j}`,
+          nom: seedLabel(`Log OWNER${i}-${j}`),
           type,
           nombre_chambres: type === 'appartement' ? 2 : null,
-          adresse: `Adresse ${i}-${j}`,
+          adresse: seedLabel(`Adresse ${i}-${j}`),
           loyer_mensuel: 100000 + i * 10000 + j * 5000,
           statut: 'libre',
         },
@@ -187,8 +239,9 @@ export async function seed(service) {
         jar,
         body: {
           logement_id: logementId,
-          nom: `Locataire OWNER${i}-${j}`,
+          nom: seedLabel(`Locataire OWNER${i}-${j}`),
           username: tenantUsername(i, j),
+          email: tenantEmail(i, j),
           password: OWNER_PASSWORD,
           phone: `+22170${String(i).padStart(2, '0')}${String(j).padStart(4, '0')}`,
           date_entree: '2026-01-01',
@@ -244,14 +297,14 @@ export async function seed(service) {
     const inc1 = await api('/incidents', {
       method: 'POST',
       jar,
-      body: { logement_id: owner.logements[0].id, titre: `Fuite OWNER${i}`, description: 'Fuite d\'eau à signaler', statut: 'nouveau' },
+      body: { logement_id: owner.logements[0].id, titre: seedLabel(`Fuite OWNER${i}`), description: seedLabel('Fuite d\'eau à signaler'), statut: 'nouveau' },
     });
     if (inc1.status !== 201) throw new Error(`[seed] incident o${i} : ${inc1.status} ${JSON.stringify(inc1.data).slice(0, 200)}`);
     owner.incidentId = inc1.data.data.id;
     const incResolu = await api('/incidents', {
       method: 'POST',
       jar,
-      body: { logement_id: owner.logements[1].id, titre: `Résolu OWNER${i}`, statut: 'resolu' },
+      body: { logement_id: owner.logements[1].id, titre: seedLabel(`Résolu OWNER${i}`), statut: 'resolu' },
     });
     if (incResolu.status !== 201) throw new Error(`[seed] incident résolu o${i} : ${incResolu.status} ${JSON.stringify(incResolu.data).slice(0, 200)}`);
 
@@ -259,7 +312,7 @@ export async function seed(service) {
     const prest1 = await api('/prestataires', {
       method: 'POST',
       jar,
-      body: { nom: `Plombier OWNER${i}`, specialite: 'Plomberie', phone: '+221770000001' },
+      body: { nom: seedLabel(`Plombier OWNER${i}`), specialite: 'Plomberie', phone: '+221770000001' },
     });
     if (prest1.status !== 201) throw new Error(`[seed] prestataire o${i} : ${prest1.status} ${JSON.stringify(prest1.data).slice(0, 200)}`);
     owner.prestataireId = prest1.data.data.id;
@@ -272,7 +325,7 @@ export async function seed(service) {
         incident_id: inc1.data.data.id,
         prestataire_id: prest1.data.data.id,
         logement_id: owner.logements[0].id,
-        titre: `Réparation OWNER${i}`,
+        titre: seedLabel(`Réparation OWNER${i}`),
         statut: 'planifie',
       },
     });
@@ -282,21 +335,24 @@ export async function seed(service) {
   }
 
   // Vérification des compteurs côté DB.
-  const counts = await verifyCounts(service);
+  const counts = await verifyCounts(service, state.owners.map((owner) => owner.id));
   Object.assign(state, counts);
 
   return state;
 }
 
-export async function verifyCounts(service) {
+export async function verifyCounts(service, ownerIds = []) {
+  const ids = [...new Set(ownerIds.filter(Boolean))];
   const count = async (table) => {
-    const { data } = await service.from(table).select('id');
+    if (!ids.length) return 0;
+    const { data, error } = await service.from(table).select('id').in('user_id', ids);
+    if (error) throw new Error(`${table} : ${error.message}`);
     return data?.length || 0;
   };
-  const { data: profiles } = await service
-    .from('profiles')
-    .select('id')
-    .ilike('email', 'owner%@mimtest.com');
+  const { data: profiles, error: profilesError } = ids.length
+    ? await service.from('profiles').select('id').in('id', ids).ilike('email', `%${TEST_MARKER}%`)
+    : { data: [], error: null };
+  if (profilesError) throw new Error(`profiles : ${profilesError.message}`);
   return {
     countBiens: await count('biens'),
     countLogements: await count('logements'),

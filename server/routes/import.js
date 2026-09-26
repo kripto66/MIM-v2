@@ -14,7 +14,7 @@ import { Router } from 'express';
 import crypto from 'node:crypto';
 import { serviceClient } from '../app.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
-import { prepareImport, executeImport, decodeCsvBuffer, CATEGORIES, INITIAL_PASSWORD } from '../utils/importCsv.js';
+import { prepareImport, executeImport, decodeCsvBuffer, CATEGORIES } from '../utils/importCsv.js';
 import { splitGroupedCsv, GROUPED_HEADERS, GROUPED_TEMPLATE_ROWS } from '../utils/importGrouped.js';
 
 const router = Router();
@@ -103,7 +103,7 @@ const TEMPLATES = {
       ['Nom Exemple 1', 'Prenom Exemple 1', 'locataire1@exemple.com', '+221700000001', 'Bien Exemple 1', 'Logement Exemple 1', '150000', '5', '2026-09-01', 'actif'],
       ['Nom Exemple 2', 'Prenom Exemple 2', '', '+221700000002', 'Bien Exemple 1', 'Logement Exemple 2', '50000', '10', '2026-09-01', 'actif'],
     ],
-    hint: 'Le username du compte locataire est généré automatiquement (ex. amadou.diop). Mot de passe initial : 1234 (à changer à la première connexion).',
+    hint: 'Le username du compte locataire est généré automatiquement. Un mot de passe initial unique est communiqué à la création et doit être changé à la première connexion.',
   },
   employes: {
     headers: ['nom', 'prenom', 'email', 'telephone', 'poste', 'bien', 'salaire', 'date_embauche', 'statut'],
@@ -111,7 +111,7 @@ const TEMPLATES = {
       ['Nom Exemple 1', 'Prenom Exemple 1', 'employe1@exemple.com', '+221700000003', 'Gérant', '', '80000', '2026-09-01', 'actif'],
       ['Nom Exemple 2', 'Prenom Exemple 2', '', '+221700000004', 'Agent d\'entretien', '', '35000', '2026-09-01', 'actif'],
     ],
-    hint: 'Salaire : montant mensuel. Le compte employé est créé automatiquement (username généré, mot de passe initial 1234).',
+    hint: 'Salaire : montant mensuel. Le compte employé est créé automatiquement avec un username et un mot de passe initial uniques.',
   },
   grouped: {
     headers: GROUPED_HEADERS,
@@ -218,6 +218,14 @@ router.post('/execute', async (req, res) => {
 
   const { categories = [], files = {}, duplicatePolicy = 'ignore', mode } = req.body || {};
 
+  let totalBytes = 0;
+  for (const cat of Object.keys(files || {})) {
+    totalBytes += String(files[cat]?.content_b64 || files[cat]?.content || '').length;
+  }
+  if (totalBytes > 1_500_000) {
+    return res.status(413).json({ success: false, message: 'Fichiers trop volumineux (maximum 1,5 Mo au total).' });
+  }
+
   if (!['ignore', 'update', 'abort'].includes(duplicatePolicy)) {
     return res.status(400).json({ success: false, message: 'Politique de doublons invalide.' });
   }
@@ -233,6 +241,17 @@ router.post('/execute', async (req, res) => {
 
     const runId = newRunId(ownerId);
     const run = { runId, ownerId, done: 0, total: 0, status: 'running', message: 'Démarrage…' };
+    const sourceChecksum = crypto.createHash('sha256').update(JSON.stringify({ categories, files })).digest('hex');
+    const idempotencyKey = String(req.get('Idempotency-Key') || sourceChecksum).slice(0, 200);
+    const { data: previous } = await sb.from('import_runs').select('id, status').eq('user_id', ownerId).eq('idempotency_key', idempotencyKey).maybeSingle();
+    if (previous) return res.status(409).json({ success: false, code: 'IMPORT_ALREADY_RUN', message: 'Cet import a déjà été soumis.', runId: previous.id });
+    const { data: persistedRun, error: persistError } = await sb.from('import_runs').insert({ user_id: ownerId, idempotency_key: idempotencyKey, source_checksum: sourceChecksum, status: 'running' }).select('id').single();
+    if (persistError) {
+      if (String(persistError.code) === '23505') return res.status(409).json({ success: false, code: 'IMPORT_ALREADY_RUN', message: 'Cet import a déjà été soumis.' });
+      throw persistError;
+    }
+    const persistedRunId = persistedRun.id;
+    run.persistedRunId = persistedRunId;
     importRuns.set(runId, run);
 
     // Nettoyage des anciennes entrées (max 50 par propriétaire).
@@ -245,8 +264,9 @@ router.post('/execute', async (req, res) => {
       const result = await executeImport(sb, ownerId, { ...payload, duplicatePolicy, fileContent }, {
         onProgress: (done, total) => {
           run.done = done;
-          run.total = total;
-          run.message = `Traitement… ${done}/${total}`;
+           run.total = total;
+           run.message = `Traitement… ${done}/${total}`;
+           sb.from('import_runs').update({ processed_rows: done, total_rows: total }).eq('id', persistedRunId).then(({ error: progressError }) => { if (progressError) console.warn('[import/progress]', progressError.message); });
         },
       });
 
@@ -254,30 +274,32 @@ router.post('/execute', async (req, res) => {
       run.message = 'Terminé';
       run.finishedAt = Date.now();
 
-      if (result.error) {
-      run.status = 'error';
-      run.message = String(result.error || 'Import bloqué');
-      run.finishedAt = Date.now();
-        return res.status(409).json({ success: false, message: result.error, prepared: result.prepared, runId });
-      }
+       if (result.error) {
+         run.status = 'error';
+         run.message = String(result.error || 'Import bloqué');
+         run.finishedAt = Date.now();
+         await sb.from('import_runs').update({ status: 'failed', error_message: run.message, finished_at: new Date().toISOString() }).eq('id', persistedRunId);
+         return res.status(409).json({ success: false, message: result.error, prepared: result.prepared, runId });
+       }
 
       const r = result.report;
       const labels = r.categories.map((c) => `${c.created} ${c.label.toLowerCase()}`).join(', ');
+       await sb.from('import_runs').update({ status: 'completed', created_rows: r.totals.created, updated_rows: r.totals.updated, skipped_rows: r.totals.ignored, finished_at: new Date().toISOString() }).eq('id', persistedRunId);
 
       gitAutoBackup(`Sauvegarde auto : import de données (${labels || 'aucun élément'})`);
 
       res.status(201).json({
         success: true,
         message: `Importation terminée : ${labels || 'aucun élément créé'}.`,
-        initialPassword: INITIAL_PASSWORD,
         runId,
         report: r,
       });
     } catch (err) {
       run.status = 'error';
       run.message = err?.message || 'Erreur technique';
-      run.finishedAt = Date.now();
-      console.error('[import/execute]', err.message);
+       run.finishedAt = Date.now();
+       await sb.from('import_runs').update({ status: 'failed', error_message: err.message, finished_at: new Date().toISOString() }).eq('id', persistedRunId);
+       console.error('[import/execute]', err.message);
       res.status(500).json({ success: false, message: 'Erreur lors de l\'importation des données.', runId });
     }
   } catch (err) {
@@ -340,7 +362,7 @@ router.get('/progress/:runId', async (req, res) => {
 
 // Aide à la vérification (réutilisé par les tests) : catégories valides.
 router.get('/meta', (req, res) => {
-  res.json({ success: true, categories: CATEGORIES, initialPassword: INITIAL_PASSWORD });
+  res.json({ success: true, categories: CATEGORIES });
 });
 
 export default router;

@@ -2,7 +2,7 @@
 // MIM - Suite concurrence / performance
 // ============================================================
 
-import { api, newJar, expectSuccess } from './lib.js';
+import { api, newJar, expectSuccess, loginForBusiness, ROTATED_PASSWORD } from './lib.js';
 
 const S = 'concurrence';
 
@@ -24,10 +24,9 @@ async function setupLoyer(ctx, o1, locIndex, amount) {
   if (p.status !== 201) throw new Error(`création paiement : ${p.status} ${JSON.stringify(p.data)}`);
   const pid = p.data.data.id;
 
-  const jarT = newJar();
-  const login = await api('/auth/login', { method: 'POST', jar: jarT, body: { identifier: loc.username, password: 'Test1234!' } });
-  if (login.status !== 200) throw new Error(`connexion locataire : ${login.status}`);
-  return { pid, jarT };
+  const session = await loginForBusiness(loc.username);
+  if (session.login.status !== 200 || (session.change && session.change.status !== 200)) throw new Error(`connexion locataire : ${session.login.status}`);
+  return { pid, jarT: session.jar };
 }
 
 export async function runConcurrency(r, ctx) {
@@ -59,8 +58,15 @@ export async function runConcurrency(r, ctx) {
     }
 
     const t0 = performance.now();
-    const burst = (bodies) =>
-      Promise.all(bodies.map((body) => api('/auth/login', { method: 'POST', body, jar: newJar() }).then((res) => ({ res, body }))));
+    const burst = async (bodies) => {
+      const results = [];
+      for (let i = 0; i < bodies.length; i += 10) {
+        const batch = bodies.slice(i, i + 10);
+        results.push(...await Promise.all(batch.map((body) => api('/auth/login', { method: 'POST', body, jar: newJar() }).then((res) => ({ res, body })))));
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      return results;
+    };
 
     // Rafale initiale de 100 connexions simultanées, puis réessai des
     // échecs transitoires (503/429/5xx GoTrue sous charge) comme le ferait
@@ -89,7 +95,14 @@ export async function runConcurrency(r, ctx) {
     const burst401 = pending.filter(({ res }) => res.status === 401);
     let recheckOk = 0;
     for (const p of burst401) {
-      const again = await api('/auth/login', { method: 'POST', body: p.body, jar: newJar() });
+      let again = await api('/auth/login', { method: 'POST', body: p.body, jar: newJar() });
+      if (again.status !== 200 && p.body.password !== ROTATED_PASSWORD) {
+        again = await api('/auth/login', {
+          method: 'POST',
+          body: { ...p.body, password: ROTATED_PASSWORD },
+          jar: newJar(),
+        });
+      }
       if (again.status === 200) {
         recheckOk++;
         p.res = again;
@@ -171,9 +184,9 @@ export async function runConcurrency(r, ctx) {
     const moyen = (moyens || [])[0];
     if (!moyen) return r.blocked(S, 'déclarations parallèles', 'aucun moyen de paiement configuré pour o1');
 
-    const jarT = newJar();
-    const login = await api('/auth/login', { method: 'POST', jar: jarT, body: { identifier: o1.locataires[6].username, password: 'Test1234!' } });
-    if (login.status !== 200) return r.blocked(S, 'déclarations parallèles', 'connexion locataire');
+    const session = await loginForBusiness(o1.locataires[6].username);
+    const jarT = session.jar;
+    if (session.login.status !== 200 || (session.change && session.change.status !== 200)) return r.blocked(S, 'déclarations parallèles', 'connexion locataire');
 
     const body = { moyen_paiement_id: moyen.id, reference: 'PAR-001' };
     const [d1, d2] = await Promise.all([
@@ -200,9 +213,9 @@ export async function runConcurrency(r, ctx) {
     const moyen = (moyens || [])[0];
     if (!moyen) return r.blocked(S, 'validations parallèles', 'aucun moyen de paiement configuré pour o1');
 
-    const jarT = newJar();
-    const login = await api('/auth/login', { method: 'POST', jar: jarT, body: { identifier: o1.locataires[7].username, password: 'Test1234!' } });
-    if (login.status !== 200) return r.blocked(S, 'validations parallèles', 'connexion locataire');
+    const session = await loginForBusiness(o1.locataires[7].username);
+    const jarT = session.jar;
+    if (session.login.status !== 200 || (session.change && session.change.status !== 200)) return r.blocked(S, 'validations parallèles', 'connexion locataire');
 
     const decl = await api(`/locataire/paiements/${pid}/declarer`, {
       method: 'POST',

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>MIM — Propriétaires Agence</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/mim-errors.css">
+    <script src="/mim-errors.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+
+<body>
+
+    <div class="dashboard">
+
+
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
+
+            <a class="logo" href="dashboard.html" data-sidebar-toggle-logo title="Tableau de bord">
+                MIM
+            </a>
+
+            <nav class="sidebar-menu">
+                <div class="nav-category">Vue globale</div>
+                <a href="dashboard.html">
+                    Tableau de bord
+                </a>
+                <a href="portefeuille.html">
+                    Portefeuille
+                </a>
+                <a class="active" href="proprietaires.html">
+                    Propriétaires
+                </a>
+                <div class="nav-category">Gestion par bien</div>
+                <a href="/PartAgence/second_Mode/index.html">
+                    Gérer un bien (Mode 2)
+                </a>
+                <div class="nav-category">Suivi</div>
+                <a href="versements.html">
+                    Versements
+                </a>
+                <a href="messages.html">
+                    Messagerie
+                </a>
+                <a href="notifications.html">
+                    Notifications
+                </a>
+                <a href="abonnements.html">
+                    Abonnement MIM
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button id="logoutBtn" type="button">
+                    Déconnexion
+                </button>
+            </div>
+
+        </aside>
+
+
+        <main class="main-content">
+
+
+            <header class="dashboard-header">
+
+                <button class="menu-toggle" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">
+                    ☰
+                </button>
+
+                <div id="apiMessage" class="api-message" style="display:none;"></div>
+
+                <div class="welcome">
+                    <h1>
+                        Propriétaires<span class="accent">.</span>
+                    </h1>
+                    <p id="greetingSub">
+                        Les propriétaires dont votre agence assure la gestion.
+                    </p>
+                </div>
+
+                <div class="header-actions">
+
+                    <button class="btn btn-primary" id="addOwnerBtn" type="button">
+                        + Nouveau propriétaire
+                    </button>
+
+                    <a href="notifications.html" class="header-btn" id="notifBtn">
+                        Notifications
+                        <span class="notification-badge" id="notifBadge">0</span>
+                    </a>
+
+                </div>
+
+            </header>
+
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+
+                    <h2>
+                        Chaque propriétaire géré se connecte à MIM avec son propre compte
+                    </h2>
+
+                </div>
+
+
+                <div id="ownersList" class="crud-list">
+                    <div class="skel-item">
+                        <div style="flex:1;min-width:0;">
+                            <div class="skeleton skel-line"></div>
+                            <div class="skeleton skel-line dim"></div>
+                        </div>
+                        <div class="skeleton" style="width:64px;height:22px;border-radius:999px;flex-shrink:0;"></div>
+                    </div>
+                </div>
+
+            </section>
+
+
+        </main>
+
+    </div>
+
+
+    <!-- Modale nouveau propriétaire -->
+    <div class="modal-overlay" id="ownerModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="ownerModalTitle">Nouveau propriétaire</h2>
+
+            <form id="ownerForm">
+
+                <div class="form-group">
+                    <label for="nom">Nom complet</label>
+                    <input type="text" id="nom" name="nom" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email">
+                </div>
+
+                <div class="form-group">
+                    <label for="phone">Téléphone</label>
+                    <input type="text" id="phone" name="phone">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="username">Nom d'utilisateur (optionnel)</label>
+                        <input type="text" id="username" name="username" placeholder="Généré automatiquement si vide">
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Mot de passe (optionnel)</label>
+                        <input type="password" id="password" name="password" placeholder="Temporaire si vide">
+                    </div>
+                </div>
+
+                <p class="form-hint">Si vous laissez le nom d'utilisateur et le mot de passe vides, un compte sera créé automatiquement avec des identifiants temporaires à transmettre au propriétaire.</p>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="ownerCancelBtn">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Créer le propriétaire</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+
+    <!-- Modale identifiants générés -->
+    <div class="modal-overlay" id="ownerResultModal" style="display:none;">
+        <div class="modal">
+
+            <h2>Propriétaire créé</h2>
+
+            <div class="result-summary" id="ownerResultSummary"></div>
+
+            <div class="account-credentials" id="ownerAccountCredentials" style="display:none;">
+                <p class="result-note">
+                    Le propriétaire devra modifier son mot de passe lors de sa première connexion.
+                </p>
+                <button type="button" class="btn btn-primary" id="ownerCopyBtn">Copier les identifiants</button>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="ownerResultCloseBtn">Fermer</button>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- Modale ajout d'un bien pour un propriétaire -->
+    <div class="modal-overlay" id="bienModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="bienModalTitle">Ajouter un bien</h2>
+
+            <form id="bienForm">
+
+                <input type="hidden" id="bienOwnerId">
+
+                <div class="form-group">
+                    <label for="bienNom">Nom du bien</label>
+                    <input type="text" id="bienNom" name="nom" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="bienType">Type</label>
+                    <select id="bienType" name="type" required>
+                        <option value="immeuble">Immeuble</option>
+                        <option value="maison">Maison</option>
+                        <option value="villa">Villa</option>
+                        <option value="appartement">Appartement</option>
+                        <option value="bureau">Bureau</option>
+                        <option value="local">Local commercial</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="bienAdresse">Adresse</label>
+                    <input type="text" id="bienAdresse" name="adresse">
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="bienVille">Ville</label>
+                        <input type="text" id="bienVille" name="ville">
+                    </div>
+                    <div class="form-group">
+                        <label for="bienPays">Pays</label>
+                        <input type="text" id="bienPays" name="pays">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="bienDescription">Description</label>
+                    <textarea id="bienDescription" name="description" rows="3"></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="bienCancelBtn">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Créer le bien</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+
+    <script src="/PartPublic/form-utils.js"></script>
+    <script src="api.js"></script>
+    <script src="crud.js"></script>
+    <script src="proprietaires.js"></script>
+    <script src="/PartPublic/sidebar.js"></script>
+
+</body>
+
+</html>

@@ -1,4 +1,5 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { parseMoney } from '../utils/inputValidation.js';
 
 // ============================================================
 // MIM - Client Bictorys (paiement en ligne des abonnements)
@@ -23,19 +24,42 @@ function envBool(value) {
 
 export const baseUrl = () => (process.env.BICTORYS_API_URL || 'https://api.test.bictorys.com/pay/v1').replace(/\/+$/, '');
 export const apiKey = () => process.env.BICTORYS_API_KEY || '';
-export const isSimulate = () => envBool(process.env.BICTORYS_SIMULATE);
+export const isSimulate = () => envBool(process.env.BICTORYS_SIMULATE) && process.env.NODE_ENV !== 'production';
 
 // La clé secrète effective : celle du .env. En mode simulation, une
 // valeur par défaut est tolérée pour permettre les tests (fail open
 // UNIQUEMENT en simulation ; en production, pas de secret => refus).
 export function webhookSecret() {
-  if (process.env.BICTORYS_WEBHOOK_SECRET) return process.env.BICTORYS_WEBHOOK_SECRET;
-  if (isSimulate()) return 'bictorys_test_secret';
-  return null;
+  return process.env.BICTORYS_WEBHOOK_SECRET || null;
 }
 
 export function isConfigured() {
-  return isSimulate() || Boolean(process.env.BICTORYS_API_KEY);
+  return isSimulate() || Boolean(process.env.BICTORYS_API_KEY && (process.env.NODE_ENV !== 'production' || webhookSecret()));
+}
+
+function validAmount(value) {
+  return parseMoney(value) !== null;
+}
+
+function validCurrency(value) {
+  return /^[A-Z]{3}$/.test(String(value || '').trim().toUpperCase());
+}
+
+function validCountry(value) {
+  return /^[A-Z]{2}$/.test(String(value || '').trim().toUpperCase());
+}
+
+function safeHttpsUrl(value) {
+  try {
+    const url = new URL(String(value));
+    return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+function requestSignal() {
+  return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(10000) : undefined;
 }
 
 // Nom de la devise acceptée (XOF par défaut).
@@ -48,7 +72,7 @@ export function country() {
 // rattacher le webhook au paiement (paymentReference).
 export function newPaymentReference(userId) {
   const uid = String(userId || 'unknown').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8);
-  return `MIM-${uid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `MIM-${uid}-${Date.now()}-${randomBytes(6).toString('hex')}`;
 }
 
 // Création d'une charge Bictorys → lien de paiement/confirmation.
@@ -67,10 +91,13 @@ export async function createCharge({
   if (!okCfg) {
     throw new Error("Paiement en ligne indisponible : Bictorys n'est pas configuré (BICTORYS_API_KEY manquant).");
   }
-  if (!(Number(amount) > 0)) {
+  if (!validAmount(amount)) {
     throw new Error('Montant invalide.');
   }
-  if (!paymentReference) {
+  if (!validCurrency(currency) || !validCountry(countryCode)) {
+    throw new Error('Devise ou pays invalide.');
+  }
+  if (!paymentReference || String(paymentReference).length > 200) {
     throw new Error('Référence de paiement requise.');
   }
 
@@ -86,7 +113,7 @@ export async function createCharge({
       }
     })();
     return {
-      transactionId: `sim_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+      transactionId: `sim_${Date.now()}_${randomBytes(8).toString('hex')}`,
       link: simUrl,
       status: 'pending',
       simulated: true,
@@ -95,8 +122,8 @@ export async function createCharge({
 
   const body = {
     amount: Number(amount),
-    currency,
-    country: countryCode,
+    currency: String(currency).trim().toUpperCase(),
+    country: String(countryCode).trim().toUpperCase(),
     paymentReference,
     merchantReference: merchantReference || null,
     successRedirectUrl,
@@ -106,6 +133,7 @@ export async function createCharge({
 
   const res = await fetch(`${baseUrl()}/charges`, {
     method: 'POST',
+    signal: requestSignal(),
     headers: {
       'Content-Type': 'application/json',
       'X-API-Key': apiKey(),
@@ -121,12 +149,12 @@ export async function createCharge({
 
   // 201 ConfirmationLinkObject | 202 CheckoutLinkObject
   const transactionId = data?.transactionId || data?.chargeId || data?.id || null;
-  const link = data?.redirectUrl || data?.link || null;
+  const link = safeHttpsUrl(data?.redirectUrl || data?.link);
   if (!transactionId || !link) {
-    throw new Error('Réponse Bictorys incomplète (transactionId/link manquants).');
+    throw new Error('Réponse Bictorys incomplète ou non sécurisée.');
   }
 
-  return { transactionId, link, status: 'pending', simulated: false };
+  return { transactionId, link: link.toString(), status: 'pending', simulated: false };
 }
 
 // Consultation d'une transaction Bictorys (fallback si le webhook n'est
@@ -147,6 +175,7 @@ export async function getTransaction(transactionId) {
 
   const res = await fetch(`${baseUrl()}/transactions/${encodeURIComponent(transactionId)}`, {
     method: 'GET',
+    signal: requestSignal(),
     headers: { 'X-API-Key': apiKey() },
   });
   const data = await res.json().catch(() => ({}));
@@ -165,9 +194,8 @@ export async function getTransaction(transactionId) {
 
 // Vérification de l'authenticité d'un webhook Bictorys.
 // Le header X-Secret-Key DOIT être égal à la clé secrète du webhook
-// (documentation officielle). Si une signature optionnelle
-// X-Webhook-Signature + X-Webhook-Timestamp est présente, elle est
-// vérifiée en HMAC-SHA256 (refus si invalide).
+// (documentation officielle). X-Webhook-Signature et
+// X-Webhook-Timestamp sont obligatoires et vérifiés en HMAC-SHA256.
 export function verifyWebhook({ rawBody, headers }) {
   const secret = webhookSecret();
   if (!secret) return { ok: false, code: 'WEBHOOK_NOT_CONFIGURED' };
@@ -177,15 +205,21 @@ export function verifyWebhook({ rawBody, headers }) {
     return { ok: false, code: 'INVALID_WEBHOOK_SECRET' };
   }
 
-  const signature = headers['x-webhook-signature'] || headers['X-Webhook-Signature'];
-  const timestamp = headers['x-webhook-timestamp'] || headers['X-Webhook-Timestamp'];
-  if (signature && timestamp) {
-    // HMAC-SHA256(secret, "<timestamp>.<hex(body)>") — vérifiée si fournie.
-    const bodyHex = Buffer.from(rawBody || '').toString('hex');
-    const expected = createHmacSecret(secret, `${timestamp}.${bodyHex}`);
-    if (!safeEqual(String(signature), expected)) {
-      return { ok: false, code: 'INVALID_WEBHOOK_SIGNATURE' };
-    }
+  const signature = String(headers['x-webhook-signature'] || headers['X-Webhook-Signature'] || '');
+  const timestamp = String(headers['x-webhook-timestamp'] || headers['X-Webhook-Timestamp'] || '');
+  if (!signature || !timestamp) return { ok: false, code: 'WEBHOOK_SIGNATURE_REQUIRED' };
+
+  const timestampNumber = Number(timestamp);
+  const timestampMs = timestampNumber > 100000000000 ? timestampNumber : timestampNumber * 1000;
+  if (!Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
+    return { ok: false, code: 'WEBHOOK_TIMESTAMP_INVALID' };
+  }
+
+  const bodyHex = Buffer.from(rawBody || '').toString('hex');
+  const expected = createHmacSecret(secret, `${timestamp}.${bodyHex}`);
+  const normalized = signature.replace(/^sha256=/i, '');
+  if (!safeEqual(normalized, expected)) {
+    return { ok: false, code: 'INVALID_WEBHOOK_SIGNATURE' };
   }
 
   return { ok: true };

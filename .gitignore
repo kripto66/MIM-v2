@@ -24,8 +24,21 @@ vendor/
 composer.lock
 
 # Node.js
+node_modules/
 server/node_modules/
+video-marketing/node_modules/
+video-marketing/out/
 server/.env
+
+# Médias locaux lourds (ne font pas partie du code applicatif)
+video-marketing/*.mp4
+video-marketing/*.mov
+video-marketing/*.webm
+video-marketing/*.wav
+video-marketing/*.mp3
+video-marketing/public/*.webp
+video-marketing/assets/
+video-marketing/renders/
 
 # OS temporaires
 *.tmp
@@ -39,4 +52,6 @@ server/scripts/loadtest/REPORT-LOADTEST.md
 
 .vercel
 .env*
+!.env.example
+!server/.env.example
 .aider*

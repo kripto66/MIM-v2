@@ -8,10 +8,13 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
 import fs from 'node:fs';
+import { assertSeedAllowed, assertTestDatabaseAllowed } from '../tests/lib.js';
 
 export const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const SERVER_DIR = path.resolve(__dirname, '..', '..');
 config({ path: path.join(SERVER_DIR, '.env') });
+assertTestDatabaseAllowed();
+assertSeedAllowed();
 
 export const LT = {
   ts: new Date().toISOString().replace(/[:T]/g, '-').slice(0, 19),
@@ -98,8 +101,13 @@ function cookieHeader(jar) {
 }
 export async function api(base, url, { method = 'GET', body, jar, headers = {}, raw = false } = {}) {
   const h = { 'Content-Type': 'application/json', ...headers };
+  try { h.Origin = new URL(base).origin; } catch {}
   const cookie = cookieHeader(jar);
-  if (cookie) h.Cookie = cookie;
+  if (cookie) {
+    h.Cookie = cookie;
+    const csrf = jar.cookies.find((c) => c.name === 'mim_csrf');
+    if (csrf) h['X-CSRF-Token'] = csrf.value;
+  }
   const mk = (signal) => fetch(base + url, {
     method,
     headers: h,

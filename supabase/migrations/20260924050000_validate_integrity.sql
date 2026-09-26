@@ -1,0 +1,14 @@
+ALTER TABLE public.logements VALIDATE CONSTRAINT logements_bien_owner_fk;
+ALTER TABLE public.locataires VALIDATE CONSTRAINT locataires_bien_owner_fk;
+ALTER TABLE public.locataires VALIDATE CONSTRAINT locataires_logement_owner_fk;
+ALTER TABLE public.paiements VALIDATE CONSTRAINT paiements_locataire_owner_fk;
+ALTER TABLE public.paiements VALIDATE CONSTRAINT paiements_locataire_restrict_fk;
+ALTER TABLE public.paiements VALIDATE CONSTRAINT paiements_logement_owner_fk;
+ALTER TABLE public.incidents VALIDATE CONSTRAINT incidents_logement_owner_fk;
+ALTER TABLE public.interventions VALIDATE CONSTRAINT interventions_incident_owner_fk;
+ALTER TABLE public.interventions VALIDATE CONSTRAINT interventions_logement_owner_fk;
+ALTER TABLE public.interventions VALIDATE CONSTRAINT interventions_prestataire_owner_fk;
+ALTER TABLE public.paiements_employes VALIDATE CONSTRAINT paiements_employes_employe_owner_fk;
+ALTER TABLE public.paiements_employes VALIDATE CONSTRAINT paiements_employes_employe_restrict_fk;
+ALTER TABLE public.employes_biens VALIDATE CONSTRAINT employes_biens_bien_owner_fk;
+ALTER TABLE public.employes_biens VALIDATE CONSTRAINT employes_biens_employe_owner_fk;

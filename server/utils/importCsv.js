@@ -19,15 +19,24 @@
 //     automatiquement : amadou.diop, amadou.diop2, …).
 // ============================================================
 
-import { tenantEmailFor, usernameIsValid, uniqueUsername, INITIAL_PASSWORD } from './tenantAccount.js';
+import { tenantEmailFor, usernameIsValid, uniqueUsername, generateInitialPassword, provisionProfile } from './tenantAccount.js';
 import { notify } from './notifications.js';
+import { enforceImmeublesLimit, enforceLogementsLimit, enforceLocatairesLimit } from './subscription.js';
+import { reserveQuota, consumeQuota, releaseQuota } from './quota.js';
 
 // Ré-export de compatibilité (la logique vit désormais dans tenantAccount.js).
-export { INITIAL_PASSWORD, uniqueUsername };
+export { uniqueUsername };
 export const CATEGORIES = ['biens', 'logements', 'locataires', 'employes'];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isValidDate(value) {
+  if (!DATE_RE.test(String(value || ''))) return false;
+  const [year, month, day] = String(value).split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day;
+}
 
 // ------------------------------------------------------------
 // Décodage des fichiers (BOM UTF-8, fallback latin1 pour Excel FR)
@@ -185,16 +194,18 @@ export function mapHeaders(parsed) {
 
 export function parseNumberFr(value) {
   if (value === '' || value == null) return null;
+  if (typeof value === 'boolean' || typeof value === 'object') return NaN;
   let s = String(value).replace(/[\s\u00A0\u202F]/g, '').replace(/\u20AC/g, '').trim();
   if (!s) return null;
-  if (/^\d+,\d+$/.test(s)) s = s.replace(',', '.');
-  else if (/^\d{1,3}(,\d{3})+$/.test(s)) s = s.replace(/,/g, '');
+  if (/^\d+,\d{1,2}$/.test(s)) s = s.replace(',', '.');
+  else if (/^\d{1,3}(,\d{3})+(,\d{1,2})?$/.test(s)) s = s.replace(/,/g, '');
+  if (!/^\d+(?:\.\d{1,2})?$/.test(s)) return NaN;
   const n = Number(s);
-  return Number.isFinite(n) ? n : NaN;
+  return Number.isFinite(n) && n <= 9999999999.99 ? n : NaN;
 }
 
 // ------------------------------------------------------------
-// Génération des usernames : uniqueUsername et INITIAL_PASSWORD
+// Génération des usernames et des mots de passe initiaux uniques
 // sont définis dans tenantAccount.js (partagés avec la création
 // d'un locataire depuis le formulaire unique).
 // ------------------------------------------------------------
@@ -368,7 +379,7 @@ export async function prepareImport(sb, ownerId, payload) {
       }
 
       if (generated) {
-        report.accounts.push({ line, username: generated, password: INITIAL_PASSWORD, account_type: cat === 'locataires' ? 'locataire' : 'employe' });
+        report.accounts.push({ line, username: generated, account_type: cat === 'locataires' ? 'locataire' : 'employe', initialPasswordRequired: true });
         const sampleRow = report.sample.find((s) => s.line === line);
         if (sampleRow) sampleRow.username = generated;
       }
@@ -572,7 +583,7 @@ async function prepareLocataire(sb, ownerId, report, ctx) {
     return;
   }
 
-  if (v.dateentree && !DATE_RE.test(v.dateentree)) {
+  if (v.dateentree && !isValidDate(v.dateentree)) {
     report.errors.push({ line, champ: 'dateentree', message: `Date d'entrée « ${v.dateentree} » invalide (format AAAA-MM-JJ).` });
     return;
   }
@@ -700,7 +711,7 @@ async function prepareEmploye(sb, ownerId, report, ctx) {
     }
   }
 
-  if (v.dateembauche && !DATE_RE.test(v.dateembauche)) {
+  if (v.dateembauche && !isValidDate(v.dateembauche)) {
     report.errors.push({ line, champ: 'dateembauche', message: `Date d'embauche « ${v.dateembauche} » invalide (format AAAA-MM-JJ).` });
     return;
   }
@@ -791,10 +802,23 @@ export async function executeImport(sb, ownerId, payload, opts = {}) {
     };
   }
 
+  const plannedByCategory = Object.fromEntries(prepared.categories.map((category) => [category.category, category.total]));
+  const quotaChecks = [
+    ['biens', await enforceImmeublesLimit(ownerId)],
+    ['logements', await enforceLogementsLimit(ownerId)],
+    ['locataires', await enforceLocatairesLimit(ownerId)],
+  ];
+  for (const [resource, limit] of quotaChecks) {
+    if (limit.max != null && limit.count + (plannedByCategory[resource] || 0) > limit.max) {
+      return { error: `Le quota ${resource} serait dépassé par cet import.`, prepared };
+    }
+  }
+
   const report = {
     categories: [],
     totals: { created: 0, updated: 0, ignored: 0, accounts: 0 },
     accounts: [],
+    credentials: [],
   };
 
   const bienCache = new Map(); // nom (lower) -> {id, nom}
@@ -812,7 +836,9 @@ export async function executeImport(sb, ownerId, payload, opts = {}) {
   };
   const yieldLoop = () => new Promise((resolve) => setImmediate(resolve));
 
-  for (const catReport of prepared.categories) {
+  const categoryOrder = new Map(CATEGORIES.map((category, index) => [category, index]));
+  const orderedReports = [...prepared.categories].sort((a, b) => (categoryOrder.get(a.category) ?? 99) - (categoryOrder.get(b.category) ?? 99));
+  for (const catReport of orderedReports) {
     const cat = catReport.category;
     const def = CATEGORY_DEFS[cat];
     const parsed = parseCsv(contentOf(payload.files[cat]));
@@ -828,6 +854,7 @@ export async function executeImport(sb, ownerId, payload, opts = {}) {
       ignored: 0,
       rowErrors: [],
       accounts: [],
+      credentials: [],
     };
 
     for (const [idx, row] of parsed.rows.entries()) {
@@ -862,6 +889,7 @@ export async function executeImport(sb, ownerId, payload, opts = {}) {
     report.totals.ignored += result.ignored;
     report.totals.accounts += result.accounts.length;
     report.accounts.push(...result.accounts);
+    report.credentials.push(...(result.credentials || []));
     emit();
   }
 
@@ -906,6 +934,17 @@ async function importBien(sb, ownerId, ctx) {
     return;
   }
 
+  const limit = await enforceImmeublesLimit(ownerId);
+  if (!limit.allowed) {
+    result.rowErrors.push({ line, message: limit.message });
+    return;
+  }
+  const reservation = await reserveQuota(sb, ownerId, 'biens', limit.max);
+  if (!reservation.allowed) {
+    result.rowErrors.push({ line, message: reservation.message });
+    return;
+  }
+
   const { data, error } = await sb
     .from('biens')
     .insert({
@@ -921,9 +960,11 @@ async function importBien(sb, ownerId, ctx) {
     .single();
 
   if (error) {
+    await releaseQuota(sb, reservation.id, ownerId).catch(() => {});
     result.rowErrors.push({ line, message: `Création impossible : ${error.message}` });
     return;
   }
+  await consumeQuota(sb, reservation.id, ownerId);
   bienCache.set(key, { id: data.id, nom: data.nom });
   result.created++;
 }
@@ -1016,6 +1057,17 @@ async function importLogement(sb, ownerId, ctx) {
     return;
   }
 
+  const limit = await enforceLogementsLimit(ownerId);
+  if (!limit.allowed) {
+    result.rowErrors.push({ line, message: limit.message });
+    return;
+  }
+  const reservation = await reserveQuota(sb, ownerId, 'logements', limit.max);
+  if (!reservation.allowed) {
+    result.rowErrors.push({ line, message: reservation.message });
+    return;
+  }
+
   const { data, error } = await sb
     .from('logements')
     .insert({
@@ -1033,9 +1085,11 @@ async function importLogement(sb, ownerId, ctx) {
     .single();
 
   if (error) {
+    await releaseQuota(sb, reservation.id, ownerId).catch(() => {});
     result.rowErrors.push({ line, message: `Création impossible : ${error.message}` });
     return;
   }
+  await consumeQuota(sb, reservation.id, ownerId);
   logementCache.set(`${String(bienId)}|${nom.toLowerCase()}`, { id: data.id, nom: data.nom, loyer_mensuel: Number(data.loyer_mensuel || 0) });
   result.created++;
 }
@@ -1163,6 +1217,17 @@ async function importLocataire(sb, ownerId, ctx) {
     }
   }
 
+  const limit = await enforceLocatairesLimit(ownerId);
+  if (!limit.allowed) {
+    result.rowErrors.push({ line, message: limit.message });
+    return;
+  }
+  const reservation = await reserveQuota(sb, ownerId, 'locataires', limit.max);
+  if (!reservation.allowed) {
+    result.rowErrors.push({ line, message: reservation.message });
+    return;
+  }
+
   const username = await uniqueUsername(sb, prenom, nom);
   let final = username;
   let n = 2;
@@ -1172,25 +1237,36 @@ async function importLocataire(sb, ownerId, ctx) {
   }
   usernameSet.add(final);
 
+  const initialPassword = generateInitialPassword();
   const { data: createdUser, error: createError } = await sb.auth.admin.createUser({
     email: tenantEmailFor(final),
-    password: INITIAL_PASSWORD,
+    password: initialPassword,
     email_confirm: true,
     user_metadata: {
-      account_type: 'locataire',
-      role: 'locataire',
       name: nom,
       username: final,
       phone: v.telephone || '',
-      must_change_password: true,
+    },
+    app_metadata: {
+      mim_account_type: 'locataire',
+      mim_must_change_password: true,
     },
   });
 
   if (createError || !createdUser?.user?.id) {
+    await releaseQuota(sb, reservation.id, ownerId).catch(() => {});
     result.rowErrors.push({ line, message: `Compte impossible à créer : ${String(createError?.message || '').slice(0, 120)}` });
     return;
   }
   const accountUid = createdUser.user.id;
+  try {
+    await provisionProfile(sb, accountUid, 'locataire', final, true, email);
+  } catch (profileError) {
+    await sb.auth.admin.deleteUser(accountUid).catch(() => {});
+    await releaseQuota(sb, reservation.id, ownerId).catch(() => {});
+    result.rowErrors.push({ line, message: 'Finalisation du compte impossible.' });
+    return;
+  }
 
   const { error: insertError } = await sb.from('locataires').insert({
     user_id: ownerId,
@@ -1207,11 +1283,13 @@ async function importLocataire(sb, ownerId, ctx) {
   });
 
   if (insertError) {
+    await releaseQuota(sb, reservation.id, ownerId).catch(() => {});
     await sb.auth.admin.deleteUser(accountUid).catch(() => {});
     result.rowErrors.push({ line, message: `Création impossible : ${insertError.message}` });
     return;
   }
 
+  await consumeQuota(sb, reservation.id, ownerId);
   if (logementId) {
     await sb.from('logements').update({ statut: 'occupe' }).eq('id', logementId).eq('user_id', ownerId);
   }
@@ -1219,7 +1297,8 @@ async function importLocataire(sb, ownerId, ctx) {
   await notify(accountUid, 'info', 'Votre compte locataire a été créé par votre propriétaire. À votre première connexion, vous devrez choisir un nouveau mot de passe.');
 
   result.created++;
-  result.accounts.push({ line, username: final, password: INITIAL_PASSWORD, account_type: 'locataire', nom });
+  result.accounts.push({ line, username: final, account_type: 'locataire', nom, initialPasswordRequired: true });
+  result.credentials.push({ line, username: final, password: initialPassword, account_type: 'locataire', nom });
 }
 
 async function importEmploye(sb, ownerId, ctx) {
@@ -1314,17 +1393,19 @@ async function importEmploye(sb, ownerId, ctx) {
   }
   usernameSet.add(final);
 
+  const initialPassword = generateInitialPassword();
   const { data: createdUser, error: createError } = await sb.auth.admin.createUser({
     email: tenantEmailFor(final),
-    password: INITIAL_PASSWORD,
+    password: initialPassword,
     email_confirm: true,
     user_metadata: {
-      account_type: 'employe',
-      role: 'employe',
       name: nom,
       username: final,
       phone: v.telephone || '',
-      must_change_password: true,
+    },
+    app_metadata: {
+      mim_account_type: 'employe',
+      mim_must_change_password: true,
     },
   });
 
@@ -1333,6 +1414,13 @@ async function importEmploye(sb, ownerId, ctx) {
     return;
   }
   const accountUid = createdUser.user.id;
+  try {
+    await provisionProfile(sb, accountUid, 'employe', final, true, email);
+  } catch (profileError) {
+    await sb.auth.admin.deleteUser(accountUid).catch(() => {});
+    result.rowErrors.push({ line, message: 'Finalisation du compte impossible.' });
+    return;
+  }
 
   const { data: fiche, error: insertError } = await sb
     .from('employes')
@@ -1365,7 +1453,8 @@ async function importEmploye(sb, ownerId, ctx) {
       bien_id: bienId,
     });
     if (lienError) {
-      await sb.from('employes').delete().eq('id', fiche.id).catch(() => {});
+      const { error: cleanupError } = await sb.from('employes').delete().eq('id', fiche.id);
+      if (cleanupError) result.rowErrors.push({ line, message: `Nettoyage du compte impossible : ${cleanupError.message}` });
       await sb.auth.admin.deleteUser(accountUid).catch(() => {});
       result.rowErrors.push({ line, message: `Affectation au bien impossible : ${lienError.message}` });
       return;
@@ -1375,5 +1464,6 @@ async function importEmploye(sb, ownerId, ctx) {
   await notify(accountUid, 'info', 'Votre compte employé a été créé par votre employeur. À votre première connexion, vous devrez choisir un nouveau mot de passe.');
 
   result.created++;
-  result.accounts.push({ line, username: final, password: INITIAL_PASSWORD, account_type: 'employe', nom });
+  result.accounts.push({ line, username: final, account_type: 'employe', nom, initialPasswordRequired: true });
+  result.credentials.push({ line, username: final, password: initialPassword, account_type: 'employe', nom });
 }

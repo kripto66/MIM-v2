@@ -37,20 +37,22 @@ async function readOffset() {
       .maybeSingle();
 
     if (error) {
-      console.warn('[simulation] DB error:', error.message);
-      cachedOffset = 0;
-      cacheTimestamp = now;
-      return 0;
+      throw new Error(`Simulation indisponible: ${error.message}`);
     }
 
-    cachedOffset = parseInt(data?.value, 10) || 0;
+    const raw = String(data?.value ?? '').trim();
+    if (!/^-?\d+$/.test(raw)) {
+      throw new Error('configuration simulation_offset_days invalide');
+    }
+    const parsed = Number(raw);
+    if (!Number.isSafeInteger(parsed) || Math.abs(parsed) > 365000) {
+      throw new Error('décalage simulation hors limites');
+    }
+    cachedOffset = parsed;
     cacheTimestamp = now;
     return cachedOffset;
   } catch (err) {
-    console.warn('[simulation] unexpected:', err.message);
-    cachedOffset = 0;
-    cacheTimestamp = now;
-    return 0;
+    throw new Error(`Simulation indisponible: ${err.message}`);
   }
 }
 

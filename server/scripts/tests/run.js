@@ -3,35 +3,17 @@
 //   node scripts/tests/run.js [--no-server] [--no-seed] [--suite auth]
 // ============================================================
 
-import 'dotenv/config';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
-import { Runner, api, BASE } from './lib.js';
-import { seed, wipeTestData } from './seed.js';
-import { runAuth } from './auth.test.js';
-import { runCrud } from './crud.test.js';
-import { runIsolation } from './isolation.test.js';
-import { runRelations } from './relations.test.js';
-import { runStats } from './stats.test.js';
-import { runSecurity } from './security.test.js';
-import { runConcurrency } from './concurrency.test.js';
-import { runFinal } from './final.test.js';
-import { runAdmin } from './admin.test.js';
-import { runAbonnement } from './abonnement.test.js';
-import { runBictorys } from './bictorys.test.js';
-import { runDeclarations } from './declarations.test.js';
-import { runImport } from './import.test.js';
-import { runLocataires } from './locataires.test.js';
-import { runSalaires } from './salaires.test.js';
-import { runVierge } from './vierge.test.js';
-import { runSimplif } from './simplif.test.js';
-import { runComplet, runMatrice } from './complet.test.js';
-import { runCsrfValidation } from './csrf-validation.test.js';
+import dotenv from 'dotenv';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SERVER_DIR = path.join(__dirname, '..', '..');
+dotenv.config({ path: path.join(SERVER_DIR, '.env') });
+const { Runner, BASE, assertSeedAllowed, assertTestDatabaseAllowed } = await import('./lib.js');
+const { seed, wipeTestData, TEST_MARKER } = await import('./seed.js');
 
 const args = process.argv.slice(2);
 const NO_SERVER = args.includes('--no-server');
@@ -39,32 +21,32 @@ const NO_SEED = args.includes('--no-seed');
 const suiteArg = args.find((a) => a.startsWith('--suite='));
 const ONLY = suiteArg ? suiteArg.split('=')[1] : null;
 
-const SUITES = [
-  ['auth', runAuth],
-  ['crud', runCrud],
-  ['isolation', runIsolation],
-  ['relations', runRelations],
-  ['stats', runStats],
-  ['security', runSecurity],
-  ['concurrency', runConcurrency],
-  ['final', runFinal],
-  ['admin', runAdmin],
-  ['abonnement', runAbonnement],
-  ['bictorys', runBictorys],
-  ['declarations', runDeclarations],
-  ['import', runImport],
-  ['locataires', runLocataires],
-  ['salaires', runSalaires],
-  ['vierge', runVierge],
-  ['simplif', runSimplif],
-  ['complet', runComplet],
-  ['matrice', runMatrice],
-  ['csrf-validation', runCsrfValidation],
+const SUITE_DEFINITIONS = [
+  ['auth', () => import('./auth.test.js').then(({ runAuth }) => runAuth)],
+  ['crud', () => import('./crud.test.js').then(({ runCrud }) => runCrud)],
+  ['isolation', () => import('./isolation.test.js').then(({ runIsolation }) => runIsolation)],
+  ['relations', () => import('./relations.test.js').then(({ runRelations }) => runRelations)],
+  ['stats', () => import('./stats.test.js').then(({ runStats }) => runStats)],
+  ['security', () => import('./security.test.js').then(({ runSecurity }) => runSecurity)],
+  ['concurrency', () => import('./concurrency.test.js').then(({ runConcurrency }) => runConcurrency)],
+  ['final', () => import('./final.test.js').then(({ runFinal }) => runFinal)],
+  ['admin', () => import('./admin.test.js').then(({ runAdmin }) => runAdmin)],
+  ['abonnement', () => import('./abonnement.test.js').then(({ runAbonnement }) => runAbonnement)],
+  ['bictorys', () => import('./bictorys.test.js').then(({ runBictorys }) => runBictorys)],
+  ['declarations', () => import('./declarations.test.js').then(({ runDeclarations }) => runDeclarations)],
+  ['import', () => import('./import.test.js').then(({ runImport }) => runImport)],
+  ['locataires', () => import('./locataires.test.js').then(({ runLocataires }) => runLocataires)],
+  ['salaires', () => import('./salaires.test.js').then(({ runSalaires }) => runSalaires)],
+  ['vierge', () => import('./vierge.test.js').then(({ runVierge }) => runVierge)],
+  ['simplif', () => import('./simplif.test.js').then(({ runSimplif }) => runSimplif)],
+  ['complet', () => import('./complet.test.js').then(({ runComplet }) => runComplet)],
+  ['matrice', () => import('./complet.test.js').then(({ runMatrice }) => runMatrice)],
+  ['csrf-validation', () => import('./csrf-validation.test.js').then(({ runCsrfValidation }) => runCsrfValidation)],
+  ['resetpwd', () => import('./resetpwd.test.js').then(({ runResetPwd }) => runResetPwd)],
+  ['mandat', () => import('./mandat.test.js').then(({ runMandat }) => runMandat)],
 ];
 
 const runner = new Runner();
-
-const service = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 async function waitForHealth(port, timeoutMs = 30000) {
   const start = Date.now();
@@ -94,7 +76,9 @@ async function startServer() {
     GIT_BACKUP: 'false',
     NODE_ENV: '',
     TEST_BASE: BASE,
-    BICTORYS_AUTOCONFIRM: '0', // tests = production : seule le webhook active
+    BICTORYS_AUTOCONFIRM: '0',
+     BICTORYS_WEBHOOK_SECRET: process.env.BICTORYS_WEBHOOK_SECRET || 'bictorys_test_secret',
+     SMTP_SIMULATE: '1',
   };
   serverProc = spawn(process.execPath, ['server.js'], {
     cwd: SERVER_DIR,
@@ -106,6 +90,11 @@ async function startServer() {
 }
 
 async function main() {
+  assertTestDatabaseAllowed();
+  if (!NO_SEED) assertSeedAllowed();
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('SUPABASE_SERVICE_ROLE_KEY est requis pour lancer les tests E2E.');
+
+  const service = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
   console.log(`Harness MIM — base ${BASE}`);
 
   if (!NO_SERVER) {
@@ -118,7 +107,7 @@ async function main() {
     console.log('Serveur de test prêt.');
   }
 
-  const ctx = { service, runner };
+  const ctx = { service, runner, marker: TEST_MARKER };
 
   if (!NO_SEED) {
     console.log('\nNettoyage des données de test précédentes...');
@@ -133,7 +122,13 @@ async function main() {
     );
   }
 
-  for (const [name, fn] of SUITES) {
+  const suites = [];
+  for (const [name, load] of SUITE_DEFINITIONS) {
+    if (ONLY && name !== ONLY) continue;
+    suites.push([name, await load()]);
+  }
+
+  for (const [name, fn] of suites) {
     if (ONLY && name !== ONLY) continue;
     console.log(`\n══════════ SUITE ${name.toUpperCase()} ══════════`);
     try {
@@ -144,14 +139,14 @@ async function main() {
   }
 
   const report = runner.summary();
-  console.log(`\nStatut global : ${report.failed === 0 && report.blocked === 0 ? '🟢' : report.failed > 0 ? '🔴' : '🟠'}`);
+  console.log(`\nStatut global : ${report.total === 0 || report.passed !== report.total ? (report.failed > 0 ? '🔴' : '🟠') : '🟢'}`);
   return report;
 }
 
 main()
-  .then(() => {
+  .then((report) => {
     if (serverProc) serverProc.kill();
-    process.exit(0);
+    process.exit(report.total === 0 || report.passed !== report.total ? 1 : 0);
   })
   .catch((err) => {
     console.error('[run]', err);

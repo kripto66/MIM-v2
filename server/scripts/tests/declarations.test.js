@@ -21,7 +21,7 @@
 //     avec le montant relu en base (loyer_mensuel du logement).
 // ============================================================
 
-import { api, newJar, okStatus, expectSuccess } from './lib.js';
+import { api, newJar, okStatus, expectSuccess, loginForBusiness } from './lib.js';
 
 const S = 'declarations';
 const PW = 'Test1234!';
@@ -51,10 +51,9 @@ export async function runDeclarations(r, ctx) {
     return jar;
   };
   const loginTenant = async (username) => {
-    const jar = newJar();
-    const res = await api('/auth/login', { method: 'POST', jar, body: { identifier: username, password: PW } });
-    if (res.status !== 200) throw new Error(`login ${username} : ${res.status}`);
-    return jar;
+    const session = await loginForBusiness(username, PW);
+    if (session.login.status !== 200 || (session.change && session.change.status !== 200)) throw new Error(`login ${username} : ${session.login.status}`);
+    return session.jar;
   };
 
   const payOf = async (locataireId, mois) => {

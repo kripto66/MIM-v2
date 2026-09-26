@@ -7,7 +7,7 @@
 // propriétaires, réimportation.
 // ============================================================
 
-import { api, newJar, expectSuccess } from './lib.js';
+import { api, newJar, expectSuccess, createConfirmedSession } from './lib.js';
 
 const S = 'import';
 
@@ -39,18 +39,21 @@ export async function runImport(r, ctx) {
 
   // Un propriétaire dédié (espace vide) pour toute la suite.
   const email = `importown${SUFFIX}@mimtest.com`;
-  const jar = newJar();
-  const reg = await api('/auth/register', {
-    method: 'POST',
-    jar,
-    body: { account_type: 'proprietaire', name: 'Import Owner', email, phone: '+221760000001', password: 'Test1234!', password_confirm: 'Test1234!' },
-  });
-  if (reg.status !== 201 || !reg.data?.success) {
-    r.blocked(S, 'propriétaire de test créé', JSON.stringify(reg.data).slice(0, 200));
+  let owner;
+  try {
+    owner = await createConfirmedSession(service, {
+      account_type: 'proprietaire',
+      name: 'Import Owner',
+      email,
+      phone: '+221760000001',
+      password: 'Test1234!',
+    });
+  } catch (error) {
+    r.blocked(S, 'propriétaire de test créé', error.message);
     return;
   }
-  const me = await api('/auth/me', { jar });
-  const ownerId = me.data.user.id;
+  const jar = owner.jar;
+  const ownerId = owner.user.id;
 
   const bien1 = `Immo Palmiers ${SUFFIX}`;
   const bien2 = `Immo Almadies ${SUFFIX}`;
@@ -289,7 +292,7 @@ const text = await res.text();
 
 // Connexion avec le mot de passe initial retourné par l'import → changement forcé demandé.
       const jarT = newJar();
-      const initialPw = cat.accounts[0]?.password;
+      const initialPw = exe.data.report.credentials?.find((item) => item.username === fiche.username)?.password;
       const login = await api('/auth/login', {
         method: 'POST',
         jar: jarT,
@@ -427,7 +430,7 @@ const text = await res.text();
 
 // Login employé avec le mot de passe initial retourné → changement forcé demandé (exigence mission).
       const jarE = newJar();
-      const initialPw = cat.accounts[0]?.password;
+      const initialPw = exe.data.report.credentials?.find((item) => item.username === fiche.username)?.password;
       const login = await api('/auth/login', {
         method: 'POST',
         jar: jarE,
@@ -457,16 +460,20 @@ const text = await res.text();
   await r.section('sécurité : isolation entre propriétaires', async () => {
     // Un second propriétaire ne peut PAS référencer les biens/logements du premier.
     const otherEmail = `importother${SUFFIX}@mimtest.com`;
-    const jar2 = newJar();
-    const reg2 = await api('/auth/register', {
-      method: 'POST',
-      jar: jar2,
-      body: { account_type: 'proprietaire', name: 'Autre Import', email: otherEmail, phone: '+221760000002', password: 'Test1234!', password_confirm: 'Test1234!' },
-    });
-    if (reg2.status !== 201) {
-      r.blocked(S, 'second propriétaire créé', JSON.stringify(reg2.data).slice(0, 200));
+    let otherOwner;
+    try {
+      otherOwner = await createConfirmedSession(service, {
+        account_type: 'proprietaire',
+        name: 'Autre Import',
+        email: otherEmail,
+        phone: '+221760000002',
+        password: 'Test1234!',
+      });
+    } catch (error) {
+      r.blocked(S, 'second propriétaire créé', error.message);
       return;
     }
+    const jar2 = otherOwner.jar;
 
     // Le bien du premier propriétaire n'existe pas pour le second.
     const stealLogement = csv(L_HEADERS, [[bien1, 'Appartement Volé', 'appartement', '100000', '2', '', 'libre', '']]);

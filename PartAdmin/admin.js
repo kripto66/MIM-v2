@@ -1,7 +1,6 @@
 const API = (() => {
-  const origin = window.location.origin || "http://localhost:3000";
-  const isLocal = origin.includes("localhost") || origin.includes("127.0.0.1");
-  return (isLocal ? "http://localhost:3000" : origin) + "/api";
+  const host = (window.MIM && MIM.apiHost) ? MIM.apiHost() : window.location.origin || "http://localhost:3000";
+  return host + "/api";
 })();
 
 // ============================================================
@@ -83,13 +82,16 @@ function svg(name) {
 }
 
 async function apiRequest(path, options = {}) {
+  if (window.MIM && MIM._csrfReady) await MIM._csrfReady;
+  const csrfHeaders = window.MIM && typeof MIM.csrfHeader === "function" ? MIM.csrfHeader() : {};
   const res = await fetch(`${API}${path}`, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
     ...options,
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(options.headers || {}), ...csrfHeaders },
   });
 
   const { ok, error, data } = await MIM.parse(res);
+  if (data && data.user && data.user.account_type) MIM.accountType = data.user.account_type;
 
   if (!ok) {
     MIM.handleAuthError(error);
@@ -474,6 +476,12 @@ function bindSearch() {
   });
 }
 
+function csvCell(value) {
+  let text = String(value ?? "");
+  if (/^[\s]*[=+\-@]/.test(text)) text = "'" + text;
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
 function exportCSV() {
   const table = document.querySelector(".table");
   if (!table) return showToast("Aucune donnée à exporter.");
@@ -481,7 +489,7 @@ function exportCSV() {
     .map((tr) =>
       [...tr.querySelectorAll("th, td")]
         .filter((td) => td.textContent)
-        .map((td) => `"${td.textContent.replace(/"/g, '""')}"`)
+        .map((td) => csvCell(td.textContent))
         .join(";")
     )
     .join("\r\n");
@@ -746,8 +754,8 @@ function setAdminIdentity(user) {
 async function init() {
   try {
     const { user } = await apiRequest("/auth/me");
-    if (user.account_type !== "admin") {
-      window.location.href = "../PartPublic/connexion.html";
+    if (!["admin", "ultra_admin"].includes(user.account_type)) {
+      window.location.href = "/PartPublic/connexion.html";
       return;
     }
     setAdminIdentity(user);

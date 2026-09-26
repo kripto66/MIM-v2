@@ -65,8 +65,8 @@ async function loadSubscription() {
             "<li>Expiration : " + fmtDateFR(subscription.date_expiration) + "</li>" +
             "<li>Dernier paiement : " + fmtDateFR(subscription.date_paiement) + "</li>" +
             "<li>Montant : " + (subscription.montant != null ? subscription.montant.toLocaleString("fr-FR") + " FCFA" : "—") + "</li>" +
-            "<li>Méthode : " + (subscription.methode_paiement || "—") + "</li>" +
-            "<li>Référence : " + (subscription.reference || "—") + "</li>" +
+             "<li>Méthode : " + escapeHtml(subscription.methode_paiement || "—") + "</li>" +
+             "<li>Référence : " + escapeHtml(subscription.reference || "—") + "</li>" +
             "</ul>" +
             '<a class="btn btn-primary" href="abonnements.html">Renouveler / gérer en ligne</a>' +
             "</div>" +
@@ -111,7 +111,7 @@ async function loadMoyens() {
                     ${m.nom_titulaire ? `<p>${escapeHtml(m.nom_titulaire)}</p>` : ""}
                     ${m.numero ? `<p class="pay-methode">${escapeHtml(m.numero)}</p>` : ""}
                     ${m.banque ? `<p class="pay-methode">${escapeHtml(m.banque)}${m.num_compte ? " — " + escapeHtml(m.num_compte) : ""}</p>` : ""}
-${m.lien_paiement ? `<p><a href="${escapeAttr(m.lien_paiement)}" target="_blank" rel="noopener">${escapeHtml(m.lien_paiement)}</a></p>` : ""}
+${m.lien_paiement && MIM.httpsUrl(m.lien_paiement) ? `<p><a href="${escapeAttr(MIM.httpsUrl(m.lien_paiement))}" target="_blank" rel="noopener">${escapeHtml(m.lien_paiement)}</a></p>` : ""}
                     ${m.instructions ? `<p class="pay-hint">${escapeHtml(m.instructions)}</p>` : ""}
                     <p class="pay-hint">${m.actif ? "Actif" : "Inactif"}</p>
                 </div>

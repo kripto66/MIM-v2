@@ -1,16 +1,19 @@
 const API = (() => {
-  const origin = window.location.origin || "http://localhost:3000";
-  const isLocal = origin.includes("localhost") || origin.includes("127.0.0.1");
-  return (isLocal ? "http://localhost:3000" : origin) + "/api";
+  const host = (window.MIM && MIM.apiHost) ? MIM.apiHost() : window.location.origin || "http://localhost:3000";
+  return host + "/api";
 })();
 
 async function tenantRequest(path, options = {}) {
+  if (window.MIM && MIM._csrfReady) await MIM._csrfReady;
+  const csrfHeaders = window.MIM && typeof MIM.csrfHeader === "function" ? MIM.csrfHeader() : {};
   const res = await fetch(`${API}${path}`, {
+    ...options,
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
+      ...(options.headers || {}),
+      ...csrfHeaders,
     },
-    ...options,
   });
 
   const { ok, error, data } = await MIM.parse(res);
@@ -79,7 +82,7 @@ function initTenantShell() {
       fetch(`${API}/auth/logout`, { method: "POST", credentials: "include", headers: MIM.csrfHeader() })
         .catch(() => {})
         .finally(() => {
-          window.location.href = "../PartPublic/connexion.html";
+          window.location.href = "/PartPublic/connexion.html";
         });
     });
   }
@@ -274,7 +277,21 @@ function renderConfirmPayment(data) {
       <div class="confirm-payment-info">
         <strong>✅ Paiement reçu — en attente de validation</strong>
         <p>Votre paiement de ${fmtFCFA(pending.montant)} (${formatMois(pending.mois)}) a bien été reçu. Il attend la validation de votre propriétaire.</p>
+        <button type="button" class="primary-button" id="confirmLegacyPayment">Confirmer la réception</button>
       </div>`;
+    const button = document.getElementById("confirmLegacyPayment");
+    if (button) {
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          await tenantRequest(`/locataire/paiements/${encodeURIComponent(pending.id)}/confirmer`, { method: "POST" });
+          renderDashboard(await tenantRequest("/locataire/dashboard"));
+        } catch (error) {
+          showTenantError(error.message);
+          button.disabled = false;
+        }
+      });
+    }
     return;
   }
 

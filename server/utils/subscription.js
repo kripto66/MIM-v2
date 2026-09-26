@@ -15,11 +15,14 @@
 // traité de façon idempotente (journal public.bictorys_webhooks).
 // ============================================================
 
+import crypto from 'node:crypto';
 import { serviceClient } from '../app.js';
 import { getNow } from './simulation.js';
-import { planByCode, planForSubscription, planView, PLAN_CODES } from './plans.js';
+import { planByCode, planForSubscription, planView, PLAN_CODES, audienceForAccount } from './plans.js';
 import { isConfigured, isSimulate, newPaymentReference, createCharge, getTransaction, country } from '../providers/bictorys.js';
+import { paymentLinkError } from './paiementMethodes.js';
 import { notify } from './notifications.js';
+import { parseMoney } from './inputValidation.js';
 
 const OWNER_TYPES = ['proprietaire', 'agence', 'entreprise'];
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -34,6 +37,15 @@ const autoConfirmSim = () => isSimulate() && envBool(process.env.BICTORYS_AUTOCO
 // Statuts de paiement Bictorys retenus côté MIM.
 const PAYMENT_OK = ['succeeded'];
 const PAYMENT_FAILED = ['failed', 'cancelled', 'reversed', 'expired', 'timeout'];
+const PERMANENT_WEBHOOK_CODES = new Set([
+  'AMOUNT_MISMATCH',
+  'CURRENCY_MISMATCH',
+  'MERCHANT_REFERENCE_MISMATCH',
+  'TRANSACTION_MISMATCH',
+  'TRANSACTION_MISSING',
+  'PLAN_UNAVAILABLE',
+  'UNSUPPORTED_STATUS',
+]);
 
 // Cache mémoire court : évite une requête Supabase à chaque requête
 // protégée, sans jamais masquer une expiration plus de 2 s.
@@ -89,16 +101,13 @@ async function readSubscription(userId) {
       .eq('user_id', userId)
       .maybeSingle();
 
-    if (error) {
-      console.warn('[subscription]', error.message);
-      return null;
-    }
+    if (error) throw new Error(error.message);
 
     subCache.set(userId, { at: Date.now(), data: data || null });
     return data || null;
   } catch (err) {
     console.warn('[subscription]', err.message);
-    return null;
+    throw new Error(`Lecture abonnement indisponible: ${err.message}`);
   }
 }
 
@@ -113,10 +122,10 @@ async function latestPayment(userId) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (error) return null;
+    if (error) throw new Error(error.message);
     return data || null;
   } catch (err) {
-    return null;
+    throw new Error(`Lecture du dernier paiement indisponible: ${err.message}`);
   }
 }
 
@@ -126,10 +135,10 @@ export async function countImmeubles(userId) {
       .from('biens')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId);
-    if (error) return 0;
+    if (error) throw new Error(error.message);
     return count || 0;
   } catch (err) {
-    return 0;
+    throw new Error(`Compteur d'immeubles indisponible: ${err.message}`);
   }
 }
 
@@ -139,10 +148,10 @@ export async function countLogements(userId) {
       .from('logements')
       .select('id', { count: 'exact', head: true })
       .eq('user_id', userId);
-    if (error) return 0;
+    if (error) throw new Error(error.message);
     return count || 0;
   } catch (err) {
-    return 0;
+    throw new Error(`Compteur de logements indisponible: ${err.message}`);
   }
 }
 
@@ -151,11 +160,12 @@ export async function countLocataires(userId) {
     const { count, error } = await serviceClient()
       .from('locataires')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId);
-    if (error) return 0;
+      .eq('user_id', userId)
+      .is('superseded_at', null);
+    if (error) throw new Error(error.message);
     return count || 0;
   } catch (err) {
-    return 0;
+    throw new Error(`Compteur de locataires indisponible: ${err.message}`);
   }
 }
 
@@ -237,11 +247,12 @@ export async function subscriptionExpiredFor(userId, accountType) {
     if (!table) return false;
 
     try {
-      const { data } = await serviceClient()
+      const { data, error } = await serviceClient()
         .from(table)
         .select('user_id')
         .eq('account_uid', userId)
         .maybeSingle();
+      if (error) throw new Error(error.message);
       if (!data?.user_id) return false;
       userId = data.user_id;
     } catch (err) {
@@ -264,6 +275,7 @@ export async function subscriptionExpiredFor(userId, accountType) {
 export async function enforceImmeublesLimit(userId) {
   const sub = await readSubscription(userId);
   const plan = sub ? await planForSubscription(sub) : null;
+  if (sub && !plan) return { allowed: false, code: 'PLAN_UNAVAILABLE', message: 'Le plan d\'abonnement est indisponible.', count: 0, max: null };
   const max = plan && plan.max_immeubles > 0 ? plan.max_immeubles : null;
   if (max == null) return { allowed: true, count: 0, max: null };
 
@@ -286,6 +298,7 @@ export async function enforceImmeublesLimit(userId) {
 export async function enforceLogementsLimit(userId) {
   const sub = await readSubscription(userId);
   const plan = sub ? await planForSubscription(sub) : null;
+  if (sub && !plan) return { allowed: false, code: 'PLAN_UNAVAILABLE', message: 'Le plan d\'abonnement est indisponible.', count: 0, max: null };
   const max = plan && plan.max_logements > 0 ? plan.max_logements : null;
   if (max == null) return { allowed: true, count: 0, max: null };
 
@@ -308,6 +321,7 @@ export async function enforceLogementsLimit(userId) {
 export async function enforceLocatairesLimit(userId) {
   const sub = await readSubscription(userId);
   const plan = sub ? await planForSubscription(sub) : null;
+  if (sub && !plan) return { allowed: false, code: 'PLAN_UNAVAILABLE', message: 'Le plan d\'abonnement est indisponible.', count: 0, max: null };
   const max = plan && plan.max_locataires > 0 ? plan.max_locataires : null;
   if (max == null) return { allowed: true, count: 0, max: null };
 
@@ -348,13 +362,12 @@ function futureBaseDate(current) {
 // Crée la charge Bictorys pour le plan choisi et enregistre un
 // paiement 'pending'. L'abonnement n'est PAS modifié ici : seule
 // l'activation après webhook `succeeded` le fait.
-export async function createCheckout(userId, planCode) {
+export async function createCheckout(userId, planCode, idempotencyKey = null, accountType = null) {
   if (!PLAN_CODES.includes(String(planCode).trim().toLowerCase())) {
     const err = new Error('Plan inconnu.');
     err.code = 'PLAN_INVALID';
     throw err;
   }
-
   if (!isConfigured()) {
     const err = new Error("Le paiement en ligne est momentanément indisponible. Contactez l'administration.");
     err.code = 'PAYMENT_UNAVAILABLE';
@@ -368,36 +381,56 @@ export async function createCheckout(userId, planCode) {
     throw err;
   }
 
-  const sb = serviceClient();
-  const sub = await readSubscription(userId);
-  const currentExp = sub?.date_expiration || null;
-
-  const paymentReference = newPaymentReference(userId);
-  let transactionId = null;
-  let link = null;
-  let simulated = false;
-
-  try {
-    const charge = await createCharge({
-      amount: Number(plan.prix),
-      currency: plan.devise,
-      paymentReference,
-      merchantReference: `SUB-${paymentReference}`,
-      successRedirectUrl: buildRedirectUrl('succes', paymentReference),
-      errorRedirectUrl: buildRedirectUrl('echec', paymentReference),
-      customerObject: { locale: 'fr-FR', country: country() },
-    });
-    transactionId = charge.transactionId;
-    link = charge.link;
-    simulated = Boolean(charge.simulated);
-  } catch (err) {
-    err.code = err.code || 'BICTORYS_ERROR';
+  // Un compte ne peut acheter que les plans de SA audience : un
+  // propriétaire ne peut pas acheter un palier agence (et inversement).
+  const { data: profile } = await serviceClient()
+    .from('profiles')
+    .select('account_type')
+    .eq('id', userId)
+    .maybeSingle();
+  const expectedAudience = audienceForAccount(profile?.account_type);
+  if ((plan.audience || 'proprietaire') !== expectedAudience) {
+    const err = new Error("Ce plan n'est pas disponible pour ce type de compte.");
+    err.code = 'PLAN_INVALID';
     throw err;
   }
 
-  const expectedExpiration = addMonths(futureBaseDate(currentExp), plan.duree_abonnement);
+  const sb = serviceClient();
+  const key = String(idempotencyKey || crypto.randomUUID()).trim().slice(0, 120);
+  const { data: existing, error: existingError } = await sb
+    .from('abonnement_paiements')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('provider', 'bictorys')
+    .eq('idempotency_key', key)
+    .maybeSingle();
+  if (existingError) {
+    const err = new Error("Erreur lors de la lecture du paiement existant.");
+    err.code = 'DB_ERROR';
+    throw err;
+  }
+  if (existing) {
+    return {
+      plan: planView(plan),
+      checkout: {
+        paymentReference: existing.reference,
+        transactionId: existing.transaction_id,
+        link: existing.raw_response?.link || null,
+        status: existing.statut,
+        montant: Number(existing.montant),
+        devise: existing.devise,
+        simulated: Boolean(existing.raw_response?.simulated),
+      },
+      payment: existing,
+      idempotent: true,
+    };
+  }
 
-  const { data: payment, error } = await sb
+  const sub = await readSubscription(userId);
+  const currentExp = sub?.date_expiration || null;
+  const paymentReference = newPaymentReference(userId);
+  const expectedExpiration = addMonths(futureBaseDate(currentExp), plan.duree_abonnement);
+  const { data: payment, error: insertError } = await sb
     .from('abonnement_paiements')
     .insert({
       user_id: userId,
@@ -407,27 +440,59 @@ export async function createCheckout(userId, planCode) {
       provider: 'bictorys',
       statut: 'pending',
       reference: paymentReference,
-      transaction_id: transactionId,
+      idempotency_key: key,
       methode_paiement: 'bictorys',
       date_debut: new Date().toISOString(),
       date_expiration: expectedExpiration.toISOString(),
-      raw_response: { link, simulated },
+      raw_response: { state: 'creating' },
       updated_at: new Date().toISOString(),
     })
     .select('*')
     .single();
-  if (error) {
+  if (insertError || !payment) {
     const err = new Error("Erreur lors de l'enregistrement du paiement.");
     err.code = 'DB_ERROR';
     throw err;
   }
 
-  // En mode simulation AUTOCONFIRM, aucun webhook Bictorys réel
-  // n'arrivera jamais (le fournisseur n'appelle pas localhost). On
-  // confirme donc le paiement immédiatement en empruntant le MÊME chemin
-  // que le webhook `succeeded` (idempotent, journalisé). En production
-  // ou dans les tests, rien ne change : seul le webhook active.
-  if (simulated && autoConfirmSim()) {
+  let charge;
+  try {
+    charge = await createCharge({
+      amount: Number(plan.prix),
+      currency: plan.devise,
+      paymentReference,
+      merchantReference: `SUB-${paymentReference}`,
+      successRedirectUrl: buildRedirectUrl('succes', paymentReference, accountType),
+      errorRedirectUrl: buildRedirectUrl('echec', paymentReference, accountType),
+      customerObject: { locale: 'fr-FR', country: country() },
+    });
+  } catch (err) {
+    await sb.from('abonnement_paiements').update({ statut: 'failed', raw_response: { state: 'charge_failed', error: err.message }, updated_at: new Date().toISOString() }).eq('id', payment.id).eq('statut', 'pending');
+    err.code = err.code || 'BICTORYS_ERROR';
+    throw err;
+  }
+
+  if (!charge.simulated && paymentLinkError(charge.link)) {
+    await sb.from('abonnement_paiements').update({ statut: 'failed', raw_response: { state: 'invalid_checkout_link' }, updated_at: new Date().toISOString() }).eq('id', payment.id).eq('statut', 'pending');
+    const err = new Error('Lien de paiement Bictorys invalide.');
+    err.code = 'BICTORYS_INVALID_LINK';
+    throw err;
+  }
+
+  const { data: updatedPayment, error: updateError } = await sb
+    .from('abonnement_paiements')
+    .update({
+      transaction_id: charge.transactionId,
+      raw_response: { state: 'checkout_created', link: charge.link, simulated: Boolean(charge.simulated) },
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', payment.id)
+    .eq('statut', 'pending')
+    .select('*')
+    .single();
+  if (updateError) throw new Error(updateError.message);
+
+  if (charge.simulated && autoConfirmSim()) {
     try {
       await processWebhook({
         id: `sim_confirm_${paymentReference}`,
@@ -443,37 +508,49 @@ export async function createCheckout(userId, planCode) {
     }
   }
 
+  const currentPayment = updatedPayment || payment;
   return {
     plan: planView(plan),
     checkout: {
       paymentReference,
-      transactionId,
-      link,
-      status: 'pending',
+      transactionId: charge.transactionId,
+      link: charge.link,
+      status: currentPayment.statut,
       montant: Number(plan.prix),
       devise: plan.devise,
-      simulated,
+      simulated: Boolean(charge.simulated),
     },
-    payment,
+    payment: currentPayment,
   };
 }
 
-function buildRedirectUrl(result, paymentReference) {
+function buildRedirectUrl(result, paymentReference, accountType) {
   const base = (process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
-  return `${base}/PartProprietaires/abonnements.html?paiement=${result}&ref=${encodeURIComponent(paymentReference)}`;
+  const page = accountType === 'agence' ? '/PartAgence/first_Mode/abonnements.html' : '/PartProprietaires/abonnements.html';
+  return `${base}${page}?paiement=${result}&ref=${encodeURIComponent(paymentReference)}`;
 }
 
 // ─── WEBHOOK Bictorys ───────────────────────────────────────────
 
 // Journalise le webhook reçu (idempotence par fingerprint UNIQUE).
+function webhookIdentity(payload) {
+  const separateEventId = String(payload?.eventId || payload?.event_id || '').trim();
+  const explicitTransactionId = String(payload?.transactionId || payload?.transaction_id || '').trim();
+  const legacyId = String(payload?.id || '').trim();
+  const eventId = separateEventId || legacyId || explicitTransactionId;
+  const transactionId = explicitTransactionId || (separateEventId ? '' : legacyId);
+  return { eventId, transactionId };
+}
+
 async function recordWebhook(payload) {
+  const identity = webhookIdentity(payload);
   const fingerprint =
-    String(payload?.id || '').trim() ||
+    identity.eventId ||
     `evt-${String(payload?.paymentReference || '')}-${String(payload?.status || '')}-${String(payload?.timestamp || '')}`;
   const { data, error } = await serviceClient()
     .from('bictorys_webhooks')
     .insert({
-      event_id: payload?.id || null,
+      event_id: identity.eventId || null,
       merchant_id: payload?.merchantId || null,
       type: payload?.type || 'payment',
       status: String(payload?.status || '').toLowerCase(),
@@ -485,32 +562,37 @@ async function recordWebhook(payload) {
       fingerprint,
       handled: false,
     })
-    .select('id, fingerprint')
+    .select('id, fingerprint, handled')
     .single();
 
   if (error) {
-    const duplicate = String(error.code) === '23505';
-    return { duplicate };
+    if (String(error.code) !== '23505') throw error;
+    const { data: existing, error: lookupError } = await serviceClient()
+      .from('bictorys_webhooks')
+      .select('id, fingerprint, handled')
+      .eq('fingerprint', fingerprint)
+      .maybeSingle();
+    if (lookupError) throw lookupError;
+    if (!existing) throw error;
+    return { duplicate: true, id: existing.id, handled: existing.handled };
   }
-  return { id: data.id };
+  return { id: data.id, handled: false };
 }
 
-async function finalizeWebhook(id, { handledAt, error }) {
-  try {
-    await serviceClient()
-      .from('bictorys_webhooks')
-      .update({ handled: true, handled_at: handledAt || new Date().toISOString(), error: error || null })
-      .eq('id', id);
-  } catch (err) {
-    console.warn('[bictorys/webhook] finalize :', err.message);
-  }
+async function finalizeWebhook(id, { handledAt, error, handled = true }) {
+  const { error: updateError } = await serviceClient()
+    .from('bictorys_webhooks')
+    .update({ handled, handled_at: handled ? (handledAt || new Date().toISOString()) : null, error: error || null })
+    .eq('id', id);
+  if (updateError) console.warn('[bictorys/webhook] finalize :', updateError.message);
 }
 
 // Trouve le paiement MIM rattaché à l'événement Bictorys
 // (paymentReference = reference du paiement, ou id = transaction).
 async function findPayment(payload) {
+  const identity = webhookIdentity(payload);
   if (payload?.paymentReference) {
-    const { data } = await serviceClient()
+    const { data, error } = await serviceClient()
       .from('abonnement_paiements')
       .select('*')
       .eq('reference', String(payload.paymentReference))
@@ -518,17 +600,19 @@ async function findPayment(payload) {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (error) throw error;
     if (data) return { payment: data, match: 'reference' };
   }
-  if (payload?.id) {
-    const { data } = await serviceClient()
+  if (identity.transactionId) {
+    const { data, error } = await serviceClient()
       .from('abonnement_paiements')
       .select('*')
-      .eq('transaction_id', String(payload.id))
+      .eq('transaction_id', identity.transactionId)
       .eq('provider', 'bictorys')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+    if (error) throw error;
     if (data) return { payment: data, match: 'transactionId' };
   }
   return { payment: null };
@@ -538,103 +622,86 @@ async function findPayment(payload) {
 // Idempotente : n'applique jamais deux fois le même paiement
 // (garde-fou statut='pending' sur le paiement).
 export async function applySucceededPayment(payment) {
-  const sb = serviceClient();
   const plan = await planByCode(payment.plan, true);
+  if (!plan) throw Object.assign(new Error('Plan de paiement inactif.'), { code: 'PLAN_UNAVAILABLE' });
 
-  const { data: claimed, error: claimErr } = await sb
-    .from('abonnement_paiements')
-    .update({
-      statut: 'paid',
-      transaction_id: payment.transaction_id,
-      date_paiement: payment.date_paiement || new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', payment.id)
-    .eq('statut', 'pending')
-    .select('id')
-    .single();
-
-  // Déjà traité (relecture concurrente de webhook) → rien à faire.
-  if (claimErr || !claimed) return { applied: false };
-
-  const existing = await readSubscription(payment.user_id);
-  const base = futureBaseDate(existing?.date_expiration || new Date());
-  const duration = plan?.duree_abonnement || 1;
-  const newExpiration = addMonths(base, duration);
-
-  const { error: subErr } = await sb
-    .from('subscriptions')
-    .upsert(
-      {
-        user_id: payment.user_id,
-        plan: plan?.code || payment.plan,
-        plan_id: plan?.id || null,
-        statut: 'actif',
-        date_debut: existing?.date_debut || new Date().toISOString(),
-        date_expiration: newExpiration.toISOString(),
-        date_paiement: new Date().toISOString(),
-        montant: Number(payment.montant),
-        methode_paiement: 'bictorys',
-        reference: payment.reference || null,
-        bictorys_transaction_id: payment.transaction_id || null,
-        bictorys_reference: payment.reference || null,
-        duree_abonnement: duration,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' }
-    );
-  if (subErr) throw subErr;
+  const { data, error } = await serviceClient().rpc('activate_subscription_payment', {
+    p_payment_id: payment.id,
+    p_transaction_id: payment.transaction_id || null,
+    p_paid_at: payment.date_paiement || new Date().toISOString(),
+    p_expected_amount: Number(payment.montant),
+    p_currency: payment.devise || plan.devise,
+  });
+  if (error) throw error;
 
   invalidateSubscriptionCache();
   try {
-    await notify(payment.user_id, 'abonnement', `Votre abonnement MIM ${plan?.nom || payment.plan} est actif (${duration} mois). Merci !`);
+    await notify(payment.user_id, 'abonnement', `Votre abonnement MIM ${plan.nom} est actif (${plan.duree_abonnement} mois). Merci !`);
   } catch (e) {
     console.warn('[bictorys] notification :', e.message);
   }
-  return { applied: true, newExpiration: newExpiration.toISOString() };
+  return { applied: true, subscriptionId: data };
 }
 
 // Point d'entrée des notifications Bictorys (route POST /api/webhooks/bictorys).
 export async function processWebhook(payload) {
   const status = String(payload?.status || '').trim().toLowerCase();
-  if (!status || !payload?.paymentReference && !payload?.id) {
+  const amount = parseMoney(payload?.amount);
+  const currency = String(payload?.currency || '').trim().toUpperCase();
+  const paymentReference = String(payload?.paymentReference || '').trim();
+  const merchantReference = String(payload?.merchantReference || '').trim();
+  const identity = webhookIdentity(payload);
+  if (!status || !paymentReference || !identity.eventId || payload?.amount == null || !currency || amount === null) {
     return { ok: false, code: 'MALFORMED_EVENT' };
   }
 
   const rec = await recordWebhook(payload);
-  if (rec.duplicate) return { ok: true, duplicate: true };
+  if (rec.duplicate && rec.handled) return { ok: true, duplicate: true };
 
   let result = { ok: true };
   try {
+    if (!merchantReference) {
+      throw Object.assign(new Error('Référence marchande absente.'), { code: 'MALFORMED_EVENT' });
+    }
     const { payment } = await findPayment(payload);
     if (!payment) {
-      result = { ok: true, unmatched: true };
-      return result;
+      throw Object.assign(new Error('Paiement MIM introuvable pour cet événement.'), { code: 'PAYMENT_NOT_FOUND' });
     }
-
-    // Montant attendu : on refuse d'activer un paiement dont le montant
-    // diffère de la charge, pour limiter les webhooks contrefaits valides.
-    if (payload.amount != null && Number(payload.amount) !== Number(payment.montant)) {
-      const e = new Error(`Montant inattendu : ${payload.amount} (attendu ${payment.montant}).`);
-      throw Object.assign(e, { webhookResult: { ok: false, code: 'AMOUNT_MISMATCH', matchedPayment: payment.reference } });
+    if (Number(payment.montant) !== amount) {
+      throw Object.assign(new Error(`Montant inattendu : ${payload.amount} (attendu ${payment.montant}).`), { code: 'AMOUNT_MISMATCH', matchedPayment: payment.reference });
+    }
+    if (String(payment.devise || '').toUpperCase() !== currency) {
+      throw Object.assign(new Error('Devise inattendue.'), { code: 'CURRENCY_MISMATCH', matchedPayment: payment.reference });
+    }
+    if (merchantReference !== `SUB-${payment.reference}`) {
+      throw Object.assign(new Error('Référence marchande invalide.'), { code: 'MERCHANT_REFERENCE_MISMATCH', matchedPayment: payment.reference });
+    }
+    const effectiveTransactionId = identity.transactionId || payment.transaction_id;
+    if (!effectiveTransactionId) {
+      throw Object.assign(new Error('Transaction absente.'), { code: 'TRANSACTION_MISSING', matchedPayment: payment.reference });
+    }
+    if (payment.transaction_id && payment.transaction_id !== effectiveTransactionId) {
+      throw Object.assign(new Error('Transaction mismatch.'), { code: 'TRANSACTION_MISMATCH', matchedPayment: payment.reference });
     }
 
     if (PAYMENT_OK.includes(status)) {
-      const applied = await applySucceededPayment({ ...payment, transaction_id: payload?.id || payment.transaction_id });
+      const applied = await applySucceededPayment({ ...payment, transaction_id: effectiveTransactionId });
       result = { ok: true, ...applied };
       return result;
     }
 
     if (PAYMENT_FAILED.includes(status)) {
       if (payment.statut === 'pending') {
-        await serviceClient()
+        const { error } = await serviceClient()
           .from('abonnement_paiements')
           .update({
             statut: status === 'cancelled' ? 'cancelled' : 'failed',
             raw_response: payload,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', payment.id);
+          .eq('id', payment.id)
+          .eq('statut', 'pending');
+        if (error) throw error;
         invalidateSubscriptionCache();
       }
       try {
@@ -644,19 +711,20 @@ export async function processWebhook(payload) {
       }
       result = { ok: true, failed: status };
     } else if (status === 'authorized') {
-      // Autorisation de carte : on note l'événement mais on n'active pas
-      // (seul `succeeded` active l'abonnement).
       result = { ok: true, authorized: true };
+    } else {
+      throw Object.assign(new Error('Statut de webhook non traité.'), { code: 'UNSUPPORTED_STATUS' });
     }
   } catch (err) {
     result = {
       ok: false,
-      code: err.webhookResult?.code || (String(err.code || '') || 'WEBHOOK_PROCESSING_ERROR'),
+      code: err.code || 'WEBHOOK_PROCESSING_ERROR',
       message: err.message,
-      matchedPayment: err.webhookResult?.matchedPayment,
+      matchedPayment: err.matchedPayment,
     };
   } finally {
-    await finalizeWebhook(rec.id, { error: result.ok ? null : result.code || 'ERROR' });
+    const handled = result.ok || PERMANENT_WEBHOOK_CODES.has(result.code);
+    await finalizeWebhook(rec.id, { handled, error: result.ok ? null : result.code || 'ERROR' });
   }
   return result;
 }
@@ -674,22 +742,37 @@ export async function reconcilePendingPayment(userId) {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (error || !data || !data.transaction_id) {
-    return { status: 'none' };
+  if (error) {
+    const err = new Error('Impossible de lire le paiement en attente.');
+    err.code = 'PAYMENT_LOOKUP_FAILED';
+    throw err;
   }
+  if (!data) return { status: 'none' };
+  if (!data.transaction_id) return { status: 'pending', reason: 'TRANSACTION_PENDING' };
 
   let txn;
   try {
-    // En simulation AUTOCONFIRM, la transaction n'existe pas côté
-    // Bictorys : on considère le paiement en attente comme confirmé
-    // (miroir du webhook).
-    if (autoConfirmSim()) {
-      txn = { status: 'succeeded', id: data.transaction_id };
-    } else {
-      txn = await getTransaction(data.transaction_id);
-    }
+    if (isSimulate()) return { status: 'pending', reason: 'SIMULATION_REQUIRES_WEBHOOK' };
+    txn = await getTransaction(data.transaction_id);
   } catch (err) {
     return { status: 'error', message: err.message };
+  }
+
+  if (txn.paymentReference && txn.paymentReference !== data.reference) {
+    return { status: 'error', code: 'REFERENCE_MISMATCH' };
+  }
+  if (txn.merchantReference && txn.merchantReference !== `SUB-${data.reference}`) {
+    return { status: 'error', code: 'MERCHANT_REFERENCE_MISMATCH' };
+  }
+  const transactionAmount = parseMoney(txn.amount);
+  if (transactionAmount === null || !txn.currency) {
+    return { status: 'error', code: 'TRANSACTION_DETAILS_INCOMPLETE' };
+  }
+  if (transactionAmount !== parseMoney(data.montant)) {
+    return { status: 'error', code: 'AMOUNT_MISMATCH' };
+  }
+  if (String(txn.currency).toUpperCase() !== String(data.devise || '').toUpperCase()) {
+    return { status: 'error', code: 'CURRENCY_MISMATCH' };
   }
 
   if (PAYMENT_OK.includes(String(txn.status || '').toLowerCase())) {

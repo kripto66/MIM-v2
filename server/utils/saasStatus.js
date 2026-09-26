@@ -21,15 +21,20 @@ export async function isSaasSuspended() {
 
     if (error) {
       console.warn('[saasStatus] DB error:', error.message);
-      return false; // fail open — allow login if DB is unreachable
+      return true;
     }
 
-    cachedValue = data?.value === 'true';
+    const value = String(data?.value || '').trim().toLowerCase();
+    if (value !== 'true' && value !== 'false') {
+      console.warn('[saasStatus] configuration invalide, suspension conservée par sécurité');
+      return true;
+    }
+    cachedValue = value === 'true';
     cacheTimestamp = now;
     return cachedValue;
   } catch (err) {
     console.warn('[saasStatus] unexpected:', err.message);
-    return false;
+    return true;
   }
 }
 

@@ -24,7 +24,7 @@
 // ============================================================
 
 import { createHmac } from 'node:crypto';
-import { api, newJar, expectSuccess, BASE } from './lib.js';
+import { api, newJar, expectSuccess, BASE, createConfirmedSession } from './lib.js';
 
 const S = 'bictorys';
 const ADMIN_PASSWORD = 'Admin1234!';
@@ -39,16 +39,15 @@ const CACHE_SLEEP_MS = 2600;
 
 const WEBHOOK_URL = `${BASE.replace(/\/api\/?$/, '')}/api/webhooks/bictorys`;
 const WEBHOOK_SECRET = process.env.BICTORYS_WEBHOOK_SECRET || 'bictorys_test_secret';
+const RUN_ID = `e2e_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+const SUCCESS_EVENT_ID = `${RUN_ID}:evt_success_1`;
+const BAD_AMOUNT_EVENT_ID = `${RUN_ID}:evt_bad_amount`;
 
 function webhookHeaders(rawBody, extra = {}) {
-  return {
-    'Content-Type': 'application/json',
-    'X-Secret-Key': WEBHOOK_SECRET,
-    ...extra,
-  };
+  return signedHeaders(String(rawBody), extra);
 }
 
-function signedHeaders(rawBody) {
+function signedHeaders(rawBody, extra = {}) {
   const timestamp = String(Math.floor(Date.now() / 1000));
   const bodyHex = Buffer.from(String(rawBody), 'utf8').toString('hex');
   const signature = createHmac('sha256', WEBHOOK_SECRET).update(`${timestamp}.${bodyHex}`).digest('hex');
@@ -57,15 +56,18 @@ function signedHeaders(rawBody) {
     'X-Secret-Key': WEBHOOK_SECRET,
     'X-Webhook-Timestamp': timestamp,
     'X-Webhook-Signature': signature,
+    ...extra,
   };
 }
 
 function webhookBody(overrides = {}) {
+  const id = overrides.id || 'evt_' + Math.random().toString(36).slice(2, 12);
   return {
-    id: 'evt_' + Math.random().toString(36).slice(2, 12),
+    id,
+    eventId: `${RUN_ID}:${id}`,
     type: 'payment',
     status: 'succeeded',
-    amount: null,
+    amount: 7000,
     currency: 'XOF',
     paymentReference: `MIM-missing`,
     merchantReference: null,
@@ -88,12 +90,14 @@ export async function runBictorys(r, ctx) {
     email: adminEmail,
     password: ADMIN_PASSWORD,
     email_confirm: true,
-    user_metadata: { account_type: 'admin', name: 'Admin Bictorys', role: 'admin' },
+    user_metadata: { name: 'Admin Bictorys' },
+    app_metadata: { mim_account_type: 'admin' },
   });
   if (adminErr) {
     r.fail(S, 'création compte admin', adminErr.message);
     return;
   }
+  await service.from('profiles').update({ account_type: 'admin', role: 'admin' }).eq('id', adminData.user.id);
   const adminJar = newJar();
   const adminLogin = await api('/auth/login', {
     method: 'POST',
@@ -167,11 +171,28 @@ export async function runBictorys(r, ctx) {
         if (error) return null;
         return data?.[0] || null;
       }
-    const webhook = async (payload, headers = webhookHeaders(JSON.stringify(payload))) => {
+    const webhook = async (payload, headers) => {
+      const enriched = { ...payload };
+      if (enriched.paymentReference) {
+        const { data } = await service
+          .from('abonnement_paiements')
+          .select('reference, transaction_id')
+          .eq('reference', enriched.paymentReference)
+          .eq('provider', 'bictorys')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (data) {
+          if (!enriched.merchantReference) enriched.merchantReference = `SUB-${data.reference}`;
+          if (!enriched.transactionId && !enriched.transaction_id) enriched.transactionId = data.transaction_id;
+        }
+      }
+      if (enriched.id && !enriched.eventId && !enriched.event_id) enriched.eventId = enriched.id;
+      const body = JSON.stringify(enriched);
       return fetch(WEBHOOK_URL, {
         method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
+        headers: headers || webhookHeaders(body),
+        body,
       }).then(async (res) => ({ status: res.status, body: await res.json().catch(() => ({})) }));
     };
 
@@ -184,23 +205,155 @@ export async function runBictorys(r, ctx) {
 
       const expected = { standard: 1, premium: 3, pro: 10, agence: 25 };
       const expectedCap = { standard: 20, premium: 75, pro: 300, agence: 750 };
+      const proprietairePlans = (plans.data?.plans || []).filter((p) => p.audience === 'proprietaire');
       const ok = ['standard', 'premium', 'pro', 'agence'].every((code) => {
-        const plan = (plans.data?.plans || []).find((x) => x.code === code);
+        const plan = proprietairePlans.find((x) => x.code === code);
         return (
           plan &&
           Number(plan.max_immeubles) === expected[code] &&
           Number(plan.max_logements) === expectedCap[code] &&
           Number(plan.max_locataires) === expectedCap[code] &&
           Number(plan.prix) > 0 &&
-          plan.duree_abonnement === 1 &&
-          !plans.data.plans.some((p) => p.code === 'ultra')
+          plan.duree_abonnement === 1
         );
       });
-      if (ok && plans.data.plans.length === 4) {
-        r.pass(S, '4 plans (Standard/Premium/Pro/Agence) : prix mensuels, capacités 1/3/10/25 immeubles + logements/locataires, Ultra archivé');
+      const noAgencePlans = !proprietairePlans.some((p) => String(p.code).startsWith('agence_'));
+      if (ok && proprietairePlans.length === 4 && noAgencePlans && !plans.data.plans.some((p) => p.code === 'ultra')) {
+        r.pass(S, '4 plans propriétaire uniquement (1/3/10/25 immeubles) — aucun palier agence exposé, Ultra archivé');
       } else {
-        r.fail(S, '4 plans (Standard/Premium/Pro/Agence) : prix mensuels, capacités 1/3/10/25 + logements/locataires, Ultra archivé', JSON.stringify(plans.data?.plans));
+        r.fail(S, '4 plans propriétaire uniquement — aucun palier agence exposé, Ultra archivé', JSON.stringify(plans.data?.plans?.map((p) => p.code)));
       }
+    });
+
+    // ------------------------------------------------------------
+    // 1 bis. Catalogue AGENCE : grille dédiée, séparée de celle des propriétaires.
+    // ------------------------------------------------------------
+    await r.section('bictorys : catalogue agence (grille dédiée)', async () => {
+      const agenceSession = await createConfirmedSession(service, {
+        account_type: 'agence',
+        name: `Agence Catalogue ${Date.now()}`,
+        email: `agence.catalogue.${Date.now()}@mimtest.com`,
+        phone: '+221771234599',
+        password: 'Test1234!',
+      });
+      const plans = await api('/subscription/plans', { jar: agenceSession.jar });
+      if (!expectSuccess(r, plans, S, '/subscription/plans (agence)')) return;
+
+      const attendu = { agence_starter: 15000, agence_pro: 25000, agence_business: 40000 };
+      const codes = (plans.data?.plans || []).map((p) => p.code);
+      const ok = Object.entries(attendu).every(([code, prix]) => {
+        const plan = plans.data.plans.find((p) => p.code === code);
+        return plan && plan.audience === 'agence' && Number(plan.prix) === prix && Number(plan.max_immeubles) > 0;
+      });
+      const pasDePlanProprio = !codes.some((c) => ['standard', 'premium', 'pro'].includes(c));
+      if (ok && codes.length === 3 && pasDePlanProprio) {
+        r.pass(S, '3 paliers agence (15 000 / 25 000 / 40 000 XOF) — aucun plan propriétaire exposé');
+      } else {
+        r.fail(S, '3 paliers agence (15 000 / 25 000 / 40 000) — aucun plan propriétaire exposé', JSON.stringify(codes));
+      }
+
+      // Fail-closed : un compte agence ne peut pas acheter un plan propriétaire.
+      const interdit = await api('/subscription/checkout', {
+        method: 'POST',
+        jar: agenceSession.jar,
+        body: { plan: 'pro' },
+      });
+      if (interdit.status === 400 && interdit.data?.code === 'PLAN_INVALID') {
+        r.pass(S, 'agence → checkout d\'un plan propriétaire refusé (PLAN_INVALID)');
+      } else {
+        r.fail(S, 'agence → checkout d\'un plan propriétaire refusé (PLAN_INVALID)', `statut ${interdit.status}`);
+      }
+
+      await service.auth.admin.deleteUser(agenceSession.user.id).catch(() => {});
+    });
+
+    // ------------------------------------------------------------
+    // 1 ter. CRUD plans (Ultra Admin) : modération des prix.
+    // ------------------------------------------------------------
+    await r.section('bictorys : CRUD plans (Ultra Admin)', async () => {
+      const ultra = await createConfirmedSession(service, {
+        account_type: 'ultra_admin',
+        name: `Ultra Tarifs ${Date.now()}`,
+        email: `ultra.tarifs.${Date.now()}@mimtest.com`,
+        phone: '+221771230088',
+        password: 'Test1234!',
+      });
+
+      const list = await api('/ultra-admin/plans', { jar: ultra.jar });
+      if (list.status === 200 && Array.isArray(list.data?.plans) && list.data.plans.length >= 7) {
+        r.pass(S, 'Ultra Admin : catalogue complet lisible (propriétaire + agence)');
+      } else {
+        r.fail(S, 'Ultra Admin : catalogue complet lisible', `statut ${list.status}`);
+        return;
+      }
+
+      const proprietaireOnly = list.data.plans.filter((p) => p.audience === 'proprietaire' && p.actif).length;
+      const agenceOnly = list.data.plans.filter((p) => p.audience === 'agence' && p.actif).length;
+      if (proprietaireOnly === 4 && agenceOnly === 3) {
+        r.pass(S, 'Ultra Admin : 4 formules propriétaire / 3 formules agence');
+      } else {
+        r.fail(S, 'Ultra Admin : 4 formules propriétaire / 3 formules agence', `${proprietaireOnly}/${agenceOnly}`);
+      }
+
+      // Création
+      const code = `agence_test_${Date.now()}`;
+      const create = await api('/ultra-admin/plans', {
+        method: 'POST',
+        jar: ultra.jar,
+        body: { code, nom: 'Agence Test', prix: 18000, devise: 'XOF', audience: 'agence', duree_abonnement: 1, max_immeubles: 12, max_logements: 120, max_locataires: 120 },
+      });
+      if (create.status === 201 && create.data?.plan?.prix === 18000) {
+        r.pass(S, 'Ultra Admin : création d\'une formule (18 000 XOF)');
+      } else {
+        r.fail(S, 'Ultra Admin : création d\'une formule', `statut ${create.status}`);
+        return;
+      }
+
+      // Modification du prix
+      const update = await api(`/ultra-admin/plans/${code}`, {
+        method: 'PATCH',
+        jar: ultra.jar,
+        body: { code, nom: 'Agence Test', prix: 21000, devise: 'XOF', audience: 'agence', duree_abonnement: 1, max_immeubles: 12, max_logements: 120, max_locataires: 120, actif: true },
+      });
+      if (update.status === 200 && update.data?.plan?.prix === 21000) {
+        r.pass(S, 'Ultra Admin : prix modulé (18 000 → 21 000 XOF)');
+      } else {
+        r.fail(S, 'Ultra Admin : prix modulé', `statut ${update.status}`);
+      }
+
+      // Un propriétaire ne peut pas utiliser cette API
+      const forbid = await api('/ultra-admin/plans', { jar: owner.jar });
+      if (forbid.status === 403) {
+        r.pass(S, 'propriétaire → CRUD plans refusé (403)');
+      } else {
+        r.fail(S, 'propriétaire → CRUD plans refusé (403)', `statut ${forbid.status}`);
+      }
+
+      // Validation : prix négatif refusé
+      const invalid = await api(`/ultra-admin/plans/${code}`, {
+        method: 'PATCH',
+        jar: ultra.jar,
+        body: { code, nom: 'Agence Test', prix: -5, devise: 'XOF', audience: 'agence', duree_abonnement: 1, max_immeubles: 5 },
+      });
+      if (invalid.status === 400) {
+        r.pass(S, 'Ultra Admin : prix négatif refusé (400)');
+      } else {
+        r.fail(S, 'Ultra Admin : prix négatif refusé (400)', `statut ${invalid.status}`);
+      }
+
+      // Nettoyage : archivage
+      const archive = await api(`/ultra-admin/plans/${code}`, {
+        method: 'PATCH',
+        jar: ultra.jar,
+        body: { code, nom: 'Agence Test', prix: 21000, devise: 'XOF', audience: 'agence', duree_abonnement: 1, max_immeubles: 12, max_logements: 120, max_locataires: 120, actif: false },
+      });
+      if (archive.status === 200 && archive.data?.plan?.actif === false) {
+        r.pass(S, 'Ultra Admin : formule archivée (désactivée)');
+      } else {
+        r.fail(S, 'Ultra Admin : formule archivée (désactivée)', `statut ${archive.status}`);
+      }
+      await service.from('plans').delete().eq('code', code);
+      await service.auth.admin.deleteUser(ultra.user.id).catch(() => {});
     });
 
     // ------------------------------------------------------------
@@ -293,7 +446,7 @@ export async function runBictorys(r, ctx) {
     // ------------------------------------------------------------
     await r.section('bictorys : idempotence du webhook', async () => {
       const rowsBefore = (await service.from('bictorys_webhooks').select('id, event_id, handled, error')).data;
-      const first = rowsBefore.find((x) => x.event_id === 'evt_success_1');
+      const first = rowsBefore.find((x) => x.event_id === SUCCESS_EVENT_ID);
       if (!first) {
         r.fail(S, 'événement journalisé', JSON.stringify(rowsBefore));
         return;
@@ -309,7 +462,7 @@ export async function runBictorys(r, ctx) {
         })
       );
       const rowsAfter = (await service.from('bictorys_webhooks').select('id, event_id')).data;
-      const countSame = rowsAfter.filter((x) => x.event_id === 'evt_success_1').length;
+      const countSame = rowsAfter.filter((x) => x.event_id === SUCCESS_EVENT_ID).length;
       if (replay.status === 200 && countSame === 1 && rowsAfter.length === rowsBefore.length) {
         r.pass(S, 'rejeu → aucun doublon (fingerprint UNIQUE)');
       } else {
@@ -337,7 +490,7 @@ export async function runBictorys(r, ctx) {
           paymentReference: ref,
         })
       );
-      const row = (await service.from('bictorys_webhooks').select('event_id, error').eq('event_id', 'evt_bad_amount')).data[0];
+      const row = (await service.from('bictorys_webhooks').select('event_id, error').eq('event_id', BAD_AMOUNT_EVENT_ID)).data[0];
       if (got.status === 200 && row?.error === 'AMOUNT_MISMATCH') {
         r.pass(S, 'montant différent de la charge → refusé (AMOUNT_MISMATCH journalisé)');
       } else {
@@ -497,8 +650,8 @@ export async function runBictorys(r, ctx) {
       else r.fail(S, 'login propriétaire expiré autorisé', `statut ${login.status}`);
 
       const biens = await api('/biens', { jar: owner.jar });
-      if (biens.status === 401 && biens.data?.code === 'ACCOUNT_SUSPENDED') r.pass(S, 'routes métier bloquées (401 ACCOUNT_SUSPENDED)');
-      else r.fail(S, 'routes métier bloquées (401 ACCOUNT_SUSPENDED)', `statut ${biens.status}`);
+      if (biens.status === 401 && ['ACCOUNT_SUSPENDED', 'SUBSCRIPTION_EXPIRED'].includes(biens.data?.code)) r.pass(S, 'routes métier bloquées (401)');
+      else r.fail(S, 'routes métier bloquées (401)', `statut ${biens.status} ${JSON.stringify(biens.data)}`);
 
       const sub = await me();
       if (sub.status === 200 && sub.data?.subscription?.statut === 'expire') r.pass(S, '/subscription/me accessible → statut \'expire\'');
@@ -538,7 +691,14 @@ export async function runBictorys(r, ctx) {
       else r.fail(S, 'webhook sans secret → 401', `statut ${noSecret.status}`);
 
       // Signature HMAC valide → 200.
-      const good = webhookBody({ id: 'evt_signed_ok', status: 'succeeded', paymentReference: ref, amount: pend?.montant });
+      const good = webhookBody({
+        id: 'evt_signed_ok',
+        status: 'succeeded',
+        paymentReference: ref,
+        amount: pend?.montant,
+        merchantReference: `SUB-${ref}`,
+        transactionId: pend?.transaction_id,
+      });
       const body = JSON.stringify(good);
       const signed = await fetch(WEBHOOK_URL, {
         method: 'POST',
@@ -564,6 +724,8 @@ export async function runBictorys(r, ctx) {
   } finally {
     // Nettoyage : les comptes créés (préfixes @mim.local) sont purgés
     // par seed(). Vérification minimale locale.
+    await service.from('abonnement_paiements').delete().eq('user_id', OWNER_ID);
+    await service.from('subscriptions').delete().eq('user_id', OWNER_ID);
     await service.auth.admin.deleteUser(OWNER_ID).catch(() => {});
     await service.auth.admin.deleteUser(adminData.id).catch(() => {});
   }

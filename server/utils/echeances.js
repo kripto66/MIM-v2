@@ -1,3 +1,6 @@
+import { getSimulatedDate } from './simulation.js';
+import { isValidMonth } from './inputValidation.js';
+
 // ============================================================
 // MIM - Échéances (logique serveur partagée)
 //
@@ -14,7 +17,7 @@
 
 // Mois suivant au format AAAA-MM (gère mois courts, changement d'année).
 export function nextMois(mois) {
-  if (!/^\d{4}-\d{2}$/.test(String(mois || ''))) return null;
+  if (!isValidMonth(mois)) return null;
   const [y, m] = String(mois).split('-').map(Number);
   const d = new Date(Date.UTC(y, m - 1, 1));
   d.setUTCMonth(d.getUTCMonth() + 1);
@@ -27,15 +30,20 @@ export function currentMois() {
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+export async function currentSimulatedMois() {
+  const d = await getSimulatedDate();
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
 // Crée l'échéance du mois courant pour un locataire venant d'être créé
 // (formulaire unique « Ajouter un locataire »). Si la date d'entrée est
 // dans le futur, l'échéance est créée pour le mois de la date d'entrée.
 // Anti-doublon : rien n'est créé si une échéance existe déjà pour ce mois.
 export async function creerEcheanceInitiale(sb, { userId, locataireId, logementId, montant, dateEntree }) {
-  let mois = currentMois();
+  let mois = await currentSimulatedMois();
   if (dateEntree) {
     const m = String(dateEntree).slice(0, 7);
-    if (/^\d{4}-\d{2}$/.test(m) && m > mois) mois = m;
+    if (isValidMonth(m) && m > mois) mois = m;
   }
 
   const { data: existing } = await sb
@@ -74,7 +82,7 @@ export async function creerEcheanceSuivante(sb, paiement) {
   // valider le loyer de septembre le 4 septembre ne doit PAS faire « payer
   // octobre » aussitôt. Le mois suivant, l'échéance sera assurée par le
   // dashboard locataire et/ou le cron checkLoyers.
-  if (moisSuivant > currentMois()) {
+  if (moisSuivant > await currentSimulatedMois()) {
     return { created: false, mois: moisSuivant, error: null, future: true };
   }
 

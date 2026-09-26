@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Incidents</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/mim-errors.css">
+    <script src="/mim-errors.js"></script>
+
+    <link rel="stylesheet" href="/PartAgence/first_Mode/style.css">
+    <link rel="stylesheet" href="/PartPublic/mim-ui.css">
+
+</head>
+
+<body data-espace="agence2">
+
+    <div class="dashboard">
+
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
+
+            <a class="logo" href="/PartAgence/first_Mode/dashboard.html" data-sidebar-toggle-logo title="Tableau de bord Agence">
+                MIM
+            </a>
+
+            <nav class="sidebar-menu">
+                <div class="nav-category">MODE 2</div>
+                <a href="/PartAgence/first_Mode/dashboard.html">
+                    ← Retour au Dashboard Agence
+                </a>
+                <div class="nav-category">Bien courant</div>
+                <a href="/PartAgence/second_Mode/bien.html" id="navBien">Le bien</a>
+                <a href="/PartAgence/second_Mode/logements.html" id="navLogements">Logements</a>
+                <a href="/PartAgence/second_Mode/locataires.html" id="navLocataires">Locataires</a>
+                <a href="/PartAgence/second_Mode/paiements.html" id="navPaiements">Paiements</a>
+                <a href="/PartAgence/second_Mode/incidents.html" id="navIncidents" class="active">Incidents</a>
+                <a href="/PartAgence/second_Mode/prestataires.html" id="navPrestataires">Prestataires</a>
+                <a href="/PartAgence/second_Mode/interventions.html" id="navInterventions">Interventions</a>
+                <div class="nav-category">Suivi</div>
+                <a href="/PartAgence/second_Mode/notifications.html" id="navNotifications">Notifications</a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button id="logoutBtn" type="button">
+                    Déconnexion
+                </button>
+            </div>
+
+        </aside>
+
+        <main class="main-content">
+
+            <header class="dashboard-header">
+
+                <button class="menu-toggle" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">
+                    ☰
+                </button>
+
+                <div id="apiMessage" class="api-message" style="display:none;"></div>
+
+                <div class="welcome">
+                    <h1>Incidents<span class="accent">.</span></h1>
+                    <p>Suivez les incidents signalés dans les logements du bien.</p>
+                </div>
+
+                <div class="header-actions">
+                    <button class="btn btn-primary" id="addIncidentBtn">+ Signaler un incident</button>
+                    <a href="/PartAgence/first_Mode/dashboard.html" class="btn btn-secondary">
+                        ← Retour au Dashboard Agence
+                    </a>
+                </div>
+
+            </header>
+
+            <!-- Bandeau bien -->
+            <div id="bienBanner" class="sub-banner sub-banner-info" hidden></div>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+                    <h2>Liste des incidents</h2>
+                </div>
+
+                <div id="incidentsList">
+                    <div class="empty-state">Chargement...</div>
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <div class="modal-overlay" id="incidentModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="modalTitle">Signaler un incident</h2>
+
+            <form id="incidentForm">
+
+                <input type="hidden" id="incidentId">
+
+                <div class="form-group">
+                    <label for="titre">Titre</label>
+                    <input type="text" id="titre" name="titre" placeholder="Ex : Fuite d'eau" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="logement_id">Logement</label>
+                    <select id="logement_id" name="logement_id">
+                        <option value="">— Aucun —</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="statut">Statut</label>
+                    <select id="statut" name="statut">
+                        <option value="nouveau">Nouveau</option>
+                        <option value="en_cours">En cours</option>
+                        <option value="intervention">Intervention</option>
+                        <option value="resolu">Résolu</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" rows="3"></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelModal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <script src="/PartAgence/second_Mode/scope.js"></script>
+    <script src="/PartProprietaires/api.js"></script>
+    <script src="/PartProprietaires/crud.js"></script>
+    <script src="/PartAgence/second_Mode/mode2.js"></script>
+    <script src="/PartPublic/form-utils.js"></script>
+    <script src="/PartProprietaires/incidents.js"></script>
+
+    <script src="/PartPublic/sidebar.js"></script>
+
+</body>
+
+</html>

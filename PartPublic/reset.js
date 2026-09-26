@@ -3,17 +3,14 @@ const API = mimApiBase();
 const params = new URLSearchParams(window.location.search);
 const hash = new URLSearchParams(window.location.hash.replace(/^#/, "?"));
 
-const code = params.get("code") || hash.get("code");
-const token_hash = params.get("token_hash") || hash.get("token_hash");
-const type = params.get("type") || hash.get("type");
-const access_token = hash.get("access_token") || params.get("access_token");
-const refresh_token = hash.get("refresh_token") || params.get("refresh_token");
+const token = params.get("token") || hash.get("token");
+if (token) history.replaceState(null, document.title, window.location.pathname);
 
 const form = document.getElementById("resetForm");
 const message = document.getElementById("resetMessage");
 const button = form.querySelector('button[type="submit"]');
 
-if (!code && !token_hash && !access_token) {
+if (!token) {
     message.textContent = "Lien de réinitialisation invalide ou expiré.";
     message.className = "error";
     form.style.display = "none";
@@ -51,7 +48,7 @@ form.addEventListener("submit", async (e) => {
         const response = await fetch(API + "/auth/reset-password", {
             method: "POST",
             headers: { "Content-Type": "application/json", ...MIM.csrfHeader() },
-            body: JSON.stringify({ code, token_hash, type, access_token, refresh_token, password, password_confirm })
+            body: JSON.stringify({ token, password, password_confirm })
         });
 
         const data = await response.json();

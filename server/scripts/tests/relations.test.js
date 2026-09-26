@@ -21,12 +21,12 @@ export async function runRelations(r, ctx) {
   await r.section('logement occupé : suppression impossible', async () => {
     const occ = o1.logements[3];
     const del = await api(`/logements/${occ.id}`, { method: 'DELETE', jar });
-    if (del.status === 400) r.pass(S, 'logement occupé → suppression refusée');
-    else r.fail(S, 'logement occupé → suppression refusée', `statut ${del.status} ${JSON.stringify(del.data)}`);
+    if (del.status === 409 && del.data?.code === 'TENANT_HISTORY_PRESENT') r.pass(S, 'logement occupé → suppression refusée (409)');
+    else r.fail(S, 'logement occupé → suppression refusée (409)', `statut ${del.status} ${JSON.stringify(del.data)}`);
   });
 
   // ----------------------------------------------------------
-  await r.section('suppression locataire : logement libéré + compte désactivé + cascade paiements', async () => {
+  await r.section('archivage locataire : logement libéré + compte désactivé + historique conservé', async () => {
     // Créer un logement dédié pour ne pas toucher aux données du seed.
     const lg = await api('/logements', {
       method: 'POST',
@@ -66,12 +66,17 @@ export async function runRelations(r, ctx) {
     else r.fail(S, 'compte locataire désactivé', `statut ${login.status}`);
 
     const { data: pa } = await service.from('paiements').select('id').eq('locataire_id', locId);
-    if (!pa || pa.length === 0) r.pass(S, 'paiements supprimés en cascade');
-    else r.fail(S, 'paiements supprimés en cascade', `${pa.length} paiement(s) restant(s)`);
+    if (pa && pa.length > 0) r.pass(S, 'historique des paiements conservé');
+    else r.fail(S, 'historique des paiements conservé', `${pa?.length || 0} paiement(s)`);
 
+    const blockedLg = await api(`/logements/${lgId}`, { method: 'DELETE', jar });
+    if (blockedLg.status === 409 && ['FINANCIAL_HISTORY_PRESENT', 'TENANT_HISTORY_PRESENT'].includes(blockedLg.data?.code)) r.pass(S, 'logement avec historique financier → suppression refusée (409)');
+    else r.fail(S, 'logement avec historique financier → suppression refusée (409)', `statut ${blockedLg.status} ${JSON.stringify(blockedLg.data)}`);
+
+    await service.from('paiements').delete().eq('locataire_id', locId);
     const delLg = await api(`/logements/${lgId}`, { method: 'DELETE', jar });
-    if (expectSuccess(r, delLg, S, r)) r.pass(S, 'logement libre supprimé');
-    else r.fail(S, 'logement libre supprimé', JSON.stringify(delLg.data));
+    if (delLg.status === 409 && delLg.data?.code === 'TENANT_HISTORY_PRESENT') r.pass(S, 'logement lié à un historique de locataire → suppression refusée (409)');
+    else r.fail(S, 'logement lié à un historique de locataire → suppression refusée (409)', `statut ${delLg.status} ${JSON.stringify(delLg.data)}`);
   });
 
   // ----------------------------------------------------------

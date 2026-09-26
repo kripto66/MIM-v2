@@ -1,0 +1,22 @@
+{
+  "name": "mim-video-marketing",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "preview": "remotion studio src/index.js",
+    "render:landscape": "remotion render src/index.js MimVideoLandscape out/mim-marketing-16x9.mp4",
+    "render:portrait": "remotion render src/index.js MimVideoPortrait out/mim-marketing-9x16.mp4",
+    "render": "npm run render:landscape && npm run render:portrait"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.527",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.527"
+  }
+}

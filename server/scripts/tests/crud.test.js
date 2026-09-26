@@ -245,11 +245,12 @@ export async function runCrud(r, ctx) {
     else r.fail(S, 'paiement modifié → retard', JSON.stringify(upd.data));
 
     const del = await api(`/paiements/${pid}`, { method: 'DELETE', jar });
-    if (expectSuccess(r, del, S, r)) r.pass(S, 'paiement supprimé');
-    else r.fail(S, 'paiement supprimé', JSON.stringify(del.data));
+    if (del.status === 409 && del.data?.code === 'FINANCIAL_RECORD_IMMUTABLE') r.pass(S, 'paiement non supprimable → 409 FINANCIAL_RECORD_IMMUTABLE');
+    else r.fail(S, 'paiement non supprimable → 409 FINANCIAL_RECORD_IMMUTABLE', `statut ${del.status} ${JSON.stringify(del.data)}`);
 
     const del2 = await api(`/paiements/${nid}`, { method: 'DELETE', jar });
-    expectSuccess(r, del2, S, 'création anti-doublon supprimée');
+    if (del2.status === 409 && del2.data?.code === 'FINANCIAL_RECORD_IMMUTABLE') r.pass(S, 'création anti-doublon non supprimable → 409');
+    else r.fail(S, 'création anti-doublon non supprimable → 409', `statut ${del2.status} ${JSON.stringify(del2.data)}`);
   });
 
   // ----------------------------------------------------------

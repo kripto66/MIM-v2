@@ -1,9 +1,41 @@
+import crypto from 'node:crypto';
+
 export const TENANT_EMAIL_DOMAIN = 'mim.local';
 
-// Mot de passe initial des comptes créés automatiquement (locataires,
-// employés) : temporaire uniquement, jamais stocké en clair — le compte
-// est créé avec must_change_password = true.
-export const INITIAL_PASSWORD = 'Mim@' + Math.random().toString(36).slice(2, 8) + '!';
+export function generateInitialPassword() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*';
+  let value = '';
+  for (let i = 0; i < 24; i += 1) {
+    value += alphabet[crypto.randomInt(0, alphabet.length)];
+  }
+  return `M!9${value}aA1`;
+}
+
+export async function provisionProfile(sb, userId, accountType, username, mustChangePassword = false, recoveryEmail = undefined) {
+  const { error } = await sb.from('profiles').update({
+    account_type: accountType,
+    role: accountType,
+    username: username || null,
+    must_change_password: Boolean(mustChangePassword),
+  }).eq('id', userId);
+  if (error) throw new Error(error.message);
+
+  if (recoveryEmail !== undefined) {
+    const normalized = String(recoveryEmail || '').trim().toLowerCase();
+    if (normalized) {
+      const { error: recoveryError } = await sb.from('account_recovery_emails').upsert({
+        user_id: userId,
+        email: normalized,
+        verified_at: null,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+      if (recoveryError) throw new Error(recoveryError.message);
+    } else {
+      const { error: recoveryError } = await sb.from('account_recovery_emails').delete().eq('user_id', userId);
+      if (recoveryError) throw new Error(recoveryError.message);
+    }
+  }
+}
 
 export function usernameIsValid(username) {
   return /^[a-z0-9._-]{3,32}$/.test(String(username || '').trim().toLowerCase());
@@ -34,11 +66,28 @@ export function resolveLoginEmail(identifier) {
 
 // Alphabet sans caractères ambigus (pas de 0/O, 1/l) ni majuscules.
 const USERNAME_TOKEN_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789';
+const usernameLocks = new Map();
+
+export async function withUsernameLock(username, operation) {
+  const key = String(username || '').trim().toLowerCase();
+  if (!key) return operation();
+  const previous = usernameLocks.get(key) || Promise.resolve();
+  let release;
+  const current = new Promise((resolve) => { release = resolve; });
+  usernameLocks.set(key, current);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (usernameLocks.get(key) === current) usernameLocks.delete(key);
+  }
+}
 
 function randomToken(length) {
   let out = '';
   for (let i = 0; i < length; i++) {
-    out += USERNAME_TOKEN_CHARS[Math.floor(Math.random() * USERNAME_TOKEN_CHARS.length)];
+    out += USERNAME_TOKEN_CHARS[crypto.randomInt(0, USERNAME_TOKEN_CHARS.length)];
   }
   return out;
 }

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>MIM — Portefeuille Agence</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/mim-errors.css">
+    <script src="/mim-errors.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+
+</head>
+
+
+<body>
+
+    <div class="dashboard">
+
+
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
+
+            <a class="logo" href="dashboard.html" data-sidebar-toggle-logo title="Tableau de bord">
+                MIM
+            </a>
+
+            <nav class="sidebar-menu">
+                <div class="nav-category">Vue globale</div>
+                <a href="dashboard.html">
+                    Tableau de bord
+                </a>
+                <a class="active" href="portefeuille.html">
+                    Portefeuille
+                </a>
+                <a href="proprietaires.html">
+                    Propriétaires
+                </a>
+                <div class="nav-category">Gestion par bien</div>
+                <a href="/PartAgence/second_Mode/index.html">
+                    Gérer un bien (Mode 2)
+                </a>
+                <div class="nav-category">Suivi</div>
+                <a href="versements.html">
+                    Versements
+                </a>
+                <a href="messages.html">
+                    Messagerie
+                </a>
+                <a href="notifications.html">
+                    Notifications
+                </a>
+                <a href="abonnements.html">
+                    Abonnement MIM
+                </a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button id="logoutBtn" type="button">
+                    Déconnexion
+                </button>
+            </div>
+
+        </aside>
+
+
+        <main class="main-content">
+
+
+            <header class="dashboard-header">
+
+                <button class="menu-toggle" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">
+                    ☰
+                </button>
+
+                <div id="apiMessage" class="api-message" style="display:none;"></div>
+
+                <div class="welcome">
+                    <h1>
+                        Portefeuille<span class="accent">.</span>
+                    </h1>
+                    <p id="greetingSub">
+                        Les biens dont votre agence assure la gestion.
+                    </p>
+                </div>
+
+                <div class="header-actions">
+
+                    <span class="live-indicator" id="liveIndicator">
+                        <span class="live-dot"></span>
+                        <span id="liveLabel">À jour</span>
+                    </span>
+
+                    <button class="refresh-btn" id="refreshBtn" type="button" title="Actualiser les données">
+                        <span class="refresh-ico">↻</span>
+                        <span>Actualiser</span>
+                    </button>
+
+                    <a href="notifications.html" class="header-btn" id="notifBtn">
+                        Notifications
+                        <span class="notification-badge" id="notifBadge">0</span>
+                    </a>
+
+                </div>
+
+            </header>
+
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+
+                    <h2>
+                        Les biens
+                    </h2>
+
+                    <a href="proprietaires.html">
+                        Gérer les propriétaires
+                    </a>
+
+                </div>
+
+
+                <div id="portfolioList" class="crud-list">
+                    <div class="skel-item">
+                        <div style="flex:1;min-width:0;">
+                            <div class="skeleton skel-line"></div>
+                            <div class="skeleton skel-line dim"></div>
+                        </div>
+                        <div class="skeleton" style="width:64px;height:22px;border-radius:999px;flex-shrink:0;"></div>
+                    </div>
+                </div>
+
+            </section>
+
+
+        </main>
+
+    </div>
+
+    <script src="api.js"></script>
+    <script src="crud.js"></script>
+    <script src="portefeuille.js"></script>
+    <script src="/PartPublic/sidebar.js"></script>
+
+</body>
+
+</html>

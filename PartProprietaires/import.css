@@ -578,3 +578,240 @@
   color: #6b7280;
   margin-bottom: 12px;
 }
+
+/* ============================================================
+   MIM — OVERRIDE THÈME SOMBRE (cohérence avec style.css)
+   ============================================================ */
+
+.wizard-steps,
+.wizard-pane {
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  color: var(--text);
+}
+
+.wizard-step {
+  color: var(--dim);
+}
+
+.wstep-num {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-soft);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.wizard-step.active {
+  color: var(--violet);
+}
+
+.wizard-step.active .wstep-num {
+  background: linear-gradient(135deg, var(--violet), var(--violet-2));
+  color: #fff;
+  border-color: transparent;
+}
+
+.wizard-step.done {
+  color: var(--green);
+}
+
+.wizard-step.done .wstep-num {
+  background: var(--green);
+  color: #04120c;
+  border-color: transparent;
+}
+
+.wizard-pane h2,
+.wmodel-head h3,
+.wcat-head h3,
+.wizard-preview-summary h3 {
+  color: var(--text);
+}
+
+.wizard-mode,
+.wizard-model,
+.wizard-file,
+.wfinal-accounts-box {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.wizard-mode {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.wizard-cat {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: transparent;
+}
+
+.wizard-cat:hover {
+  border-color: rgba(139, 92, 246, 0.5);
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.wizard-cat:has(input:checked) {
+  border-color: var(--violet);
+  background: rgba(139, 92, 246, 0.14);
+}
+
+.wizard-cat input,
+.wizard-radio input {
+  accent-color: var(--violet);
+}
+
+.wcat-body small,
+.wmodel-note,
+.wprev-count,
+.wizard-loading,
+.wizard-progress-meta {
+  color: var(--dim);
+}
+
+.wmodel-table th,
+.wmodel-table td,
+.wprev-table th,
+.wprev-table td {
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+.wmodel-table th,
+.wprev-table th {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-soft);
+}
+
+.wmodel-table td,
+.wprev-table td {
+  color: var(--text-soft);
+}
+
+.wizard-help {
+  background: rgba(139, 92, 246, 0.1);
+  border-color: rgba(139, 92, 246, 0.3);
+}
+
+.wizard-help h3 {
+  color: #c4b5fd;
+}
+
+.wizard-help ol {
+  color: var(--text-soft);
+}
+
+.wizard-file {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.wizard-file label {
+  color: var(--text-soft);
+}
+
+.wfile-ok {
+  color: var(--green);
+}
+
+.wprev-ok {
+  background: rgba(52, 211, 153, 0.14);
+  color: var(--green);
+}
+
+.wprev-err {
+  background: rgba(251, 113, 133, 0.14);
+  color: #fda4af;
+}
+
+.wprev-dup {
+  background: rgba(229, 160, 23, 0.14);
+  color: var(--gold-2);
+}
+
+.wprev-blocked,
+.wprev-errors {
+  background: rgba(251, 113, 133, 0.1);
+  border-color: rgba(251, 113, 133, 0.32);
+  color: #fda4af;
+}
+
+.wizard-preview-cat {
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+.wizard-preview-cat.wprev-cat-err {
+  border-color: rgba(251, 113, 133, 0.35);
+  background: rgba(251, 113, 133, 0.04);
+}
+
+.wprev-errors h4 {
+  color: #fda4af;
+}
+
+.wprev-errors ul {
+  color: var(--text-soft);
+}
+
+.wprev-line {
+  color: var(--text-soft);
+}
+
+.wprev-line-num {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--dim);
+}
+
+.wprev-errors.wprev-dups {
+  background: rgba(229, 160, 23, 0.1);
+  border-color: rgba(229, 160, 23, 0.3);
+}
+
+.wprev-errors.wprev-dups h4 {
+  color: var(--gold-2);
+}
+
+.wprev-errors.wprev-warns {
+  background: rgba(96, 165, 250, 0.1);
+  border-color: rgba(96, 165, 250, 0.3);
+}
+
+.wprev-errors.wprev-warns h4,
+.wprev-warn {
+  color: #93c5fd;
+}
+
+.wprev-sample summary {
+  color: var(--violet);
+}
+
+.wizard-dups {
+  background: rgba(229, 160, 23, 0.08);
+  border-color: rgba(229, 160, 23, 0.3);
+}
+
+.wizard-dups h3 {
+  color: var(--gold-2);
+}
+
+.wizard-radio {
+  color: var(--text-soft);
+}
+
+.wfinal-err {
+  color: var(--green);
+}
+
+.wfinal-err-warn {
+  color: var(--gold-2);
+}
+
+.wfinal-list {
+  color: var(--text-soft);
+}
+
+.wizard-progress-track {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.09);
+}
+
+.wizard-progress-bar {
+  background: linear-gradient(90deg, var(--violet), var(--magenta));
+}

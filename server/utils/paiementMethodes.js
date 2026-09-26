@@ -57,6 +57,21 @@ export const CHAMPS_MOYEN = {
 // Règle : un champ ABSENT (clé non fournie) n'est pas modifié ; un champ
 // présent mais vide ('' ou null) est converti en null (permet d'effacer le
 // lien en édition).
+export function paymentLinkError(value) {
+  if (value == null || value === '') return null;
+  const raw = String(value);
+  if (raw.length > 2000 || /[\u0000-\u001f\u007f]/.test(raw)) return 'Le lien de paiement doit être une URL HTTPS valide.';
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== 'https:' || !url.hostname || url.username || url.password) return 'Le lien de paiement doit être une URL HTTPS valide.';
+    const allowedHosts = String(process.env.PAYMENT_LINK_ALLOWED_HOSTS || '').split(',').map((host) => host.trim().toLowerCase()).filter(Boolean);
+    if (allowedHosts.length && !allowedHosts.includes(url.hostname.toLowerCase())) return 'Le lien de paiement pointe vers un domaine non autorisé.';
+    return null;
+  } catch {
+    return 'Le lien de paiement doit être une URL HTTPS valide.';
+  }
+}
+
 export function sanitizeMoyenBody(type, body) {
   const clean = {};
   for (const field of CHAMPS_MOYEN[type] || []) {

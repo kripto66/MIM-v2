@@ -35,7 +35,8 @@ if (!user) {
     email,
     password,
     email_confirm: true,
-    user_metadata: { account_type: 'admin', name, role: 'admin' },
+    user_metadata: { name },
+    app_metadata: { mim_account_type: 'admin', mim_must_change_password: true },
   });
   if (error) {
     console.error('Échec création :', error.message);
@@ -45,7 +46,9 @@ if (!user) {
   console.log(`Compte créé : ${email}`);
 } else {
   const { error } = await sb.auth.admin.updateUserById(user.id, {
-    user_metadata: { ...(user.user_metadata || {}), account_type: 'admin', name, role: 'admin' },
+    password,
+    user_metadata: { name },
+    app_metadata: { mim_account_type: 'admin', mim_must_change_password: true },
   });
   if (error) {
     console.error('Échec mise à jour :', error.message);

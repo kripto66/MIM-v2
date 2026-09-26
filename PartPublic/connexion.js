@@ -65,13 +65,16 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         if (ok) {
             message.textContent = data.message;
             message.className = 'success';
+            const accountType = data.user && data.user.account_type;
+            if (accountType) MIM.accountType = accountType;
+            const redirect = MIM.resolveRedirect(data.redirect, accountType);
             if (data.mfaRequired) {
-                window.location.href = '../' + data.redirect;
+                window.location.href = redirect || '/PartPublic/2fa.html';
             } else if (data.mustChangePassword) {
-                const next = data.redirect ? '../' + data.redirect : '../PartLocataires/LocaDash.html';
-                window.location.href = 'change-password.html?next=' + encodeURIComponent(next);
+                const next = redirect || MIM.accountHome(accountType);
+                window.location.href = '/PartPublic/change-password.html?next=' + encodeURIComponent(next);
             } else {
-                window.location.href = '../' + data.redirect;
+                window.location.href = redirect || MIM.accountHome(accountType);
             }
         } else {
             message.textContent = MIM.userMessage(error);

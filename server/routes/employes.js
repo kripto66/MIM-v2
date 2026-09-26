@@ -8,18 +8,20 @@
 import { Router } from 'express';
 import { serviceClient } from '../app.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
-import { tenantEmailFor, usernameIsValid, uniqueUsername, splitFullName, INITIAL_PASSWORD } from '../utils/tenantAccount.js';
+import { tenantEmailFor, usernameIsValid, uniqueUsername, splitFullName, generateInitialPassword, provisionProfile } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { notify } from '../utils/notifications.js';
-import { methodePaiementError, TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
+import { methodePaiementError, TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paymentLinkError, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
 import { auditLog, LEVELS } from '../utils/audit.js';
+import { revokeAllSessions } from '../utils/sessions.js';
+import { isValidDate, isValidMonth, parseMoney } from '../utils/inputValidation.js';
 
 const router = Router();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function isValidDate(value) {
-  return value && !Number.isNaN(new Date(value).getTime());
+function isValidAmount(value, allowZero = false) {
+  return parseMoney(value, { allowZero }) !== null;
 }
 
 function currentMonth() {
@@ -97,15 +99,22 @@ router.get('/', async (req, res) => {
       .eq('user_id', ownerId)
       .order('created_at', { ascending: false });
 
-    const { data: liaisons = [] } = await sb
+    const { data: liaisonRows, error: liaisonError } = await sb
       .from('employes_biens')
-      .select('employe_id, bien_id, biens(id, nom)')
+      .select('employe_id, bien_id')
       .eq('user_id', ownerId);
+    if (liaisonError) console.warn('[employes] liaisons:', liaisonError.message);
 
+    const linkedBienIds = [...new Set((liaisonRows || []).map((row) => row.bien_id).filter(Boolean))];
+    const { data: linkedBiens = [] } = linkedBienIds.length
+      ? await sb.from('biens').select('id, nom').in('id', linkedBienIds)
+      : { data: [] };
+    const bienById = new Map(linkedBiens.map((bien) => [String(bien.id), bien]));
     const biensByEmploye = {};
-    for (const l of liaisons) {
+    for (const l of liaisonRows || []) {
       if (!biensByEmploye[l.employe_id]) biensByEmploye[l.employe_id] = [];
-      biensByEmploye[l.employe_id].push(l.biens ? { id: l.biens.id, nom: l.biens.nom } : { id: l.bien_id, nom: null });
+      const bien = bienById.get(String(l.bien_id));
+      biensByEmploye[l.employe_id].push(bien ? { id: bien.id, nom: bien.nom } : { id: l.bien_id, nom: null });
     }
 
     const data = (employes || []).map((e) => {
@@ -151,11 +160,11 @@ router.post('/', async (req, res) => {
   // temporaire (aléatoire, must_change_password = true).
   const autoAccount = !req.body?.username && !req.body?.password;
   const username = String(req.body.username || '').trim().toLowerCase();
-  const password = autoAccount ? INITIAL_PASSWORD : String(req.body.password || '');
+  const password = autoAccount ? generateInitialPassword() : String(req.body.password || '');
   const nom = String(req.body.nom || '').trim();
   const poste = String(req.body.poste || '').trim() || null;
   const rawSalaire = req.body.salaire;
-  const salaire = rawSalaire === '' || rawSalaire == null ? 0 : Number(rawSalaire);
+  const salaire = rawSalaire === '' || rawSalaire == null ? 0 : parseMoney(rawSalaire, { allowZero: true });
   const email = req.body.email ? String(req.body.email).trim() : null;
   const phone = req.body.phone ? String(req.body.phone).trim() : null;
   const dateEmbauche = req.body.date_embauche || null;
@@ -184,7 +193,7 @@ router.post('/', async (req, res) => {
     }
   }
 
-  if (Number.isNaN(salaire) || salaire < 0) {
+  if (!isValidAmount(salaire, true)) {
     return res.status(400).json({ success: false, message: 'Le salaire doit être un nombre positif.', errors: { salaire: 'Le salaire doit être un nombre positif.' } });
   }
 
@@ -221,12 +230,13 @@ router.post('/', async (req, res) => {
     password,
     email_confirm: true,
     user_metadata: {
-      account_type: 'employe',
-      role: 'employe',
       name: nom,
       username: finalUsername,
       phone: phone || '',
-      must_change_password: true,
+    },
+    app_metadata: {
+      mim_account_type: 'employe',
+      mim_must_change_password: true,
     },
   });
 
@@ -240,6 +250,19 @@ router.post('/', async (req, res) => {
   }
 
   const accountUid = createdUser.user.id;
+  try {
+    await provisionProfile(sb, accountUid, 'employe', finalUsername, true, email);
+  } catch (profileError) {
+    await sb.auth.admin.deleteUser(accountUid).catch(() => {});
+    return res.status(500).json({ success: false, message: 'Impossible de finaliser le compte employé.' });
+  }
+  if (statut === 'inactif') {
+    const { error: banError } = await sb.auth.admin.updateUserById(accountUid, { ban_duration: '8760h' });
+    if (banError) {
+      await sb.auth.admin.deleteUser(accountUid).catch(() => {});
+      return res.status(503).json({ success: false, message: 'Impossible de synchroniser le statut du compte.' });
+    }
+  }
 
   const { data, error } = await sb
     .from('employes')
@@ -293,7 +316,7 @@ router.post('/', async (req, res) => {
     data,
     accountCreated: true,
     autoAccount,
-    account: autoAccount ? { username: finalUsername, password: INITIAL_PASSWORD } : undefined,
+    account: autoAccount ? { username: finalUsername, password } : undefined,
   });
 });
 
@@ -342,8 +365,8 @@ router.put('/:id', async (req, res) => {
   }
 
   if (req.body.salaire !== undefined) {
-    const salaire = req.body.salaire === '' || req.body.salaire == null ? 0 : Number(req.body.salaire);
-    if (Number.isNaN(salaire) || salaire < 0) {
+    const salaire = req.body.salaire === '' || req.body.salaire == null ? 0 : parseMoney(req.body.salaire, { allowZero: true });
+    if (!isValidAmount(salaire, true)) {
       return res.status(400).json({ success: false, message: 'Le salaire doit être un nombre positif.', errors: { salaire: 'Le salaire doit être un nombre positif.' } });
     }
     updates.salaire = salaire;
@@ -384,6 +407,16 @@ router.put('/:id', async (req, res) => {
   }
 
   // Remplacement des affectations aux biens (si le champ est fourni).
+  if (updates.statut !== undefined) {
+    const existingAccount = await sb.from('employes').select('account_uid').eq('id', req.params.id).eq('user_id', ownerId).maybeSingle();
+    if (existingAccount.data?.account_uid) {
+      const { error: banError } = await sb.auth.admin.updateUserById(existingAccount.data.account_uid, {
+        ban_duration: updates.statut === 'inactif' ? '8760h' : 'none',
+      });
+      if (banError) return res.status(503).json({ success: false, message: 'Le statut Auth n\'a pas pu être synchronisé.' });
+    }
+  }
+
   if (req.body.biens !== undefined) {
     const biensError = await setEmployeBiens(sb, ownerId, req.params.id, req.body.biens);
     if (biensError) {
@@ -413,15 +446,17 @@ router.delete('/:id', async (req, res) => {
     return res.status(404).json({ success: false, message: 'Employé introuvable.' });
   }
 
-  const { error } = await sb.from('employes').delete().eq('id', req.params.id).eq('user_id', ownerId);
+  const { error } = await sb.from('employes').update({ statut: 'inactif', account_uid: null }).eq('id', req.params.id).eq('user_id', ownerId);
 
   if (error) {
     console.error('[employes/delete]', error.message);
-    return res.status(400).json({ success: false, message: 'Erreur lors de la suppression de l\'employé.' });
+    return res.status(400).json({ success: false, message: 'Erreur lors de l\'archivage de l\'employé.' });
   }
 
   if (existing.account_uid) {
-    await sb.auth.admin.deleteUser(existing.account_uid).catch(() => {});
+    const { error: banError } = await sb.auth.admin.updateUserById(existing.account_uid, { ban_duration: '8760h' });
+    if (banError) return res.status(503).json({ success: false, message: 'Employé archivé, mais le compte Auth n\'a pas été désactivé.' });
+    await revokeAllSessions(existing.account_uid, null, 'employee_archived').catch(() => {});
   }
 
   await auditLog({
@@ -508,7 +543,7 @@ router.post('/:id/paiements', async (req, res) => {
     return res.status(404).json({ success: false, message: 'Employé introuvable.' });
   }
 
-  const montant = Number(req.body.montant);
+  const montant = parseMoney(req.body.montant);
   const mois = String(req.body.mois || '').trim();
   const statut = req.body.statut || 'attente';
   const datePaiement = req.body.date_paiement || null;
@@ -516,13 +551,13 @@ router.post('/:id/paiements', async (req, res) => {
   const moyenEmployeId = req.body.moyen_employe_id || null;
   const methodePaiement = req.body.methode_paiement || null;
 
-  if (Number.isNaN(montant) || montant <= 0) {
+  if (!isValidAmount(montant)) {
     return res.status(400).json({ success: false, message: 'Le montant doit être supérieur à 0.', errors: { montant: 'Le montant doit être supérieur à 0.' } });
   }
-  if (!/^\d{4}-\d{2}$/.test(mois)) {
+  if (!isValidMonth(mois)) {
     return res.status(400).json({ success: false, message: 'Le mois doit être au format AAAA-MM.', errors: { mois: 'Le mois doit être au format AAAA-MM.' } });
   }
-  if (!['paye', 'attente'].includes(statut)) {
+  if (statut !== 'attente') {
     return res.status(400).json({ success: false, message: 'Statut invalide.', errors: { statut: 'Statut invalide.' } });
   }
   if (datePaiement && !isValidDate(datePaiement)) {
@@ -658,6 +693,8 @@ router.post('/:id/moyens-paiement', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Type de moyen de paiement invalide.' });
   }
 
+  const linkError = paymentLinkError(req.body?.lien_paiement);
+  if (linkError) return res.status(400).json({ success: false, message: linkError, errors: { lien_paiement: linkError } });
   const clean = sanitizeMoyenBody(type, req.body);
   const { data, error } = await sb
     .from('moyens_paiement_employes')

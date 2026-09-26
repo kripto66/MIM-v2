@@ -3,6 +3,50 @@
 // ============================================================
 
 export const BASE = process.env.TEST_BASE || 'http://127.0.0.1:3100/api';
+export const REMOTE_OPT_IN = 'I_UNDERSTAND_REMOTE_E2E';
+export const SEED_OPT_IN = 'I_UNDERSTAND_E2E_SEED';
+export const LOCAL_OPT_IN = 'I_UNDERSTAND_LOCAL_E2E';
+
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+function isLocalHost(hostname) {
+  const host = String(hostname || '').toLowerCase().replace(/^\[/, '').replace(/\]$/, '');
+  return LOCAL_HOSTS.has(host) || /^127(?:\.\d{1,3}){3}$/.test(host);
+}
+
+export function isRemoteUrl(value) {
+  try {
+    return !isLocalHost(new URL(String(value)).hostname);
+  } catch {
+    return true;
+  }
+}
+
+function hasExactOptIn(env, names, expected) {
+  return names.some((name) => String(env[name] || '').trim() === expected);
+}
+
+export function assertTestDatabaseAllowed(env = process.env) {
+  const databaseUrl = env.SUPABASE_URL;
+  if (!databaseUrl) throw new Error('SUPABASE_URL est requis pour lancer les tests E2E.');
+
+  if (isRemoteUrl(databaseUrl) && !hasExactOptIn(env, ['MIM_E2E_ALLOW_REMOTE', 'E2E_ALLOW_REMOTE', 'MIM_TEST_ALLOW_REMOTE', 'ALLOW_REMOTE_E2E', 'MIM_ALLOW_REMOTE_E2E'], REMOTE_OPT_IN)) {
+    throw new Error(`Base E2E distante refusée. Définissez MIM_E2E_ALLOW_REMOTE=${REMOTE_OPT_IN} pour confirmer explicitement une base distante.`);
+  }
+
+  if (env.TEST_BASE && isRemoteUrl(env.TEST_BASE) && !hasExactOptIn(env, ['MIM_E2E_ALLOW_REMOTE', 'E2E_ALLOW_REMOTE', 'MIM_TEST_ALLOW_REMOTE', 'ALLOW_REMOTE_E2E', 'MIM_ALLOW_REMOTE_E2E'], REMOTE_OPT_IN)) {
+    throw new Error(`Endpoint E2E distant refusé. Définissez MIM_E2E_ALLOW_REMOTE=${REMOTE_OPT_IN} pour confirmer explicitement un endpoint distant.`);
+  }
+}
+
+export function assertSeedAllowed(env = process.env) {
+  if (!hasExactOptIn(env, ['MIM_E2E_ALLOW_SEED', 'E2E_ALLOW_SEED', 'MIM_TEST_SEED', 'MIM_E2E_SEED', 'ALLOW_E2E_SEED'], SEED_OPT_IN)) {
+    throw new Error(`Seed E2E refusé. Définissez MIM_E2E_ALLOW_SEED=${SEED_OPT_IN} pour confirmer explicitement les données de test.`);
+  }
+  if (env.SUPABASE_URL && !isRemoteUrl(env.SUPABASE_URL) && !hasExactOptIn(env, ['MIM_E2E_ALLOW_LOCAL'], LOCAL_OPT_IN)) {
+    throw new Error(`Seed E2E local refusé. Définissez MIM_E2E_ALLOW_LOCAL=${LOCAL_OPT_IN} après avoir vérifié la base locale.`);
+  }
+}
 
 export function newJar() {
   return { cookies: [] };
@@ -16,7 +60,12 @@ function cookieHeader(jar) {
 export async function api(path, { method = 'GET', body, jar, raw = false, headers = {} } = {}) {
   const h = { 'Content-Type': 'application/json', ...headers };
   const cookie = cookieHeader(jar);
-  if (cookie) h.Cookie = cookie;
+  if (cookie) {
+    h.Cookie = cookie;
+    const csrf = jar.cookies.find((c) => c.name === 'mim_csrf');
+    if (csrf) h['X-CSRF-Token'] = csrf.value;
+    try { h.Origin = new URL(BASE).origin; } catch {}
+  }
 
   const res = await fetch(BASE + path, {
     method,
@@ -52,6 +101,48 @@ export async function api(path, { method = 'GET', body, jar, raw = false, header
   if (raw) return { status: res.status, data, headers: res.headers };
   return { status: res.status, data };
 }
+
+export async function createConfirmedSession(service, { account_type: accountType = 'proprietaire', name, email, phone, password }) {
+  const { data, error } = await service.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { name, phone },
+    app_metadata: { mim_account_type: accountType },
+  });
+  if (error || !data?.user?.id) throw new Error(error?.message || 'Utilisateur de test non créé');
+  const jar = newJar();
+  const login = await api('/auth/login', { method: 'POST', jar, body: { email, password } });
+  if (login.status !== 200) throw new Error(`Connexion de test impossible: ${login.status}`);
+  return { user: data.user, jar, login };
+}
+
+export const ROTATED_PASSWORD = 'MimRotated1234!';
+
+export async function loginForBusiness(identifier, initialPassword = 'Test1234!', jar = newJar()) {
+  let login = await api('/auth/login', {
+    method: 'POST',
+    jar,
+    body: { identifier, password: initialPassword },
+  });
+  if (login.status !== 200 && initialPassword !== ROTATED_PASSWORD) {
+    login = await api('/auth/login', {
+      method: 'POST',
+      jar,
+      body: { identifier, password: ROTATED_PASSWORD },
+    });
+  }
+  let change = null;
+  if (login.status === 200 && login.data?.mustChangePassword) {
+    change = await api('/auth/change-password', {
+      method: 'PUT',
+      jar,
+      body: { password: ROTATED_PASSWORD, password_confirm: ROTATED_PASSWORD },
+    });
+  }
+  return { jar, login, change };
+}
+
 
 // ============================================================
 // Runner

@@ -4,17 +4,35 @@
 // profil (avatar) et import par lots avec progression réelle.
 // ============================================================
 
-import { api, newJar, expectSuccess } from './lib.js';
+import { api, newJar, expectSuccess, loginForBusiness } from './lib.js';
 import { OWNER_PASSWORD } from './seed.js';
 
 const S = 'simplif';
+const ROTATED_PASSWORD = 'SimplifRotated1234!';
+
+async function loginEmployeeForBusiness(username, password) {
+  const jar = newJar();
+  let login = await api('/auth/login', { method: 'POST', jar, body: { identifier: username, password } });
+  if (login.status !== 200) {
+    login = await api('/auth/login', { method: 'POST', jar, body: { identifier: username, password: ROTATED_PASSWORD } });
+  }
+  if (login.status === 200 && login.data?.mustChangePassword) {
+    const change = await api('/auth/change-password', {
+      method: 'PUT',
+      jar,
+      body: { password: ROTATED_PASSWORD, password_confirm: ROTATED_PASSWORD },
+    });
+    if (change.status !== 200) return { jar: null, login, change };
+  }
+  return { jar, login };
+}
 
 const PNG_1PX =
   'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 export async function runSimplif(runner, ctx) {
   const service = ctx.service;
-  const owner = ctx.seed.owners[0];
+  const owner = ctx.seed.owners[5];
   const jar = owner.jar;
 
   await runner.section('Locataire simplifié : adresse héritée du bien', async () => {
@@ -187,13 +205,10 @@ export async function runSimplif(runner, ctx) {
     const username = created.data.account.username;
     const password = created.data.account.password;
 
-    const ejar = newJar();
-    const login = await api('/auth/login', {
-      method: 'POST',
-      jar: ejar,
-      body: { identifier: username, password },
-    });
-    if (!expectSuccess(runner, login, S, 'connexion de l\'employé')) return;
+    const employeeSession = await loginEmployeeForBusiness(username, password);
+    const ejar = employeeSession.jar;
+    const login = employeeSession.login;
+    if (!expectSuccess(runner, login, S, 'connexion de l\'employé') || !ejar) return;
 
     const logements = await api('/employe/logements', { jar: ejar });
     const lgs = logements.data.data || [];
@@ -263,10 +278,16 @@ export async function runSimplif(runner, ctx) {
       body: { username: 'simplif.renomme' },
     });
     if (expectSuccess(runner, upd, S, 'username employé modifié (première connexion)')) {
+      const changed = await api('/auth/change-password', {
+        method: 'PUT',
+        jar: ejar,
+        body: { password: ROTATED_PASSWORD, password_confirm: ROTATED_PASSWORD },
+      });
+      if (!expectSuccess(runner, changed, S, 'rotation du mot de passe employé')) return;
       const relog = await api('/auth/login', {
         method: 'POST',
         jar: newJar(),
-        body: { identifier: 'simplif.renomme', password },
+        body: { identifier: 'simplif.renomme', password: ROTATED_PASSWORD },
       });
       if (relog.status === 200) runner.pass(S, 'connexion avec le nouveau username');
       else runner.fail(S, 'connexion avec le nouveau username', `statut ${relog.status}`);
@@ -392,13 +413,10 @@ export async function runSimplif(runner, ctx) {
     }
 
     // 5. Vue locataire : nom et numéro copiables, aucun lien à ouvrir.
-    const tjar = newJar();
-    const tlogin = await api('/auth/login', {
-      method: 'POST',
-      jar: tjar,
-      body: { identifier: `own${owner.i}loc1`, password: OWNER_PASSWORD },
-    });
-    if (!expectSuccess(runner, tlogin, S, 'connexion locataire (vue moyens)')) return;
+    const tenantSession = await loginForBusiness(owner.locataires[0].username, OWNER_PASSWORD);
+    const tjar = tenantSession.jar;
+    const tlogin = tenantSession.login;
+    if (!expectSuccess(runner, tlogin, S, 'connexion locataire (vue moyens)') || (tenantSession.change && tenantSession.change.status !== 200)) return;
 
     const moyens = await api('/locataire/moyens-paiement', { jar: tjar });
     const vus = (moyens.data.data || []).filter((m) => m.nom_titulaire === 'SIMPLIF Amadou Diop');
@@ -461,13 +479,10 @@ export async function runSimplif(runner, ctx) {
     if (!expectSuccess(runner, created, S, 'création employé résolveur (bien A)', [201])) return;
     const empId = created.data.data.id;
 
-    const ejar = newJar();
-    const login = await api('/auth/login', {
-      method: 'POST',
-      jar: ejar,
-      body: { identifier: created.data.account.username, password: created.data.account.password },
-    });
-    if (!expectSuccess(runner, login, S, 'connexion de l\'employé résolveur')) return;
+    const employeeSession = await loginEmployeeForBusiness(created.data.account.username, created.data.account.password);
+    const ejar = employeeSession.jar;
+    const login = employeeSession.login;
+    if (!expectSuccess(runner, login, S, 'connexion de l\'employé résolveur') || !ejar) return;
 
     // Il VOIT l'incident de son bien, avec logement et description.
     const list = await api('/employe/incidents', { jar: ejar });
@@ -526,13 +541,10 @@ export async function runSimplif(runner, ctx) {
       jar,
       body: { nom: 'SIMPLIF Employe Etranger', poste: 'Agent', biens: [bienB.id] },
     });
-    const ejar2 = newJar();
-    const login2 = await api('/auth/login', {
-      method: 'POST',
-      jar: ejar2,
-      body: { identifier: created2.data.account.username, password: created2.data.account.password },
-    });
-    if (expectSuccess(runner, login2, S, 'connexion de l\'employé étranger')) {
+    const foreignEmployeeSession = await loginEmployeeForBusiness(created2.data.account.username, created2.data.account.password);
+    const ejar2 = foreignEmployeeSession.jar;
+    const login2 = foreignEmployeeSession.login;
+    if (expectSuccess(runner, login2, S, 'connexion de l\'employé étranger') && ejar2) {
       const tryA2 = await api(`/employe/incidents/${incA.id}/resoudre`, { method: 'POST', jar: ejar2, body: {} });
       if (tryA2.status === 403) runner.pass(S, 'employé non affecté au bien : 403');
       else runner.fail(S, 'employé non affecté au bien : 403', `statut ${tryA2.status}`);
@@ -583,13 +595,10 @@ export async function runSimplif(runner, ctx) {
     });
     if (!expectSuccess(runner, loc, S, 'création locataire avec compte (flux incident)', [201])) return;
 
-    const tjar = newJar();
-    const tlogin = await api('/auth/login', {
-      method: 'POST',
-      jar: tjar,
-      body: { identifier: 'simplif.flux', password: OWNER_PASSWORD },
-    });
-    if (!expectSuccess(runner, tlogin, S, 'connexion du locataire (flux incident)')) return;
+    const tenantSession = await loginForBusiness('simplif.flux', OWNER_PASSWORD);
+    const tjar = tenantSession.jar;
+    const tlogin = tenantSession.login;
+    if (!expectSuccess(runner, tlogin, S, 'connexion du locataire (flux incident)') || (tenantSession.change && tenantSession.change.status !== 200)) return;
 
     // L'id de logement envoyé (logement d'un AUTRE propriétaire) est ignoré.
     const foreignLogId = ctx.seed.owners[1].logements[0].id;
@@ -628,13 +637,10 @@ export async function runSimplif(runner, ctx) {
       body: { nom: 'SIMPLIF Employe Flux', poste: 'Agent', biens: [bien.id] },
     });
     if (!expectSuccess(runner, created, S, 'création employé (bien du flux)', [201])) return;
-    const ejar = newJar();
-    const elogin = await api('/auth/login', {
-      method: 'POST',
-      jar: ejar,
-      body: { identifier: created.data.account.username, password: created.data.account.password },
-    });
-    if (!expectSuccess(runner, elogin, S, 'connexion de l\'employé (flux incident)')) return;
+    const employeeSession = await loginEmployeeForBusiness(created.data.account.username, created.data.account.password);
+    const ejar = employeeSession.jar;
+    const elogin = employeeSession.login;
+    if (!expectSuccess(runner, elogin, S, 'connexion de l\'employé (flux incident)') || !ejar) return;
 
     const elist = await api('/employe/incidents', { jar: ejar });
     const seenByEmp = (elist.data.data || []).find((x) => String(x.id) === String(incidentId));

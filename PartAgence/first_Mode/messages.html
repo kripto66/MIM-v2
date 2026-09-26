@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Messagerie</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/mim-errors.css">
+    <script src="/mim-errors.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/PartPublic/mim-ui.css">
+</head>
+
+<body data-espace="agence1">
+
+    <div class="dashboard">
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
+            <a class="logo" href="dashboard.html" data-sidebar-toggle-logo title="Tableau de bord">MIM</a>
+            <nav class="sidebar-menu">
+                <div class="nav-category">Vue globale</div>
+                <a href="dashboard.html">Tableau de bord</a>
+                <a href="portefeuille.html">Portefeuille</a>
+                <a href="proprietaires.html">Propriétaires</a>
+                <div class="nav-category">Gestion par bien</div>
+                <a href="/PartAgence/second_Mode/index.html">Gérer un bien (Mode 2)</a>
+                <div class="nav-category">Suivi</div>
+                <a href="versements.html">Versements</a>
+                <a class="active" href="messages.html">Messagerie</a>
+                <a href="notifications.html">Notifications</a>
+                <a href="abonnements.html">Abonnement MIM</a>
+            </nav>
+            <div class="sidebar-footer">
+                <button id="logoutBtn" type="button">Déconnexion</button>
+            </div>
+        </aside>
+
+        <main class="main">
+            <header class="dashboard-header">
+                <button class="menu-toggle" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">☰</button>
+                <div id="apiMessage" class="api-message" style="display:none;"></div>
+                <div class="welcome">
+                    <h1>Messagerie<span class="accent">.</span></h1>
+                    <p>Échangez avec les propriétaires de votre portefeuille.</p>
+                </div>
+            </header>
+
+            <section class="mim-section">
+                <header>
+                    <h2>Nouveau message</h2>
+                    <span class="section-meta">Réponse directe au propriétaire</span>
+                </header>
+                <form id="messageForm" novalidate>
+                    <div class="form-group">
+                        <label for="mProprietaire">Destinataire</label>
+                        <select id="mProprietaire" required></select>
+                    </div>
+                    <div class="form-group">
+                        <label for="mObjet">Objet (optionnel)</label>
+                        <input type="text" id="mObjet" maxlength="120">
+                    </div>
+                    <div class="form-group">
+                        <label for="mCorps">Message</label>
+                        <textarea id="mCorps" rows="4" maxlength="4000" required></textarea>
+                    </div>
+                    <div class="modal-actions">
+                        <button class="btn btn-primary" type="submit">Envoyer</button>
+                    </div>
+                </form>
+            </section>
+
+            <section class="mim-section">
+                <header>
+                    <h2>Historique</h2>
+                    <span class="section-meta" id="messagesMeta"></span>
+                </header>
+                <div id="messagesList"></div>
+            </section>
+        </main>
+    </div>
+
+    <script src="/PartPublic/mim-ui.js"></script>
+    <script src="api.js"></script>
+    <script src="crud.js"></script>
+    <script src="messages.js"></script>
+    <script src="/PartPublic/sidebar.js"></script>
+
+</body>
+
+</html>

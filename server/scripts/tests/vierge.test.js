@@ -9,7 +9,7 @@
 // première connexion. Vérifie aussi l'isolation de ses données.
 // ============================================================
 
-import { api, expectSuccess, newJar } from './lib.js';
+import { api, expectSuccess, newJar, createConfirmedSession } from './lib.js';
 
 const S = 'vierge';
 
@@ -18,37 +18,25 @@ export async function runVierge(r, ctx) {
   const suffix = Date.now() % 100000;
   const email = `vierge${suffix}@mimtest.com`;
   const nameTag = `V${suffix}`;
-  const jar = newJar();
-  const owner = { jar, email, id: null };
-
-  // ----------------------------------------------------------
-  await r.section('nouveau propriétaire vierge : création + connexion', async () => {
-    const reg = await api('/auth/register', {
-      method: 'POST',
-      jar,
-      body: {
-        account_type: 'proprietaire',
-        name: `Propriétaire Vierge ${nameTag}`,
-        email,
-        phone: '+221760000001',
-        password: 'Vierge1234!',
-        password_confirm: 'Vierge1234!',
-      },
+  let confirmed;
+  try {
+    confirmed = await createConfirmedSession(service, {
+      account_type: 'proprietaire',
+      name: `Propriétaire Vierge ${nameTag}`,
+      email,
+      phone: '+221760000001',
+      password: 'Vierge1234!',
     });
-    if (reg.status === 201 && reg.data.success) {
-      r.pass(S, 'compte propriétaire créé (201)');
-    } else {
-      r.fail(S, 'compte propriétaire créé', `statut ${reg.status} ${JSON.stringify(reg.data).slice(0, 200)}`);
-      return;
-    }
+  } catch (error) {
+    r.blocked(S, 'compte propriétaire créé', error.message);
+    return;
+  }
+  const jar = confirmed.jar;
+  const owner = { jar, email, id: confirmed.user.id };
 
-    const me = await api('/auth/me', { jar });
-    if (me.status === 200 && me.data?.user?.id) {
-      owner.id = me.data.user.id;
-      r.pass(S, 'connexion établie');
-    } else {
-      r.fail(S, 'connexion établie', JSON.stringify(me.data));
-    }
+  await r.section('nouveau propriétaire vierge : création + connexion', async () => {
+    r.pass(S, 'compte propriétaire créé et confirmé');
+    r.pass(S, 'connexion établie');
   });
 
   // ----------------------------------------------------------

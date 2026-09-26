@@ -1,0 +1,375 @@
+/* =========================================================
+   MIM — COUCHE DE DESIGN PARTAGÉE
+   Chargée APRÈS le style de zone. Elle définit :
+     1. les rôles visuels (data-espace) ;
+     2. les composants de dashboard partagés ;
+     3. les classes de grille manquantes.
+   ========================================================= */
+
+:root {
+    --mim-accent: var(--violet, #8b5cf6);
+    --mim-accent-2: var(--magenta, #d946ef);
+    --mim-accent-soft: rgba(139, 92, 246, 0.16);
+    --mim-role-label: 'Mon espace';
+}
+
+body[data-espace='proprietaire'] {
+    --mim-accent: #8b5cf6;
+    --mim-accent-2: #d946ef;
+    --mim-accent-soft: rgba(139, 92, 246, 0.16);
+    --mim-role-label: ' Propriétaire';
+}
+
+body[data-espace='shadow'] {
+    --mim-accent: #38bdf8;
+    --mim-accent-2: #22d3ee;
+    --mim-accent-soft: rgba(56, 189, 248, 0.16);
+    --mim-role-label: ' Proprietaire';
+}
+
+body[data-espace='agence1'] {
+    --mim-accent: #f59e0b;
+    --mim-accent-2: #fbbf24;
+    --mim-accent-soft: rgba(245, 158, 11, 0.16);
+    --mim-role-label: ' Agence';
+}
+
+body[data-espace='agence2'] {
+    --mim-accent: #10b981;
+    --mim-accent-2: #34d399;
+    --mim-accent-soft: rgba(16, 185, 129, 0.16);
+    --mim-role-label: ' Agence';
+}
+
+body[data-espace] {
+    background:
+        radial-gradient(1100px 680px at 88% -12%, var(--mim-accent-soft), transparent 62%),
+        radial-gradient(900px 600px at -12% 108%, rgba(217, 70, 239, 0.08), transparent 58%),
+        linear-gradient(165deg, var(--bg-0), var(--bg-1) 55%, var(--bg-2));
+}
+
+body[data-espace] .accent,
+body[data-espace] .brand-text strong,
+body[data-espace] h1 .accent {
+    color: var(--mim-accent);
+}
+
+body[data-espace] .btn-primary,
+body[data-espace] button.btn-primary {
+    background: linear-gradient(135deg, var(--mim-accent), var(--mim-accent-2));
+}
+
+body[data-espace] ::selection {
+    background: var(--mim-accent-soft);
+}
+
+body[data-espace] .live-dot {
+    background: var(--mim-accent);
+    box-shadow: 0 0 0 4px var(--mim-accent-soft);
+}
+
+/* ---------- Cartes KPI ---------- */
+
+.mim-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+}
+
+.mim-kpi {
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 18px 18px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    box-shadow: var(--shadow-sm);
+    transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.mim-kpi::after {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: linear-gradient(180deg, var(--mim-accent), transparent);
+    opacity: .85;
+}
+
+.mim-kpi:hover {
+    transform: translateY(-2px);
+    border-color: var(--line-strong);
+    background: var(--panel-hover);
+}
+
+.mim-kpi .kpi-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--dim);
+}
+
+.mim-kpi .kpi-value {
+    font-size: 26px;
+    font-weight: 700;
+    line-height: 1.15;
+    color: var(--text);
+}
+
+.mim-kpi .kpi-sub {
+    font-size: 12.5px;
+    color: var(--text-soft);
+}
+
+.mim-kpi[data-tone='success'] .kpi-value { color: var(--green); }
+.mim-kpi[data-tone='warning'] .kpi-value { color: var(--gold); }
+.mim-kpi[data-tone='danger'] .kpi-value { color: var(--red); }
+.mim-kpi[data-tone='accent'] .kpi-value { color: var(--mim-accent); }
+
+/* ---------- Sections ---------- */
+
+.mim-section {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding: 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+}
+
+.mim-section > header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.mim-section > header h2 {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: .01em;
+}
+
+.mim-section > header .section-meta {
+    font-size: 12.5px;
+    color: var(--dim);
+}
+
+.mim-grid-2 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 18px;
+}
+
+.mim-grid-3 {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 14px;
+}
+
+/* ---------- Cartes d'action / raccourcis ---------- */
+
+.mim-action-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 14px;
+}
+
+.mim-action {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--panel-strong);
+    color: var(--text);
+    text-decoration: none;
+    transition: transform .18s ease, border-color .18s ease, background .18s ease;
+}
+
+.mim-action:hover {
+    transform: translateY(-2px);
+    border-color: var(--mim-accent);
+    background: var(--mim-accent-soft);
+}
+
+.mim-action .action-count {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--mim-accent);
+}
+
+.mim-action .action-label {
+    font-size: 13px;
+    color: var(--text-soft);
+}
+
+.mim-action[aria-disabled='true'] {
+    opacity: .5;
+    pointer-events: none;
+}
+
+/* ---------- Listes ---------- */
+
+.mim-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.mim-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-sm);
+    background: var(--panel-strong);
+}
+
+.mim-list-item .li-main {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.mim-list-item .li-title {
+    font-size: 14px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.mim-list-item .li-meta {
+    font-size: 12.5px;
+    color: var(--dim);
+}
+
+.mim-empty {
+    padding: 22px;
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius-sm);
+    text-align: center;
+    font-size: 13.5px;
+    color: var(--dim);
+}
+
+/* ---------- Badges ---------- */
+
+.mim-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--line-strong);
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: .02em;
+    color: var(--text-soft);
+    background: var(--panel-strong);
+    white-space: nowrap;
+}
+
+.mim-badge[data-tone='success'] { color: var(--green); border-color: rgba(52, 211, 153, .35); }
+.mim-badge[data-tone='warning'] { color: var(--gold); border-color: rgba(229, 160, 23, .35); }
+.mim-badge[data-tone='danger'] { color: var(--red); border-color: rgba(251, 113, 133, .35); }
+.mim-badge[data-tone='accent'] { color: var(--mim-accent); border-color: var(--mim-accent); }
+
+/* ---------- Squelettes ---------- */
+
+.mim-skeleton {
+    position: relative;
+    overflow: hidden;
+    border-radius: var(--radius-xs);
+    background: rgba(255, 255, 255, .06);
+    min-height: 14px;
+}
+
+.mim-skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .09), transparent);
+    animation: mim-shimmer 1.4s infinite;
+}
+
+@keyframes mim-shimmer {
+    100% { transform: translateX(100%); }
+}
+
+/* ---------- Classes de compatibilité (grilles manquantes) ---------- */
+
+.action-grid,
+.dashboard-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 18px;
+    align-items: start;
+}
+
+.crud-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.crud-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.owner-bien,
+.owner-biens {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.shortcut-card .shortcut-count {
+    display: inline-grid;
+    place-items: center;
+    min-width: 22px;
+    height: 22px;
+    margin-left: 6px;
+    padding: 0 6px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--bg-0);
+    background: var(--mim-accent);
+    vertical-align: middle;
+}
+
+.shortcut-card {
+    text-decoration: none;
+    color: inherit;
+}
+
+.shortcut-card:hover {
+    border-color: var(--mim-accent);
+    transform: translateY(-2px);
+}
+
+@media (max-width: 720px) {
+    .mim-kpi-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+    .mim-kpi .kpi-value { font-size: 22px; }
+    .mim-list-item { flex-direction: column; align-items: flex-start; gap: 8px; }
+}

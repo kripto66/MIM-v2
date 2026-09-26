@@ -38,11 +38,15 @@ form.addEventListener("submit", async (e) => {
         if (data.success) {
             message.textContent = data.message;
             message.className = "success";
-            if (data.mustChangePassword && data.redirect) {
-                window.location.href = "../PartPublic/change-password.html?next=" +
-                    encodeURIComponent("../" + data.redirect);
+            if (data.mustChangePassword) {
+                const accountType = data.user && data.user.account_type;
+                if (accountType) MIM.accountType = accountType;
+                const next = MIM.resolveRedirect(data.redirect, accountType) || MIM.accountHome(accountType);
+                window.location.href = "/PartPublic/change-password.html?next=" + encodeURIComponent(next);
             } else {
-                window.location.href = "../" + data.redirect;
+                const accountType = data.user && data.user.account_type;
+                if (accountType) MIM.accountType = accountType;
+                window.location.href = MIM.resolveRedirect(data.redirect, accountType) || MIM.accountHome(accountType);
             }
             return;
         }

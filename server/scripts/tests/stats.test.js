@@ -62,8 +62,8 @@ export async function runStats(r, ctx) {
 async function computeExpected(service, userId, month) {
   const [logements, locataires, paiements, incidents, interventions] = await Promise.all([
     service.from('logements').select('id, statut, loyer_mensuel').eq('user_id', userId),
-    service.from('locataires').select('id').eq('user_id', userId),
-    service.from('paiements').select('id, montant, statut, mois').eq('user_id', userId),
+    service.from('locataires').select('id').eq('user_id', userId).is('superseded_at', null),
+    service.from('paiements').select('id, montant, statut, mois').eq('user_id', userId).is('superseded_at', null),
     service.from('incidents').select('id, statut').eq('user_id', userId),
     service.from('interventions').select('id, statut').eq('user_id', userId),
   ]);

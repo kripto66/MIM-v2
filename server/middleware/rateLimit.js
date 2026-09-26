@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 const buckets = new Map();
 
 setInterval(() => {
@@ -9,7 +11,7 @@ setInterval(() => {
 
 const RATE_LIMIT_OFF = process.env.RATE_LIMIT_OFF === 'true';
 
-function makeLimiter({ windowMs, max, message, keyFn }) {
+export function makeLimiter({ windowMs, max, message, keyFn }) {
   return (req, res, next) => {
     if (RATE_LIMIT_OFF) return next();
     const key = keyFn ? keyFn(req) : `${req.ip}:${req.baseUrl || ''}${req.path}`;
@@ -36,6 +38,10 @@ export const authRateLimit = makeLimiter({
   windowMs: 10 * 60 * 1000,
   max: 30,
   message: 'Trop de tentatives. Réessayez dans quelques minutes.',
+  keyFn: (req) => {
+    const identifier = String(req.body?.identifier || req.body?.email || req.body?.username || '').trim().toLowerCase();
+    return `auth:${req.ip}:${req.baseUrl || ''}${req.path}:${identifier}`;
+  },
 });
 
 export const apiRateLimit = makeLimiter({
@@ -48,12 +54,16 @@ export const forgotPasswordRateLimit = makeLimiter({
   windowMs: 10 * 60 * 1000,
   max: 3,
   message: 'Trop de demandes de réinitialisation. Réessayez dans quelques minutes.',
-  keyFn: (req) => `forgot:${req.ip}`,
+  keyFn: (req) => `forgot:${req.ip}:${String(req.body?.email || '').trim().toLowerCase()}`,
 });
 
 export const mfaVerifyRateLimit = makeLimiter({
   windowMs: 10 * 60 * 1000,
   max: 5,
   message: 'Trop de tentatives de vérification. Réessayez dans quelques minutes.',
-  keyFn: (req) => `mfa:${req.ip}`,
+  keyFn: (req) => {
+    const challenge = String(req.cookies?.mim_mfa_pending || '');
+    const digest = challenge ? crypto.createHash('sha256').update(challenge).digest('hex') : 'anonymous';
+    return `mfa:${req.ip}:${digest}`;
+  },
 });

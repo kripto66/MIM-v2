@@ -12,7 +12,7 @@
 
 import { Router } from 'express';
 import { subscriptionOf, createCheckout, reconcilePendingPayment } from '../utils/subscription.js';
-import { listPlans, planView } from '../utils/plans.js';
+import { listPlans, planView, audienceForAccount } from '../utils/plans.js';
 import { serviceClient } from '../app.js';
 
 const router = Router();
@@ -52,10 +52,10 @@ router.get('/me', async (req, res) => {
   }
 });
 
-// Catalogue des plans d'abonnement propriétaire (pack activés).
+// Catalogue : chaque compte ne voit que les plans de son audience.
 router.get('/plans', async (req, res) => {
   try {
-    const plans = await listPlans(true);
+    const plans = await listPlans(true, audienceForAccount(req.user.account_type));
     res.json({ success: true, plans: plans.map(planView) });
   } catch (err) {
     console.error('[subscription/plans]', err.message);
@@ -72,7 +72,7 @@ router.post('/checkout', async (req, res) => {
   }
 
   try {
-    const result = await createCheckout(req.user.id, plan);
+    const result = await createCheckout(req.user.id, plan, req.get('Idempotency-Key'), req.user.account_type);
     return res.status(201).json({ success: true, message: 'Paiement lancé. Finalisez le règlement sur la page Bictorys.', ...result });
   } catch (err) {
     const status = err.code === 'PLAN_INVALID' || err.code === 'PLAN_UNAVAILABLE' ? 400 : err.code === 'PAYMENT_UNAVAILABLE' ? 503 : 502;

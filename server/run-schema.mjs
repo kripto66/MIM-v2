@@ -1,10 +1,19 @@
 import { readFileSync } from 'node:fs';
 
-const token = process.env.SUPABASE_PAT;
-const ref = 'wjrlklqzuxyixlhahlie';
-const query = readFileSync('supabase-schema.sql', 'utf8');
+if (process.env.MIM_ALLOW_LEGACY_SCHEMA_PUSH !== 'I_UNDERSTAND_SCHEMA_PUSH') {
+  console.error('Ce script est désactivé. Utilisez Supabase CLI et les migrations versionnées.');
+  process.exit(1);
+}
 
-const res = await fetch(`https://api.supabase.com/v1/projects/${ref}/database/query`, {
+const token = process.env.SUPABASE_PAT;
+const ref = process.env.SUPABASE_PROJECT_REF;
+if (!token || !ref) {
+  console.error('SUPABASE_PAT et SUPABASE_PROJECT_REF sont requis pour cette opération explicite.');
+  process.exit(1);
+}
+
+const query = readFileSync('supabase-schema.sql', 'utf8');
+const res = await fetch(`https://api.supabase.com/v1/projects/${encodeURIComponent(ref)}/database/query`, {
   method: 'POST',
   headers: {
     Authorization: `Bearer ${token}`,

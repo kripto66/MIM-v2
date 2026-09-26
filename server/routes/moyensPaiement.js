@@ -11,7 +11,7 @@
 
 import { Router } from 'express';
 import { serviceClient } from '../app.js';
-import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody } from '../utils/paiementMethodes.js';
+import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paymentLinkError } from '../utils/paiementMethodes.js';
 
 const router = Router();
 const sb = () => serviceClient();
@@ -42,6 +42,8 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ success: false, message: 'Type de moyen de paiement invalide.' });
     }
 
+    const linkError = paymentLinkError(req.body?.lien_paiement);
+    if (linkError) return res.status(400).json({ success: false, message: linkError, errors: { lien_paiement: linkError } });
     const clean = sanitizeMoyenBody(type, req.body);
     const { data, error } = await sb()
       .from('moyens_paiement')
@@ -74,6 +76,8 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ success: false, message: 'Moyen de paiement introuvable.' });
     }
 
+    const linkError = paymentLinkError(req.body?.lien_paiement);
+    if (linkError) return res.status(400).json({ success: false, message: linkError, errors: { lien_paiement: linkError } });
     const clean = sanitizeMoyenBody(existing.type, req.body);
     const { data, error } = await sb()
       .from('moyens_paiement')

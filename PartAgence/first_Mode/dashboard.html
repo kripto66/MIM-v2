@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>MIM — Dashboard Agence</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/mim-errors.css">
+    <script src="/mim-errors.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="/PartPublic/mim-ui.css">
+
+</head>
+
+
+<body data-espace="agence1">
+
+
+    <!-- =========================================================
+         STRUCTURE PRINCIPALE DU DASHBOARD
+         ========================================================= -->
+
+    <div class="dashboard">
+
+
+        <!-- =====================================================
+             SIDEBAR / MENU
+             ===================================================== -->
+
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
+
+            <!-- Logo MIM -->
+            <a class="logo" href="dashboard.html" data-sidebar-toggle-logo title="Tableau de bord">
+                MIM
+            </a>
+
+
+            <!-- Menu principal -->
+            <nav class="sidebar-menu">
+                <div class="nav-category">Vue globale</div>
+                <a class="active" href="dashboard.html">
+                    Tableau de bord
+                </a>
+                <a href="portefeuille.html">
+                    Portefeuille
+                </a>
+                <a href="proprietaires.html">
+                    Propriétaires
+                </a>
+                <div class="nav-category">Gestion par bien</div>
+                <a href="/PartAgence/second_Mode/index.html">
+                    Gérer un bien (Mode 2)
+                </a>
+                <div class="nav-category">Suivi</div>
+                <a href="versements.html">
+                    Versements
+                </a>
+                <a href="messages.html">
+                    Messagerie
+                </a>
+                <a href="notifications.html">
+                    Notifications
+                </a>
+                <a href="abonnements.html">
+                    Abonnement MIM
+                </a>
+            </nav>
+
+
+            <!-- Déconnexion (câblée par /PartPublic/sidebar.js) -->
+            <div class="sidebar-footer">
+
+                <button id="logoutBtn" type="button">
+                    Déconnexion
+                </button>
+
+            </div>
+
+        </aside>
+
+
+
+        <!-- =====================================================
+             CONTENU PRINCIPAL
+             ===================================================== -->
+
+        <main class="main-content">
+
+
+            <!-- =================================================
+                 HEADER DU DASHBOARD
+                 ================================================= -->
+
+            <header class="dashboard-header">
+
+                <button
+                    class="menu-toggle"
+                    data-sidebar-toggle
+                    aria-label="Ouvrir le menu"
+                    aria-expanded="false"
+                >
+                    ☰
+                </button>
+
+                <div id="apiMessage" class="api-message" style="display:none;"></div>
+
+                <!-- Salutation -->
+                <div class="welcome">
+
+                    <h1>
+                        <span id="greetingWord">Bonjour</span>, <span id="ownerName">Agence</span><span class="accent">.</span>
+                    </h1>
+
+                    <p id="greetingSub">
+                        Voici un aperçu de votre portefeuille.
+                    </p>
+
+                </div>
+
+
+                <!-- Actions du header -->
+                <div class="header-actions">
+
+                    <span class="live-indicator" id="liveIndicator" title="Actualisation automatique">
+                        <span class="live-dot"></span>
+                        <span id="liveLabel">À jour</span>
+                    </span>
+
+                    <button class="refresh-btn" id="refreshBtn" type="button" title="Actualiser les données">
+                        <span class="refresh-ico">↻</span>
+                        <span>Actualiser</span>
+                    </button>
+
+                    <a href="notifications.html" class="header-btn" id="notifBtn">
+                        Notifications
+                        <span class="notification-badge" id="notifBadge">0</span>
+                    </a>
+
+                </div>
+
+            </header>
+
+
+            <!-- =================================================
+                 BANDEAU ABONNEMENT MIM
+                 ================================================= -->
+
+            <div id="subBanner" class="sub-banner" hidden></div>
+
+
+            <!-- =================================================
+                 VUE D'ENSEMBLE (KPI)
+                 ================================================= -->
+
+            <section class="dashboard-overview">
+
+                <!-- Nombre total de biens gérés -->
+                <article class="stat-card">
+                    <span class="stat-ico">▤</span>
+                    <h3>Biens gérés</h3>
+                    <strong class="stat-value" id="totalBiens">—</strong>
+                    <p class="stat-sub" id="proprietairesSub">—</p>
+                </article>
+
+                <!-- Logements du portefeuille -->
+                <article class="stat-card">
+                    <span class="stat-ico">▤</span>
+                    <h3>Logements</h3>
+                    <strong class="stat-value" id="totalLogements">—</strong>
+                    <p class="stat-sub" id="logementsSub">Chargement…</p>
+                </article>
+
+                <!-- Locataires -->
+                <article class="stat-card">
+                    <span class="stat-ico">◉</span>
+                    <h3>Locataires</h3>
+                    <strong class="stat-value" id="totalLocataires">—</strong>
+                    <p class="stat-sub" id="locatairesSub">Chargement…</p>
+                </article>
+
+                <!-- Loyers encaissés ce mois -->
+                <article class="stat-card trend-up">
+                    <span class="stat-ico">◈</span>
+                    <h3>Loyers encaissés</h3>
+                    <strong class="stat-value accent" id="paidRent">—</strong>
+                    <p class="stat-sub" id="rentPaidSub">Ce mois</p>
+                    <div class="stat-progress">
+                        <div class="stat-progress-fill" id="rentProgress" style="width:0%"></div>
+                    </div>
+                </article>
+
+                <!-- Loyers en retard -->
+                <article class="stat-card trend-down kpi-danger">
+                    <span class="stat-ico">▲</span>
+                    <h3>Retards</h3>
+                    <strong class="stat-value" id="lateRent">—</strong>
+                    <p class="stat-sub" id="lateSub">Aucun loyer en retard</p>
+                </article>
+
+                <!-- Versements à reverser -->
+                <article class="stat-card kpi-warn">
+                    <span class="stat-ico">↻</span>
+                    <h3>À reverser</h3>
+                    <strong class="stat-value" id="versementsAttente">—</strong>
+                    <p class="stat-sub" id="versementsSub">Versements en attente</p>
+                </article>
+
+            </section>
+
+
+            <!-- =================================================
+                 ACTIONS À TRAITER
+                 ================================================= -->
+
+            <section class="dashboard-section" id="actionsBlock">
+
+                <div class="section-header">
+
+                    <h2>
+                        Actions à traiter
+                    </h2>
+
+                </div>
+
+
+                <div id="actionsGrid" class="action-grid" style="display:none;">
+
+                    <a class="action-card" id="actionVersements" href="versements.html">
+                        <strong>0</strong>
+                        <span>Versements à reverser</span>
+                    </a>
+
+                    <a class="action-card" id="actionRetards" href="portefeuille.html">
+                        <strong>0</strong>
+                        <span>Loyers en retard</span>
+                    </a>
+
+                    <a class="action-card" id="actionMessages" href="messages.html">
+                        <strong>0</strong>
+                        <span>Messages non lus</span>
+                    </a>
+
+                </div>
+
+
+                <div id="actionsAllDone" class="empty-state" style="display:none;">
+                    <span class="empty-ico">✓</span>
+                    Aucune action en attente. Tout est à jour.
+                </div>
+
+            </section>
+
+
+            <!-- =================================================
+                 GRAPHIQUES (occupation + loyers)
+                 ================================================= -->
+
+            <section class="dashboard-section">
+                <div class="section-header">
+                    <h2>Vue d'ensemble</h2>
+                    <a href="portefeuille.html">Détail du portefeuille</a>
+                </div>
+                <div class="chart-grid">
+                    <div class="chart-box">
+                        <div>
+                            <h3>Occupation des logements</h3>
+                            <p class="chart-sub" id="occupancySub">Chargement…</p>
+                        </div>
+                        <div class="donut-wrap">
+                            <div class="donut" id="occupancyDonut" style="--val:0; --donut-color:#f59e0b">
+                                <div class="donut-center">
+                                    <strong id="occupancyPct">—</strong>
+                                    <span>occupés</span>
+                                </div>
+                            </div>
+                            <div class="chart-legend" id="occupancyLegend"></div>
+                        </div>
+                    </div>
+                    <div class="chart-box">
+                        <div>
+                            <h3>Loyers encaissés</h3>
+                            <p class="chart-sub" id="rentChartSub">Chargement…</p>
+                        </div>
+                        <div class="bar-chart" id="rentBars"></div>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- =================================================
+                 CONTENU PRINCIPAL : notifications / portefeuille / propriétaires
+                 ================================================= -->
+
+            <div class="dashboard-grid">
+
+
+                <!-- NOTIFICATIONS RÉCENTES -->
+                <section class="dashboard-section">
+
+                    <div class="section-header">
+
+                        <h2>
+                            Notifications
+                        </h2>
+
+                        <a href="notifications.html">
+                            Tout voir
+                        </a>
+
+                    </div>
+
+
+                    <div id="recentNotifications"></div>
+
+                </section>
+
+
+                <!-- PORTEFEUILLE RÉCENT -->
+                <section class="dashboard-section">
+
+                    <div class="section-header">
+
+                        <h2>
+                            Portefeuille
+                        </h2>
+
+                        <a href="portefeuille.html">
+                            Tout le portefeuille
+                        </a>
+
+                    </div>
+
+
+                    <div id="portfolioList"></div>
+
+                </section>
+
+
+                <!-- PROPRIÉTAIRES RÉCENTS -->
+                <section class="dashboard-section">
+
+                    <div class="section-header">
+
+                        <h2>
+                            Propriétaires
+                        </h2>
+
+                        <a href="proprietaires.html">
+                            Gérer les propriétaires
+                        </a>
+
+                    </div>
+
+
+                    <div id="ownersList"></div>
+
+                </section>
+
+            </div>
+
+
+        </main>
+
+    </div>
+
+    <script src="/PartPublic/mim-ui.js"></script>
+    <script src="api.js"></script>
+    <script src="crud.js"></script>
+    <script src="dashboard.js"></script>
+    <script src="/PartPublic/sidebar.js"></script>
+
+
+</body>
+
+</html>

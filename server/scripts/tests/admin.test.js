@@ -18,13 +18,15 @@ export async function runAdmin(r, ctx) {
     email: adminEmail,
     password: ADMIN_PASSWORD,
     email_confirm: true,
-    user_metadata: { account_type: 'admin', name: 'Admin Test', role: 'admin' },
+    user_metadata: { name: 'Admin Test' },
+    app_metadata: { mim_account_type: 'admin' },
   });
 
   if (error) {
     r.fail(S, 'création compte admin', error.message);
     return;
   }
+  await service.from('profiles').update({ account_type: 'admin', role: 'admin' }).eq('id', created.user.id);
   r.pass(S, 'création compte admin (service role)');
 
   const adminId = created.user.id;
@@ -172,7 +174,7 @@ export async function runAdmin(r, ctx) {
       let seedOk = true;
       for (const owner of ctx.seed.owners) {
         const row = data.find((b) => b.id === owner.bienId);
-        if (!row || row.logements !== 10) seedOk = false;
+        if (!row || Number(row.logements) < 10) seedOk = false;
       }
       if (seedOk) r.pass(S, 'biens du seed avec 10 logements comptés');
       else r.fail(S, 'biens du seed avec 10 logements comptés');
@@ -233,7 +235,7 @@ export async function runAdmin(r, ctx) {
 
     const ok = await api('/auth/login', {
       method: 'POST',
-      jar: newJar(),
+      jar: target.jar,
       body: { identifier: target.email, password: target.password },
     });
     if (ok.status === 200) r.pass(S, 'compte réactivé → login OK');

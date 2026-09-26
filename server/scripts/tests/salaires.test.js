@@ -11,6 +11,7 @@ import { api, expectSuccess, newJar } from './lib.js';
 
 const S = 'salaires';
 const EMP_PASSWORD = 'Test1234!';
+const ROTATED_EMP_PASSWORD = 'SalaireRotated1234!';
 
 function currentMoisUTC() {
   const d = new Date();
@@ -19,19 +20,34 @@ function currentMoisUTC() {
 
 async function loginEmployee(username) {
   const jar = newJar();
-  const login = await api('/auth/login', {
+  let login = await api('/auth/login', {
     method: 'POST',
     jar,
     body: { identifier: username, password: EMP_PASSWORD },
   });
+  if (login.status !== 200) {
+    login = await api('/auth/login', {
+      method: 'POST',
+      jar,
+      body: { identifier: username, password: ROTATED_EMP_PASSWORD },
+    });
+  }
   if (login.status !== 200) return { jar: null, login };
+  if (login.data?.mustChangePassword) {
+    const change = await api('/auth/change-password', {
+      method: 'PUT',
+      jar,
+      body: { password: ROTATED_EMP_PASSWORD, password_confirm: ROTATED_EMP_PASSWORD },
+    });
+    if (change.status !== 200) return { jar: null, login, change };
+  }
   return { jar, login };
 }
 
 export async function runSalaires(r, ctx) {
   const service = ctx.service;
-  const owner1 = ctx.seed.owners[0];
-  const owner2 = ctx.seed.owners[1];
+  const owner1 = ctx.seed.owners[7];
+  const owner2 = ctx.seed.owners[6];
   const jar = owner1.jar;
   const jar2 = owner2.jar;
   const moisCourant = currentMoisUTC();
@@ -336,11 +352,10 @@ export async function runSalaires(r, ctx) {
         reference: 'HORS-FLUX-1',
       },
     });
-    if (expectSuccess(r, res, S, r, [201]) && res.data.data.statut === 'paye') {
-      paie.B2 = res.data.data;
-      r.pass(S, 'paiement direct paye accepté (versement vérifié hors flux)');
+    if (res.status === 400) {
+      r.pass(S, 'paiement direct paye refusé (confirmation employé obligatoire)');
     } else {
-      r.fail(S, 'paiement direct paye accepté', JSON.stringify(res.data));
+      r.fail(S, 'paiement direct paye refusé', JSON.stringify(res.data));
     }
 
     // Statut invalide refusé.

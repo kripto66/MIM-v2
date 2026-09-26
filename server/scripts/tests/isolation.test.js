@@ -4,7 +4,7 @@
 // données d'un autre propriétaire, ni référencer leurs entités.
 // ============================================================
 
-import { api, newJar, expectSuccess } from './lib.js';
+import { api, newJar, expectSuccess, ROTATED_PASSWORD } from './lib.js';
 
 const S = 'isolation';
 
@@ -178,6 +178,18 @@ export async function runIsolation(r, ctx) {
       r.blocked(S, `login ${t1.username}`, `statut ${login1.status}`);
       return;
     }
+
+    const blocked = await api('/locataire/dashboard', { jar: jar1 });
+    if (blocked.status === 403 && blocked.data?.code === 'PASSWORD_CHANGE_REQUIRED') r.pass(S, 'locataire automatique bloqué avant rotation');
+    else r.fail(S, 'locataire automatique bloqué avant rotation', JSON.stringify(blocked.data));
+
+    const rotatedPassword = ROTATED_PASSWORD;
+    const changed = await api('/auth/change-password', {
+      method: 'PUT',
+      jar: jar1,
+      body: { password: rotatedPassword, password_confirm: rotatedPassword },
+    });
+    if (!expectSuccess(r, changed, S, 'rotation locataire')) return;
 
     const dash = await api('/locataire/dashboard', { jar: jar1 });
     if (expectSuccess(r, dash, S, r) && dash.data.linked === true) {

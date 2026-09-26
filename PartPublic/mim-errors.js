@@ -43,6 +43,22 @@ MIM.httpFallback = {
   504: "Le serveur met trop de temps à répondre. Réessayez dans un instant."
 };
 
+/* Hôte de l'API. Mono-origin : quand les pages sont servies par le serveur MIM
+ * (port dédié), l'API est sur la MÊME origine — exigé par la CSP connect-src
+ * 'self'. Fallback : frontend servi par un serveur web par défaut (Apache :80)
+ * → API dev sur :3000. */
+MIM.apiHost = function () {
+  const origin = window.location.origin || "http://localhost:3000";
+  const isLocal = origin.includes("localhost") || origin.includes("127.0.0.1");
+  if (isLocal) {
+    const port = String(window.location.port || "");
+    const defaultWebPort = port === "" || port === "80" || port === "443";
+    if (!defaultWebPort) return origin;
+    return "http://localhost:3000";
+  }
+  return origin;
+};
+
 /* Normalise la réponse d'un fetch. Retourne { ok, data } ou { ok:false, error }.
  * L'erreur porte status, code (ex. ACCOUNT_SUSPENDED) et errors (par champ). */
 MIM.parse = async function (res) {
@@ -73,6 +89,49 @@ MIM.userMessage = function (err) {
   return "Une erreur inattendue est survenue.";
 };
 
+MIM.resolveRedirect = function (redirect, accountType) {
+  if (typeof redirect !== "string") return "";
+  var value = redirect.trim();
+  if (!value || /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(value) || value.includes("\\")) return "";
+  value = value.replace(/^(?:\.\.\/|\.\/)+/, "");
+  if (!value.startsWith("/")) value = "/" + value;
+  var url;
+  try {
+    url = new URL(value, window.location.origin);
+  } catch {
+    return "";
+  }
+  if (url.origin !== window.location.origin) return "";
+  var type = accountType || MIM.accountType;
+  if (type === "agence") {
+    if (url.pathname === "/PartProprietaires/dashboard.html") {
+      url.pathname = "/PartAgence/first_Mode/dashboard.html";
+    } else if (url.pathname === "/PartProprietaires/abonnements.html") {
+      url.pathname = "/PartAgence/first_Mode/abonnements.html";
+    }
+  }
+  return url.pathname + url.search + url.hash;
+};
+
+MIM.accountHome = function (accountType) {
+  var type = accountType || MIM.accountType;
+  if (type === "agence") return "/PartAgence/first_Mode/dashboard.html";
+  if (type === "locataire") return "/PartLocataires/LocaDash.html";
+  if (type === "employe") return "/PartEmployes/employe.html";
+  if (type === "admin") return "/PartAdmin/admin.html";
+  if (type === "ultra_admin") return "/PartUltraAdmin/ultra.html";
+  return "/PartProprietaires/dashboard.html";
+};
+
+MIM.httpsUrl = function (value) {
+  try {
+    var url = new URL(String(value));
+    return url.protocol === "https:" ? url.href : "";
+  } catch {
+    return "";
+  }
+};
+
 MIM.redirectToLogin = function (reason) {
   const qs = reason ? "?error=" + encodeURIComponent(reason) : "";
   window.location.href = "/PartPublic/connexion.html" + qs;
@@ -86,7 +145,8 @@ MIM.handleAuthError = function (err) {
     // Abonnement expiré : le propriétaire doit renouveler en ligne,
     // pas se reconnecter (K1). Redirection vers la page d'abonnement.
     if (err.code === "SUBSCRIPTION_EXPIRED") {
-      window.location.href = "/PartProprietaires/abonnements.html";
+      var agencePage = MIM.accountType === "agence" || window.location.pathname.indexOf("/PartAgence/") === 0;
+      window.location.href = agencePage ? "/PartAgence/first_Mode/abonnements.html" : "/PartProprietaires/abonnements.html";
       return true;
     }
     const reason = err.code === "ACCOUNT_SUSPENDED" ? "ACCOUNT_SUSPENDED" : "";
@@ -134,9 +194,17 @@ MIM._createToast = function () {
   return t;
 };
 
-/* ============================================================
-   CSRF : supprimé. Le cookie mim_token utilise SameSite=Lax,
-   ce qui protège contre les attaques CSRF sans token côté client.
-   ============================================================ */
-MIM.csrfHeader = function () { return {};
+MIM._csrfToken = "";
+MIM._csrfReady = fetch((MIM.apiHost ? MIM.apiHost() : window.location.origin) + "/api/csrf-token", {
+  credentials: "include",
+  headers: { "Accept": "application/json" }
+}).then(async function (res) {
+  if (!res.ok) return;
+  const data = await res.json();
+  MIM._csrfToken = typeof data.csrfToken === "string" ? data.csrfToken : "";
+}).catch(function () {
+  MIM._csrfToken = "";
+});
+MIM.csrfHeader = function () {
+  return MIM._csrfToken ? { "X-CSRF-Token": MIM._csrfToken } : {};
 };

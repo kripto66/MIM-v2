@@ -1,32 +1,35 @@
-import jwt from 'jsonwebtoken';
-import { supabase, serviceClient } from '../app.js';
+import { anonClient, authedClient, serviceClient } from '../app.js';
 import { subscriptionExpiredFor } from '../utils/subscription.js';
+import { findSessionByToken, updateSessionTokens, revokeSession } from '../utils/sessions.js';
 
-const SLIDING_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 const PAGE_LOGIN_REDIRECT = '/PartPublic/connexion.html';
+const OWNER_TYPES = ['proprietaire', 'agence', 'entreprise'];
+const ABSOLUTE_SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
+const mfaCache = new Map();
+const mfaInFlight = new Map();
+const MFA_CACHE_TTL_MS = 15000;
 
 function setAuthCookie(res, token) {
+  if (!token) return;
   res.cookie('mim_token', token, {
     httpOnly: true,
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production',
-    maxAge: SLIDING_MAX_AGE,
+    maxAge: ABSOLUTE_SESSION_TTL,
+    path: '/',
   });
 }
 
-// Interprète banned_until de GoTrue (timestamp ISO ou secondes epoch).
 export function isBannedValue(value) {
   if (!value) return false;
-  let ts = typeof value === 'number' ? value * 1000 : Date.parse(String(value));
-  if (Number.isNaN(ts)) return false;
-  return ts > Date.now();
+  const ts = typeof value === 'number' ? value * 1000 : Date.parse(String(value));
+  return !Number.isNaN(ts) && ts > Date.now();
 }
 
-// Statut du compte auth GoTrue : 'active' | 'suspended' | 'deleted'.
 export async function banStatusOf(userId) {
   try {
-    const { data } = await serviceClient().auth.admin.getUserById(userId);
-    if (!data?.user) return 'deleted';
+    const { data, error } = await serviceClient().auth.admin.getUserById(userId);
+    if (error || !data?.user) return 'deleted';
     return isBannedValue(data.user.banned_until) ? 'suspended' : 'active';
   } catch (err) {
     console.warn('[auth] banStatusOf :', err.message);
@@ -34,207 +37,245 @@ export async function banStatusOf(userId) {
   }
 }
 
-// Un locataire ou employé dépend de son propriétaire (fiche locataires /
-// employes, lien account_uid -> user_id). Aucune confiance en un owner_id
-// envoyé par le frontend : la relation est lue en base.
-export async function ownerSuspendedFor(userId, accountType) {
-  if (accountType !== 'locataire' && accountType !== 'employe') return false;
-
+export async function businessAccountActive(userId, accountType) {
+  if (!['locataire', 'employe'].includes(accountType)) return true;
   const table = accountType === 'locataire' ? 'locataires' : 'employes';
   try {
-    const { data } = await serviceClient()
+    const { data, error } = await serviceClient()
+      .from(table)
+      .select('id, statut, user_id')
+      .eq('account_uid', userId)
+      .maybeSingle();
+    return !error && Boolean(data) && data.statut === 'actif';
+  } catch (err) {
+    console.warn('[auth] businessAccountActive :', err.message);
+    return false;
+  }
+}
+
+export async function ownerSuspendedFor(userId, accountType) {
+  if (!['locataire', 'employe'].includes(accountType)) return false;
+  const table = accountType === 'locataire' ? 'locataires' : 'employes';
+  try {
+    const { data, error } = await serviceClient()
       .from(table)
       .select('user_id')
       .eq('account_uid', userId)
       .maybeSingle();
-    return data?.user_id ? (await banStatusOf(data.user_id)) === 'suspended' : false;
+    if (error || !data?.user_id) return true;
+    return (await banStatusOf(data.user_id)) === 'suspended';
   } catch (err) {
     console.warn('[auth] ownerSuspendedFor :', err.message);
     return true;
   }
 }
 
-// Vérifie le jeton mim_token, rafraîchit la session Supabase si nécessaire,
-// puis REVALIDE côté serveur à chaque requête :
-//   * le rôle (profiles.account_type) ;
-//   * le statut du compte (banned_until) ;
-//   * la suspension du propriétaire pour un locataire/employé.
-// Retourne { user, suspended } (payload avec rôle à jour) ou null si la
-// session est invalide (jeton invalide, profil ou compte supprimé).
-async function verifyToken(req) {
-  const token = req.cookies?.mim_token || req.headers?.authorization?.replace('Bearer ', '');
+function tokenHasAal2(accessToken) {
+  if (!accessToken) return false;
+  try {
+    const part = String(accessToken).split('.')[1];
+    const payload = JSON.parse(Buffer.from(part, 'base64url').toString('utf8'));
+    const aal = String(payload.aal || '').toLowerCase();
+    const amr = Array.isArray(payload.amr) ? payload.amr.map((v) => String(v).toLowerCase()) : [];
+    return aal === 'aal2' || amr.includes('aal2') || amr.includes('mfa');
+  } catch {
+    return false;
+  }
+}
 
+export function invalidateMfaCache(userId = null) {
+  if (userId) mfaCache.delete(userId);
+  else mfaCache.clear();
+}
+
+async function mfaFactors(userId, accessToken) {
+  const cached = mfaCache.get(userId);
+  if (cached && Date.now() - cached.at < MFA_CACHE_TTL_MS) return cached.factors;
+  const inFlight = mfaInFlight.get(userId);
+  if (inFlight) return inFlight;
+
+  const request = (async () => {
+    const { data, error } = await serviceClient().auth.admin.getUserById(userId);
+    if (error || !data?.user) throw new Error(error?.message || 'Compte Auth introuvable');
+    if (Array.isArray(data.user.factors)) {
+      mfaCache.set(userId, { at: Date.now(), factors: data.user.factors });
+      return data.user.factors;
+    }
+    const { data: factorData, error: factorError } = await authedClient(accessToken).auth.mfa.listFactors();
+    if (factorError) throw new Error(factorError.message);
+    const factors = factorData?.all || [];
+    mfaCache.set(userId, { at: Date.now(), factors });
+    return factors;
+  })();
+  mfaInFlight.set(userId, request);
+  try {
+    return await request;
+  } finally {
+    mfaInFlight.delete(userId);
+  }
+}
+
+async function verifyToken(req) {
+  const token = req.cookies?.mim_token || req.headers?.authorization?.replace(/^Bearer\s+/i, '');
   if (!token) return null;
 
-  let decoded;
+  let session;
   try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET);
+    session = await findSessionByToken(token);
   } catch (err) {
+    console.warn('[auth] session lookup :', err.message);
     return null;
   }
+  if (!session) return null;
 
-  // Session glissante : renouvelle le cookie et rafraîchit le jeton
-  // Supabase avant son expiration, pour ne jamais déconnecter un
-  // utilisateur actif tant qu'il ne se déconnecte pas explicitement.
-  try {
-    const now = Math.floor(Date.now() / 1000);
-    const nearExpiry = decoded.supabase_expires_at && decoded.supabase_expires_at < now + 300;
-
-    if (nearExpiry && decoded.refresh_token) {
-      const { data, error } = await supabase.auth.refreshSession({
-        refresh_token: decoded.refresh_token,
-      });
-
-      if (!error && data?.session) {
-        decoded = {
-          ...decoded,
-          supabase_token: data.session.access_token,
-          refresh_token: data.session.refresh_token,
-          supabase_expires_at: data.session.expires_at,
-        };
-      } else {
-        console.warn('[auth] refresh jeton Supabase échec :', error?.message);
+  let accessToken = session.supabase_access_token;
+  let refreshToken = session.supabase_refresh_token;
+  const expiresAt = session.supabase_expires_at ? new Date(session.supabase_expires_at).getTime() : 0;
+  if (!accessToken || expiresAt <= Date.now() + 300000) {
+    if (!refreshToken) return null;
+    try {
+      const { data, error } = await anonClient().auth.refreshSession({ refresh_token: refreshToken });
+      if (error || !data?.session || data.session.user?.id !== session.user_id) {
+        await revokeSession(session.id, session.user_id, 'refresh_failed').catch(() => {});
+        return null;
       }
+      accessToken = data.session.access_token;
+      refreshToken = data.session.refresh_token || refreshToken;
+      await updateSessionTokens(session.id, data.session);
+    } catch (err) {
+      await revokeSession(session.id, session.user_id, 'refresh_failed').catch(() => {});
+      console.warn('[auth] refresh session :', err.message);
+      return null;
     }
-  } catch (err) {
-    console.warn('[auth] refresh session échec :', err.message);
   }
 
-  // Revalidation serveur (rôle + ban + propriétaire). Fail-closed :
-  // profil absent ou erreur de lecture => session refusée.
+  let profile;
   try {
-    const { data: profile, error: profileError } = await serviceClient()
+    const result = await serviceClient()
       .from('profiles')
-      .select('account_type')
-      .eq('id', decoded.id)
+      .select('account_type, must_change_password')
+      .eq('id', session.user_id)
       .maybeSingle();
-
-    if (profileError || !profile) return null;
-
-    const ownStatus = await banStatusOf(decoded.id);
-    if (ownStatus === 'deleted') return null;
-
-    decoded.account_type = profile.account_type;
-    const reasons = [];
-    if (ownStatus === 'suspended') reasons.push('banned');
-    if (await ownerSuspendedFor(decoded.id, profile.account_type)) reasons.push('owner_suspended');
-    if (await subscriptionExpiredFor(decoded.id, profile.account_type)) reasons.push('subscription_expired');
-    const suspended = reasons.length > 0;
-
-    return { user: { ...decoded, suspendedReasons: reasons }, suspended };
+    if (result.error || !result.data) return null;
+    profile = result.data;
   } catch (err) {
-    console.warn('[auth] revalidation échec :', err.message);
+    console.warn('[auth] profile revalidation :', err.message);
     return null;
   }
-}
 
-// Restreint une route aux comptes ACTIFS. La suspension (compte suspendu,
-// ou propriétaire suspendu pour un locataire/employé) rend la session
-// invalide pour toute fonctionnalité métier : réponse 401 avec un code
-// identifiable par le frontend, qui affiche un message clair.
-const OWNER_TYPES = ['proprietaire', 'agence', 'entreprise'];
+  const ownStatus = await banStatusOf(session.user_id);
+  if (ownStatus === 'deleted') return null;
+
+  const reasons = [];
+  if (ownStatus === 'suspended') reasons.push('banned');
+  if (await ownerSuspendedFor(session.user_id, profile.account_type)) reasons.push('owner_suspended');
+  if (profile.account_type === 'locataire' || profile.account_type === 'employe') {
+    if (!(await businessAccountActive(session.user_id, profile.account_type))) reasons.push('account_inactive');
+  }
+  if (await subscriptionExpiredFor(session.user_id, profile.account_type)) reasons.push('subscription_expired');
+
+  let factors = [];
+  try {
+    factors = await mfaFactors(session.user_id, accessToken);
+  } catch (err) {
+    console.warn('[auth] MFA revalidation :', err.message);
+    return null;
+  }
+  if (factors.some((factor) => factor.status === 'verified') && !tokenHasAal2(accessToken)) {
+    reasons.push('mfa_required');
+  }
+
+  return {
+    user: {
+      id: session.user_id,
+      account_type: profile.account_type,
+      must_change_password: Boolean(profile.must_change_password),
+      supabase_token: accessToken,
+      refresh_token: refreshToken,
+      supabase_expires_at: session.supabase_expires_at,
+      session_id: session.id,
+      session_token: token,
+      suspendedReasons: reasons,
+    },
+    suspended: reasons.length > 0,
+  };
+}
 
 export function requireActive(req, res, next) {
-  if (req.user?.suspended) {
-    const reasons = Array.isArray(req.user.suspendedReasons) ? req.user.suspendedReasons : [];
-    const onlySubscriptionExpired =
-      reasons.length > 0 && reasons.every((r) => r === 'subscription_expired');
-
-    // Un propriétaire dont l'ABONNEMENT seul est expiré peut se connecter
-    // pour renouveler en ligne : on renvoie un code dédié que le frontend
-    // traduit en redirection vers la page d'abonnement (pas vers la
-    // connexion). Un compte suspendu/banni garde le code classique.
-    if (onlySubscriptionExpired && OWNER_TYPES.includes(req.user.account_type)) {
-      return res.status(401).json({
-        success: false,
-        code: 'SUBSCRIPTION_EXPIRED',
-        message: 'Votre abonnement MIM est expiré. Renouvelez-le depuis votre espace pour continuer.',
-      });
-    }
+  if (!req.user?.suspended) return next();
+  const reasons = Array.isArray(req.user.suspendedReasons) ? req.user.suspendedReasons : [];
+  if (reasons.includes('mfa_required')) {
+    return res.status(401).json({ success: false, code: 'MFA_REQUIRED', message: 'La vérification à deux facteurs est requise.' });
+  }
+  const onlySubscriptionExpired = reasons.length > 0 && reasons.every((reason) => reason === 'subscription_expired');
+  if (onlySubscriptionExpired && OWNER_TYPES.includes(req.user.account_type)) {
     return res.status(401).json({
       success: false,
-      code: 'ACCOUNT_SUSPENDED',
-      message: 'Votre compte a été suspendu.',
+      code: 'SUBSCRIPTION_EXPIRED',
+      message: 'Votre abonnement MIM est expiré. Renouvelez-le depuis votre espace pour continuer.',
     });
   }
-  next();
+  return res.status(401).json({ success: false, code: 'ACCOUNT_SUSPENDED', message: 'Votre compte a été suspendu.' });
 }
 
-// Authentification API. Ne rejette PAS les comptes suspendus : les routes
-// d'auto-service (profil, mot de passe) restent accessibles. La suspension
-// est appliquée métier par requireActive.
 export async function authenticate(req, res, next) {
   const result = await verifyToken(req);
-
   if (!result) {
     return res.status(401).json({ success: false, code: 'UNAUTHENTICATED', message: 'Non authentifié.' });
   }
-
   req.user = result.user;
   req.user.suspended = result.suspended;
-  setAuthCookie(res, signToken(result.user));
-  next();
+  setAuthCookie(res, result.user.session_token);
+  return next();
 }
 
-// Garde des pages statiques : redirige vers la page de connexion quand le
-// visiteur n'est pas authentifié (un 401 JSON serait inadapté au HTML).
+export function requirePasswordChanged(req, res, next) {
+  if (!req.user?.must_change_password) return next();
+  return res.status(403).json({
+    success: false,
+    code: 'PASSWORD_CHANGE_REQUIRED',
+    message: 'Vous devez modifier votre mot de passe avant d\'utiliser cette fonctionnalité.',
+  });
+}
+
 export function authenticatePage(redirectTo = PAGE_LOGIN_REDIRECT) {
   return async (req, res, next) => {
     const result = await verifyToken(req);
-
-    if (!result) {
-      return res.redirect(redirectTo);
-    }
-
+    if (!result) return res.redirect(redirectTo);
     req.user = result.user;
     req.user.suspended = result.suspended;
-    setAuthCookie(res, signToken(result.user));
+    setAuthCookie(res, result.user.session_token);
 
-    // Propriétaire dont le SEUL motif de blocage est l'abonnement expiré :
-    // rediriger directement vers sa page d'abonnement (renouvellement en
-    // ligne), jamais vers la connexion. La page d'abonnement elle-même
-    // n'est jamais redirigée, sinon boucle infinie.
-    const reasons = Array.isArray(result.user.suspendedReasons) ? result.user.suspendedReasons : [];
-    const onlySubscriptionExpired =
-      reasons.length > 0 && reasons.every((r) => r === 'subscription_expired');
-    const isAbonnementsPage =
-      req.path === '/abonnements.html' || req.path.endsWith('/abonnements.html');
-    if (onlySubscriptionExpired && OWNER_TYPES.includes(result.user.account_type) && !isAbonnementsPage) {
-      return res.redirect('/PartProprietaires/abonnements.html');
+    if (result.user.suspendedReasons?.includes('mfa_required')) {
+      return res.redirect('/PartPublic/connexion.html?mfa_required=1');
     }
-
-    next();
+    if (result.user.must_change_password && !req.path.endsWith('change-password.html')) {
+      return res.redirect('/PartPublic/change-password.html');
+    }
+    const reasons = Array.isArray(result.user.suspendedReasons) ? result.user.suspendedReasons : [];
+    const onlySubscriptionExpired = reasons.length > 0 && reasons.every((reason) => reason === 'subscription_expired');
+    const isAbonnementsPage = req.path === '/abonnements.html' || req.path.endsWith('/abonnements.html');
+    if (onlySubscriptionExpired && OWNER_TYPES.includes(result.user.account_type) && !isAbonnementsPage) {
+      return res.redirect(result.user.account_type === 'agence' ? '/PartAgence/first_Mode/abonnements.html' : '/PartProprietaires/abonnements.html');
+    }
+    return next();
   };
-}
-
-export function signToken(payload, expiresIn = '7d') {
-  const clean = {
-    id: payload.id,
-    account_type: payload.account_type,
-    supabase_token: payload.supabase_token,
-    refresh_token: payload.refresh_token,
-    supabase_expires_at: payload.supabase_expires_at,
-  };
-  if (payload.mfa_pending) clean.mfa_pending = true;
-  if (payload.factorId) clean.factorId = payload.factorId;
-  return jwt.sign(clean, process.env.JWT_SECRET, { expiresIn });
 }
 
 export function requireAdmin(req, res, next) {
-  if (req.user?.account_type !== 'admin' && req.user?.account_type !== 'ultra_admin') {
+  if (!['admin', 'ultra_admin'].includes(req.user?.account_type)) {
     return res.status(403).json({ success: false, code: 'FORBIDDEN', message: "Accès réservé à l'administration." });
   }
-  next();
+  return next();
 }
 
 export function requireUltraAdmin(req, res, next) {
   if (req.user?.account_type !== 'ultra_admin') {
     return res.status(403).json({ success: false, code: 'FORBIDDEN', message: 'Accès réservé au Super Admin.' });
   }
-  next();
+  return next();
 }
 
-// Restriction par rôle pour les endpoints API (403 JSON).
 export function requireRole(...roles) {
   return (req, res, next) => {
     if (req.user && roles.includes(req.user.account_type)) return next();
@@ -242,8 +283,6 @@ export function requireRole(...roles) {
   };
 }
 
-// Restriction par rôle pour les zones de pages (redirection vers la
-// connexion pour un rôle inadapté).
 export function requireZone(...roles) {
   return (req, res, next) => {
     if (req.user && roles.includes(req.user.account_type)) return next();

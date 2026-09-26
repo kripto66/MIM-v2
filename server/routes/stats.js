@@ -11,11 +11,11 @@ router.get('/dashboard', async (req, res) => {
     const [{ data: logements }, { data: locataires }, { data: paiements }, { data: incidents }, { data: interventions }, { data: employes }, { data: salaires }] =
       await Promise.all([
         sb.from('logements').select('id, statut, loyer_mensuel').eq('user_id', userId),
-        sb.from('locataires').select('id').eq('user_id', userId),
+        sb.from('locataires').select('id').eq('user_id', userId).eq('statut', 'actif').is('superseded_at', null),
         sb.from('paiements').select('id, montant, statut, mois').eq('user_id', userId),
         sb.from('incidents').select('id, statut').eq('user_id', userId),
         sb.from('interventions').select('id, statut').eq('user_id', userId),
-        sb.from('employes').select('id').eq('user_id', userId),
+        sb.from('employes').select('id, statut').eq('user_id', userId),
         sb.from('paiements_employes').select('id, statut').eq('user_id', userId),
       ]);
 
@@ -45,6 +45,8 @@ router.get('/dashboard', async (req, res) => {
         availableProperties: available,
         totalTenants: locataires?.length ?? 0,
         totalEmployees: employes?.length ?? 0,
+        activeTenants: (locataires ?? []).filter((l) => l.statut === 'actif').length,
+        activeEmployees: (employes ?? []).filter((e) => e.statut === 'actif').length,
         expectedRent,
         paidRent,
         lateRent,

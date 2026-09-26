@@ -50,8 +50,24 @@ async function main() {
     process.exit(0);
   }
 
-  const deleted = sql(`DELETE FROM auth.users WHERE email LIKE 'loadtest.%';`);
-  console.log(`\n  Supprimés : ${deleted} utilisateurs auth.users (cascade appliquée).`);
+  const cleanup = [
+    `DELETE FROM public.paiements_employes WHERE user_id IN (SELECT id FROM auth.users WHERE email LIKE 'loadtest.%')`,
+    `DELETE FROM public.paiements WHERE user_id IN (SELECT id FROM auth.users WHERE email LIKE 'loadtest.%')`,
+    `DELETE FROM public.interventions WHERE user_id IN (SELECT id FROM auth.users WHERE email LIKE 'loadtest.%')`,
+    `DELETE FROM public.incidents WHERE user_id IN (SELECT id FROM auth.users WHERE email LIKE 'loadtest.%')`,
+    `DELETE FROM public.notifications WHERE user_id IN (SELECT id FROM auth.users WHERE email LIKE 'loadtest.%')`,
+    `DELETE FROM public.sessions WHERE user_id IN (SELECT id FROM auth.users WHERE email LIKE 'loadtest.%')`,
+    `DELETE FROM public.employes_biens WHERE user_id IN (SELECT id FROM auth.users WHERE email LIKE 'loadtest.%')`,
+    `DELETE FROM public.employes WHERE user_id IN (SELECT id FROM auth.users WHERE email LIKE 'loadtest.%')`,
+    `DELETE FROM public.locataires WHERE user_id IN (SELECT id FROM auth.users WHERE email LIKE 'loadtest.%')`,
+    `DELETE FROM public.logements WHERE user_id IN (SELECT id FROM auth.users WHERE email LIKE 'loadtest.%')`,
+    `DELETE FROM public.biens WHERE user_id IN (SELECT id FROM auth.users WHERE email LIKE 'loadtest.%')`,
+    `DELETE FROM public.account_recovery_emails WHERE user_id IN (SELECT id FROM auth.users WHERE email LIKE 'loadtest.%')`,
+    `DELETE FROM public.profiles WHERE id IN (SELECT id FROM auth.users WHERE email LIKE 'loadtest.%')`,
+    `DELETE FROM auth.users WHERE email LIKE 'loadtest.%'`,
+  ].join('; ');
+  const deleted = sql(`BEGIN; ${cleanup}; COMMIT;`);
+  console.log(`\n  Supprimés : ${deleted} ligne(s) de nettoyage loadtest.`);
 
   // Vérification post-suppression
   const remains = sql(`SELECT count(*) FROM auth.users WHERE email LIKE 'loadtest.%' OR id IN (SELECT id FROM public.profiles WHERE email LIKE 'loadtest.%' OR username LIKE 'loadtest.%');`);

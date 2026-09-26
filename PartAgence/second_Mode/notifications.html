@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Notifications</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/mim-errors.css">
+    <script src="/mim-errors.js"></script>
+
+    <link rel="stylesheet" href="/PartAgence/first_Mode/style.css">
+    <link rel="stylesheet" href="/PartPublic/mim-ui.css">
+
+</head>
+
+<body data-espace="agence2">
+
+    <div class="dashboard">
+
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
+
+            <a class="logo" href="/PartAgence/first_Mode/dashboard.html" data-sidebar-toggle-logo title="Tableau de bord Agence">
+                MIM
+            </a>
+
+            <nav class="sidebar-menu">
+                <div class="nav-category">MODE 2</div>
+                <a href="/PartAgence/first_Mode/dashboard.html">
+                    ← Retour au Dashboard Agence
+                </a>
+                <div class="nav-category">Bien courant</div>
+                <a href="/PartAgence/second_Mode/bien.html" id="navBien">Le bien</a>
+                <a href="/PartAgence/second_Mode/logements.html" id="navLogements">Logements</a>
+                <a href="/PartAgence/second_Mode/locataires.html" id="navLocataires">Locataires</a>
+                <a href="/PartAgence/second_Mode/paiements.html" id="navPaiements">Paiements</a>
+                <a href="/PartAgence/second_Mode/incidents.html" id="navIncidents">Incidents</a>
+                <a href="/PartAgence/second_Mode/prestataires.html" id="navPrestataires">Prestataires</a>
+                <a href="/PartAgence/second_Mode/interventions.html" id="navInterventions">Interventions</a>
+                <div class="nav-category">Suivi</div>
+                <a href="/PartAgence/second_Mode/notifications.html" id="navNotifications" class="active">Notifications</a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button id="logoutBtn" type="button">
+                    Déconnexion
+                </button>
+            </div>
+
+        </aside>
+
+        <main class="main-content">
+
+            <header class="dashboard-header">
+
+                <button class="menu-toggle" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">
+                    ☰
+                </button>
+
+                <div id="apiMessage" class="api-message" style="display:none;"></div>
+
+                <div class="welcome">
+                    <h1>Notifications<span class="accent">.</span></h1>
+                    <p>Les informations importantes de votre activité.</p>
+                </div>
+
+                <div class="header-actions">
+                    <button class="btn btn-secondary" id="markAllBtn">Tout marquer comme lu</button>
+                    <button class="btn btn-delete" id="deleteAllBtn">Tout supprimer</button>
+                    <a href="/PartAgence/first_Mode/dashboard.html" class="btn btn-secondary">
+                        ← Retour au Dashboard Agence
+                    </a>
+                </div>
+
+            </header>
+
+            <!-- Bandeau bien -->
+            <div id="bienBanner" class="sub-banner sub-banner-info" hidden></div>
+
+            <section class="dashboard-section">
+
+                <div class="section-header">
+                    <h2>Notifications récentes</h2>
+                </div>
+
+                <div id="notificationsList">
+                    <div class="empty-state">Chargement...</div>
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <script src="/PartAgence/second_Mode/scope.js"></script>
+    <script>
+        if (window.MIM && window.MIM.agenceBien && window.MIM.agenceBien.id) {
+            window.MIM.apiBase = "/api";
+            window.MIM.mode2Global = true;
+        }
+    </script>
+    <script src="/PartProprietaires/api.js"></script>
+    <script src="/PartAgence/second_Mode/mode2.js"></script>
+    <script src="/PartPublic/form-utils.js"></script>
+    <script src="/PartProprietaires/notifications.js"></script>
+
+    <script src="/PartPublic/sidebar.js"></script>
+
+</body>
+
+</html>

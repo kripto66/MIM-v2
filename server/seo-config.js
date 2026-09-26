@@ -39,9 +39,11 @@ export const NOINDEX_PATHS = [
   '/change-password',
   '/2fa',
   '/PartProprietaires',
+  '/PartProprietairesShadow',
   '/PartLocataires',
   '/PartAdmin',
   '/PartUltraAdmin',
   '/PartEmployes',
+  '/PartAgence',
   '/api',
 ];

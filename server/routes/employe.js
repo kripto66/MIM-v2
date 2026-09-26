@@ -6,14 +6,21 @@
 // ============================================================
 
 import { Router } from 'express';
-import { supabase, authedClient, serviceClient } from '../app.js';
+import { anonClient, authedClient, serviceClient } from '../app.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { tenantEmailFor, usernameIsValid } from '../utils/tenantAccount.js';
 import { notify } from '../utils/notifications.js';
-import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
+import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paymentLinkError, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
 
 const router = Router();
+const PASSWORD_EXEMPT_EMPLOYEE_PATHS = new Set(['/me', '/profile', '/password']);
+
+router.use((req, res, next) => {
+  if (PASSWORD_EXEMPT_EMPLOYEE_PATHS.has(req.path)) return next();
+  if (!req.user?.must_change_password) return next();
+  return res.status(403).json({ success: false, code: 'PASSWORD_CHANGE_REQUIRED', message: 'Vous devez modifier votre mot de passe avant d\'utiliser cette fonctionnalité.' });
+});
 
 // Charge la fiche employé + le propriétaire qui l'emploie (ou null),
 // ainsi que ses biens affectés (employes_biens) et les logements
@@ -49,6 +56,9 @@ async function requireEmploye(req, res, next) {
   const ctx = await employeContext(req.user.id);
   if (!ctx) {
     return res.status(403).json({ success: false, message: 'Votre compte n\'est pas rattaché à une fiche employé. Contactez votre employeur.' });
+  }
+  if (ctx.employe.statut !== 'actif') {
+    return res.status(403).json({ success: false, code: 'ACCOUNT_INACTIVE', message: 'Votre compte employé est inactif.' });
   }
   req.employe = ctx;
   next();
@@ -539,6 +549,7 @@ router.post('/paiements/:id/confirmer', requireEmploye, async (req, res) => {
       .from('paiements_employes')
       .update({
         statut: 'paye',
+        date_paiement: new Date().toISOString().slice(0, 10),
         confirmed_at: new Date().toISOString(),
         confirmed_by: uid,
       })
@@ -679,6 +690,8 @@ router.post('/moyens-paiement', requireEmploye, async (req, res) => {
       return res.status(400).json({ success: false, message: 'Type de moyen de paiement invalide.' });
     }
 
+    const linkError = paymentLinkError(req.body?.lien_paiement);
+    if (linkError) return res.status(400).json({ success: false, message: linkError, errors: { lien_paiement: linkError } });
     const clean = sanitizeMoyenBody(type, req.body);
     const { data, error } = await sb
       .from('moyens_paiement_employes')
@@ -714,6 +727,8 @@ router.put('/moyens-paiement/:id', requireEmploye, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Moyen de paiement introuvable.' });
     }
 
+    const linkError = paymentLinkError(req.body?.lien_paiement);
+    if (linkError) return res.status(400).json({ success: false, message: linkError, errors: { lien_paiement: linkError } });
     const clean = sanitizeMoyenBody(existing.type, req.body);
     const { data, error } = await sb
       .from('moyens_paiement_employes')
@@ -873,7 +888,7 @@ router.put('/password', requireEmploye, async (req, res) => {
     }
 
     if (!isForcedChange) {
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await anonClient().auth.signInWithPassword({
         email: account.user.email,
         password: current_password,
       });

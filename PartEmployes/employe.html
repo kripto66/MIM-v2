@@ -41,14 +41,14 @@
         <p>Suivez vos tâches, incidents et interventions.</p>
     </div><button class="primary" data-view="tasks">Voir mes tâches</button>
 </div>
-<div class="stats"><article><small>Mes tâches</small><strong id="sTasks">—</strong>
-    <em id="sTasksSub">Chargement…</em></article><article>
+<div class="stats"><article class="stat stat-tasks"><small>Mes tâches</small><strong id="sTasks" data-count>—</strong>
+    <em id="sTasksSub">Chargement…</em></article><article class="stat stat-incidents">
         <small>Incidents ouverts</small>
-        <strong id="sIncidents">—</strong><em>Réels</em>
-    </article><article><small>Interventions</small>
-        <strong id="sInterventions">—</strong><em>Réelles</em>
-    </article><article><small>Notifications</small>
-        <strong id="sNotifications">—</strong><em>Non lues</em>
+        <strong id="sIncidents" data-count>—</strong><em>Réels</em>
+    </article><article class="stat stat-interventions"><small>Interventions</small>
+        <strong id="sInterventions" data-count>—</strong><em>Réelles</em>
+    </article><article class="stat stat-notifications"><small>Notifications</small>
+        <strong id="sNotifications" data-count>—</strong><em>Non lues</em>
     </article></div>
 <div class="columns"><article class="panel">
     <h3>Priorités</h3><div id="priorities"></div></article>
@@ -187,5 +187,6 @@
 </div>
 <script src="employe.js"></script>
 <script src="../PartPublic/sidebar.js"></script>
+<script src="../PartPublic/dash-fx.js"></script>
 </body>
 </html>

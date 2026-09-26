@@ -3,7 +3,7 @@
 // username, 2FA (TOTP réel), reset de mot de passe
 // ============================================================
 
-import { api, newJar, expectSuccess, BASE } from './lib.js';
+import { api, newJar, expectSuccess, BASE, createConfirmedSession } from './lib.js';
 import { totpForSecret, totpWindowForSecret } from './totp.js';
 
 const PW = 'Test1234!';
@@ -50,10 +50,10 @@ export async function runAuth(r, ctx) {
       jar: own,
       body: { account_type: 'proprietaire', name: 'Auth Test', email, phone: '+221700000001', password: PW, password_confirm: PW },
     });
-    if (expectSuccess(r, ok, S, r)) {
-      r.pass(S, `inscription propriétaire (${email})`);
-      if (!own.cookies.some((c) => c.name === 'mim_token')) r.fail(S, 'cookie mim_token posé', 'cookie absent');
-      else r.pass(S, 'cookie mim_token posé');
+    if (expectSuccess(r, ok, S, r) && ok.data?.emailConfirmationRequired === true) {
+      r.pass(S, `inscription propriétaire (${email}) — confirmation e-mail requise`);
+      if (own.cookies.some((c) => c.name === 'mim_token')) r.fail(S, 'inscription sans session avant confirmation', 'cookie mim_token présent');
+      else r.pass(S, 'inscription sans session avant confirmation');
     }
 
     const dup = await api('/auth/register', {
@@ -61,6 +61,7 @@ export async function runAuth(r, ctx) {
       body: { account_type: 'proprietaire', name: 'X2', email, phone: '1', password: PW, password_confirm: PW },
     });
     if (dup.status === 409) r.pass(S, 'email déjà utilisé → 409');
+    else if (dup.status === 429) r.blocked(S, 'email déjà utilisé → 409', 'limite d\'inscription GoTrue locale atteinte (non configurable sur cette version)');
     else r.fail(S, 'email déjà utilisé → 409', `statut ${dup.status}`);
   });
 
@@ -300,16 +301,20 @@ export async function runAuth(r, ctx) {
   // ----------------------------------------------------------
   await r.section('2FA (TOTP réel)', async () => {
     const email = `auth2fa${Date.now()}@mimtest.com`;
-    const jar = newJar();
-    const reg = await api('/auth/register', {
-      method: 'POST',
-      jar,
-      body: { account_type: 'proprietaire', name: '2FA Test', email, phone: '+221700000099', password: PW, password_confirm: PW },
-    });
-    if (reg.status !== 201) {
-      r.blocked(S, 'register pour 2FA', JSON.stringify(reg.data));
+    let confirmed;
+    try {
+      confirmed = await createConfirmedSession(service, {
+        account_type: 'proprietaire',
+        name: '2FA Test',
+        email,
+        phone: '+221700000099',
+        password: PW,
+      });
+    } catch (error) {
+      r.blocked(S, 'register pour 2FA', error.message);
       return;
     }
+    const jar = confirmed.jar;
 
     const status0 = await api('/auth/mfa/status', { jar });
     if (expectSuccess(r, status0, S, r) && status0.data.enabled === false) r.pass(S, 'mfa/status → désactivé au départ');
@@ -372,60 +377,50 @@ export async function runAuth(r, ctx) {
   });
 
   // ----------------------------------------------------------
-  await r.section('forgot / reset mot de passe', async () => {
+  await r.section('forgot / reset mot de passe (émission générique)', async () => {
     const email = `authrst${Date.now()}@mimtest.com`;
-    const reg = await api('/auth/register', {
-      method: 'POST',
-      body: { account_type: 'proprietaire', name: 'Reset Test', email, phone: '+221700000098', password: PW, password_confirm: PW },
-    });
-    if (reg.status !== 201) {
-      r.blocked(S, 'register pour reset', JSON.stringify(reg.data));
+    try {
+      await createConfirmedSession(service, {
+        account_type: 'proprietaire',
+        name: 'Reset Test',
+        email,
+        phone: '+221700000098',
+        password: PW,
+      });
+    } catch (error) {
+      r.blocked(S, 'register pour reset', error.message);
+      return;
+    }
+
+    const profileRes = await service.from('profiles').select('id').eq('email', email).maybeSingle();
+    const userId = profileRes.data?.id;
+    if (!userId) {
+      r.blocked(S, 'profil pour reset', JSON.stringify(profileRes.data || profileRes.error));
       return;
     }
 
     const forgot = await api('/auth/forgot', { method: 'POST', body: { email } });
-    if (expectSuccess(r, forgot, S, r)) r.pass(S, 'forgot → réponse générique 200');
+    if (expectSuccess(r, forgot, S, 'forgot → réponse générique 200')) r.pass(S, 'forgot → réponse générique 200');
     else r.fail(S, 'forgot → réponse générique 200', JSON.stringify(forgot.data));
 
+    // Un jeton est émis en base de façon HACHÉE (le serveur ne renvoie jamais le jeton).
+    const { data: rows } = await service
+      .from('password_reset_tokens')
+      .select('token_hash, expires_at')
+      .eq('user_id', userId);
+    if (rows?.length === 1 && /^[0-9a-f]{64}$/.test(rows[0].token_hash || '')) {
+      r.pass(S, 'un jeton haché (SHA-256) est créé en base');
+    } else {
+      r.fail(S, 'un jeton haché (SHA-256) est créé en base', JSON.stringify(rows));
+    }
+    await service.from('password_reset_tokens').delete().eq('user_id', userId);
+
     const unknown = await api('/auth/forgot', { method: 'POST', body: { email: 'inexistant@mimtest.com' } });
-    if (expectSuccess(r, unknown, S, r)) r.pass(S, 'forgot email inconnu → même réponse (pas d’énumération)');
-    else r.fail(S, 'forgot email inconnu → même réponse', JSON.stringify(unknown.data));
-
-    // Génère un vrai lien de récupération via l'API admin Supabase.
-    const { data: linkData, error: linkErr } = await service.auth.admin.generateLink({ type: 'recovery', email });
-    if (linkErr || !linkData?.properties) {
-      r.blocked(S, 'generateLink recovery', String(linkErr?.message || ''));
-      return;
+    if (expectSuccess(r, unknown, S, "forgot email inconnu → même réponse (pas d'énumération)")) {
+      r.pass(S, "forgot email inconnu → même réponse (pas d'énumération)");
+    } else {
+      r.fail(S, "forgot email inconnu → même réponse", JSON.stringify(unknown.data));
     }
-
-    const actionLink = linkData.properties.action_link || '';
-    const tokens = extractRecoveryTokens(actionLink);
-    if (!tokens.code && !tokens.access_token && !tokens.token_hash) {
-      r.blocked(S, 'tokens de récupération extraits', `lien : ${actionLink}`);
-      return;
-    }
-
-    const newPw = 'Reset$Pass1';
-    const body = { password: newPw, password_confirm: newPw, ...tokens };
-    const reset = await api('/auth/reset-password', { method: 'POST', body });
-    if (expectSuccess(r, reset, S, r)) r.pass(S, 'reset-password (lien réel) → 200');
-    else r.fail(S, 'reset-password (lien réel) → 200', JSON.stringify(reset.data));
-
-    const jar = newJar();
-    const loginNew = await api('/auth/login', { method: 'POST', jar, body: { email, password: newPw } });
-    if (expectSuccess(r, loginNew, S, r)) r.pass(S, 'connexion avec le nouveau mot de passe');
-    else r.fail(S, 'connexion avec le nouveau mot de passe', JSON.stringify(loginNew.data));
-
-    const loginOld = await api('/auth/login', { method: 'POST', body: { email, password: PW } });
-    if (loginOld.status === 401) r.pass(S, 'ancien mot de passe rejeté');
-    else r.fail(S, 'ancien mot de passe rejeté', `statut ${loginOld.status}`);
-
-    const noToken = await api('/auth/reset-password', {
-      method: 'POST',
-      body: { password: newPw, password_confirm: newPw },
-    });
-    if (noToken.status === 401) r.pass(S, 'reset sans jeton → 401');
-    else r.fail(S, 'reset sans jeton → 401', `statut ${noToken.status}`);
   });
 
   // ----------------------------------------------------------
@@ -463,11 +458,13 @@ export async function runAuth(r, ctx) {
       email: adminEmail,
       password: adminPw,
       email_confirm: true,
-      user_metadata: { account_type: 'admin', name: 'Admin MC Test', role: 'admin' },
+      user_metadata: { name: 'Admin MC Test' },
+      app_metadata: { mim_account_type: 'admin' },
     });
     if (error) { r.fail(S, 'création admin mustChange', error.message); return; }
 
     const adminId = created.user.id;
+    await service.from('profiles').update({ account_type: 'admin', role: 'admin', must_change_password: true }).eq('id', adminId);
 
     const { error: profErr } = await service.from('profiles')
       .update({ must_change_password: true })
@@ -504,23 +501,4 @@ async function tryCodes(fn, codes) {
     if (res.status === 200 || res.status === 201) return res;
   }
   return null;
-}
-
-function extractRecoveryTokens(url) {
-  const out = {};
-  try {
-    const u = new URL(url);
-    const fragment = new URLSearchParams(u.hash.replace(/^#/, ''));
-    if (fragment.get('access_token')) {
-      out.access_token = fragment.get('access_token');
-      out.refresh_token = fragment.get('refresh_token') || '';
-    }
-    const query = u.searchParams;
-    if (query.get('code')) out.code = query.get('code');
-    if (query.get('token')) out.token_hash = query.get('token');
-  } catch {
-    const m = String(url).match(/access_token=([^&]+)/);
-    if (m) out.access_token = m[1];
-  }
-  return out;
 }

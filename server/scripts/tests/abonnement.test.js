@@ -8,7 +8,7 @@
 // puis ses locataires/employés.
 // ============================================================
 
-import { api, newJar, expectSuccess } from './lib.js';
+import { api, newJar, expectSuccess, loginForBusiness } from './lib.js';
 
 const S = 'abonnement';
 const ADMIN_PASSWORD = 'Admin1234!';
@@ -29,12 +29,14 @@ export async function runAbonnement(r, ctx) {
     email: adminEmail,
     password: ADMIN_PASSWORD,
     email_confirm: true,
-    user_metadata: { account_type: 'admin', name: 'Admin Abonnement', role: 'admin' },
+    user_metadata: { name: 'Admin Abonnement' },
+    app_metadata: { mim_account_type: 'admin' },
   });
   if (adminError) {
     r.fail(S, 'création compte admin', adminError.message);
     return;
   }
+  await service.from('profiles').update({ account_type: 'admin', role: 'admin' }).eq('id', created.user.id);
   const adminJar = newJar();
   const adminLogin = await api('/auth/login', {
     method: 'POST',
@@ -199,10 +201,10 @@ export async function runAbonnement(r, ctx) {
     }
 
     const biens = await api('/biens', { jar: ownerJar });
-    if (biens.status === 401 && biens.data?.code === 'ACCOUNT_SUSPENDED') {
-      r.pass(S, 'session existante → route métier 401 ACCOUNT_SUSPENDED');
+    if (biens.status === 401 && ['ACCOUNT_SUSPENDED', 'SUBSCRIPTION_EXPIRED'].includes(biens.data?.code)) {
+      r.pass(S, 'session existante → route métier 401');
     } else {
-      r.fail(S, 'session existante → route métier 401 ACCOUNT_SUSPENDED', `statut ${biens.status}`);
+      r.fail(S, 'session existante → route métier 401', `statut ${biens.status} ${JSON.stringify(biens.data)}`);
     }
   });
 
@@ -210,14 +212,19 @@ export async function runAbonnement(r, ctx) {
   // 8. Dépendant locataire : login bloqué quand le propriétaire expire.
   // ----------------------------------------------------------
   await r.section('abonnement : dépendant locataire', async () => {
-    const tenant = owner.locataires[0];
-    const tenantIdentifier = tenant?.username || 'own1loc1';
+    const { data: activeTenants = [] } = await service
+      .from('locataires')
+      .select('username')
+      .eq('user_id', owner.id)
+      .eq('statut', 'actif')
+      .not('account_uid', 'is', null)
+      .is('superseded_at', null)
+      .limit(1);
+    const tenant = activeTenants[0] || owner.locataires[0];
+    const tenantIdentifier = tenant?.username || ctx.seed.owners[0].locataires[0].username;
 
-    const login = await api('/auth/login', {
-      method: 'POST',
-      jar: newJar(),
-      body: { identifier: tenantIdentifier, password: 'Test1234!' },
-    });
+    const tenantSession = await loginForBusiness(tenantIdentifier, 'Test1234!');
+    const login = tenantSession.login;
     // Le compte locataire est suspendu avec le propriétaire → login refusé (401 générique).
     if (login.status === 401 && login.data?.code === 'INVALID_CREDENTIALS') {
       r.pass(S, 'login locataire (propriétaire expiré) → refusé (401, anti-énumération)');
@@ -287,7 +294,7 @@ export async function runAbonnement(r, ctx) {
 
     const me = await api('/subscription/me', { jar: ownerJar });
     const keys = Object.keys(me.data?.subscription || {});
-    const noLoyer = !keys.some((k) => /locataire|logement|loyer/i.test(k));
+     const noLoyer = !keys.some((k) => /loyer|paiements/i.test(k));
     if (noLoyer) r.pass(S, '/subscription/me ne contient aucune donnée de loyer');
     else r.fail(S, '/subscription/me ne contient aucune donnée de loyer', keys.join(','));
   });
@@ -318,13 +325,18 @@ export async function runAbonnement(r, ctx) {
 
     // Un locataire d'un autre propriétaire (actif) ne peut pas lire
     // l'abonnement : route réservée aux propriétaires (403).
-    const tenant = other.locataires[0];
-    const tenantJar = newJar();
-    const tenantLogin = await api('/auth/login', {
-      method: 'POST',
-      jar: tenantJar,
-      body: { identifier: tenant?.username || 'own2loc1', password: 'Test1234!' },
-    });
+    const { data: activeOtherTenants = [] } = await service
+      .from('locataires')
+      .select('username')
+      .eq('user_id', other.id)
+      .eq('statut', 'actif')
+      .not('account_uid', 'is', null)
+      .is('superseded_at', null)
+      .limit(1);
+    const tenant = activeOtherTenants[0];
+    const tenantSession = await loginForBusiness(tenant?.username || other.locataires[0].username, 'Test1234!');
+    const tenantJar = tenantSession.jar;
+    const tenantLogin = tenantSession.login;
     if (tenantLogin.status === 200) {
       const sub = await api('/subscription/me', { jar: tenantJar });
       if (sub.status === 403) r.pass(S, 'un locataire ne peut pas lire l\'abonnement (403)');

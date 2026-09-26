@@ -18,7 +18,7 @@ function parseResult() {
     showToast("Paiement reçu. Votre abonnement sera activé dans quelques instants.", "success");
     setTimeout(loadAll, 2500);
   } else if (code === "simule") {
-    showToast("Paiement simulé accepté. Votre abonnement est activé.", "success");
+    showToast("Paiement simulé enregistré. L'abonnement sera activé après confirmation du webhook.", "info");
     setTimeout(loadAll, 1200);
   } else if (code === "echec") {
     showToast("Le paiement n'a pas été validé. Vous pouvez réessayer.", "error");
@@ -100,21 +100,15 @@ async function loadSubscription() {
 
 function dureeLabel(n) { return n === 1 ? "mensuel" : n + " mois"; }
 
-// Matrice des fonctionnalités (affichage) : les plafonds réels sont lus
-// en base et appliqués par le serveur ; cette matrice ne fait que décrire
-// ce qui est inclus sur chaque pack. Employés & prestataires : illimités.
-const MATRIX = [
-  { label: "Gestion locataires", have: ["standard", "premium", "pro", "agence"] },
-  { label: "Paiements & échéances", have: ["standard", "premium", "pro", "agence"] },
-  { label: "Signalements & incidents", have: ["standard", "premium", "pro", "agence"] },
-  { label: "Gestion employés", have: ["standard", "premium", "pro", "agence"] },
-  { label: "Gestion prestataires", have: ["standard", "premium", "pro", "agence"] },
-  { label: "Multi-immeubles", have: ["premium", "pro", "agence"] },
-  { label: "Rapports avancés", have: ["premium", "pro", "agence"] },
-  { label: "Statistiques avancées", have: ["pro", "agence"] },
-  { label: "Gestion d'agence", have: ["pro", "agence"] },
-  { label: "Support prioritaire", have: ["pro", "agence"] },
-  { label: "Fonctionnalités personnalisées", have: ["agence"] },
+// Fonctionnalités communes : ce que le produit apporte, quelle que
+// soit la formule. Les PALIERS (immeubles / logements / locataires)
+// viennent de l'API, jamais d'une liste de codes en dur.
+const BASE_FEATURES = [
+  "Gestion des locataires",
+  "Paiements & échéances",
+  "Signalements & incidents",
+  "Gestion des employés",
+  "Gestion des prestataires",
 ];
 
 function capLine(max, nounPlural) {
@@ -128,31 +122,28 @@ function renderPlans(plans, current) {
     return;
   }
   const currentCode = current ? current.planCode : null;
-  const popular = plans.find((x) => x.code === "premium") || plans[Math.floor(plans.length / 2)];
+  const popular = plans[Math.floor(plans.length / 2)];
   grid.innerHTML = plans
-    .map((p) => {
+    .map((p, index) => {
       const isCurrent = currentCode && currentCode === p.code;
-      const isPopular = popular && popular.code === p.code;
+      const isPopular = popular && popular.code === p.code && index === Math.floor(plans.length / 2);
       const included =
         "<li>" + escapeHtml(capLine(p.max_immeubles, "immeuble(s)")) + "</li>" +
         "<li>" + escapeHtml(capLine(p.max_logements, "logement(s)")) + "</li>" +
         "<li>" + escapeHtml(capLine(p.max_locataires, "locataire(s)")) + "</li>" +
         "<li>Employés illimités</li>" +
         "<li>Prestataires illimités</li>";
-      const mx = MATRIX.map((m) =>
-        "<li" + (m.have.includes(p.code) ? "" : ' class="plan-feat-off"') + ">" +
-        escapeHtml(m.label) +
-        "</li>"
-      ).join("");
-      const name = String(p.nom || "").replace(/Propriétaire\s+/i, "") || p.code;
+      const mx = BASE_FEATURES.map((label) => "<li>" + escapeHtml(label) + "</li>").join("");
+      const name = String(p.nom || "") || p.code;
+      const period = p.duree_abonnement === 1 ? "/mois" : "/" + p.duree_abonnement + " mois";
       return (
-        '<div class="plan-card plan-accent-' + escapeHtml(p.code) + (isCurrent ? " plan-active" : "") + (isPopular ? " plan-popular" : "") + '">' +
+        '<div class="plan-card plan-accent-' + escapeHtml(p.audience || "proprietaire") + (isCurrent ? " plan-active" : "") + (isPopular ? " plan-popular" : "") + '">' +
         '<div class="plan-top">' +
-        (isPopular ? '<span class="plan-badge">Le plus populaire</span>' : "") +
+        (isPopular ? '<span class="plan-badge">Le plus choisi</span>' : "") +
         '<h3 class="plan-name">' + escapeHtml(name) + "</h3>" +
         '<div class="plan-price">' + Number(p.prix).toLocaleString("fr-FR") +
-        ' <span class="plan-period">' + escapeHtml(p.devise || "XOF") + "/mois</span></div>" +
-        '<div class="plan-desc">' + escapeHtml(p.devise || "XOF") + " · " + dureeLabel(p.duree_abonnement) + " · paiement sécurisé</div>" +
+        ' <span class="plan-period">' + escapeHtml(p.devise || "XOF") + escapeHtml(period) + "</span></div>" +
+        '<div class="plan-desc">' + escapeHtml(p.description || (p.devise + " · " + dureeLabel(p.duree_abonnement) + " · paiement sécurisé")) + "</div>" +
         "</div>" +
         '<ul class="plan-features">' + included + mx + "</ul>" +
         '<div class="plan-actions">' +
@@ -176,6 +167,15 @@ async function loadPlans(current) {
   }
 }
 
+function securePaymentUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
 async function payPlan(code) {
   const btns = document.querySelectorAll("[data-pay-plan]");
   btns.forEach((b) => (b.disabled = true));
@@ -183,13 +183,16 @@ async function payPlan(code) {
     showToast("Création de la charge de paiement…", "success");
     const res = await apiRequest("/subscription/checkout", {
       method: "POST",
+      headers: { "Idempotency-Key": (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : `checkout-${Date.now()}-${Math.random()}` },
       body: JSON.stringify({ plan: code }),
     });
     const link = res && res.checkout ? res.checkout.link : null;
-    if (link) {
-      window.location.href = link;
+    const secureLink = securePaymentUrl(link);
+    if (secureLink) {
+      window.location.href = secureLink;
     } else {
-      showToast("Lien de paiement introuvable.", "error");
+      btns.forEach((b) => (b.disabled = false));
+      showToast("Lien de paiement invalide.", "error");
       loadAll();
     }
   } catch (err) {
@@ -248,7 +251,21 @@ async function loadAll() {
   await loadPayments();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+async function redirectAgenceReturn() {
+  if (window.location.pathname.indexOf("/PartProprietaires/") !== 0) return false;
+  try {
+    const { user } = await apiRequest("/auth/me");
+    if (user && user.account_type) MIM.accountType = user.account_type;
+    if (!user || user.account_type !== "agence") return false;
+    window.location.replace("/PartAgence/first_Mode/abonnements.html" + window.location.search);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  if (await redirectAgenceReturn()) return;
   const grid = document.getElementById("plansGrid");
   if (grid) {
     grid.addEventListener("click", (ev) => {

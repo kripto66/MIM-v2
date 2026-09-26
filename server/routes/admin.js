@@ -4,13 +4,16 @@
 // ============================================================
 
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import { serviceClient } from '../app.js';
+import { parseMoney } from '../utils/inputValidation.js';
 import { notify } from '../utils/notifications.js';
 import { invalidateSubscriptionCache } from '../utils/subscription.js';
 import { planByCode } from '../utils/plans.js';
 import { isBannedValue } from '../middleware/auth.js';
 import { methodeLabel } from '../utils/paiementMethodes.js';
 import { auditLog, LEVELS } from '../utils/audit.js';
+import { revokeAllSessions } from '../utils/sessions.js';
 
 const router = Router();
 
@@ -351,131 +354,72 @@ router.get('/subscriptions/payments', async (req, res) => {
 // La nouvelle échéance est TOUJOURS calculée côté serveur.
 router.post('/subscriptions/register', async (req, res) => {
   const { userId, plan, montant, dureeMois, methode_paiement, reference, date_paiement } = req.body || {};
-
-  if (!userId || typeof userId !== 'string') {
-    return res.status(400).json({ success: false, message: 'Propriétaire requis.' });
-  }
-  if (!(Number(montant) > 0)) {
-    return res.status(400).json({ success: false, message: 'Le montant doit être supérieur à 0.' });
-  }
-  const duree = Number(dureeMois);
-  if (!Number.isInteger(duree) || duree < 1 || duree > 36) {
-    return res.status(400).json({ success: false, message: 'La durée doit être un nombre de mois entre 1 et 36.' });
-  }
+  const numericAmount = parseMoney(montant);
+  const duration = Number(dureeMois);
+  if (!userId || typeof userId !== 'string') return res.status(400).json({ success: false, message: 'Propriétaire requis.' });
+  if (numericAmount === null) return res.status(400).json({ success: false, message: 'Le montant doit être un nombre positif.' });
+  if (!Number.isInteger(duration) || duration < 1 || duration > 36) return res.status(400).json({ success: false, message: 'La durée doit être un nombre de mois entre 1 et 36.' });
+  const method = String(methode_paiement || 'especes').trim();
+  if (!['especes', 'mobile_money', 'virement', 'carte', 'wave', 'orange_money'].includes(method)) return res.status(400).json({ success: false, message: 'Méthode de paiement invalide.' });
+  const ref = String(reference || `MANUAL-${crypto.randomUUID()}`).trim().slice(0, 200);
+  if (ref.length < 3) return res.status(400).json({ success: false, message: 'Référence de paiement invalide.' });
 
   const sb = serviceClient();
-
   try {
-    const { data: profile } = await sb
-      .from('profiles')
-      .select('id, name, phone, account_type')
-      .eq('id', userId)
-      .maybeSingle();
+    const { data: profile } = await sb.from('profiles').select('id, account_type').eq('id', userId).maybeSingle();
+    if (!profile || !OWNER_TYPES.includes(profile.account_type)) return res.status(404).json({ success: false, message: 'Propriétaire introuvable.' });
 
-    if (!profile || !OWNER_TYPES.includes(profile.account_type)) {
-      return res.status(404).json({ success: false, message: 'Propriétaire introuvable.' });
+    let planCode = String(plan || '').trim().toLowerCase();
+    if (!planCode) {
+      const { data: currentSubscription } = await sb
+        .from('subscriptions')
+        .select('plan')
+        .eq('user_id', userId)
+        .maybeSingle();
+      planCode = currentSubscription?.plan || 'standard';
     }
 
-    const now = new Date();
-    const existing = await sb.from('subscriptions').select('*').eq('user_id', userId).maybeSingle();
-
-    // Renouvellement : prolonge à partir de l'échéance en cours si elle est
-    // encore future, sinon à partir de maintenant (réactivation).
-    const base = existing?.data && new Date(existing.data.date_expiration) > now
-      ? new Date(existing.data.date_expiration)
-      : now;
-    const newExpiration = addMonths(base, duree);
-    const dateDebut = existing?.data?.date_debut || now.toISOString();
-    const methode = String(methode_paiement || '').trim() || 'especes';
-    const ref = reference != null ? String(reference).slice(0, 120).trim() || null : null;
-    const payeLe = date_paiement ? new Date(date_paiement).toISOString() : now.toISOString();
-
-    // Enregistrement du paiement d'abonnement reçu (hors ligne, directement
-    // vers l'administrateur) : l'abonnement est activé immédiatement.
-    const { data: hist, error: histErr } = await sb
-      .from('abonnement_paiements')
-      .insert({
-        user_id: userId,
-        plan: String(plan || 'standard').trim() || 'standard',
-        montant: Number(montant),
-        date_paiement: payeLe,
-        methode_paiement: methode,
-        reference: ref,
-        date_debut: dateDebut,
-        date_expiration: newExpiration.toISOString(),
-        provider: 'manuel',
-        statut: 'paid',
-        updated_at: now.toISOString(),
-      })
-      .select('*')
-      .single();
-    if (histErr) throw histErr;
-
-    // Plan du catalogue associé (limite d'immeubles appliquée côté serveur).
-    const planRef = await planByCode(hist.plan);
-
-    // Activation / renouvellement de l'abonnement (échéance côté serveur).
-    await sb
-      .from('subscriptions')
-      .upsert(
-        {
-          user_id: userId,
-          plan: hist.plan,
-          plan_id: planRef?.id || null,
-          statut: 'actif',
-          date_debut: dateDebut,
-          date_expiration: newExpiration.toISOString(),
-          date_paiement: payeLe,
-          montant: Number(montant),
-          methode_paiement: methode,
-          reference: ref,
-          duree_abonnement: planRef?.duree_abonnement || duree,
-          updated_at: now.toISOString(),
-        },
-        { onConflict: 'user_id' }
-      );
-
-    await invalidateSubscriptionCache();
-    const { invalidatePlatformCache } = await import('./admin.js');
-    invalidatePlatformCache();
-
-    try {
-      await notify(userId, 'abonnement', `Votre abonnement MIM est actif (${hist.plan}). Merci pour votre paiement.`);
-    } catch (e) {
-      console.warn('[admin/register_subscription] notification :', e.message);
-    }
-
-    await auditLog({
-      userId: req.user.id,
-      action: 'admin.register_subscription',
-      target: String(hist.id),
-      targetType: 'abonnement_paiement',
-      level: LEVELS.INFO,
-      meta: { owner_id: userId, plan, montant: Number(montant), dureeMois: duree, methode_paiement: methode },
-      ip: req.ip,
+    const { data: paymentId, error } = await sb.rpc('record_manual_subscription_payment', {
+      p_user_id: userId,
+      p_plan_code: planCode,
+      p_amount: numericAmount,
+      p_reference: ref,
+      p_method: method,
+      p_paid_at: date_paiement ? new Date(date_paiement).toISOString() : new Date().toISOString(),
+      p_duration: duration,
     });
+    if (error || !paymentId) throw new Error(error?.message || 'Activation impossible.');
 
-    res.status(201).json({
+    const [{ data: payment }, { data: subscription }] = await Promise.all([
+      sb.from('abonnement_paiements').select('*').eq('id', paymentId).single(),
+      sb.from('subscriptions').select('*').eq('user_id', userId).single(),
+    ]);
+    await invalidateSubscriptionCache();
+    invalidatePlatformCache();
+    try { await notify(userId, 'abonnement', `Votre abonnement MIM ${payment?.plan || plan} est actif. Merci pour votre paiement.`); } catch (e) { console.warn('[admin/register_subscription] notification :', e.message); }
+    await auditLog({ userId: req.user.id, action: 'admin.register_subscription', target: String(paymentId), targetType: 'abonnement_paiement', level: LEVELS.INFO, meta: { owner_id: userId, plan, montant: numericAmount, dureeMois: duration, methode_paiement: method }, ip: req.ip });
+
+    return res.status(201).json({
       success: true,
-      message: `Abonnement activé (${duree} mois). Paiement enregistré.`,
+      message: `Abonnement activé (${duration} mois). Paiement enregistré.`,
       data: {
-        abonnementPaiementId: hist.id,
+        abonnementPaiementId: paymentId,
         subscription: {
-          plan: hist.plan,
-          statut: 'actif',
-          date_debut: dateDebut,
-          date_expiration: newExpiration.toISOString(),
-          date_paiement: payeLe,
-          montant: Number(montant),
-          methode_paiement: methode,
+          plan: subscription?.plan || payment?.plan,
+          statut: subscription?.statut || 'actif',
+          date_debut: subscription?.date_debut || payment?.date_debut,
+          date_expiration: subscription?.date_expiration || payment?.date_expiration,
+          date_paiement: subscription?.date_paiement || payment?.date_paiement,
+          montant: Number(payment?.montant || numericAmount),
+          methode_paiement: method,
           reference: ref,
-          joursRestants: Math.max(0, Math.ceil((newExpiration.getTime() - Date.now()) / 86400000)),
+          joursRestants: subscription?.date_expiration ? Math.max(0, Math.ceil((new Date(subscription.date_expiration).getTime() - Date.now()) / 86400000)) : duration * 30,
         },
       },
     });
   } catch (err) {
     console.error('[admin/subscriptions/register]', err.message);
-    res.status(502).json({ success: false, message: err.message || 'Erreur lors de l\'enregistrement du paiement.' });
+    return res.status(502).json({ success: false, message: err.message || 'Erreur lors de l\'enregistrement du paiement.' });
   }
 });
 
@@ -649,10 +593,16 @@ router.patch('/proprietaires/:id', async (req, res) => {
 
   try {
     const sb = serviceClient();
-    const { data: profile } = await sb.from('profiles').select('id, name, email').eq('id', id).maybeSingle();
+    const { data: profile } = await sb.from('profiles').select('id, name, email, account_type').eq('id', id).maybeSingle();
 
     if (!profile) {
       return res.status(404).json({ success: false, message: 'Propriétaire introuvable.' });
+    }
+    if (!OWNER_TYPES.includes(profile.account_type)) {
+      return res.status(403).json({ success: false, code: 'FORBIDDEN', message: 'Seuls les propriétaires, agences et entreprises peuvent être ciblés.' });
+    }
+    if (id === req.user.id) {
+      return res.status(400).json({ success: false, code: 'SELF_SUSPENSION', message: 'Vous ne pouvez pas modifier votre propre statut.' });
     }
 
     const ban_duration = statut === 'suspendu' ? '8760h' : 'none';
@@ -661,6 +611,7 @@ router.patch('/proprietaires/:id', async (req, res) => {
       console.error('[admin/suspend]', error.message);
       return res.status(500).json({ success: false, message: 'Impossible de mettre à jour le compte.' });
     }
+    if (statut === 'suspendu') await revokeAllSessions(id, null, 'admin_suspension');
 
     invalidatePlatformCache();
     await auditLog({

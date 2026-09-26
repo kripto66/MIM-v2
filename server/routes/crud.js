@@ -1,12 +1,15 @@
 import { Router } from 'express';
-import { authedClient, serviceClient } from '../app.js';
+import { serviceClient } from '../app.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
-import { tenantEmailFor, usernameIsValid, uniqueUsername, splitFullName, INITIAL_PASSWORD } from '../utils/tenantAccount.js';
+import { tenantEmailFor, usernameIsValid, uniqueUsername, splitFullName, generateInitialPassword, provisionProfile, withUsernameLock } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { notify, tenantUidOfLogement, tenantUidOfLocataire, logementNomOf } from '../utils/notifications.js';
 import { methodePaiementError } from '../utils/paiementMethodes.js';
-import { creerEcheanceInitiale, syncMontantEcheancesOuvertes, currentMois } from '../utils/echeances.js';
+import { creerEcheanceInitiale, syncMontantEcheancesOuvertes, currentSimulatedMois } from '../utils/echeances.js';
 import { enforceImmeublesLimit, enforceLogementsLimit, enforceLocatairesLimit } from '../utils/subscription.js';
+import { reserveQuota, consumeQuota, releaseQuota } from '../utils/quota.js';
+import { revokeAllSessions } from '../utils/sessions.js';
+import { isValidDate, isValidMonth, parseMoney } from '../utils/inputValidation.js';
 
 const SCHEMAS = {
   biens: {
@@ -39,7 +42,16 @@ const SCHEMAS = {
   },
 };
 
-function sanitize(tableName, body) {
+async function bestEffortDelete(query) {
+  try {
+    const { error } = await query;
+    if (error) console.warn('[cleanup]', error.message);
+  } catch (err) {
+    console.warn('[cleanup]', err.message);
+  }
+}
+
+export function sanitize(tableName, body) {
   const schema = SCHEMAS[tableName];
   if (!schema || !body || typeof body !== 'object') return {};
 
@@ -64,7 +76,7 @@ function sanitize(tableName, body) {
 
 // Validation par ressource : messages en français, remontés champ par champ.
 // En mode `partial` (PUT), les champs absents ne sont pas exigés.
-function validateResource(tableName, body, partial = false) {
+export function validateResource(tableName, body, partial = false) {
   const errors = {};
   const present = (f) => body[f] !== undefined && body[f] !== null && body[f] !== '';
   const check = (field, rule, message) => {
@@ -81,22 +93,25 @@ function validateResource(tableName, body, partial = false) {
     case 'logements':
       check('nom', () => !present('nom'), 'Le nom du logement est obligatoire.');
       check('type', () => present('type') && !['appartement', 'chambre'].includes(body.type), 'Type de logement invalide.');
-      check('nombre_chambres', () => present('nombre_chambres') && Number(body.nombre_chambres) < 1, 'Le nombre de chambres doit être au moins 1.');
+      check('nombre_chambres', () => present('nombre_chambres') && (!Number.isInteger(Number(body.nombre_chambres)) || Number(body.nombre_chambres) < 1), 'Le nombre de chambres doit être un entier positif.');
       check('adresse', () => !present('adresse'), 'L\'adresse est obligatoire.');
-      check('loyer_mensuel', () => !present('loyer_mensuel') || Number(body.loyer_mensuel) <= 0, 'Le loyer mensuel doit être supérieur à 0.');
+      check('loyer_mensuel', () => !present('loyer_mensuel') || parseMoney(body.loyer_mensuel) === null, 'Le loyer mensuel doit être un nombre positif.');
       check('statut', () => present('statut') && !['libre', 'occupe', 'maintenance'].includes(body.statut), 'Statut invalide.');
       break;
 
     case 'locataires':
       check('nom', () => !present('nom'), 'Le nom est obligatoire.');
       check('email', () => present('email') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(body.email), 'Adresse email invalide.');
-      check('jour_echeance', () => present('jour_echeance') && (Number(body.jour_echeance) < 1 || Number(body.jour_echeance) > 31), 'Le jour d\'échéance doit être entre 1 et 31.');
+      check('jour_echeance', () => present('jour_echeance') && (!Number.isInteger(Number(body.jour_echeance)) || Number(body.jour_echeance) < 1 || Number(body.jour_echeance) > 31), 'Le jour d\'échéance doit être entre 1 et 31.');
+      check('date_entree', () => present('date_entree') && !isValidDate(body.date_entree), 'La date d\'entrée est invalide.');
       check('statut', () => present('statut') && !['actif', 'inactif'].includes(body.statut), 'Statut invalide.');
       break;
 
     case 'paiements':
-      check('montant', () => !present('montant') || Number(body.montant) <= 0, 'Le montant doit être supérieur à 0.');
-      check('mois', () => !present('mois'), 'Le mois est obligatoire.');
+      check('montant', () => !present('montant') || parseMoney(body.montant) === null, 'Le montant doit être un nombre positif.');
+      check('mois', () => !present('mois') || !isValidMonth(body.mois), 'Le mois doit être au format AAAA-MM.');
+      check('statut', () => present('statut') && !['attente', 'paye', 'retard', 'a_confirmer', 'en_validation', 'refuse'].includes(body.statut), 'Statut de paiement invalide.');
+      check('date_paiement', () => present('date_paiement') && !isValidDate(body.date_paiement), 'La date de paiement est invalide.');
       check('methode_paiement', () => methodePaiementError(body.methode_paiement), methodePaiementError(body.methode_paiement));
       check('reference', () => present('reference') && String(body.reference).length > 80, 'La référence ne doit pas dépasser 80 caractères.');
       break;
@@ -126,7 +141,7 @@ export function createCrudRouter(tableName) {
   const router = Router();
 
   const userId = (req) => req.user.id;
-  const sb = (req) => authedClient(req.user.supabase_token);
+  const sb = () => serviceClient();
 
   router.get('/', async (req, res) => {
     const { data, error } = await sb(req)
@@ -302,6 +317,7 @@ export function createCrudRouter(tableName) {
         .select('id')
         .eq('logement_id', logementId)
         .eq('statut', 'actif')
+        .is('superseded_at', null)
         .eq('user_id', ownerId);
       return (data || []).some((l) => String(l.id) !== String(excludeLocataireId));
     } catch (err) {
@@ -404,7 +420,9 @@ export function createCrudRouter(tableName) {
       let query = admin
         .from('locataires')
         .select('id')
-        .eq('logement_id', logementId);
+        .eq('logement_id', logementId)
+        .eq('statut', 'actif')
+        .is('superseded_at', null);
 
       if (ownerId) {
         query = query.eq('user_id', ownerId);
@@ -440,12 +458,18 @@ export function createCrudRouter(tableName) {
   // relu depuis logements.loyer_mensuel.
   // ============================================================
   async function createTenantWithAccount(req, res) {
+    const requestedUsername = String(req.body?.username || '').trim().toLowerCase();
+    if (!requestedUsername) return createTenantWithAccountUnlocked(req, res);
+    return withUsernameLock(requestedUsername, () => createTenantWithAccountUnlocked(req, res));
+  }
+
+  async function createTenantWithAccountUnlocked(req, res) {
     const admin = serviceClient();
     const ownerId = userId(req);
 
     const autoAccount = !req.body?.username && !req.body?.password;
     const username = String(req.body.username || '').trim().toLowerCase();
-    const password = autoAccount ? INITIAL_PASSWORD : String(req.body.password || '');
+    const password = autoAccount ? generateInitialPassword() : String(req.body.password || '');
     const nom = String(req.body.nom || '').trim();
     const logementNew = req.body.logement && typeof req.body.logement === 'object' ? req.body.logement : null;
     let logementId = logementNew ? null : req.body.logement_id || null;
@@ -458,6 +482,8 @@ export function createCrudRouter(tableName) {
     const jourEcheance = rawJour === '' || rawJour == null ? 1 : Number(rawJour);
     const statut = req.body.statut || 'actif';
     let generatedUsername = null;
+    let logementReservation = null;
+    let locataireReservation = null;
 
     if (!nom) {
       return res.status(400).json({ success: false, message: 'Le nom est obligatoire.', errors: { nom: 'Le nom est obligatoire.' } });
@@ -517,6 +543,10 @@ export function createCrudRouter(tableName) {
           errors: { logement: logementsLimit.message },
         });
       }
+      logementReservation = await reserveQuota(admin, ownerId, 'logements', logementsLimit.max);
+      if (!logementReservation.allowed) {
+        return res.status(409).json({ success: false, code: logementReservation.code, message: logementReservation.message });
+      }
     }
     const locatairesLimit = await enforceLocatairesLimit(ownerId);
     if (!locatairesLimit.allowed) {
@@ -527,6 +557,11 @@ export function createCrudRouter(tableName) {
         errors: { nom: locatairesLimit.message },
       });
     }
+    locataireReservation = await reserveQuota(admin, ownerId, 'locataires', locatairesLimit.max);
+    if (!locataireReservation.allowed) {
+      await releaseQuota(admin, logementReservation?.id, ownerId).catch(() => {});
+      return res.status(409).json({ success: false, code: locataireReservation.code, message: locataireReservation.message });
+    }
     if (!autoAccount) {
       const { data: existingUsername } = await admin
         .from('profiles')
@@ -535,15 +570,19 @@ export function createCrudRouter(tableName) {
         .maybeSingle();
 
       if (existingUsername) {
+        await releaseQuota(admin, locataireReservation?.id, ownerId).catch(() => {});
+        await releaseQuota(admin, logementReservation?.id, ownerId).catch(() => {});
         return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
       }
     } else {
       // Mode automatique : username généré depuis le nom complet.
       const { prenom, nom: nomFamille } = splitFullName(nom);
       generatedUsername = await uniqueUsername(admin, prenom, nomFamille);
-      if (!generatedUsername) {
-        return res.status(400).json({ success: false, message: 'Impossible de générer un nom d\'utilisateur unique pour ce locataire.' });
-      }
+       if (!generatedUsername) {
+         await releaseQuota(admin, locataireReservation?.id, ownerId).catch(() => {});
+         await releaseQuota(admin, logementReservation?.id, ownerId).catch(() => {});
+         return res.status(400).json({ success: false, message: 'Impossible de générer un nom d\'utilisateur unique pour ce locataire.' });
+       }
     }
 
     // Création d'un logement embarqué (formulaire unique).
@@ -556,6 +595,7 @@ export function createCrudRouter(tableName) {
         statut: statut === 'actif' ? 'occupe' : 'libre',
       });
       if (created.errors || created.error) {
+        await releaseQuota(admin, logementReservation?.id, ownerId).catch(() => {});
         const errors = created.errors
           ? Object.fromEntries(Object.entries(created.errors).map(([k, v]) => [`logement_${k}`, v]))
           : {};
@@ -568,6 +608,7 @@ export function createCrudRouter(tableName) {
       logementId = created.data.id;
       createdLogementId = created.data.id;
       createdLogement = created.data;
+      await consumeQuota(admin, logementReservation?.id, ownerId);
       logementLoyer = created.data.loyer_mensuel;
       logementBienId = created.data.bien_id;
     }
@@ -575,7 +616,7 @@ export function createCrudRouter(tableName) {
     // Un logement ne peut avoir qu'un seul locataire actif.
     if (statut === 'actif' && (await logementHasOtherActiveTenant(admin, ownerId, logementId, null))) {
       if (createdLogementId) {
-        await admin.from('logements').delete().eq('id', createdLogementId).catch(() => {});
+        await bestEffortDelete(admin.from('logements').delete().eq('id', createdLogementId));
       }
       return res.status(400).json({
         success: false,
@@ -586,23 +627,33 @@ export function createCrudRouter(tableName) {
 
     const finalUsername = autoAccount ? generatedUsername : username;
 
-    const { data: createdUser, error: createError } = await admin.auth.admin.createUser({
-      email: tenantEmailFor(finalUsername),
-      password,
-      email_confirm: true,
-      user_metadata: {
-        account_type: 'locataire',
-        role: 'locataire',
-        name: nom,
-        username: finalUsername,
-        phone: phone || '',
-        must_change_password: true,
-      },
-    });
+    let createdUser = null;
+    let createError = null;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const result = await admin.auth.admin.createUser({
+        email: tenantEmailFor(finalUsername),
+        password,
+        email_confirm: true,
+        user_metadata: {
+          name: nom,
+          username: finalUsername,
+          phone: phone || '',
+        },
+        app_metadata: {
+          mim_account_type: 'locataire',
+          mim_must_change_password: true,
+        },
+      });
+      createdUser = result.data;
+      createError = result.error;
+      if (!createError || !/timeout|processing|connection|temporarily|503|504/i.test(String(createError.message || '')) || attempt === 2) break;
+      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+    }
 
     if (createError || !createdUser?.user?.id) {
+      await releaseQuota(admin, locataireReservation?.id, ownerId).catch(() => {});
       if (createdLogementId) {
-        await admin.from('logements').delete().eq('id', createdLogementId).catch(() => {});
+        await bestEffortDelete(admin.from('logements').delete().eq('id', createdLogementId));
       }
       const msg = String(createError?.message || '').toLowerCase();
       if (msg.includes('already') || msg.includes('existe')) {
@@ -613,6 +664,14 @@ export function createCrudRouter(tableName) {
     }
 
     const accountUid = createdUser.user.id;
+    try {
+      await provisionProfile(admin, accountUid, 'locataire', finalUsername, true, email);
+    } catch (profileError) {
+      await admin.auth.admin.deleteUser(accountUid).catch(() => {});
+      await releaseQuota(admin, locataireReservation?.id, ownerId).catch(() => {});
+      if (createdLogementId) await bestEffortDelete(admin.from('logements').delete().eq('id', createdLogementId));
+      return res.status(500).json({ success: false, message: 'Impossible de finaliser le compte locataire.' });
+    }
 
     const body = {
       user_id: ownerId,
@@ -631,8 +690,9 @@ export function createCrudRouter(tableName) {
     const { data, error } = await admin.from(tableName).insert(body).select().single();
 
     if (error) {
+      await releaseQuota(admin, locataireReservation?.id, ownerId).catch(() => {});
       if (createdLogementId) {
-        await admin.from('logements').delete().eq('id', createdLogementId).catch(() => {});
+        await bestEffortDelete(admin.from('logements').delete().eq('id', createdLogementId));
       }
       await admin.auth.admin.deleteUser(accountUid).catch(() => {});
       console.error('[createTenant]', error.message);
@@ -661,8 +721,9 @@ export function createCrudRouter(tableName) {
         dateEntree,
       });
       if (echeance.error) {
-        await admin.from('paiements').delete().eq('locataire_id', data.id).catch(() => {});
-        await admin.from('locataires').delete().eq('id', data.id).eq('user_id', ownerId).catch(() => {});
+        await releaseQuota(admin, locataireReservation?.id, ownerId).catch(() => {});
+        await bestEffortDelete(admin.from('paiements').delete().eq('locataire_id', data.id));
+        await bestEffortDelete(admin.from('locataires').delete().eq('id', data.id).eq('user_id', ownerId));
         await admin.auth.admin.deleteUser(accountUid).catch(() => {});
 if (createdLogementId) {
         try {
@@ -676,6 +737,7 @@ if (createdLogementId) {
       }
     }
 
+    await consumeQuota(admin, locataireReservation?.id, ownerId);
     await notify(accountUid, 'info', 'Votre compte locataire a été créé par votre propriétaire. À votre première connexion, vous devrez choisir un nouveau mot de passe.');
     gitAutoBackup(`Sauvegarde auto : ajout dans locataires (avec compte ${finalUsername})`);
 
@@ -684,7 +746,7 @@ if (createdLogementId) {
       data,
       accountCreated: true,
       autoAccount,
-      account: autoAccount ? { username: finalUsername, password: INITIAL_PASSWORD } : undefined,
+      account: autoAccount ? { username: finalUsername, password } : undefined,
       logement: createdLogement || null,
       echeance: echeance && echeance.created ? { mois: echeance.mois } : null,
     });
@@ -797,7 +859,7 @@ if (createdLogementId) {
     // locataire ne peut pas devoir un loyer pour un mois non commencé,
     // et une échéance future créerait un décalage entre le mois posé par
     // le propriétaire et l'échéance affichée sur le dashboard locataire.
-    if (tableName === 'paiements' && body.mois && body.mois > currentMois()) {
+    if (tableName === 'paiements' && body.mois && body.mois > await currentSimulatedMois()) {
       return res.status(400).json({
         success: false,
         message: 'Le mois concerné ne peut pas être dans le futur. Choisissez le mois courant ou un mois passé.',
@@ -856,16 +918,43 @@ if (createdLogementId) {
       return res.status(400).json({ success: false, message: 'Aucun champ valide fourni.' });
     }
 
-    const { data, error } = await sb(req)
-      .from(tableName)
-      .insert(body)
-      .select()
-      .single();
+    let quotaReservation = null;
+    if (['biens', 'logements', 'locataires'].includes(tableName)) {
+      const limit = tableName === 'biens'
+        ? await enforceImmeublesLimit(userId(req))
+        : tableName === 'logements'
+          ? await enforceLogementsLimit(userId(req))
+          : await enforceLocatairesLimit(userId(req));
+      if (!limit.allowed) {
+        return res.status(409).json({ success: false, code: limit.code, message: limit.message, errors: { [tableName === 'biens' ? 'nom' : tableName === 'logements' ? 'nom' : 'nom']: limit.message } });
+      }
+      quotaReservation = await reserveQuota(serviceClient(), userId(req), tableName, limit.max);
+      if (!quotaReservation.allowed) {
+        return res.status(409).json({ success: false, code: quotaReservation.code, message: quotaReservation.message });
+      }
+    }
+
+    let data;
+    let error;
+    try {
+      const result = await sb(req)
+        .from(tableName)
+        .insert(body)
+        .select()
+        .single();
+      data = result.data;
+      error = result.error;
+    } catch (err) {
+      await releaseQuota(serviceClient(), quotaReservation?.id, userId(req)).catch(() => {});
+      throw err;
+    }
 
     if (error) {
+      await releaseQuota(serviceClient(), quotaReservation?.id, userId(req)).catch(() => {});
       console.error(`[${tableName}]`, error.message);
       return res.status(400).json({ success: false, message: 'Erreur lors de la création.' });
     }
+    await consumeQuota(serviceClient(), quotaReservation?.id, userId(req));
 
     await notifyOnCreate(tableName, data, userId(req));
     gitAutoBackup(`Sauvegarde auto : ajout dans ${tableName}`);
@@ -968,7 +1057,7 @@ if (createdLogementId) {
     // Ne jamais reporter une échéance sur un mois strictement futur.
     if (tableName === 'paiements') {
       const targetMois = body.mois ?? prev.mois;
-      if (targetMois && String(targetMois) > currentMois()) {
+      if (targetMois && String(targetMois) > await currentSimulatedMois()) {
         return res.status(400).json({
           success: false,
           message: 'Le mois concerné ne peut pas être dans le futur. Choisissez le mois courant ou un mois passé.',
@@ -1005,6 +1094,28 @@ if (createdLogementId) {
       return res.status(400).json({ success: false, message: 'Erreur lors de la modification.' });
     }
 
+    if (tableName === 'locataires' && body.logement_id && body.logement_id !== prev.logement_id) {
+      const { error: paymentSyncError } = await serviceClient()
+        .from('paiements')
+        .update({ logement_id: body.logement_id })
+        .eq('user_id', userId(req))
+        .eq('locataire_id', id)
+        .in('statut', ['attente', 'retard', 'en_validation'])
+        .is('superseded_at', null);
+      if (paymentSyncError) {
+        return res.status(503).json({ success: false, code: 'PAYMENT_SYNC_FAILED', message: 'Le locataire a été déplacé, mais les échéances ouvertes n\'ont pas pu être synchronisées.' });
+      }
+    }
+
+    if (tableName === 'locataires' && body.statut !== undefined && body.statut !== prev.statut && prev.account_uid) {
+      const accountState = body.statut === 'actif' ? 'none' : '8760h';
+      const { error: banError } = await serviceClient().auth.admin.updateUserById(prev.account_uid, { ban_duration: accountState });
+      if (banError) {
+        return res.status(503).json({ success: false, code: 'AUTH_STATUS_SYNC_FAILED', message: 'La fiche a été modifiée, mais le compte Auth n\'a pas pu être synchronisé.' });
+      }
+      if (body.statut !== 'actif') await revokeAllSessions(prev.account_uid, null, 'tenant_status_changed');
+    }
+
     await notifyOnUpdate(tableName, prev, data, userId(req));
 
     // Changement de loyer : les échéances ouvertes (« attente » /
@@ -1020,7 +1131,9 @@ if (createdLogementId) {
         logementId: id,
         montant: body.loyer_mensuel,
       });
-      if (synced.error) console.warn('[logements] échéances ouvertes :', synced.error);
+      if (synced.error) {
+        return res.status(503).json({ success: false, code: 'RENT_SYNC_FAILED', message: 'Le loyer a été modifié, mais les échéances ouvertes n\'ont pas pu être synchronisées.' });
+      }
     }
 
     // Synchronisation du statut des logements quand le locataire change de logement.
@@ -1070,6 +1183,10 @@ if (createdLogementId) {
       return res.status(404).json({ success: false, message: 'Introuvable.' });
     }
 
+    if (tableName === 'paiements') {
+      return res.status(409).json({ success: false, code: 'FINANCIAL_RECORD_IMMUTABLE', message: 'Un paiement ne peut pas être supprimé. Corrigez son statut ou conservez l\'historique.' });
+    }
+
     // Impossible de supprimer un bien encore pourvu de logements :
     // on évite de laisser des logements orphelins.
     if (tableName === 'biens') {
@@ -1097,10 +1214,23 @@ if (createdLogementId) {
         .maybeSingle();
 
       if (ref) {
-        return res.status(400).json({
+        return res.status(409).json({
           success: false,
-          message: 'Ce logement est occupé par un locataire. Supprimez d\'abord le locataire.',
+          code: 'TENANT_HISTORY_PRESENT',
+          message: 'Ce logement est lié à un historique de locataire et ne peut pas être supprimé.',
         });
+      }
+    }
+
+    if (tableName === 'logements') {
+      const { data: payment } = await admin
+        .from('paiements')
+        .select('id')
+        .eq('logement_id', id)
+        .limit(1)
+        .maybeSingle();
+      if (payment) {
+        return res.status(409).json({ success: false, code: 'FINANCIAL_HISTORY_PRESENT', message: 'Ce logement possède des paiements historiques et ne peut pas être supprimé.' });
       }
     }
 
@@ -1114,25 +1244,26 @@ if (createdLogementId) {
         .eq('user_id', userId(req))
         .maybeSingle();
 
-      const { error } = await sb(req)
+      const { error } = await admin
         .from('locataires')
-        .delete()
+        .update({ statut: 'inactif', account_uid: null, superseded_at: new Date().toISOString() })
         .eq('id', id)
         .eq('user_id', userId(req));
 
       if (error) {
         console.error('[locataires]', error.message);
-        return res.status(400).json({ success: false, message: 'Erreur lors de la suppression.' });
+        return res.status(400).json({ success: false, message: 'Erreur lors de l\'archivage.' });
       }
 
       if (row?.account_uid) {
-        const { error: delErr } = await admin.auth.admin.deleteUser(row.account_uid);
-        if (delErr) console.warn('[locataires] suppression du compte :', delErr.message);
+        const { error: banError } = await admin.auth.admin.updateUserById(row.account_uid, { ban_duration: '8760h' });
+        if (banError) return res.status(503).json({ success: false, message: 'Fiche archivée, mais le compte Auth n\'a pas été désactivé.' });
+        await revokeAllSessions(row.account_uid, null, 'tenant_archived');
       }
 
       await freeLogementIfUnused(admin, row?.logement_id, userId(req));
-      gitAutoBackup(`Sauvegarde auto : suppression locataire (compte ${row?.account_uid || 'sans compte'})`);
-      return res.json({ success: true, message: 'Supprimé avec succès. Le compte du locataire est désactivé.' });
+      gitAutoBackup(`Sauvegarde auto : archivage locataire (compte ${row?.account_uid || 'sans compte'})`);
+      return res.json({ success: true, message: 'Locataire archivé. Les historiques financiers sont conservés.' });
     }
 
     const { error } = await sb(req)

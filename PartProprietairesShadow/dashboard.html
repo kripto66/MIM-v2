@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Mon espace délégué</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/mim-errors.css">
+    <script src="/mim-errors.js"></script>
+    <link rel="stylesheet" href="/PartProprietaires/style.css">
+    <link rel="stylesheet" href="/PartPublic/mim-ui.css">
+</head>
+
+<body data-espace="shadow">
+
+    <div class="dashboard">
+
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
+            <a class="logo" href="dashboard.html" data-sidebar-toggle-logo title="Mon espace délégué">MIM</a>
+            <nav class="sidebar-menu">
+                <div class="nav-category">Mon espace</div>
+                <a class="active" href="dashboard.html">Vue d'ensemble</a>
+                <a href="versements.html">Versements</a>
+                <a href="messages.html">Messagerie</a>
+                <div class="nav-category">Mon espace complet</div>
+                <a href="/PartProprietaires/dashboard.html">Dashboard propriétaire</a>
+                <a href="/PartProprietaires/abonnements.html">Mon abonnement</a>
+                <a href="/PartProprietaires/parametres.html">Mon profil</a>
+                <div class="nav-category">Session</div>
+                <a href="#" id="logoutBtn">Déconnexion</a>
+            </nav>
+        </aside>
+
+        <main class="main">
+
+            <header class="dashboard-header">
+                <button class="menu-toggle" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">☰</button>
+                <div id="apiMessage" class="api-message" style="display:none;"></div>
+                <div class="welcome">
+                    <h1><span id="greetingWord">Bonjour</span>, <span id="ownerName">Propriétaire</span><span class="accent">.</span></h1>
+                    <p id="greetingSub">Votre parc est géré par votre agence.</p>
+                </div>
+                <div class="header-actions">
+                    <span class="live-indicator" id="liveIndicator" title="Actualisation automatique">
+                        <span class="live-dot"></span>
+                        <span id="liveLabel">À jour</span>
+                    </span>
+                    <button class="refresh-btn" id="refreshBtn" type="button" title="Actualiser les données">
+                        <span class="refresh-ico">↻</span><span>Actualiser</span>
+                    </button>
+                    <a href="messages.html" class="header-btn" id="notifBtn">
+                        Messages
+                        <span class="notification-badge" id="msgBadge">0</span>
+                    </a>
+                </div>
+            </header>
+
+            <section class="mim-section" id="agenceBanner">
+                <header>
+                    <h2>Mon agence</h2>
+                    <span class="section-meta" id="mandatDepuis"></span>
+                </header>
+                <div class="mim-grid-3" id="agenceInfos"></div>
+            </section>
+
+            <section class="mim-kpi-grid" id="kpis"></section>
+
+            <section class="mim-section">
+                <header>
+                    <h2>Actions</h2>
+                    <span class="section-meta">Ce que vous pouvez faire depuis cet espace</span>
+                </header>
+                <div class="mim-action-grid" id="actionsGrid"></div>
+            </section>
+
+            <div class="mim-grid-2">
+
+                <section class="mim-section">
+                    <header>
+                        <h2>Mes biens confiés</h2>
+                        <span class="section-meta" id="biensMeta"></span>
+                    </header>
+                    <div id="biensList"></div>
+                </section>
+
+                <section class="mim-section">
+                    <header>
+                        <h2>Versements de l'agence</h2>
+                        <a class="section-meta" href="versements.html">Tout voir</a>
+                    </header>
+                    <div id="versementsList"></div>
+                </section>
+
+            </div>
+
+            <div class="mim-grid-2">
+
+                <section class="mim-section">
+                    <header><h2>Derniers messages</h2><a class="section-meta" href="messages.html">Ouvrir la messagerie</a></header>
+                    <div id="messagesList"></div>
+                </section>
+
+                <section class="mim-section">
+                    <header><h2>Incidents signalés sur mon parc</h2></header>
+                    <div id="incidentsList"></div>
+                </section>
+
+            </div>
+
+        </main>
+
+    </div>
+
+    <script src="/PartPublic/mim-ui.js"></script>
+    <script src="api.js"></script>
+    <script src="dashboard.js"></script>
+    <script src="/PartPublic/sidebar.js"></script>
+
+</body>
+
+</html>

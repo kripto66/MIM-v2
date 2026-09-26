@@ -13,7 +13,26 @@ if (process.env.RATE_LIMIT_OFF === 'true' && process.env.NODE_ENV === 'productio
 }
 
 if (!process.env.CORS_ORIGINS && process.env.NODE_ENV === 'production') {
-  console.warn('[WARN] CORS_ORIGINS non configuré — le CORS réfère toutes les origines en production.');
+  console.error('[FATAL] CORS_ORIGINS doit être configuré en production.');
+  process.exit(1);
+}
+
+if (process.env.NODE_ENV === 'production') {
+  let appUrl = null;
+  try {
+    appUrl = new URL(process.env.APP_URL || '');
+  } catch {
+    appUrl = null;
+  }
+  const smtpPort = Number(process.env.SMTP_PORT || 0);
+  if (!appUrl || appUrl.protocol !== 'https:') {
+    console.error('[FATAL] APP_URL doit être une URL HTTPS valide en production.');
+    process.exit(1);
+  }
+  if (!process.env.SMTP_HOST || !Number.isInteger(smtpPort) || smtpPort < 1 || smtpPort > 65535 || !process.env.SMTP_FROM) {
+    console.error('[FATAL] SMTP_HOST, SMTP_PORT et SMTP_FROM doivent être configurés en production.');
+    process.exit(1);
+  }
 }
 
 app.listen(PORT, () => {

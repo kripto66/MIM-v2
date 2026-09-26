@@ -2,14 +2,22 @@
   "name": "mim",
   "version": "2.0.0",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "description": "MyImmoManagement - SaaS de gestion immobilière",
   "scripts": {
-    "dev": "node server/server.js",
-    "start": "node server/server.js"
+    "dev": "node --watch server/server.js",
+    "start": "node server/server.js",
+    "cron:loyers": "node server/scripts/checkLoyers.js",
+    "test": "npm run test:syntax && npm run test:e2e",
+    "test:syntax": "node server/scripts/quality.mjs syntax",
+    "test:e2e": "node server/scripts/tests/run.js",
+    "lint": "node server/scripts/quality.mjs lint",
+    "typecheck": "node server/scripts/quality.mjs typecheck",
+    "audit": "npm audit --omit=dev --audit-level=high"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
@@ -17,6 +25,7 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "jsonwebtoken": "^9.0.2"
+    "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^10.0.10"
   }
 }

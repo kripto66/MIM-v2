@@ -8,11 +8,10 @@
 //
 // Sécurité :
 //   * le header X-Secret-Key doit être égal à BICTORYS_WEBHOOK_SECRET ;
-//   * signature HMAC optionnelle vérifiée si présente ;
+//   * signature HMAC et timestamp obligatoires ;
 //   * traitement idempotent (journal public.bictorys_webhooks) ;
-//   * le serveur répond TOUJOURS 200 quand l'événement est reçu et
-//     vérifié, même en cas d'erreur de traitement interne (Bictorys
-//     retenterait sinon jusqu'à 3 fois).
+//   * les rejets métier permanents sont acquittés en 200, les erreurs
+//     techniques transitoires renvoient 503 pour permettre un retry.
 //
 // Le corps est traité en BRUT (Buffer) : le route est montée avant
 // express.json dans app.js pour permettre la vérification de signature.
@@ -41,21 +40,30 @@ router.post('/bictorys', async (req, res) => {
   try {
     payload = JSON.parse(rawBody.toString('utf8'));
   } catch (err) {
-    // Payload illisible mais authentifié : on accuse réception pour
-    // arrêter les tentatives, et on trace l'erreur côté Bictorys.
     console.error('[bictorys/webhook] JSON invalide :', err.message);
-    return res.status(200).json({ success: false, message: 'Payload invalide.' });
+    return res.status(400).json({ success: false, code: 'INVALID_JSON', message: 'Payload invalide.' });
   }
 
   try {
-    await processWebhook(payload);
+    const result = await processWebhook(payload);
+    if (!result?.ok) {
+      const permanent = new Set([
+        'AMOUNT_MISMATCH',
+        'CURRENCY_MISMATCH',
+        'MERCHANT_REFERENCE_MISMATCH',
+        'TRANSACTION_MISMATCH',
+        'TRANSACTION_MISSING',
+        'PLAN_UNAVAILABLE',
+        'UNSUPPORTED_STATUS',
+      ]).has(result?.code);
+      const status = result?.code === 'MALFORMED_EVENT' ? 400 : (permanent ? 200 : 503);
+      return res.status(status).json({ success: false, code: result?.code || 'WEBHOOK_PROCESSING_ERROR', message: result?.message || 'Traitement différé.' });
+    }
+    return res.status(200).json({ success: true, duplicate: Boolean(result.duplicate), unmatched: Boolean(result.unmatched) });
   } catch (err) {
-    // Erreur interne : accusé de réception quand même (200), Bictorys
-    // n'a pas à retenter ; le journal bictorys_webhooks garde la trace.
     console.error('[bictorys/webhook] traitement :', err.message);
+    return res.status(503).json({ success: false, code: 'WEBHOOK_PROCESSING_ERROR', message: 'Traitement différé.' });
   }
-
-  res.status(200).json({ success: true });
 });
 
 export default router;

@@ -69,7 +69,7 @@ const MODEL_EXAMPLES = {
       ["Nom Exemple 1", "Prenom Exemple 1", "locataire1@exemple.com", "+221700000001", "Bien Exemple 1", "Logement Exemple 1", "150000", "5", "2026-09-01", "actif"],
       ["Nom Exemple 2", "Prenom Exemple 2", "", "+221700000002", "Bien Exemple 1", "Logement Exemple 2", "50000", "10", "2026-09-01", "actif"],
     ],
-    hint: "Le username du compte locataire est généré automatiquement (ex. amadou.diop). Mot de passe initial : 1234 (à changer à la première connexion).",
+    hint: "Le compte du locataire est créé automatiquement (username généré). Un nouveau mot de passe sera demandé à la première connexion.",
   },
   employes: {
     headers: ["nom", "prenom", "email", "telephone", "poste", "bien", "salaire", "date_embauche", "statut"],
@@ -77,7 +77,7 @@ const MODEL_EXAMPLES = {
       ["Nom Exemple 1", "Prenom Exemple 1", "employe1@exemple.com", "+221700000003", "Gérant", "", "80000", "2026-09-01", "actif"],
       ["Nom Exemple 2", "Prenom Exemple 2", "", "+221700000004", "Agent d'entretien", "", "35000", "2026-09-01", "actif"],
     ],
-    hint: "Salaire : montant mensuel. Le compte employé est créé automatiquement (username généré, mot de passe initial 1234).",
+    hint: "Salaire : montant mensuel. Le compte employé est créé automatiquement (username généré) et devra définir son mot de passe à la première connexion.",
   },
 };
 
@@ -88,7 +88,6 @@ const state = {
   files: {}, // cat -> { filename, content_b64 } (ou 'grouped' en mode tout-en-un)
   preview: null,
   duplicatePolicy: "ignore",
-  initialPassword: "1234",
 };
 
 // ------------------------------------------------------------
@@ -377,6 +376,16 @@ function fmtDuration(ms) {
   return m + " min " + (s % 60) + " s";
 }
 
+function csvCell(value) {
+  let text = String(value ?? "");
+  if (/^[\s]*[=+\-@]/.test(text)) text = "'" + text;
+  return '"' + text.replace(/"/g, '""') + '"';
+}
+
+function csvRow(values) {
+  return values.map(csvCell).join(";");
+}
+
 async function runImport() {
   const btn = document.getElementById("wImport");
   btn.disabled = true;
@@ -408,7 +417,6 @@ async function runImport() {
     finished = true;
     clearInterval(pollTimer);
     progressPanel.hidden = true;
-    state.initialPassword = (res && res.initialPassword) || "1234";
     renderFinal(res);
     setStep(5);
   };
@@ -503,8 +511,7 @@ function renderFinal(res) {
       <p class="wfinal-err ${errCount ? "wfinal-err-warn" : ""}">${errCount ? `⚠️ ${errCount} ligne(s) en erreur technique (voir détails ci-dessous).` : "✅ Aucune erreur."}</p>
 
       <p class="muted">
-        Les nouveaux utilisateurs devront changer leur mot de passe lors de leur première connexion.
-        Le mot de passe initial <strong>${escapeHtml(state.initialPassword)}</strong> est temporaire : il ne doit pas être conservé comme mot de passe permanent.
+        Les nouveaux utilisateurs devront définir leur mot de passe lors de leur première connexion.
       </p>
 
       ${
@@ -513,14 +520,13 @@ function renderFinal(res) {
         <div class="wfinal-accounts-box">
           <div class="wfinal-acc-head">
             <h3>Informations de connexion</h3>
-            <button type="button" class="btn btn-secondary" id="downloadCreds">Télécharger les identifiants</button>
+            <button type="button" class="btn btn-secondary" id="downloadCreds">Télécharger les usernames</button>
           </div>
           <table class="wprev-table">
             <thead>
               <tr>
                 <th>Nom</th>
                 <th>Username</th>
-                <th>Mot de passe initial</th>
                 <th>Type</th>
               </tr>
             </thead>
@@ -531,7 +537,6 @@ function renderFinal(res) {
                   <tr>
                     <td>${escapeHtml(a.nom || "")}</td>
                     <td>${escapeHtml(a.username)}</td>
-                    <td>${escapeHtml(state.initialPassword)}</td>
                     <td>${escapeHtml(a.account_type === "locataire" ? "Locataire" : "Employé")}</td>
                   </tr>`
                 )
@@ -540,8 +545,8 @@ function renderFinal(res) {
           </table>
         </div>
         <p class="muted">
-          ⚠️ Ces identifiants ne sont affichés qu'une fois. Transmettez-les aux personnes concernées :
-          elles devront choisir un nouveau mot de passe à leur première connexion.
+          ⚠️ Ces usernames ne sont affichés qu'une fois. Transmettez-les aux personnes concernées :
+          elles devront choisir leur mot de passe à leur première connexion.
         </p>`
           : ""
       }
@@ -567,21 +572,18 @@ function renderFinal(res) {
 }
 
 function downloadCredentials(accounts) {
-  const header = "Nom;Username;Mot de passe initial;Type";
-  const rows = accounts.map((a) =>
-    [
-      String(a.nom || "").replace(/;/g, ","),
-      a.username,
-      state.initialPassword,
-      a.account_type === "locataire" ? "Locataire" : "Employé",
-    ].join(";")
-  );
-  const csv = "\uFEFF" + [header, ...rows].join("\n") + "\n";
+  const header = ["Nom", "Username", "Type"];
+  const rows = accounts.map((a) => [
+    a.nom || "",
+    a.username || "",
+    a.account_type === "locataire" ? "Locataire" : "Employé",
+  ]);
+  const csv = "\uFEFF" + [header, ...rows].map(csvRow).join("\r\n") + "\r\n";
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "identifiants_mim.csv";
+  a.download = "comptes_mim.csv";
   document.body.appendChild(a);
   a.click();
   a.remove();

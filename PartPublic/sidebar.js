@@ -24,10 +24,11 @@
     logoutBtn.dataset.mimLogout = '1';
     logoutBtn.addEventListener('click', async function () {
       await MIM._csrfReady;
-      fetch('/api/auth/logout', { method: 'POST', credentials: 'include', headers: MIM.csrfHeader() })
+      var apiBase = typeof mimApiBase === 'function' ? mimApiBase() : '/api';
+      fetch(apiBase + '/auth/logout', { method: 'POST', credentials: 'include', headers: MIM.csrfHeader() })
         .catch(function () {})
         .finally(function () {
-          window.location.href = '../PartPublic/connexion.html';
+          window.location.href = '/PartPublic/connexion.html';
         });
     });
   }

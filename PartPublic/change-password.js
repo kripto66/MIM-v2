@@ -1,13 +1,10 @@
 const API = mimApiBase();
 
 const nextParam = new URLSearchParams(window.location.search).get('next');
-let next = '../PartLocataires/LocaDash.html';
+let next = MIM.accountHome(MIM.accountType);
 if (nextParam) {
-    const isInternalPath = nextParam.startsWith('/') || nextParam.startsWith('./') || nextParam.startsWith('../');
-    const hasScheme = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(nextParam);
-    if (isInternalPath && !hasScheme && !nextParam.includes('\\')) {
-        next = nextParam;
-    }
+    const resolved = MIM.resolveRedirect(nextParam);
+    if (resolved) next = resolved;
 }
 const loginMessage = document.getElementById('loginMessage');
 const usernameInput = document.getElementById('username');
@@ -31,15 +28,11 @@ fetch(API + '/auth/me', { credentials: 'include' })
             usernameGroup.style.display = 'none';
         }
         if (d.success && d.user) {
+            const accountType = d.user.account_type;
+            if (accountType) MIM.accountType = accountType;
             currentPasswordGroup.style.display = d.user.must_change_password ? 'none' : 'block';
-            if (!nextParam && d.user.account_type) {
-                const zonePage = {
-                    locataire: '../PartLocataires/LocaDash.html',
-                    employe: '../PartEmployes/employe.html',
-                    proprietaire: '../PartProprietaires/dashboard.html',
-                }[d.user.account_type];
-                if (zonePage) next = zonePage;
-            }
+            const resolved = nextParam ? MIM.resolveRedirect(nextParam, accountType) : "";
+            next = resolved || MIM.accountHome(accountType);
         }
     })
     .catch(() => {

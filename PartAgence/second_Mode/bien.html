@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>MIM — Bien géré</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/mim-errors.css">
+    <script src="/mim-errors.js"></script>
+
+    <link rel="stylesheet" href="/PartAgence/first_Mode/style.css">
+    <link rel="stylesheet" href="/PartPublic/mim-ui.css">
+
+</head>
+
+
+<body data-espace="agence2">
+
+    <div class="dashboard">
+
+
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
+
+            <a class="logo" href="/PartAgence/first_Mode/dashboard.html" data-sidebar-toggle-logo title="Tableau de bord Agence">
+                MIM
+            </a>
+
+            <nav class="sidebar-menu">
+                <div class="nav-category">MODE 2</div>
+                <a href="/PartAgence/first_Mode/dashboard.html">
+                    ← Retour au Dashboard Agence
+                </a>
+                <div class="nav-category">Bien courant</div>
+                <a class="active" href="/PartAgence/second_Mode/bien.html" id="navBien">Le bien</a>
+                <a href="/PartAgence/second_Mode/logements.html" id="navLogements">Logements</a>
+                <a href="/PartAgence/second_Mode/locataires.html" id="navLocataires">Locataires</a>
+                <a href="/PartAgence/second_Mode/paiements.html" id="navPaiements">Paiements</a>
+                <a href="/PartAgence/second_Mode/incidents.html" id="navIncidents">Incidents</a>
+                <a href="/PartAgence/second_Mode/prestataires.html" id="navPrestataires">Prestataires</a>
+                <a href="/PartAgence/second_Mode/interventions.html" id="navInterventions">Interventions</a>
+                <div class="nav-category">Suivi</div>
+                <a href="/PartAgence/second_Mode/notifications.html" id="navNotifications">Notifications</a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button id="logoutBtn" type="button">
+                    Déconnexion
+                </button>
+            </div>
+
+        </aside>
+
+
+        <main class="main-content">
+
+
+            <header class="dashboard-header">
+
+                <button class="menu-toggle" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">
+                    ☰
+                </button>
+
+                <div id="apiMessage" class="api-message" style="display:none;"></div>
+
+                <div class="welcome">
+                    <h1 id="bienTitle">
+                        Bien géré<span class="accent">.</span>
+                    </h1>
+                    <p id="bienSub">
+                        Chargement du contexte…
+                    </p>
+                </div>
+
+                <div class="header-actions">
+
+                    <span class="live-indicator" id="liveIndicator">
+                        <span class="live-dot"></span>
+                        <span id="liveLabel">À jour</span>
+                    </span>
+
+                    <a href="/PartAgence/first_Mode/dashboard.html" class="btn btn-secondary">
+                        ← Retour au Dashboard Agence
+                    </a>
+
+                </div>
+
+            </header>
+
+
+            <!-- Bandeau bien -->
+            <div id="bienBanner" class="sub-banner sub-banner-info" hidden></div>
+
+
+            <!-- KPI scoped -->
+            <section class="dashboard-overview">
+
+                <article class="stat-card">
+                    <span class="stat-ico">▤</span>
+                    <h3>Logements</h3>
+                    <strong class="stat-value" id="kpiLogements">—</strong>
+                    <p class="stat-sub" id="kpiLogementsSub">Chargement…</p>
+                </article>
+
+                <article class="stat-card">
+                    <span class="stat-ico">◉</span>
+                    <h3>Locataires</h3>
+                    <strong class="stat-value" id="kpiLocataires">—</strong>
+                    <p class="stat-sub" id="kpiLocatairesSub">Chargement…</p>
+                </article>
+
+                <article class="stat-card trend-up">
+                    <span class="stat-ico">◈</span>
+                    <h3>Loyers encaissés</h3>
+                    <strong class="stat-value accent" id="kpiPaidRent">—</strong>
+                    <p class="stat-sub" id="kpiPaidRentSub">Ce mois</p>
+                    <div class="stat-progress">
+                        <div class="stat-progress-fill" id="kpiRentProgress" style="width:0%"></div>
+                    </div>
+                </article>
+
+                <article class="stat-card trend-down kpi-danger">
+                    <span class="stat-ico">▲</span>
+                    <h3>Retards</h3>
+                    <strong class="stat-value" id="kpiLateRent">—</strong>
+                    <p class="stat-sub" id="kpiLateSub">Aucun loyer en retard</p>
+                </article>
+
+                <article class="stat-card kpi-warn">
+                    <span class="stat-ico">●</span>
+                    <h3>Incidents</h3>
+                    <strong class="stat-value" id="kpiIncidents">—</strong>
+                    <p class="stat-sub" id="kpiIncidentsSub">Chargement…</p>
+                </article>
+
+                <article class="stat-card">
+                    <span class="stat-ico">◆</span>
+                    <h3>Interventions</h3>
+                    <strong class="stat-value" id="kpiInterventions">—</strong>
+                    <p class="stat-sub" id="kpiInterventionsSub">Chargement…</p>
+                </article>
+
+            </section>
+
+
+            <!-- Raccourcis de gestion du bien (PHASE 7) -->
+            <section class="dashboard-section">
+
+                <div class="section-header">
+                    <h2>Gestion du bien</h2>
+                    <span class="muted" id="shortcutHint">Chargement…</span>
+                </div>
+
+                <div class="shortcut-grid" id="shortcutGrid">
+
+                    <a class="shortcut-card" href="/PartAgence/second_Mode/logements.html">
+                        <span class="stat-ico">▤</span>
+                        <strong>Logements <b class="shortcut-count" id="shortcut-logements">—</b></strong>
+                        <span>Gérer les logements et le loyer mensuel</span>
+                    </a>
+
+                    <a class="shortcut-card" href="/PartAgence/second_Mode/locataires.html">
+                        <span class="stat-ico">◉</span>
+                        <strong>Locataires <b class="shortcut-count" id="shortcut-locataires">—</b></strong>
+                        <span>Locataires et échéances</span>
+                    </a>
+
+                    <a class="shortcut-card" href="/PartAgence/second_Mode/paiements.html">
+                        <span class="stat-ico">◈</span>
+                        <strong>Paiements <b class="shortcut-count" id="shortcut-paiements">—</b></strong>
+                        <span>Encaissements et validation</span>
+                    </a>
+
+                    <a class="shortcut-card" href="/PartAgence/second_Mode/incidents.html">
+                        <span class="stat-ico">●</span>
+                        <strong>Incidents <b class="shortcut-count" id="shortcut-incidents">—</b></strong>
+                        <span>Signalements et suivi</span>
+                    </a>
+
+                    <a class="shortcut-card" href="/PartAgence/second_Mode/prestataires.html">
+                        <span class="stat-ico">◆</span>
+                        <strong>Prestataires <b class="shortcut-count" id="shortcut-prestataires">—</b></strong>
+                        <span>Contacts d'intervention</span>
+                    </a>
+
+                    <a class="shortcut-card" href="/PartAgence/second_Mode/interventions.html">
+                        <span class="stat-ico">→</span>
+                        <strong>Interventions <b class="shortcut-count" id="shortcut-interventions">—</b></strong>
+                        <span>Planification et suivi</span>
+                    </a>
+
+                </div>
+
+            </section>
+
+
+        </main>
+
+    </div>
+
+    <!-- scope.js DOIT être chargé avant api.js (base swap). -->
+    <script src="/PartAgence/second_Mode/scope.js"></script>
+    <script src="/PartProprietaires/api.js"></script>
+    <script src="/PartProprietaires/crud.js"></script>
+    <script src="/PartAgence/second_Mode/bien.js"></script>
+    <script src="/PartPublic/sidebar.js"></script>
+
+</body>
+
+</html>

@@ -1,9 +1,11 @@
 import { Router } from 'express';
+import crypto from 'node:crypto';
 import { serviceClient } from '../app.js';
 import { auditLog, LEVELS } from '../utils/audit.js';
 import { notify } from '../utils/notifications.js';
 import { isSaasSuspended, invalidateSaasCache } from '../utils/saasStatus.js';
 import { getSimulationStatus, advanceDay, resetSimulation } from '../utils/simulation.js';
+import { revokeAllSessions } from '../utils/sessions.js';
 
 const router = Router();
 
@@ -92,9 +94,12 @@ router.post('/admins', async (req, res) => {
       password: tempPw,
       email_confirm: true,
       user_metadata: {
-        account_type: 'admin',
         name: name.trim(),
         username: username?.trim() || null,
+      },
+      app_metadata: {
+        mim_account_type: 'admin',
+        mim_must_change_password: !password,
       },
     });
 
@@ -182,6 +187,7 @@ router.patch('/admins/:id', async (req, res) => {
     });
 
     if (banErr) throw banErr;
+    if (action === 'suspend') await revokeAllSessions(id, null, 'admin_suspended');
 
     // Audit log
     await auditLog({
@@ -816,14 +822,183 @@ router.post('/simulation/reset', async (req, res) => {
   }
 });
 
+// ─── CATALOGUE DES PLANS (tarification) ────────────────────────────
+
+// GET /api/ultra-admin/plans — tous les plans, toutes audiences
+router.get('/plans', async (req, res) => {
+  try {
+    const { data, error } = await sb()
+      .from('plans')
+      .select('*')
+      .order('audience', { ascending: true })
+      .order('prix', { ascending: true });
+    if (error) throw error;
+
+    const { data: pending } = await sb()
+      .from('abonnement_paiements')
+      .select('plan')
+      .eq('statut', 'pending');
+
+    const counts = new Map();
+    for (const row of pending || []) {
+      counts.set(row.plan, (counts.get(row.plan) || 0) + 1);
+    }
+    const pendingByPlan = counts;
+
+    res.json({
+      success: true,
+      plans: (data || []).map((p) => ({
+        ...p,
+        prix: Number(p.prix),
+        paiementsEnAttente: pendingByPlan.get(p.code) || 0,
+      })),
+    });
+  } catch (e) {
+    console.warn('[ultra-admin] plans error:', e.message);
+    err(res, 500, 'SERVER_ERROR', 'Erreur lors du chargement des plans.');
+  }
+});
+
+function planPayload(body) {
+  const errors = {};
+  const code = String(body.code || '').trim().toLowerCase();
+  if (!/^[a-z0-9_]{3,40}$/.test(code)) errors.code = 'Code invalide (lettres, chiffres, _).';
+
+  const nom = String(body.nom || '').trim();
+  if (!nom || nom.length > 80) errors.nom = 'Nom requis (80 caractères max).';
+
+  const prix = Number(body.prix);
+  if (!Number.isFinite(prix) || prix <= 0 || prix > 9999999999.99) errors.prix = 'Prix invalide.';
+
+  const devise = String(body.devise || 'XOF').trim().toUpperCase();
+  if (!/^[A-Z]{3}$/.test(devise)) errors.devise = 'Devise invalide (3 lettres).';
+
+  const audience = String(body.audience || 'proprietaire').trim();
+  if (!['proprietaire', 'agence'].includes(audience)) errors.audience = 'Audience invalide.';
+
+  const duree = Number(body.duree_abonnement);
+  if (!Number.isInteger(duree) || duree < 1 || duree > 36) errors.duree_abonnement = 'Durée entre 1 et 36 mois.';
+
+  const cap = (v) => {
+    if (v === null || v === '' || v === undefined) return null;
+    const n = Number(v);
+    if (!Number.isInteger(n) || n <= 0) return null;
+    return n;
+  };
+
+  const maxImmeubles = cap(body.max_immeubles);
+  if (maxImmeubles === null) errors.max_immeubles = 'Capacité d\'immeubles invalide (entier > 0).';
+
+  return {
+    errors,
+    values: {
+      code,
+      nom,
+      prix,
+      devise,
+      audience,
+      duree_abonnement: duree,
+      max_immeubles: maxImmeubles,
+      max_logements: cap(body.max_logements),
+      max_locataires: cap(body.max_locataires),
+      description: body.description ? String(body.description).trim().slice(0, 400) : null,
+      actif: body.actif === undefined ? true : Boolean(body.actif),
+    },
+  };
+}
+
+// POST /api/ultra-admin/plans — créer un plan
+router.post('/plans', async (req, res) => {
+  try {
+    const { errors, values } = planPayload(req.body || {});
+    if (Object.keys(errors).length) return err(res, 400, 'VALIDATION', 'Formulaire incomplet.', errors);
+
+    const { data: existing } = await sb().from('plans').select('id').eq('code', values.code).maybeSingle();
+    if (existing) return err(res, 409, 'PLAN_EXISTS', 'Un plan utilise déjà ce code.');
+
+    const { data, error } = await sb()
+      .from('plans')
+      .insert({ ...values, type: values.audience })
+      .select()
+      .single();
+    if (error) throw error;
+
+    await auditLog({
+      userId: req.user.id,
+      action: 'ultra.plan_create',
+      level: LEVELS.WARN,
+      meta: { code: values.code, prix: values.prix, audience: values.audience },
+      ip: req.ip,
+    });
+
+    res.status(201).json({ success: true, plan: data });
+  } catch (e) {
+    console.warn('[ultra-admin] plan create error:', e.message);
+    err(res, 500, 'SERVER_ERROR', 'Erreur lors de la création du plan.');
+  }
+});
+
+// PATCH /api/ultra-admin/plans/:code — modifier prix / capacités / état
+router.patch('/plans/:code', async (req, res) => {
+  try {
+    const code = String(req.params.code || '').trim().toLowerCase();
+    const { errors, values } = planPayload({ ...(req.body || {}), code });
+    if (Object.keys(errors).length) return err(res, 400, 'VALIDATION', 'Formulaire incomplet.', errors);
+
+    const { data: before, error: readErr } = await sb().from('plans').select('*').eq('code', code).maybeSingle();
+    if (readErr) throw readErr;
+    if (!before) return err(res, 404, 'PLAN_NOT_FOUND', 'Plan introuvable.');
+
+    const { data, error } = await sb()
+      .from('plans')
+      .update({ ...values, type: values.audience })
+      .eq('code', code)
+      .select()
+      .single();
+    if (error) throw error;
+
+    // Avertissement : un prix modifié casse l'activation des paiements
+    // en attente qui ont été créés avec l'ancien montant.
+    const { data: pending } = await sb()
+      .from('abonnement_paiements')
+      .select('id')
+      .eq('plan', code)
+      .eq('statut', 'pending');
+    const pendingCount = (pending || []).length;
+    const prixChange = Number(before.prix) !== values.prix;
+
+    await auditLog({
+      userId: req.user.id,
+      action: 'ultra.plan_update',
+      level: LEVELS.WARN,
+      meta: {
+        code,
+        avant: { prix: Number(before.prix), actif: before.actif, max_immeubles: before.max_immeubles },
+        apres: { prix: values.prix, actif: values.actif, max_immeubles: values.max_immeubles },
+      },
+      ip: req.ip,
+    });
+
+    res.json({
+      success: true,
+      plan: data,
+      avertissement: prixChange && pendingCount > 0
+        ? `${pendingCount} paiement(s) en attente ne pourront plus être activés avec le nouveau prix.`
+        : null,
+    });
+  } catch (e) {
+    console.warn('[ultra-admin] plan update error:', e.message);
+    err(res, 500, 'SERVER_ERROR', 'Erreur lors de la mise à jour du plan.');
+  }
+});
+
 // ─── UTILITAIRES ──────────────────────────────────────────────────
 
 function generateTempPassword() {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%';
-  let pw = 'Mim@';
-  for (let i = 0; i < 10; i++) pw += chars.charAt(Math.floor(Math.random() * chars.length));
-  pw += '!';
-  return pw;
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%';
+  let password = 'M!9';
+  for (let i = 0; i < 24; i += 1) password += chars[crypto.randomInt(0, chars.length)];
+  return `${password}aA1`;
 }
 
 export default router;

@@ -10,6 +10,7 @@
 import { api, expectSuccess, newJar } from './lib.js';
 
 const S = 'locataires';
+const ROTATED_PASSWORD = 'LocataireRotated1234!';
 
 function currentMoisUTC() {
   const d = new Date();
@@ -25,8 +26,8 @@ function nextMois(mois) {
 
 export async function runLocataires(r, ctx) {
   const service = ctx.service;
-  const owner1 = ctx.seed.owners[0];
-  const owner2 = ctx.seed.owners[1];
+  const owner1 = ctx.seed.owners[9];
+  const owner2 = ctx.seed.owners[8];
   const jar = owner1.jar;
   const jar2 = owner2.jar;
   const moisCourant = currentMoisUTC();
@@ -41,7 +42,7 @@ export async function runLocataires(r, ctx) {
       jar,
       body: {
         nom: 'Amadou Diop',
-        email: 'amadou.diop@exemple.com',
+        email: `amadou.diop.locataire.${Date.now()}@exemple.com`,
         phone: '+221771234567',
         jour_echeance: 5,
         date_entree: '2026-01-01',
@@ -330,6 +331,14 @@ export async function runLocataires(r, ctx) {
     if (login.status !== 200) {
       r.fail(S, 'login locataire pour le paiement', `statut ${login.status}`);
       return;
+    }
+    if (login.data.mustChangePassword) {
+      const rotated = await api('/auth/change-password', {
+        method: 'PUT',
+        jar: jarT,
+        body: { password: ROTATED_PASSWORD, password_confirm: ROTATED_PASSWORD },
+      });
+      if (!expectSuccess(r, rotated, S, 'rotation du mot de passe locataire')) return;
     }
     const moyens = await api('/locataire/moyens-paiement', { jar: jarT });
     if (expectSuccess(r, moyens, S, r) && (moyens.data.data || []).some((m) => m.id === moyenId)) {

@@ -1,8 +1,6 @@
 const API = (() => {
-  if (window.MIM_API_BASE) return window.MIM_API_BASE;
-  const origin = window.location.origin || "http://localhost:3000";
-  const isLocal = origin.includes("localhost") || origin.includes("127.0.0.1");
-  return (isLocal ? "http://localhost:3000" : origin) + "/api";
+  const host = (window.MIM && MIM.apiHost) ? MIM.apiHost() : window.location.origin || "http://localhost:3000";
+  return host + "/api";
 })();
 
 const E = {
@@ -45,10 +43,12 @@ function toast(m, t = "success") {
 }
 
 async function api(p, o = {}) {
+  if (window.MIM && MIM._csrfReady) await MIM._csrfReady;
+  const csrfHeaders = window.MIM && typeof MIM.csrfHeader === "function" ? MIM.csrfHeader() : {};
   let r = await fetch(API + p, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...(o.headers || {}) },
     ...o,
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(o.headers || {}), ...csrfHeaders },
   });
   let b = null;
   try { b = await r.json(); } catch {}

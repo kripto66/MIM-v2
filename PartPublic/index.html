@@ -1,18 +1,11 @@
 <!DOCTYPE html>
 <html lang="fr">
-
 <head>
-
     <meta charset="UTF-8">
-
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gestion immobilière simplifiée | MyImmoManagement</title>
 
-    <meta name="description" content="MIM est la plateforme de gestion immobilière pour propriétaires et agences. Gérez biens, logements, locataires, paiements et employés en un seul endroit.">
+    <meta name="description" content="MIM est la plateforme de gestion immobilière pour propriétaires et agences. Gérez biens, logements, locataires, paiements, employés et incidents en un seul endroit. Paiement en ligne sécurisé.">
 
     <link rel="canonical" href="https://mim-app.com/">
 
@@ -32,10 +25,8 @@
     <meta name="twitter:image" content="https://mim-app.com/images/social-share.svg">
 
     <link rel="stylesheet" href="/mim-errors.css">
-    <script src="/mim-errors.js"></script>
-
-
     <link rel="stylesheet" href="style.css">
+    <script src="/mim-errors.js"></script>
 
     <!-- Schema.org Structured Data -->
     <script type="application/ld+json">
@@ -73,447 +64,473 @@
       }
     }
     </script>
-
 </head>
 
 <body>
 
-    
+    <!-- BARRE DE CONVERSION SUPÉRIEURE -->
+    <div class="topbar">
+        <span>✦ Gestion immobilière nouvelle génération — paiement en ligne sécurisé par <strong>Bictorys</strong></span>
+    </div>
 
-        
-    <header>
+    <!-- NAVIGATION -->
+    <header class="site-nav" id="siteNav">
+        <div class="nav-inner">
+            <a class="brand" href="#hero" aria-label="MyImmoManagement — accueil">
+                <span class="brand-mark" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 4l9 5.5"/><path d="M5 11v8h14v-8"/><path d="M9.5 19v-5h5v5"/></svg>
+                </span>
+                <span class="brand-text">MyImmo<strong>Management</strong></span>
+            </a>
 
-        <nav id="header">
-            
-              
-<button><a href="#about">À propos</a></button>
-                
+            <nav class="nav-links" id="navLinks" aria-label="Menu principal">
+                <a href="#fonctionnalites">Fonctionnalités</a>
+                <a href="#fonctionnement">Comment ça marche</a>
+                <a href="#galerie">Réalisations</a>
+                <a href="#tarifs">Tarifs</a>
+                <a href="#faq">FAQ</a>
+            </nav>
 
-                    <button><a href="#objectif">Notre objectif</a></button>
-               
+            <div class="nav-cta">
+                <a class="btn btn-ghost" href="connexion.html">Se connecter</a>
+                <a class="btn btn-gold" href="createCompte.html">Commencer</a>
+            </div>
 
-              
-                    <button><a href="#fonctionnalites">Fonctionnalités</a></button>
-               
-
-              
-                    <button><a href="#fonctionnement">Comment ça marche ?</a></button>
-               
-
-
-                    <button><a href="#faq">FAQ</a></button>
-                
-                <button><a href="#tarifs">Tarifs</a></button>
-
-            
-        </nav>
-        <!-- Logo-->
-               <div id="logo"></div>  
-
+            <button class="nav-burger" id="navBurger" type="button" aria-label="Ouvrir le menu" aria-expanded="false">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
     </header>
-
 
     <main>
 
         <!-- HERO -->
-        <section id="hero">
+        <section id="hero" class="hero">
+            <div class="hero-bg" aria-hidden="true"></div>
 
-            <h1>
-                Gérez votre patrimoine immobilier simplement
-            </h1>
+            <div class="hero-content">
+                <span class="eyebrow reveal">Plateforme de gestion locative tout-en-un</span>
+                <h1 class="reveal">Gérez votre patrimoine immobilier <span class="grad">simplement</span></h1>
+                <p class="hero-sub reveal">
+                    MyImmoManagement centralise vos logements, locataires, paiements et employés
+                    dans une seule plateforme. Suivez chaque immeuble, encaissez les loyers en ligne
+                    et pilotez votre activité avec une visibilité totale.
+                </p>
 
-            <p>
-                MyImmoManagement vous aide à gérer vos logements,
-                vos locataires, vos paiements et votre activité
-                immobilière depuis une seule plateforme.
-                <br>
-                <strong>Avec MyImmoManagement (MIM), la gestion immobilière entre dans une nouvelle ère.</strong>
-            </p>
+                <div class="hero-actions reveal">
+                    <a class="btn btn-gold btn-lg" href="createCompte.html">
+                        Commencer maintenant
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                    </a>
+                    <a class="btn btn-violet btn-lg" href="connexion.html">Se connecter</a>
+                </div>
 
-            <button><a href="#inscription">
-                Commencer maintenant
-            </a></button>
+                <ul class="hero-points reveal">
+                    <li><span class="dot-check" aria-hidden="true">✓</span> Paiement des loyers en ligne sécurisé</li>
+                    <li><span class="dot-check" aria-hidden="true">✓</span> Plans sans engagement, résiliable à tout moment</li>
+                    <li><span class="dot-check" aria-hidden="true">✓</span> Employés &amp; prestataires illimités</li>
+                </ul>
+            </div>
 
+            <div class="hero-mock reveal">
+                <div class="mock-frame">
+                    <div class="mock-bar" aria-hidden="true">
+                        <span></span><span></span><span></span>
+                        <em>app.mim-app.com/dashboard</em>
+                    </div>
+                    <img src="../images/dash.webp" alt="Aperçu du tableau de bord MyImmoManagement" width="1200" height="760" loading="eager" decoding="async">
+                </div>
+
+                <div class="mock-chip chip-payment" aria-hidden="true">
+                    <span class="chip-icon">✓</span>
+                    <div><strong>Loyer encaissé</strong><small>+25 000 FCFA · Bictorys</small></div>
+                </div>
+                <div class="mock-chip chip-due" aria-hidden="true">
+                    <span class="chip-icon">$</span>
+                    <div><strong>Échéance suivante</strong><small>Dans 3 jours</small></div>
+                </div>
+            </div>
         </section>
-
 
         <!-- À PROPOS -->
-        <section id="about">
+        <section id="about" class="section">
+            <div class="section-head reveal">
+                <span class="eyebrow">À propos</span>
+                <h2>Pensé pour les propriétaires, agences et gestionnaires</h2>
+                <p>
+                    MyImmoManagement est la solution de gestion immobilière qui vous aide à
+                    centraliser et simplifier toute votre activité : biens, baux, encaissements,
+                    équipe et interventions — depuis un espace unique et moderne.
+                </p>
+            </div>
 
-            <h2>
-                À propos de MIM
-            </h2>
-
-            <p>
-                MyImmoManagement est une solution de gestion
-                immobilière conçue pour aider les propriétaires
-                à centraliser et simplifier leur activité.
-            </p>
-
+            <div class="stats-band reveal">
+                <div class="stat">
+                    <strong>1</strong>
+                    <span>Plateforme unique pour tout gérer</span>
+                </div>
+                <div class="stat">
+                    <strong>∞</strong>
+                    <span>Employés &amp; prestataires illimités</span>
+                </div>
+                <div class="stat">
+                    <strong>24/7</strong>
+                    <span>Accès depuis tous vos appareils</span>
+                </div>
+            </div>
         </section>
-
 
         <!-- OBJECTIF -->
-        <section id="objectif">
-
-            <h2>
-                Notre objectif
-            </h2>
-
-            <p>
-                Notre objectif est de simplifier la gestion
-                immobilière et de permettre aux propriétaires
-                de gagner du temps tout en ayant une meilleure
-                visibilité sur leur activité.
-            </p>
-
+        <section id="objectif" class="section section-alt">
+            <div class="section-head reveal">
+                <span class="eyebrow">Notre objectif</span>
+                <h2>Vous faire gagner du temps, avec une meilleure visibilité</h2>
+            </div>
+            <div class="objectif-grid">
+                <div class="objectif-item reveal">
+                    <h3>Centralisez vos informations</h3>
+                    <p>Biens, logements, contrats et historiques de paiement dans une base unique et fiable.</p>
+                </div>
+                <div class="objectif-item reveal">
+                    <h3>Simplifiez vos encaissements</h3>
+                    <p>Émettez des liens de paiement, suivez les statuts en temps réel et recevez les loyers en ligne.</p>
+                </div>
+                <div class="objectif-item reveal">
+                    <h3>Pilotez votre activité</h3>
+                    <p>Tableaux de bord et rapports clairs pour décider avec une vision complète de votre parc.</p>
+                </div>
+            </div>
         </section>
-
 
         <!-- FONCTIONNALITÉS -->
-        <section id="fonctionnalites">
+        <section id="fonctionnalites" class="section">
+            <div class="section-head reveal">
+                <span class="eyebrow">Fonctionnalités</span>
+                <h2>Tout votre immeuble, une seule plateforme</h2>
+                <p>Chaque module est conçu pour réduire votre charge administrative et éliminer les saisies répétées.</p>
+            </div>
 
-            <h2>
-                Nos fonctionnalités
-            </h2>
-
-            
+            <div class="features-grid">
+                <article class="feature reveal">
+                    <span class="feature-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 4l9 5.5"/><path d="M5 11v8h14v-8"/><path d="M10 19v-5h4v5"/></svg>
+                    </span>
                     <h3>Gestion des logements</h3>
+                    <p>Ajoutez vos immeubles et logements, suivez l'occupation et organisez votre parc en quelques clics.</p>
+                </article>
 
-                    <p>
-                        Ajoutez et gérez facilement vos logements.
-                    </p>
-                
-                    <h3>Gestion des locataires</h3>
+                <article class="feature reveal">
+                    <span class="feature-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    </span>
+                    <h3>Locataires &amp; baux</h3>
+                    <p>Centralisez les informations de vos locataires, baux et documents pour un suivi sans faille.</p>
+                </article>
 
-                    <p>
-                        Centralisez les informations de vos locataires.
-                    </p>
-                
+                <article class="feature reveal">
+                    <span class="feature-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+                    </span>
+                    <h3>Paiements &amp; échéances</h3>
+                    <p>Suivez les paiements reçus et à venir, relancez automatiquement et encaissez en ligne via Bictorys.</p>
+                </article>
 
-                
-                    <h3>Gestion des paiements</h3>
+                <article class="feature reveal">
+                    <span class="feature-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-3-3.87"/><path d="M7 21v-2a4 4 0 0 1 3-3.87"/><circle cx="12" cy="8" r="4"/></svg>
+                    </span>
+                    <h3>Employés &amp; salaires</h3>
+                    <p>Organisez votre équipe, leurs informations et leurs tâches, avec des rôles et accès adaptés.</p>
+                </article>
 
-                    <p>
-                        Suivez les paiements et les échéances.
-                    </p>
-            
+                <article class="feature reveal">
+                    <span class="feature-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                    </span>
+                    <h3>Incidents &amp; interventions</h3>
+                    <p>Signalez et suivez les incidents, planifiez les interventions des prestataires et gardez la traçabilité.</p>
+                </article>
 
-                
-                    <h3>Gestion des employés</h3>
-
-                    <p>
-                        Organisez les informations et les tâches
-                        de vos employés.
-                    </p>
-                
-
-                
-                    <h3>Notifications</h3>
-
-                    <p>
-                        Recevez des informations importantes
-                        concernant votre activité.
-                    </p>
-                
-
-            
-
+                <article class="feature reveal">
+                    <span class="feature-icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+                    </span>
+                    <h3>Notifications &amp; rapports</h3>
+                    <p>Recevez les informations importantes et générez des rapports clairs sur votre activité.</p>
+                </article>
+            </div>
         </section>
-
 
         <!-- COMMENT ÇA MARCHE -->
-        <section id="fonctionnement">
-
-            <h2>
-                Comment ça marche ?
-            </h2>
-
-            
-
-               
-                    <h3>Créer un compte</h3>
-
-                    <p>
-                        Inscrivez-vous sur MIM.
-                    </p>
-                
-                    <h3>Ajouter vos logements</h3>
-
-                    <p>
-                        Ajoutez vos propriétés et leurs informations.
-                    </p>
-                
-
-                
-                    <h3>Gérer votre activité</h3>
-
-                    <p>
-                        Gérez vos locataires, paiements et logements
-                        depuis votre espace.
-                    </p>
-               
-
-        </section>
-        <!--DASHBOARD PROPRIETAIRE IMAGE-->
-        <div id="dashboard-image">
+        <section id="fonctionnement" class="section section-alt">
+            <div class="section-head reveal">
+                <span class="eyebrow">Comment ça marche ?</span>
+                <h2>Prêt en 5 minutes</h2>
+                <p>Pas de formation : créez votre compte, ajoutez vos biens, gérez votre activité.</p>
             </div>
 
+            <ol class="steps">
+                <li class="step reveal">
+                    <span class="step-num">1</span>
+                    <h3>Créez votre compte</h3>
+                    <p>Inscrivez-vous en ligne et choisissez le plan adapté à votre activité, sans engagement.</p>
+                </li>
+                <li class="step reveal">
+                    <span class="step-num">2</span>
+                    <h3>Ajoutez vos logements</h3>
+                    <p>Renseignez vos immeubles, logements et locataires — vos données sont toutes centralisées.</p>
+                </li>
+                <li class="step reveal">
+                    <span class="step-num">3</span>
+                    <h3>Gérez votre activité</h3>
+                    <p>Encaissez les loyers, suivez les échéances et pilotez votre parc depuis votre espace.</p>
+                </li>
+            </ol>
+        </section>
 
         <!-- GALERIE LOGEMENTS -->
-        <section id="galerie">
-
-            <h2>
-                Des logements, une seule plateforme
-            </h2>
-
-            <p>
-                Gérez des biens comme ceux-ci — visualisation,
-                suivi et organisation depuis un seul espace.
-            </p>
-
-            <div class="bento">
-
-                <div class="bento-item b1">
-                    <img
-                        src="../images/immo.webp"
-                        alt="Immeuble d'appartements moderne"
-                        loading="lazy"
-                        decoding="async"
-                    >
-                </div>
-
-                <div class="bento-item b2">
-                    <img
-                        src="../images/APpart.webp"
-                        alt="Salon moderne élégant"
-                        loading="lazy"
-                        decoding="async"
-                    >
-                </div>
-
-                <div class="bento-item b3">
-                    <img
-                        src="../images/cuisine.webp"
-                        alt="Cuisine moderne équipée"
-                        loading="lazy"
-                        decoding="async"
-                    >
-                </div>
-
-                <div class="bento-item b4">
-                    <img
-                        src="../images/salon.webp"
-                        alt="Salon moderne élégant"
-                        loading="lazy"
-                        decoding="async"
-                    >
-                </div>
-
-                <div class="bento-item b5">
-                    <img
-                        src="../images/logement.webp"
-                        alt="Immeuble résidentiel avec balcons en verre"
-                        loading="lazy"
-                        decoding="async"
-                    >
-                </div>
-
+        <section id="galerie" class="section">
+            <div class="section-head reveal">
+                <span class="eyebrow">Réalisations</span>
+                <h2>Des logements, une seule plateforme</h2>
+                <p>Gérez des biens comme ceux-ci — visualisation, suivi et organisation depuis un seul espace.</p>
             </div>
 
+            <div class="bento reveal">
+                <div class="bento-item b1">
+                    <img src="../images/immo.webp" alt="Immeuble d'appartements moderne" loading="lazy" decoding="async">
+                </div>
+                <div class="bento-item b2">
+                    <img src="../images/APpart.webp" alt="Salon moderne élégant" loading="lazy" decoding="async">
+                </div>
+                <div class="bento-item b3">
+                    <img src="../images/cuisine.webp" alt="Cuisine moderne équipée" loading="lazy" decoding="async">
+                </div>
+                <div class="bento-item b4">
+                    <img src="../images/salon.webp" alt="Salon moderne élégant" loading="lazy" decoding="async">
+                </div>
+                <div class="bento-item b5">
+                    <img src="../images/logement.webp" alt="Immeuble résidentiel avec balcons en verre" loading="lazy" decoding="async">
+                </div>
+            </div>
         </section>
-
 
         <!-- POURQUOI MIM -->
-        <section id="pourquoi">
+        <section id="pourquoi" class="section section-alt">
+            <div class="section-head reveal">
+                <span class="eyebrow">Pourquoi MIM ?</span>
+                <h2>La gestion immobilière simplifiée, vraiment</h2>
+            </div>
 
-            <h2>
-                Pourquoi choisir MIM ?
-            </h2>
-
-            
-                    Centraliser vos informations
-                
-                    Gagner du temps
-                
-                    Suivre votre activité
-                
-                    Simplifier la gestion de vos logements
-                
+            <div class="why-grid">
+                <div class="why-item reveal">
+                    <span class="dot-check" aria-hidden="true">✓</span>
+                    <div><h3>Centralisez vos informations</h3><p>Tous vos immeubles et locataires au même endroit, accessible partout.</p></div>
+                </div>
+                <div class="why-item reveal">
+                    <span class="dot-check" aria-hidden="true">✓</span>
+                    <div><h3>Gagnez du temps</h3><p>Des tâches répétitives automatisées : suivis, échéances et relances.</p></div>
+                </div>
+                <div class="why-item reveal">
+                    <span class="dot-check" aria-hidden="true">✓</span>
+                    <div><h3>Suivez votre activité</h3><p>Des statistiques claires sur vos encaissements et votre occupation.</p></div>
+                </div>
+                <div class="why-item reveal">
+                    <span class="dot-check" aria-hidden="true">✓</span>
+                    <div><h3>Simplifiez vos logements</h3><p>Une gestion fluide de vos logements, locations et intervenants.</p></div>
+                </div>
+            </div>
         </section>
 
-
         <!-- TARIFS -->
-        <section id="tarifs">
-
-            <h2>
-                Des tarifs simples et transparents
-            </h2>
-
-            <p>
-                Choisissez le plan adapté à votre activité, sans engagement et
-                résiliable à tout moment. Paiement en ligne sécurisé par Bictorys.
-            </p>
+        <section id="tarifs" class="section">
+            <div class="section-head reveal">
+                <span class="eyebrow">Tarifs</span>
+                <h2>Des tarifs simples et transparents</h2>
+                <p>Choisissez le plan adapté à votre activité, sans engagement et résiliable à tout moment. Paiement en ligne sécurisé par Bictorys.</p>
+            </div>
 
             <div class="tarifs-grid">
-
-                <div class="tcard">
-
+                <article class="tcard reveal">
                     <h3>Standard</h3>
-
                     <div class="tprice">7 000 <span>FCFA/mois</span></div>
-
                     <ul>
                         <li>1 immeuble · 20 logements · 20 locataires</li>
                         <li>Gestion locataires &amp; paiements</li>
                         <li>Signalements &amp; incidents</li>
                         <li>Employés &amp; prestataires illimités</li>
                     </ul>
+                    <a class="btn tbtn" href="createCompte.html">Choisir ce plan</a>
+                </article>
 
-                    <button><a href="createCompte.html">Choisir ce plan</a></button>
-
-                </div>
-
-                <div class="tcard popular">
-
+                <article class="tcard popular reveal">
                     <span class="tbadge">Le plus populaire</span>
-
                     <h3>Premium</h3>
-
                     <div class="tprice">15 000 <span>FCFA/mois</span></div>
-
                     <ul>
                         <li>3 immeubles · 75 logements · 75 locataires</li>
                         <li>Multi-immeubles &amp; rapports avancés</li>
                         <li>Employés, salaires &amp; prestataires</li>
                         <li>Employés &amp; prestataires illimités</li>
                     </ul>
+                    <a class="btn tbtn" href="createCompte.html">Choisir ce plan</a>
+                </article>
 
-                    <button><a href="createCompte.html">Choisir ce plan</a></button>
-
-                </div>
-
-                <div class="tcard">
-
+                <article class="tcard reveal">
                     <h3>Pro</h3>
-
                     <div class="tprice">30 000 <span>FCFA/mois</span></div>
-
                     <ul>
                         <li>10 immeubles · 300 logements · 300 locataires</li>
                         <li>Statistiques &amp; gestion d'agence</li>
                         <li>Accès multi-utilisateurs</li>
                         <li>Employés &amp; prestataires illimités</li>
                     </ul>
+                    <a class="btn tbtn" href="createCompte.html">Choisir ce plan</a>
+                </article>
 
-                    <button><a href="createCompte.html">Choisir ce plan</a></button>
-
-                </div>
-
-                <div class="tcard">
-
+                <article class="tcard reveal">
                     <h3>Agence</h3>
-
                     <div class="tprice">50 000 <span>FCFA/mois</span></div>
-
                     <ul>
                         <li>25 immeubles · 750 logements · 750 locataires</li>
                         <li>Support prioritaire dédié</li>
                         <li>Fonctionnalités personnalisées</li>
                         <li>Employés &amp; prestataires illimités</li>
                     </ul>
-
-                    <button><a href="createCompte.html">Choisir ce plan</a></button>
-
-                </div>
-
+                    <a class="btn tbtn" href="createCompte.html">Choisir ce plan</a>
+                </article>
             </div>
-
         </section>
-
 
         <!-- FAQ -->
-        <section id="faq">
+        <section id="faq" class="section section-alt">
+            <div class="section-head reveal">
+                <span class="eyebrow">FAQ</span>
+                <h2>Questions fréquentes</h2>
+            </div>
 
-            <h2>
-                Questions fréquentes
-            </h2>
+            <div class="faq-list reveal">
+                <details>
+                    <summary>Qu'est-ce que MIM ?</summary>
+                    <p>MyImmoManagement (MIM) est une plateforme de gestion immobilière qui regroupe vos biens, locataires, paiements, employés et incidents dans un espace unique et sécurisé.</p>
+                </details>
 
-            <details>
+                <details>
+                    <summary>À qui s'adresse MIM ?</summary>
+                    <p>MIM s'adresse aux propriétaires, agences et gestionnaires immobiliers qui souhaitent digitaliser et simplifier la gestion de leur parc locatif.</p>
+                </details>
 
-                <summary>
-                    Qu'est-ce que MIM ?
-                </summary>
+                <details>
+                    <summary>Que puis-je gérer avec MIM ?</summary>
+                    <p>Vous pouvez gérer vos logements et immeubles, locataires et baux, paiements et échéances, employés, prestataires, incidents et interventions, ainsi que vos notifications.</p>
+                </details>
 
-                <p>
-                    MIM est une plateforme de gestion immobilière.
-                </p>
+                <details>
+                    <summary>Comment fonctionne le paiement en ligne ?</summary>
+                    <p>Le paiement est sécurisé par Bictorys : vous recevez un lien de paiement, le statut est mis à jour automatiquement dès la confirmation, et votre abonnement reste à jour.</p>
+                </details>
 
-            </details>
-
-
-            <details>
-
-                <summary>
-                    À qui s'adresse MIM ?
-                </summary>
-
-                <p>
-                    MIM s'adresse notamment aux propriétaires
-                    et gestionnaires immobiliers.
-                </p>
-
-            </details>
-
-
-            <details>
-
-                <summary>
-                Que puis-je gérer avec MIM ?
-                </summary>
-
-                <p>
-                    Vous pouvez gérer vos logements,
-                    locataires, paiements et employés.
-                </p>
-
-            </details>
-
+                <details>
+                    <summary>L'abonnement est-il engageant ?</summary>
+                    <p>Non. Nos plans sont sans engagement et résiliables à tout moment, directement depuis votre espace abonnement.</p>
+                </details>
+            </div>
         </section>
 
-
         <!-- CALL TO ACTION -->
-        <section id="inscription">
-
-            <h2>
-                Commencez avec MIM
-            </h2>
-
-            <p>
-                Simplifiez dès aujourd'hui la gestion
-                de votre activité immobilière.
-            </p>
-
-            <button><a href="createCompte.html">
-                Se connecter / S'inscrire
-            </a></button>
-
+        <section id="inscription" class="section cta-section">
+            <div class="cta-panel reveal">
+                <span class="eyebrow">C'est parti</span>
+                <h2>Commencez avec MIM aujourd'hui</h2>
+                <p>Simplifiez dès maintenant la gestion de votre activité immobilière. Minutieusement conçu pour les propriétaires exigeants.</p>
+                <div class="hero-actions">
+                    <a class="btn btn-gold btn-lg" href="createCompte.html">Se connecter / S'inscrire</a>
+                    <a class="btn btn-ghost-light btn-lg" href="#tarifs">Voir les tarifs</a>
+                </div>
+            </div>
         </section>
 
     </main>
 
-
     <!-- FOOTER -->
-    <footer>
+    <footer class="site-footer">
+        <div class="footer-grid">
+            <div class="footer-brand">
+                <a class="brand" href="#hero">
+                    <span class="brand-mark" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 4l9 5.5"/><path d="M5 11v8h14v-8"/><path d="M9.5 19v-5h5v5"/></svg>
+                    </span>
+                    <span class="brand-text">MyImmo<strong>Management</strong></span>
+                </a>
+                <p>La plateforme de gestion immobilière pour propriétaires et agences.</p>
+            </div>
 
-        <p>
-            &copy; <span id="footerYear">2026</span> MyImmoManagement. Tous droits réservés.
-        </p>
+            <nav class="footer-col" aria-label="Produit">
+                <h4>Produit</h4>
+                <a href="#fonctionnalites">Fonctionnalités</a>
+                <a href="#fonctionnement">Comment ça marche</a>
+                <a href="#tarifs">Tarifs</a>
+                <a href="#faq">FAQ</a>
+            </nav>
 
+            <nav class="footer-col" aria-label="Accès">
+                <h4>Accès</h4>
+                <a href="createCompte.html">Créer un compte</a>
+                <a href="connexion.html">Se connecter</a>
+            </nav>
+        </div>
+
+        <div class="footer-bottom">
+            <p>&copy; <span id="footerYear">2026</span> MyImmoManagement. Tous droits réservés.</p>
+        </div>
     </footer>
 
     <script src="footer.js"></script>
+    <script>
+        // Menu mobile
+        var burger = document.getElementById("navBurger");
+        var links = document.getElementById("navLinks");
+        if (burger && links) {
+            burger.addEventListener("click", function () {
+                var open = links.classList.toggle("open");
+                burger.classList.toggle("open", open);
+                burger.setAttribute("aria-expanded", open ? "true" : "false");
+            });
+            links.addEventListener("click", function (e) {
+                if (e.target.tagName === "A") {
+                    links.classList.remove("open");
+                    burger.classList.remove("open");
+                    burger.setAttribute("aria-expanded", "false");
+                }
+            });
+        }
+
+        // Ombre de la barre de navigation après défilement
+        var nav = document.getElementById("siteNav");
+        var onScroll = function () {
+            if (nav) { nav.classList.toggle("scrolled", window.scrollY > 10); }
+        };
+        if (window.addEventListener) {
+            window.addEventListener("scroll", onScroll, { passive: true });
+            onScroll();
+        }
+
+        // Révélation au défilement
+        var revealEls = document.querySelectorAll(".reveal");
+        if ("IntersectionObserver" in window) {
+            var io = new IntersectionObserver(function (entries) {
+                entries.forEach(function (entry) {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add("visible");
+                        io.unobserve(entry.target);
+                    }
+                });
+            }, { threshold: 0.12 });
+            revealEls.forEach(function (el) { io.observe(el); });
+        } else {
+            revealEls.forEach(function (el) { el.classList.add("visible"); });
+        }
+    </script>
 
 </body>
-
 </html>

@@ -2,246 +2,194 @@
 <html lang="fr">
 
 <head>
-
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Créer un compte — MyImmoManagement</title>
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
-
-    <title>Créez un compte gratuit — MyImmoManagement</title>
-
-    <meta name="description" content="Inscrivez-vous gratuitement sur MyImmoManagement et commencez à gérer votre patrimoine immobilier. Biens, locataires, paiements, tout en un seul endroit.">
+    <meta name="description" content="Créez votre compte MyImmoManagement et pilotez vos biens, locataires et paiements depuis une plateforme moderne et sécurisée.">
     <meta name="robots" content="noindex, nofollow">
     <link rel="canonical" href="https://mim-app.com/createCompte">
 
     <!-- Open Graph -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Créez un compte gratuit — MyImmoManagement">
-    <meta property="og:description" content="Inscrivez-vous gratuitement sur MyImmoManagement et commencez à gérer votre patrimoine immobilier.">
+    <meta property="og:title" content="Créer un compte — MyImmoManagement">
+    <meta property="og:description" content="Créez votre compte MyImmoManagement et pilotez vos biens, locataires et paiements.">
     <meta property="og:url" content="https://mim-app.com/createCompte">
     <meta property="og:site_name" content="MyImmoManagement">
     <meta property="og:image" content="https://mim-app.com/images/social-share.svg">
     <meta property="og:locale" content="fr_SN">
 
+    <link rel="stylesheet" href="auth.css">
     <link rel="stylesheet" href="/mim-errors.css">
-    <script src="/mim-errors.js"></script>
-
-
-    <link rel="stylesheet" href="inscription.css">
 
 </head>
 
 <body>
 
-    <main class="register-container">
+    <main class="auth-shell">
 
-        <section class="register-card">
+        <!-- Panneau gauche : présentation -->
+        <aside class="auth-showcase" aria-hidden="true">
+            <a class="auth-back" href="index.html">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+                Retour à l'accueil
+            </a>
 
-            <div class="register-header">
-
-                <a href="index.html" class="logo">
-                    MIM
-                </a>
-
-                <h1>Créer un compte</h1>
-
-                <p>
-                    Rejoignez MyImmoManagement et simplifiez
-                    la gestion de votre activité immobilière.
-                </p>
-
+            <div class="showcase-brand">
+                <span class="brand-mark">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 4l9 5.5"/><path d="M5 11v8h14v-8"/><path d="M9.5 19v-5h5v5"/></svg>
+                </span>
+                <span class="brand-text">MyImmo<strong>Management</strong></span>
             </div>
 
+            <h1>Prêt à gérer votre<br><span class="grad">immobilier autrement ?</span></h1>
+            <p class="showcase-sub">Créez votre compte en moins de 2 minutes et profitez de tous les outils de la plateforme : biens, locataires, paiements, employés et incidents.</p>
 
-            <form id="registerForm">
+            <ul class="showcase-points">
+                <li><span class="dot-check">✓</span> Essai gratuit, sans engagement</li>
+                <li><span class="dot-check">✓</span> Tableaux de bord lisibles en temps réel</li>
+                <li><span class="dot-check">✓</span> Paiements des loyers en ligne sécurisés</li>
+            </ul>
+        </aside>
 
-                <div class="form-group">
+        <!-- Panneau droit : formulaire -->
+        <section class="auth-panel">
 
-                    <label for="account_type">
-                        Type de compte
-                    </label>
+            <div class="auth-card auth-card-lg">
 
-                    <select
-                        id="account_type"
-                        name="account_type"
-                        required
-                    >
-
-                        <option value="" selected disabled>
-                            Choisissez votre type de compte
-                        </option>
-
-                        <option value="proprietaire">
-                            🏠 Propriétaire
-                            
-                        </option>
-
-                        <option value="agence" disabled>
-                            🏢 Agence immobilière
-                        </option>
-
-                        <option  value="entreprise" disabled>
-                            🏨 Entreprise _ Indisponible
-                            
-                        </option>
-
-                    </select>
-
-                </div>
-
-                <p class="register-note">
-                    Vous êtes locataire ? Votre compte est créé par votre propriétaire —
-                    connectez-vous avec le username et le mot de passe qu'il vous a fournis.
-                </p>
-
-
-                <div class="form-group">
-
-                    <label for="name">
-                        Nom complet
-                    </label>
-
-                    <input
-                        type="text"
-                        id="name"
-                        name="name"
-                        placeholder="Votre nom complet"
-                        autocomplete="name"
-                        required
-                    >
-
-                </div>
-
-
-                <div class="form-group">
-
-                    <label for="email">
-                        Adresse email
-                    </label>
-
-                    <input
-                        type="email"
-                        id="email"
-                        name="email"
-                        placeholder="exemple@email.com"
-                        autocomplete="email"
-                        required
-                    >
-
-                </div>
-
-
-                <div class="form-group">
-
-                    <label for="phone">
-                        Numéro de téléphone
-                    </label>
-
-                    <input
-                        type="tel"
-                        id="phone"
-                        name="phone"
-                        placeholder="+221 XX XXX XX XX"
-                        autocomplete="tel"
-                        required
-                    >
-
-                </div>
-
-
-                <div class="form-group">
-
-                    <label for="password">
-                        Mot de passe
-                    </label>
-
-                    <input
-                        type="password"
-                        id="password"
-                        name="password"
-                        placeholder="Créer un mot de passe"
-                        autocomplete="new-password"
-                        minlength="8"
-                        data-strength
-                        required
-                    >
-
-                    <small>
-                        Minimum 8 caractères.
-                    </small>
-
-                </div>
-
-
-                <div class="form-group">
-
-                    <label for="password_confirm">
-                        Confirmer le mot de passe
-                    </label>
-
-                    <input
-                        type="password"
-                        id="password_confirm"
-                        name="password_confirm"
-                        placeholder="Confirmer votre mot de passe"
-                        autocomplete="new-password"
-                        minlength="8"
-                        required
-                    >
-
-                </div>
-
-
-                <div class="terms">
-
-                    <input
-                        type="checkbox"
-                        id="terms"
-                        name="terms"
-                        required
-                    >
-
-                    <label for="terms">
-
-                        J'accepte les conditions d'utilisation et la politique de confidentialité.
-
-                    </label>
-
-                </div>
-
-
-                <div id="formMessage"></div>
-
-
-                <button
-                    type="submit"
-                    id="submitButton"
-                >
-                    Créer mon compte
-                </button>
-
-            </form>
-
-
-            <div class="login-link">
-
-                <p>
-
-                    Vous avez déjà un compte ?
-
-                    <a href="connexion.html">
-                        Se connecter
+                <div class="auth-head">
+                    <a class="brand brand-mobile" href="index.html">
+                        <span class="brand-mark">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 4l9 5.5"/><path d="M5 11v8h14v-8"/><path d="M9.5 19v-5h5v5"/></svg>
+                        </span>
+                        <span class="brand-text">MyImmo<strong>Management</strong></span>
                     </a>
 
-                </p>
+                    <h2>Créer un compte</h2>
+                    <p class="auth-sub">Rejoignez MyImmoManagement, c'est gratuit.</p>
+                </div>
+
+                <form id="registerForm" novalidate>
+
+                    <div class="form-group">
+                        <label for="account_type">Type de compte</label>
+                        <select id="account_type" name="account_type" required>
+                            <option value="" selected disabled>
+                                Choisissez votre type de compte
+                            </option>
+                            <option value="proprietaire">
+                                Propriétaire
+                            </option>
+                            <option value="agence">
+                                Agence immobilière
+                            </option>
+                            <option value="entreprise" disabled>
+                                Entreprise — Indisponible
+                            </option>
+                        </select>
+                    </div>
+
+                    <p class="register-note">
+                        Vous êtes locataire ? Votre compte est créé par votre propriétaire —
+                        connectez-vous avec le username et le mot de passe qu'il vous a fournis.
+                    </p>
+
+                    <div class="form-group">
+                        <label for="name">Nom complet</label>
+                        <input
+                            type="text"
+                            id="name"
+                            name="name"
+                            placeholder="Votre nom complet"
+                            autocomplete="name"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="email">Adresse email</label>
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            placeholder="exemple@email.com"
+                            autocomplete="email"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="phone">Numéro de téléphone</label>
+                        <input
+                            type="tel"
+                            id="phone"
+                            name="phone"
+                            placeholder="+221 XX XXX XX XX"
+                            autocomplete="tel"
+                            required
+                        >
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password">Mot de passe</label>
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            placeholder="Créer un mot de passe"
+                            autocomplete="new-password"
+                            minlength="8"
+                            data-strength
+                            required
+                        >
+                        <small>Minimum 8 caractères, 3 types de caractères.</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="password_confirm">Confirmer le mot de passe</label>
+                        <input
+                            type="password"
+                            id="password_confirm"
+                            name="password_confirm"
+                            placeholder="Confirmer votre mot de passe"
+                            autocomplete="new-password"
+                            minlength="8"
+                            required
+                        >
+                    </div>
+
+                    <div class="terms">
+                        <input type="checkbox" id="terms" name="terms" required>
+                        <label for="terms">
+                            J'accepte les conditions d'utilisation et la politique de confidentialité.
+                        </label>
+                    </div>
+
+                    <div id="formMessage"></div>
+
+                    <button
+                        class="btn btn-gold btn-block"
+                        type="submit"
+                        id="submitButton"
+                    >
+                        Créer mon compte
+                    </button>
+
+                </form>
+
+                <div class="login-link">
+                    <p>Vous avez déjà un compte ?
+                        <a href="connexion.html">Se connecter</a>
+                    </p>
+                </div>
 
             </div>
 
         </section>
 
     </main>
+
+    <script src="/mim-errors.js"></script>
     <script src="form-utils.js"></script>
     <script src="password-strength.js"></script>
     <script src="createCompte.js"></script>

@@ -5,7 +5,7 @@
 // + Suite MATRICE : combinaisons rôles × endpoints (7 contextes)
 // ============================================================
 
-import { api, newJar, expectSuccess } from './lib.js';
+import { api, newJar, expectSuccess, loginForBusiness, createConfirmedSession } from './lib.js';
 
 const S = 'complet';
 const M = 'matrice';
@@ -18,8 +18,8 @@ function currentMonth() {
 }
 
 export async function runComplet(r, ctx) {
-  const owner = ctx.seed.owners[0];
-  const owner2 = ctx.seed.owners[1];
+  const owner = ctx.seed.owners[4];
+  const owner2 = ctx.seed.owners[3];
   const jar = owner.jar;
 
   await r.section('santé et pages publiques', async () => {
@@ -69,15 +69,13 @@ export async function runComplet(r, ctx) {
       const meta = await api(`/${base}/meta`, { jar });
       const cats = Array.isArray(meta.data?.categories) ? meta.data.categories : [];
       const okCats = ['biens', 'logements', 'locataires', 'employes'].every((c) => cats.includes(c));
-      const okPw =
-        typeof meta.data?.initialPassword === 'string' &&
-        /^Mim@[A-Za-z0-9]{6}!$/.test(meta.data.initialPassword);
+      const okPw = meta.data && !Object.prototype.hasOwnProperty.call(meta.data, 'initialPassword');
       if (
         expectSuccess(r, meta, S, `GET /${base}/meta`) &&
         okCats &&
         okPw
       ) {
-        r.pass(S, `${base}/meta : catégories complètes + mot de passe initial aléatoire`);
+        r.pass(S, `${base}/meta : catégories complètes, aucun secret global`);
       } else if (!okCats || !okPw) {
         r.fail(S, `${base}/meta : catégories complètes + mot de passe initial aléatoire`, cats.join(','));
       }
@@ -86,13 +84,12 @@ export async function runComplet(r, ctx) {
 
   await r.section('locataire confirme un paiement a_confirmer', async () => {
     const tenant = owner.locataires[0];
-    const ljar = newJar();
-    const login = await api('/auth/login', {
-      method: 'POST',
-      jar: ljar,
-      body: { identifier: `own${owner.i}loc1`, password: OWNER_PASSWORD },
-    });
-    if (!expectSuccess(r, login, S, 'connexion locataire own1loc1')) return;
+    const session = await loginForBusiness(owner.locataires[0].username, OWNER_PASSWORD);
+    const ljar = session.jar;
+    if (session.login.status !== 200 || (session.change && session.change.status !== 200)) {
+      r.fail(S, 'connexion locataire own1loc1', `statut ${session.login.status}`);
+      return;
+    }
 
     const list = await api('/paiements', { jar });
     const paiement = (list.data?.data || []).find((p) => p.locataire_id === tenant.id);
@@ -353,52 +350,42 @@ export async function runMatrice(r, ctx) {
 
   const jars = { anonyme: undefined };
 
-  jars.agence = newJar();
-  const regA = await api('/auth/register', {
-    method: 'POST',
-    jar: jars.agence,
-    body: {
+  let agenceSession;
+  try {
+    agenceSession = await createConfirmedSession(service, {
       account_type: 'agence',
       name: `Agence Matrice ${stamp}`,
       email: `agence.matrix.${stamp}@mimtest.com`,
       phone: '+221771112233',
       password: OWNER_PASSWORD,
-      password_confirm: OWNER_PASSWORD,
-    },
-  });
-  if (regA.status !== 201) {
-    r.fail(M, 'inscription agence', `statut ${regA.status}`);
+    });
+    jars.agence = agenceSession.jar;
+  } catch (error) {
+    r.fail(M, 'inscription agence', error.message);
     return;
   }
 
-  jars.entreprise = newJar();
-  const regE = await api('/auth/register', {
-    method: 'POST',
-    jar: jars.entreprise,
-    body: {
+  let entrepriseSession;
+  try {
+    entrepriseSession = await createConfirmedSession(service, {
       account_type: 'entreprise',
       name: `Entreprise Matrice ${stamp}`,
       email: `entreprise.matrix.${stamp}@mimtest.com`,
       phone: '+221771112244',
       password: OWNER_PASSWORD,
-      password_confirm: OWNER_PASSWORD,
-    },
-  });
-  if (regE.status !== 201) {
-    r.fail(M, 'inscription entreprise', `statut ${regE.status}`);
+    });
+    jars.entreprise = entrepriseSession.jar;
+  } catch (error) {
+    r.fail(M, 'inscription entreprise', error.message);
     return;
   }
 
   jars.proprietaire = owner.jar;
 
-  jars.locataire = newJar();
-  const logL = await api('/auth/login', {
-    method: 'POST',
-    jar: jars.locataire,
-    body: { identifier: `own${owner.i}loc5`, password: OWNER_PASSWORD },
-  });
-  if (logL.status !== 200) {
-    r.fail(M, 'connexion locataire', `statut ${logL.status}`);
+  const tenantSession = await loginForBusiness(owner.locataires[4].username, OWNER_PASSWORD);
+  jars.locataire = tenantSession.jar;
+  if (tenantSession.login.status !== 200 || (tenantSession.change && tenantSession.change.status !== 200)) {
+    r.fail(M, 'connexion locataire', `statut ${tenantSession.login.status}`);
     return;
   }
 
@@ -418,18 +405,31 @@ export async function runMatrice(r, ctx) {
     r.fail(M, 'connexion employé', `statut ${logE.status}`);
     return;
   }
+  if (logE.data.mustChangePassword) {
+    const rotated = await api('/auth/change-password', {
+      method: 'PUT',
+      jar: jars.employe,
+      body: { password: 'MatriceRotated1234!', password_confirm: 'MatriceRotated1234!' },
+    });
+    if (rotated.status !== 200) {
+      r.fail(M, 'rotation du mot de passe employé', JSON.stringify(rotated.data));
+      return;
+    }
+  }
 
   const adminEmail = `admin.matrix.${stamp}@mim.local`;
-  const { error: adminErr } = await service.auth.admin.createUser({
+  const { data: adminData, error: adminErr } = await service.auth.admin.createUser({
     email: adminEmail,
     password: 'Admin1234!',
     email_confirm: true,
-    user_metadata: { account_type: 'admin', name: 'Admin Matrice', role: 'admin' },
+    user_metadata: { name: 'Admin Matrice' },
+    app_metadata: { mim_account_type: 'admin' },
   });
   if (adminErr) {
     r.fail(M, 'création admin matrice', adminErr.message);
     return;
   }
+  await service.from('profiles').update({ account_type: 'admin', role: 'admin' }).eq('id', adminData.user.id);
   jars.admin = newJar();
   const logA = await api('/auth/login', {
     method: 'POST',

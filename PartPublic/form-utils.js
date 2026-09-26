@@ -13,9 +13,8 @@ function mimApiBase() {
   } catch {
     /* API en TDZ : on calcule la base ci-dessous */
   }
-  const origin = window.location.origin || 'http://localhost:3000';
-  const isLocal = origin.includes('localhost') || origin.includes('127.0.0.1');
-  return (isLocal ? 'http://localhost:3000' : origin) + '/api';
+  const host = (window.MIM && MIM.apiHost) ? MIM.apiHost() : 'http://localhost:3000';
+  return host + '/api';
 }
 
 function mimFieldEl(form, name) {
