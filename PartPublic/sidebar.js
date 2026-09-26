@@ -35,6 +35,18 @@
 
   var TOGGLE_SELECTOR = '[data-sidebar-toggle], [data-sidebar-toggle-logo]';
 
+  // Un logo simple (<div class="logo">) doit aussi ouvrir le menu sur mobile :
+  // on le branche ici pour toutes les zones, sans dupliquer le handler.
+  var bareLogos = document.querySelectorAll('#sidebar .logo:not([data-sidebar-toggle-logo])');
+  for (var bl = 0; bl < bareLogos.length; bl++) {
+    bareLogos[bl].addEventListener('click', function (e) {
+      if (!mq.matches) return;
+      e.preventDefault();
+      e.stopPropagation();
+      toggle();
+    });
+  }
+
   function isOpen() {
     return sidebar.classList.contains('open');
   }

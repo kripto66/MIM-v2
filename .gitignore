@@ -35,6 +35,7 @@ video-marketing/*.mp4
 video-marketing/*.mov
 video-marketing/*.webm
 video-marketing/*.wav
+video-marketing/public/*.wav
 video-marketing/*.mp3
 video-marketing/public/*.webp
 video-marketing/assets/
