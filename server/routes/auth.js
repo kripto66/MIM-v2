@@ -309,38 +309,68 @@ router.post('/register', async (req, res) => {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-  const { data: signUpData, error: signUpError } = await anonClient().auth.signUp({
+
+  // Le compte est créé DÉJÀ confirmé : l'inscription ne place pas l'utilisateur
+  // derrière une confirmation d'e-mail, il accède à son espace immédiatement.
+  // La double authentification reste, elle, optionnelle et se règle plus tard
+  // depuis les paramètres du compte. Même approche que la création d'un
+  // propriétaire par une agence (routes/agence.js).
+  const { data: created, error: createError } = await serviceClient().auth.admin.createUser({
     email: normalizedEmail,
     password,
-    options: {
-      data: {
-        name: String(name).trim(),
-        phone: String(phone || '').trim(),
-        account_type,
-      },
+    email_confirm: true,
+    user_metadata: {
+      name: String(name).trim(),
+      phone: String(phone || '').trim(),
+      account_type,
     },
   });
 
-  if (signUpError) {
-    const msg = String(signUpError.message || '').toLowerCase();
-    if (msg.includes('already registered') || msg.includes('already been registered') || msg.includes('already exists') || msg.includes('existe')) {
+  if (createError) {
+    const msg = String(createError.message || '').toLowerCase();
+    if (msg.includes('already') || msg.includes('existe')) {
       return res.status(409).json({ success: false, code: 'EMAIL_ALREADY_EXISTS', message: 'Cette adresse email est déjà utilisée.' });
     }
-    if (msg.includes('rate limit') || signUpError.status === 429) {
+    if (msg.includes('rate limit') || createError.status === 429) {
       return res.status(429).json({ success: false, message: 'Trop de demandes d\'inscription récentes. Veuillez réessayer dans quelques minutes.' });
     }
-    console.error('[register]', signUpError.message);
+    console.error('[register]', createError.message);
     return res.status(500).json({ success: false, message: 'Une erreur est survenue lors de la création du compte.' });
   }
 
-  if (!signUpData?.user) {
+  const newUser = created?.user;
+  if (!newUser?.id) {
     return res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
+  }
+
+  // Session ouverte dans la foulée : l'utilisateur arrive dans son espace sans
+  // avoir à ressaisir ses identifiants. Un échec ici ne doit jamais remettre en
+  // cause le compte qui vient d'être créé.
+  try {
+    const { data: signedIn, error: signInError } = await anonClient().auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
+
+    if (!signInError && signedIn?.session) {
+      const result = await finalizeLogin(res, newUser, signedIn.session, req.headers['user-agent'], req.ip);
+      return res.status(201).json({
+        success: true,
+        message: 'Compte créé. Bienvenue !',
+        emailConfirmationRequired: false,
+        ...result,
+      });
+    }
+
+    console.warn('[register] ouverture de session :', signInError?.message);
+  } catch (err) {
+    console.warn('[register] ouverture de session :', err.message);
   }
 
   return res.status(201).json({
     success: true,
-    message: 'Compte créé. Vérifiez votre adresse e-mail pour confirmer votre inscription.',
-    emailConfirmationRequired: true,
+    message: 'Compte créé. Vous pouvez vous connecter.',
+    emailConfirmationRequired: false,
   });
 });
 

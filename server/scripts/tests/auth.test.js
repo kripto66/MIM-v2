@@ -50,10 +50,20 @@ export async function runAuth(r, ctx) {
       jar: own,
       body: { account_type: 'proprietaire', name: 'Auth Test', email, phone: '+221700000001', password: PW, password_confirm: PW },
     });
-    if (expectSuccess(r, ok, S, r) && ok.data?.emailConfirmationRequired === true) {
-      r.pass(S, `inscription propriétaire (${email}) — confirmation e-mail requise`);
-      if (own.cookies.some((c) => c.name === 'mim_token')) r.fail(S, 'inscription sans session avant confirmation', 'cookie mim_token présent');
-      else r.pass(S, 'inscription sans session avant confirmation');
+    if (expectSuccess(r, ok, S, r) && ok.data?.emailConfirmationRequired === false) {
+      r.pass(S, `inscription propriétaire (${email}) — aucune confirmation e-mail requise`);
+    } else {
+      r.fail(S, 'inscription propriétaire — aucune confirmation e-mail requise', JSON.stringify(ok.data));
+    }
+
+    if (own.cookies.some((c) => c.name === 'mim_token')) r.pass(S, 'session ouverte dès l\'inscription');
+    else r.fail(S, 'session ouverte dès l\'inscription', 'cookie mim_token absent');
+
+    const meAfterRegister = await api('/auth/me', { jar: own });
+    if (expectSuccess(r, meAfterRegister, S, r) && meAfterRegister.data?.user?.email === email) {
+      r.pass(S, 'comptePropriétaire utilisable immédiatement après inscription');
+    } else {
+      r.fail(S, 'compte propriétaire utilisable immédiatement après inscription', JSON.stringify(meAfterRegister.data));
     }
 
     const dup = await api('/auth/register', {
