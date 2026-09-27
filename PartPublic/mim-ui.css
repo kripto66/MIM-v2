@@ -1,9 +1,22 @@
 /* =========================================================
    MIM — COUCHE DE DESIGN PARTAGÉE
    Chargée APRÈS le style de zone. Elle définit :
-     1. les rôles visuels (data-espace) ;
+     1. les rôles visuels (data-espace) : couleur, TYPO, FORME,
+        densité et traitement des cartes — chaque espace a sa
+        propre identité, pas seulement une teinte ;
      2. les composants de dashboard partagés ;
      3. les classes de grille manquantes.
+
+   Identités :
+     proprietaire → « Centre de pilotage » : verre dense, angles 18px,
+                      chiffres tabulaires, KPI à barre latérale.
+     shadow       → « La veille »        : Siegel editorial, très
+                      aéré, angles 26px, bordures fines, typos plus
+                      hautes et light.
+     agence1      → « Console ops »      : angles 6px, quasi pas de
+                      rayon, bordures nettes, nombres en mono, dense.
+     agence2      → « La fiche bien »    : grand angle 30px, blocs
+                      larges, en-têtes immersifs, 통계 lisibles.
    ========================================================= */
 
 :root {
@@ -11,6 +24,18 @@
     --mim-accent-2: var(--magenta, #d946ef);
     --mim-accent-soft: rgba(139, 92, 246, 0.16);
     --mim-role-label: 'Mon espace';
+
+    --mim-radius: 18px;
+    --mim-radius-sm: 12px;
+    --mim-radius-xs: 9px;
+    --mim-density: 18px;
+    --mim-panel-bg: var(--panel, rgba(255, 255, 255, 0.045));
+    --mim-panel-border: var(--line, rgba(255, 255, 255, 0.09));
+    --mim-shadow: var(--shadow-sm, 0 8px 24px rgba(0, 0, 0, 0.3));
+    --mim-kpi-font: inherit;
+    --mim-kpi-tracking: normal;
+    --mim-kpi-weight: 700;
+    --mim-header-pattern: none;
 }
 
 body[data-espace='proprietaire'] {
@@ -18,13 +43,31 @@ body[data-espace='proprietaire'] {
     --mim-accent-2: #d946ef;
     --mim-accent-soft: rgba(139, 92, 246, 0.16);
     --mim-role-label: ' Propriétaire';
+
+    /* Centre de pilotage : verre dense, angles généreux */
+    --mim-radius: 18px;
+    --mim-radius-sm: 12px;
+    --mim-radius-xs: 9px;
+    --mim-density: 18px;
+    --mim-shadow: 0 10px 30px rgba(0, 0, 0, 0.34);
 }
 
 body[data-espace='shadow'] {
     --mim-accent: #38bdf8;
     --mim-accent-2: #22d3ee;
     --mim-accent-soft: rgba(56, 189, 248, 0.16);
-    --mim-role-label: ' Proprietaire';
+    --mim-role-label: ' Propriétaire délégué';
+
+    /* La veille : aéré, doux, éditorial */
+    --mim-radius: 26px;
+    --mim-radius-sm: 18px;
+    --mim-radius-xs: 12px;
+    --mim-density: 24px;
+    --mim-panel-bg: rgba(255, 255, 255, 0.028);
+    --mim-panel-border: rgba(148, 197, 255, 0.16);
+    --mim-shadow: 0 14px 40px rgba(8, 47, 73, 0.38);
+    --mim-kpi-weight: 600;
+    --mim-kpi-tracking: -0.02em;
 }
 
 body[data-espace='agence1'] {
@@ -32,6 +75,16 @@ body[data-espace='agence1'] {
     --mim-accent-2: #fbbf24;
     --mim-accent-soft: rgba(245, 158, 11, 0.16);
     --mim-role-label: ' Agence';
+
+    /* Console d'exploitation : sec, dense, technique */
+    --mim-radius: 6px;
+    --mim-radius-sm: 4px;
+    --mim-radius-xs: 3px;
+    --mim-density: 14px;
+    --mim-panel-border: rgba(251, 191, 36, 0.22);
+    --mim-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+    --mim-kpi-font: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+    --mim-kpi-tracking: -0.04em;
 }
 
 body[data-espace='agence2'] {
@@ -39,6 +92,17 @@ body[data-espace='agence2'] {
     --mim-accent-2: #34d399;
     --mim-accent-soft: rgba(16, 185, 129, 0.16);
     --mim-role-label: ' Agence';
+
+    /* La fiche bien : immersif, très arrondi, lisible */
+    --mim-radius: 30px;
+    --mim-radius-sm: 22px;
+    --mim-radius-xs: 14px;
+    --mim-density: 26px;
+    --mim-panel-bg: linear-gradient(180deg, rgba(16, 185, 129, 0.10), rgba(255, 255, 255, 0.03));
+    --mim-panel-border: rgba(52, 211, 153, 0.24);
+    --mim-shadow: 0 24px 60px rgba(4, 47, 46, 0.45);
+    --mim-kpi-weight: 800;
+    --mim-kpi-tracking: -0.03em;
 }
 
 body[data-espace] {
@@ -82,11 +146,11 @@ body[data-espace] .live-dot {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    padding: 18px 18px 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--panel);
-    box-shadow: var(--shadow-sm);
+    padding: var(--mim-density);
+    border: 1px solid var(--mim-panel-border);
+    border-radius: var(--mim-radius);
+    background: var(--mim-panel-bg);
+    box-shadow: var(--mim-shadow);
     transition: transform .18s ease, border-color .18s ease, background .18s ease;
 }
 
@@ -116,8 +180,10 @@ body[data-espace] .live-dot {
 }
 
 .mim-kpi .kpi-value {
+    font-family: var(--mim-kpi-font);
     font-size: 26px;
-    font-weight: 700;
+    font-weight: var(--mim-kpi-weight);
+    letter-spacing: var(--mim-kpi-tracking);
     line-height: 1.15;
     color: var(--text);
 }
@@ -138,10 +204,11 @@ body[data-espace] .live-dot {
     display: flex;
     flex-direction: column;
     gap: 14px;
-    padding: 20px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius);
-    background: var(--panel);
+    padding: var(--mim-density);
+    border: 1px solid var(--mim-panel-border);
+    border-radius: var(--mim-radius);
+    background: var(--mim-panel-bg);
+    box-shadow: var(--mim-shadow);
 }
 
 .mim-section > header {
@@ -186,9 +253,9 @@ body[data-espace] .live-dot {
     display: flex;
     flex-direction: column;
     gap: 4px;
-    padding: 16px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
+    padding: var(--mim-density);
+    border: 1px solid var(--mim-panel-border);
+    border-radius: var(--mim-radius-sm);
     background: var(--panel-strong);
     color: var(--text);
     text-decoration: none;
@@ -234,8 +301,8 @@ body[data-espace] .live-dot {
     justify-content: space-between;
     gap: 14px;
     padding: 12px 14px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
+    border: 1px solid var(--mim-panel-border);
+    border-radius: var(--mim-radius-sm);
     background: var(--panel-strong);
 }
 
@@ -311,6 +378,199 @@ body[data-espace] .live-dot {
 
 @keyframes mim-shimmer {
     100% { transform: translateX(100%); }
+}
+
+/* ---------- Pont vers les composants historiques ---------- */
+/* Les pages plus anciennes utilisent .stat-card / .dashboard-section ;
+   elles adoptent l'identité du rôle sans réécrire leur balisage. */
+
+body[data-espace] .stat-card,
+body[data-espace] .dashboard-section,
+body[data-espace] .chart-box,
+body[data-espace] .action-card,
+body[data-espace] .shortcut-card {
+    border-radius: var(--mim-radius);
+    border-color: var(--mim-panel-border);
+    box-shadow: var(--mim-shadow);
+}
+
+body[data-espace] .dashboard-section {
+    padding: var(--mim-density);
+    background: var(--mim-panel-bg);
+}
+
+body[data-espace] .stat-card {
+    padding: var(--mim-density);
+    background: var(--mim-panel-bg);
+}
+
+/* Les raccourcis gardaient un fond clair : texte blanc sur blanc (illisible) */
+body[data-espace] .shortcut-card,
+body[data-espace] .action-card {
+    background: var(--mim-panel-bg);
+    color: var(--text);
+}
+
+body[data-espace] .shortcut-card strong,
+body[data-espace] .action-card span {
+    color: var(--text);
+}
+
+body[data-espace] .stat-value,
+body[data-espace] .mini-val,
+body[data-espace] .bar-value,
+body[data-espace] .donut-center strong {
+    font-family: var(--mim-kpi-font);
+    font-weight: var(--mim-kpi-weight);
+    letter-spacing: var(--mim-kpi-tracking);
+}
+
+body[data-espace] .btn-primary,
+body[data-espace] .btn-plan,
+body[data-espace] .action-card strong {
+    border-radius: var(--mim-radius-sm);
+}
+
+body[data-espace] .btn-primary,
+body[data-espace] .btn-plan {
+    background: linear-gradient(135deg, var(--mim-accent), var(--mim-accent-2));
+}
+
+/* Console ops : l'en-tête devient une barre d'outils, pas une bannière */
+body[data-espace='agence1'] .dashboard-header {
+    border-bottom: 1px solid var(--mim-accent-soft);
+    background: rgba(0, 0, 0, 0.25);
+}
+
+body[data-espace='agence1'] .welcome h1 {
+    font-size: 22px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+}
+
+body[data-espace='agence1'] .stat-card,
+body[data-espace='agence1'] .dashboard-section,
+body[data-espace='agence1'] .chart-box,
+body[data-espace='agence1'] .action-card,
+body[data-espace='agence1'] .shortcut-card {
+    border-radius: var(--mim-radius);
+    border-width: 1px;
+}
+
+/* Fiche bien : l'en-tête devient immersif */
+body[data-espace='agence2'] .dashboard-header {
+    border: 0;
+    background: linear-gradient(135deg, var(--mim-accent-soft), transparent 70%);
+    border-radius: var(--mim-radius);
+    padding: var(--mim-density);
+    margin-bottom: 18px;
+}
+
+body[data-espace='agence2'] .welcome h1 {
+    font-size: 30px;
+    letter-spacing: -0.02em;
+}
+
+/* La veille : typographie aérée, titres fins et beaucoup d'air */
+body[data-espace='shadow'] .welcome h1,
+body[data-espace='shadow'] .dashboard-section h2,
+body[data-espace='shadow'] .section-header h2 {
+    font-weight: 300;
+    letter-spacing: .01em;
+}
+
+body[data-espace='shadow'] .mim-kpi {
+    border-style: solid;
+    border-width: 1px;
+}
+
+body[data-espace='shadow'] .stat-card {
+    background: transparent;
+    box-shadow: none;
+}
+
+/* ---------- Le rail de navigation porte lui aussi l'identité ---------- */
+/* Sans cela les 4 dashboards se ressemblaient : même sidebar violette. */
+
+body[data-espace] .sidebar {
+    background: linear-gradient(180deg, rgba(9, 4, 18, 0.96), rgba(6, 3, 12, 0.98));
+    border-right: 1px solid var(--mim-accent-soft);
+}
+
+body[data-espace] .logo {
+    background: linear-gradient(135deg, var(--mim-accent), var(--mim-accent-2));
+    color: #fff;
+}
+
+body[data-espace] .sidebar-menu a.active,
+body[data-espace] .nav-item.active {
+    background: linear-gradient(135deg, var(--mim-accent-soft), transparent);
+    color: #fff;
+    border-color: var(--mim-accent);
+}
+
+body[data-espace] .sidebar-menu a:hover,
+body[data-espace] .nav-item:hover {
+    background: var(--mim-accent-soft);
+    color: #fff;
+}
+
+body[data-espace] .nav-category,
+body[data-espace] .sidebar-menu .nav-category {
+    color: var(--mim-accent);
+    opacity: .85;
+}
+
+/* Propriétaire : rail dense classique */
+body[data-espace='proprietaire'] .logo {
+    border-radius: 14px;
+}
+
+/* Délégué : rail fin, très arrondi, plus calme */
+body[data-espace='shadow'] .sidebar {
+    background: linear-gradient(180deg, rgba(6, 20, 33, 0.96), rgba(4, 14, 24, 0.98));
+}
+
+body[data-espace='shadow'] .logo {
+    border-radius: 50%;
+}
+
+body[data-espace='shadow'] .sidebar-menu a,
+body[data-espace='shadow'] .nav-item {
+    border-radius: var(--mim-radius-sm);
+}
+
+/* Agence mode 1 : rail technique, almost plat */
+body[data-espace='agence1'] .sidebar {
+    background: linear-gradient(180deg, rgba(20, 14, 4, 0.97), rgba(10, 8, 3, 0.99));
+    border-right: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+body[data-espace='agence1'] .logo {
+    border-radius: 4px;
+    font-family: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+}
+
+body[data-espace='agence1'] .sidebar-menu a,
+body[data-espace='agence1'] .nav-item {
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    font-size: 12px;
+}
+
+/* Agence mode 2 : rail arrondi, immersif */
+body[data-espace='agence2'] .sidebar {
+    background: linear-gradient(180deg, rgba(3, 30, 26, 0.95), rgba(2, 20, 18, 0.98));
+}
+
+body[data-espace='agence2'] .logo {
+    border-radius: 20px;
+}
+
+body[data-espace='agence2'] .sidebar-menu a,
+body[data-espace='agence2'] .nav-item {
+    border-radius: var(--mim-radius-sm);
 }
 
 /* ---------- Classes de compatibilité (grilles manquantes) ---------- */

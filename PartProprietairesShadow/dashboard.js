@@ -177,7 +177,7 @@
             var data = await window.MandatApi.dashboard();
             state.data = data;
 
-            UI.setText("ownerName", (data.agence && data.agence.name) || "Propriétaire");
+            UI.setText("ownerName", state.ownerName || "Propriétaire");
             renderAgence(data);
             renderKpis(data.totaux);
             renderActions(data);
@@ -206,6 +206,19 @@
         skeletonZone("versementsList", 2);
         skeletonZone("messagesList", 2);
         skeletonZone("incidentsList", 2);
+
+        fetch(
+            (window.MIM && typeof MIM.apiHost === "function" ? MIM.apiHost() : window.location.origin) + "/api/auth/me",
+            { credentials: "include", headers: { Accept: "application/json" } }
+        )
+            .then(function (r) { return r.json(); })
+            .then(function (me) {
+                if (me && me.user && me.user.name) {
+                    state.ownerName = me.user.name;
+                    UI.setText("ownerName", me.user.name);
+                }
+            })
+            .catch(function () {});
 
         window.MandatApi.etat()
             .then(function (res) {

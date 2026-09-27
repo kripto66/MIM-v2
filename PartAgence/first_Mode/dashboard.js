@@ -286,7 +286,7 @@ function renderRentBars(s) {
         escapeHtml(m.mois ? m.mois.slice(5) + "/" + m.mois.slice(2, 4) : "—") +
         '</span><div class="bar-track"><div class="bar-fill" style="--fill:' +
         fill +
-        '%;"></div></div>' +
+        ';"></div></div>' +
         '<span class="bar-value">' +
         escapeHtml(fmtShortFCFA(m.paye)) +
         "</span></div>"
