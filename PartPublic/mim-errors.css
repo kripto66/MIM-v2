@@ -35,3 +35,8 @@
   background: #15803d;
   color: #fff;
 }
+
+#toast.info {
+  background: #1d4ed8;
+  color: #fff;
+}

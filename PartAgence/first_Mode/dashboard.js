@@ -133,22 +133,7 @@ function setGreeting() {
    Statistiques (KPI + actions) — /agence/stats
 ------------------------------------------------------------------- */
 
-async function loadStats() {
-  try {
-    const res = await fetch(`${API}/agence/stats`, { credentials: "include" });
-    const { ok, error, data } = await MIM.parse(res);
-
-    if (!ok) {
-      if (!MIM.handleAuthError(error)) displayMessage(MIM.userMessage(error));
-      return;
-    }
-    if (!data.success) {
-      displayMessage(data.message || "Erreur de chargement.");
-      return;
-    }
-
-    const s = data.stats;
-
+function paintStats(s) {
     const map = {
       totalBiens: s.totalBiens,
       totalLogements: s.totalLogements,
@@ -221,6 +206,27 @@ async function loadStats() {
     }
 
     setLiveLabel(`à jour · ${liveTime()}`);
+}
+
+async function fetchStats() {
+  const res = await fetch(`${API}/agence/stats`, { credentials: "include" });
+  const { ok, error, data } = await MIM.parse(res);
+  if (!ok) {
+    if (!MIM.handleAuthError(error)) displayMessage(MIM.userMessage(error));
+    return null;
+  }
+  if (!data.success) {
+    displayMessage(data.message || "Erreur de chargement.");
+    return null;
+  }
+  return data.stats;
+}
+
+// KPI affichés depuis le cache de l'onglet dès l'ouverture, puis
+// rafraîchis en arrière-plan (MIM.swr) : pas de dashboard en blanc.
+async function loadStats() {
+  try {
+    await MIM.swr("agence:stats", fetchStats, paintStats).revalidate();
   } catch (error) {
     displayMessage("Impossible de contacter le serveur.");
     console.error(error);
@@ -393,29 +399,39 @@ function renderNotifications(notifications) {
    Charges des listes (une passe = toutes les sections)
 ------------------------------------------------------------------- */
 
+async function fetchOverview() {
+  const responsesData = await Promise.all([
+    fetch(`${API}/agence/portefeuille`, { credentials: "include" }),
+    fetch(`${API}/agence/proprietaires`, { credentials: "include" }),
+    fetch(`${API}/notifications`, { credentials: "include" }),
+  ]);
+
+  const notOk = responsesData.find((res) => !res.ok);
+  if (notOk) {
+    const { ok: parsedOk, error } = await MIM.parse(notOk);
+    if (parsedOk || !MIM.handleAuthError(error)) throw new Error(MIM.userMessage(error) || "Erreur de chargement des données.");
+  }
+
+  const parse = async (res) => {
+    const json = await res.json();
+    return json.data || [];
+  };
+  const data = await Promise.all(responsesData.map(parse));
+
+  return { portfolio: data[0], owners: data[1], notifications: data[2] };
+}
+
+function paintOverview(d) {
+  renderPortfolio(d.portfolio);
+  renderOwners(d.owners);
+  renderNotifications(d.notifications);
+}
+
+// Sections du dashboard : affichage immédiat depuis le cache de l'onglet,
+// puis revalidation en arrière-plan (MIM.swr).
 async function loadOverview() {
   try {
-    const responsesData = await Promise.all([
-      fetch(`${API}/agence/portefeuille`, { credentials: "include" }),
-      fetch(`${API}/agence/proprietaires`, { credentials: "include" }),
-      fetch(`${API}/notifications`, { credentials: "include" }),
-    ]);
-
-    const notOk = responsesData.find((res) => !res.ok);
-    if (notOk) {
-      const { ok: parsedOk, error } = await MIM.parse(notOk);
-      if (parsedOk || !MIM.handleAuthError(error)) throw new Error(MIM.userMessage(error) || "Erreur de chargement des données.");
-    }
-
-    const parse = async (res) => {
-      const json = await res.json();
-      return json.data || [];
-    };
-    const data = await Promise.all(responsesData.map(parse));
-
-    renderPortfolio(data[0]);
-    renderOwners(data[1]);
-    renderNotifications(data[2]);
+    await MIM.swr("agence:overview", fetchOverview, paintOverview).revalidate();
   } catch (error) {
     console.error(error);
     for (const id of ["portfolioList", "ownersList", "recentNotifications"]) {

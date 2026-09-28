@@ -516,9 +516,12 @@ function exportCSV() {
 // Sections
 // ============================================================
 
-async function dashboard() {
-  app.innerHTML = skeleton();
+async function fetchDashboardStats() {
   const { stats } = await apiRequest("/admin/stats");
+  return stats;
+}
+
+function paintDashboard(stats) {
   const recentPayments = stats.recentPayments || [];
   const recentIncidents = stats.recentIncidents || [];
 
@@ -556,6 +559,13 @@ async function dashboard() {
   animateCounts();
   wireChart();
   enableTilt();
+}
+
+// Dashboard : affichage immédiat depuis le cache de l'onglet, puis
+// revalidation en arrière-plan (MIM.swr) — le panneau ne monte plus vide.
+async function dashboard() {
+  app.innerHTML = skeleton();
+  await MIM.swr("admin:stats", fetchDashboardStats, paintDashboard).revalidate();
 }
 
 function subBadge(subscription) {

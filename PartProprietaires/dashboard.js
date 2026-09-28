@@ -175,22 +175,7 @@ function setGreeting() {
    Statistiques (KPI + actions)
 ------------------------------------------------------------------- */
 
-async function loadStats() {
-  try {
-    const res = await fetch(`${API}/stats/dashboard`, { credentials: "include" });
-    const { ok, error, data } = await MIM.parse(res);
-
-    if (!ok) {
-      if (!MIM.handleAuthError(error)) displayMessage(MIM.userMessage(error));
-      return;
-    }
-    if (!data.success) {
-      displayMessage(data.message || "Erreur de chargement.");
-      return;
-    }
-
-    const s = data.stats;
-
+function paintStats(s) {
     const map = {
       totalProperties: s.totalProperties,
       totalTenants: s.totalTenants ?? 0,
@@ -269,6 +254,28 @@ async function loadStats() {
     }
 
     setLiveLabel(`à jour · ${liveTime()}`);
+}
+
+async function fetchStats() {
+  const res = await fetch(`${API}/stats/dashboard`, { credentials: "include" });
+  const { ok, error, data } = await MIM.parse(res);
+  if (!ok) {
+    if (!MIM.handleAuthError(error)) displayMessage(MIM.userMessage(error));
+    return null;
+  }
+  if (!data.success) {
+    displayMessage(data.message || "Erreur de chargement.");
+    return null;
+  }
+  return data.stats;
+}
+
+// Les KPI sont affichés depuis le cache de l'onglet dès l'ouverture de la
+// page (MIM.swr), puis rafraîchis en arrière-plan : le dashboard ne monte
+// plus en blanc à chaque changement de page.
+async function loadStats() {
+  try {
+    await MIM.swr("prop:stats", fetchStats, paintStats).revalidate();
   } catch (error) {
     displayMessage("Impossible de contacter le serveur.");
     console.error(error);
@@ -523,36 +530,48 @@ function rowLabel(expectedRent) {
 const paiementsLocataires = [];
 const paiementsLogements = [];
 
-async function loadOverview() {
-  try {
-    const responsesData = await Promise.all([
-      fetch(`${API}/biens`, { credentials: "include" }),
-      fetch(`${API}/logements`, { credentials: "include" }),
-      fetch(`${API}/locataires`, { credentials: "include" }),
-      fetch(`${API}/paiements`, { credentials: "include" }),
-      fetch(`${API}/incidents`, { credentials: "include" }),
-      fetch(`${API}/prestataires`, { credentials: "include" }),
-      fetch(`${API}/interventions`, { credentials: "include" }),
-      fetch(`${API}/notifications`, { credentials: "include" }),
-    ]);
+async function fetchOverview() {
+  const responsesData = await Promise.all([
+    fetch(`${API}/biens`, { credentials: "include" }),
+    fetch(`${API}/logements`, { credentials: "include" }),
+    fetch(`${API}/locataires`, { credentials: "include" }),
+    fetch(`${API}/paiements`, { credentials: "include" }),
+    fetch(`${API}/incidents`, { credentials: "include" }),
+    fetch(`${API}/prestataires`, { credentials: "include" }),
+    fetch(`${API}/interventions`, { credentials: "include" }),
+    fetch(`${API}/notifications`, { credentials: "include" }),
+  ]);
 
-    const notOk = responsesData.find((res) => !res.ok);
-    if (notOk) {
-      const { ok: parsedOk, error } = await MIM.parse(notOk);
-      if (parsedOk || !MIM.handleAuthError(error)) throw new Error(MIM.userMessage(error) || "Erreur de chargement des données.");
-    }
+  const notOk = responsesData.find((res) => !res.ok);
+  if (notOk) {
+    const { ok: parsedOk, error } = await MIM.parse(notOk);
+    if (parsedOk || !MIM.handleAuthError(error)) throw new Error(MIM.userMessage(error) || "Erreur de chargement des données.");
+  }
 
-    const parse = async (res) => ((await res.json()).data || []);
-    const data = await Promise.all(responsesData.map(parse));
+  const parse = async (res) => ((await res.json()).data || []);
+  const data = await Promise.all(responsesData.map(parse));
 
-    const biens = data[0];
-    const logements = data[1];
-    const locataires = data[2];
-    const paiements = data[3];
-    const incidents = data[4];
-    const prestataires = data[5];
-    const interventions = data[6];
-    const notifications = data[7];
+  return {
+    biens: data[0],
+    logements: data[1],
+    locataires: data[2],
+    paiements: data[3],
+    incidents: data[4],
+    prestataires: data[5],
+    interventions: data[6],
+    notifications: data[7],
+  };
+}
+
+function paintOverview(d) {
+    const biens = d.biens;
+    const logements = d.logements;
+    const locataires = d.locataires;
+    const paiements = d.paiements;
+    const incidents = d.incidents;
+    const prestataires = d.prestataires;
+    const interventions = d.interventions;
+    const notifications = d.notifications;
 
     paiementsLocataires.length = 0;
     paiementsLogements.length = 0;
@@ -571,6 +590,13 @@ async function loadOverview() {
       .filter((l) => l.statut === "occupe")
       .reduce((s, l) => s + Number(l.loyer_mensuel || 0), 0);
     renderRentBars(paiements, expectedRent);
+}
+
+// Listes du dashboard : affichage immédiat depuis le cache de l'onglet,
+// puis revalidation en arrière-plan (voir MIM.swr dans mim-errors.js).
+async function loadOverview() {
+  try {
+    await MIM.swr("prop:overview", fetchOverview, paintOverview).revalidate();
   } catch (error) {
     console.error(error);
     const sections = [
@@ -725,5 +751,5 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  loadOnboarding();
+  Onboarding.maybeShow().catch(function () { /* assistant facultatif */ });
 });

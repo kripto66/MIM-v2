@@ -176,19 +176,37 @@ app.use('/api', csrfOriginGuard);
 
 const ROOT = path.join(__dirname, '..');
 
-app.use(express.static(path.join(ROOT, 'PartPublic')));
-app.use('/PartPublic', express.static(path.join(ROOT, 'PartPublic')));
+// Navigation entre les pages : les assets (CSS/JS/images) sont mis en cache
+// une heure, le navigateur ne les re-télécharge donc plus à chaque changement
+// de page ; les pages HTML restent en revalidation (ETag) pour ne jamais
+// servir un ancien balisage.
+const staticOptions = {
+  setHeaders(res, filePath) {
+    // Une en-tête déjà posée prime (le middleware ci-dessus met no-store
+    // sur les pages HTML et /api : après une déconnexion, le bouton
+    // « retour » ne doit pas ressusciter une page de zone protégée).
+    if (res.getHeader('Cache-Control')) return;
+    if (filePath.endsWith('.html')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    } else {
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+    }
+  },
+};
+
+app.use(express.static(path.join(ROOT, 'PartPublic'), staticOptions));
+app.use('/PartPublic', express.static(path.join(ROOT, 'PartPublic'), staticOptions));
 // Zones protégées : les pages (et leurs assets) ne sont servies qu'aux
 // utilisateurs connectés avec le bon rôle. La protection ne repose plus
 // uniquement sur le JavaScript du navigateur.
-app.use('/PartProprietaires', authenticatePage(), requireZone('proprietaire', 'agence', 'entreprise'), express.static(path.join(ROOT, 'PartProprietaires')));
-app.use('/PartProprietairesShadow', authenticatePage(), requireZone('proprietaire', 'entreprise'), express.static(path.join(ROOT, 'PartProprietairesShadow')));
-app.use('/PartLocataires', authenticatePage(), requireZone('locataire'), express.static(path.join(ROOT, 'PartLocataires')));
-app.use('/PartAdmin', authenticatePage(), requireZone('admin', 'ultra_admin'), express.static(path.join(ROOT, 'PartAdmin')));
-app.use('/PartUltraAdmin', authenticatePage(), requireZone('ultra_admin'), express.static(path.join(ROOT, 'PartUltraAdmin')));
-app.use('/PartEmployes', authenticatePage(), requireZone('employe'), express.static(path.join(ROOT, 'PartEmployes')));
-app.use('/PartAgence', authenticatePage(), requireZone('agence'), express.static(path.join(ROOT, 'PartAgence')));
-app.use('/images', express.static(path.join(ROOT, 'images')));
+app.use('/PartProprietaires', authenticatePage(), requireZone('proprietaire', 'agence', 'entreprise'), express.static(path.join(ROOT, 'PartProprietaires'), staticOptions));
+app.use('/PartProprietairesShadow', authenticatePage(), requireZone('proprietaire', 'entreprise'), express.static(path.join(ROOT, 'PartProprietairesShadow'), staticOptions));
+app.use('/PartLocataires', authenticatePage(), requireZone('locataire'), express.static(path.join(ROOT, 'PartLocataires'), staticOptions));
+app.use('/PartAdmin', authenticatePage(), requireZone('admin', 'ultra_admin'), express.static(path.join(ROOT, 'PartAdmin'), staticOptions));
+app.use('/PartUltraAdmin', authenticatePage(), requireZone('ultra_admin'), express.static(path.join(ROOT, 'PartUltraAdmin'), staticOptions));
+app.use('/PartEmployes', authenticatePage(), requireZone('employe'), express.static(path.join(ROOT, 'PartEmployes'), staticOptions));
+app.use('/PartAgence', authenticatePage(), requireZone('agence'), express.static(path.join(ROOT, 'PartAgence'), staticOptions));
+app.use('/images', express.static(path.join(ROOT, 'images'), staticOptions));
 
 // ─── SEO ROUTES ────────────────────────────────────────────────────
 

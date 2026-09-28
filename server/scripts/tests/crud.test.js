@@ -309,6 +309,13 @@ export async function runCrud(r, ctx) {
     if (!expectSuccess(r, list, S, r) || !Array.isArray(list.data.data)) return;
     r.pass(S, `notifications listées (${list.data.data.length})`);
 
+    const probe = await api('/notifications?unread=1', { jar });
+    if (expectSuccess(r, probe, S, r) && typeof probe.data.unread === 'number') {
+      r.pass(S, `sonde légère du badge : ${probe.data.unread} non lue(s), dernière ${probe.data.latest ? '#' + probe.data.latest.id : 'aucune'}`);
+    } else {
+      r.fail(S, 'sonde légère ?unread=1', JSON.stringify(probe.data));
+    }
+
     const unread = list.data.data.find((n) => !n.lu);
     if (unread) {
       const mark = await api(`/notifications/${unread.id}`, { method: 'PUT', jar, body: { lu: true } });

@@ -131,6 +131,84 @@
     });
   }
 
+  // Sondage des notifications (badge + toast) : script partagé chargé une
+  // seule fois, uniquement sur les pages qui ont un rail.
+  if (!document.querySelector('script[data-mim-poll]')) {
+    var pollScript = document.createElement('script');
+    pollScript.src = '/PartPublic/mim-poll.js';
+    pollScript.async = true;
+    pollScript.setAttribute('data-mim-poll', '1');
+    document.head.appendChild(pollScript);
+  }
+
+  // Prefetch des pages du rail : les pages HTML ne sont jamais mises en
+  // cache (no-store, cf. server/app.js) mais leurs scripts et feuilles de
+  // style le sont une heure. Au survol on récupère donc la page pour
+  // précharger ses assets : le clic suivant n'attend plus leur
+  // téléchargement.
+  var prefetched = Object.create(null);
+  var hoverTimer = null;
+
+  function warmAssets(html, pageUrl) {
+    var doc = new DOMParser().parseFromString(html, 'text/html');
+    var nodes = doc.querySelectorAll('script[src], link[rel="stylesheet"][href]');
+    for (var i = 0; i < nodes.length; i++) {
+      var ref = nodes[i].src || nodes[i].href;
+      if (!ref) continue;
+      try {
+        var abs = new URL(ref, pageUrl);
+        if (abs.origin !== window.location.origin) continue;
+        fetch(abs.href, { credentials: 'include', cache: 'force-cache' }).catch(function () {
+          /* asset injoignable : la navigation le demandera */
+        });
+      } catch (e) {
+        /* URL invalide : on ignore */
+      }
+    }
+  }
+
+  function prefetch(anchor) {
+    if (!anchor) return;
+    var href = anchor.getAttribute('href') || '';
+    if (!href || href.charAt(0) === '#' || !/\.html([?#]|$)/i.test(href)) return;
+    if (prefetched[href]) return;
+    var conn = navigator.connection;
+    if (conn && (conn.saveData || /(^|-)2g/.test(conn.effectiveType || ''))) return;
+    prefetched[href] = 1;
+    var target = new URL(href, window.location.href).href;
+    fetch(target, { credentials: 'include' })
+      .then(function (res) {
+        return res.ok ? res.text() : null;
+      })
+      .then(function (html) {
+        if (html) warmAssets(html, target);
+      })
+      .catch(function () {
+        delete prefetched[href];
+      });
+  }
+
+  var railLinks = sidebar.querySelectorAll('a[href]');
+  for (var r = 0; r < railLinks.length; r++) {
+    (function (anchor) {
+      anchor.addEventListener('pointerenter', function () {
+        clearTimeout(hoverTimer);
+        hoverTimer = setTimeout(function () {
+          prefetch(anchor);
+        }, 150);
+      });
+      anchor.addEventListener('pointerleave', function () {
+        clearTimeout(hoverTimer);
+      });
+      anchor.addEventListener('pointerdown', function () {
+        prefetch(anchor);
+      });
+      anchor.addEventListener('focus', function () {
+        prefetch(anchor);
+      });
+    })(railLinks[r]);
+  }
+
   mq.addEventListener('change', function (e) {
     if (!e.matches) close();
   });

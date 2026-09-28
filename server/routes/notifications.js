@@ -7,7 +7,40 @@ const router = Router();
 // Cette route n'expose que la lecture et le marquage « lu » de ses propres notifications.
 
 router.get('/', async (req, res) => {
-  const { data, error } = await authedClient(req.user.supabase_token)
+  const client = authedClient(req.user.supabase_token);
+
+  // Sonde légère (PartPublic/mim-poll.js, badge du rail) : uniquement le
+  // compteur de non-lues et la dernière notification, pour détecter les
+  // nouveautés sans transférer tout l'historique toutes les N secondes.
+  if (req.query.unread === '1') {
+    const [{ count, error: countError }, { data: latestRows, error: latestError }] = await Promise.all([
+      client
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', req.user.id)
+        .eq('lu', false),
+      client
+        .from('notifications')
+        .select('id, created_at')
+        .eq('user_id', req.user.id)
+        .order('created_at', { ascending: false })
+        .limit(1),
+    ]);
+
+    const failure = countError || latestError;
+    if (failure) {
+      console.error('[notifications/unread]', failure.message);
+      return res.status(500).json({ success: false, message: 'Erreur lors du chargement.' });
+    }
+
+    return res.json({
+      success: true,
+      unread: count || 0,
+      latest: (latestRows && latestRows[0]) || null,
+    });
+  }
+
+  const { data, error } = await client
     .from('notifications')
     .select('*')
     .eq('user_id', req.user.id)

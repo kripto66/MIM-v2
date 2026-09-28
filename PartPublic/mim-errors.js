@@ -220,6 +220,15 @@ MIM._createToast = function () {
   return t;
 };
 
+/* Invalide un cache de rendu (après une création, une suppression…). */
+MIM.swrClear = function (key) {
+  try {
+    sessionStorage.removeItem("mim:swr:" + key);
+  } catch (err) {
+    /* rien à faire */
+  }
+};
+
 MIM._csrfToken = "";
 MIM._csrfReady = fetch((MIM.apiHost ? MIM.apiHost() : window.location.origin) + "/api/csrf-token", {
   credentials: "include",
@@ -229,8 +238,73 @@ MIM._csrfReady = fetch((MIM.apiHost ? MIM.apiHost() : window.location.origin) + 
   const data = await res.json();
   MIM._csrfToken = typeof data.csrfToken === "string" ? data.csrfToken : "";
 }).catch(function () {
-  MIM._csrfToken = "";
+  /* jeton CSRF indisponible : on continue avec un jeton vide */
 });
+/* Cache de rendu « stale-while-revalidate » (changements de page).
+ * Au retour sur un dashboard, on peint immédiatement les dernières données
+ * connues (sessionStorage, propre à l'onglet) puis on rafraîchit en
+ * arrière-plan : la page ne monte plus en blanc le temps de ses appels API.
+ *
+ *   MIM.swr(cle, charger, peindre).revalidate();
+ *
+ * - charger() renvoie les données (ou null : rien à peindre) ;
+ * - peindre(d) est appelé avec le cache immédiatement, puis avec les
+ *   données fraîches ;
+ * - si la revalidation échoue alors qu'un cache existe, l'affichage est
+ *   conservé (pas de bascule vers l'écran d'erreur) ;
+ * - sans cache, l'erreur est propagée : le comportement historique
+ *   (écran d'erreur) est conservé. */
+MIM.swr = function (key, load, paint) {
+  const storageKey = "mim:swr:" + key;
+  let cached = null;
+  try {
+    cached = JSON.parse(sessionStorage.getItem(storageKey) || "null");
+  } catch (err) {
+    cached = null;
+  }
+
+  if (cached && cached.data != null) {
+    try {
+      paint(cached.data);
+    } catch (err) {
+      console.warn("[MIM] swr: rendu du cache impossible", err);
+    }
+  }
+
+  return {
+    cached: cached ? cached.data : null,
+    revalidate: function () {
+      return Promise.resolve()
+        .then(load)
+        .then(function (fresh) {
+          if (fresh == null) return cached ? cached.data : null;
+          try {
+            const payload = JSON.stringify({ v: 1, t: Date.now(), data: fresh });
+            if (payload.length < 1000000) sessionStorage.setItem(storageKey, payload);
+          } catch (err) {
+            /* quota dépassé : on continue sans cache */
+          }
+          paint(fresh);
+          return fresh;
+        })
+        .catch(function (err) {
+          if (cached && cached.data != null) {
+            console.warn("[MIM] swr: revalidation impossible, affichage du cache conservé", err);
+            return cached.data;
+          }
+          throw err;
+        });
+    },
+    clear: function () {
+      try {
+        sessionStorage.removeItem(storageKey);
+      } catch (err) {
+        /* rien à faire */
+      }
+    },
+  };
+};
+
 MIM.csrfHeader = function () {
   return MIM._csrfToken ? { "X-CSRF-Token": MIM._csrfToken } : {};
 };
