@@ -15,6 +15,8 @@ import { methodePaiementError, TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, payment
 import { auditLog, LEVELS } from '../utils/audit.js';
 import { revokeAllSessions } from '../utils/sessions.js';
 import { isValidDate, isValidMonth, parseMoney } from '../utils/inputValidation.js';
+import { enforceEmployesLimit } from '../utils/subscription.js';
+import { reserveQuota, consumeQuota, releaseQuota } from '../utils/quota.js';
 
 const router = Router();
 
@@ -225,6 +227,24 @@ router.post('/', async (req, res) => {
     }
   }
 
+  // Plafond d'employés du plan : chaque employé consomme un compte Auth,
+  // donc un quota de ressource. La réservation est posée AVANT la
+  // création du compte (verrou advisory) pour fermer la course
+  // « deux créations simultanées passent toutes les deux ».
+  const employesLimit = await enforceEmployesLimit(ownerId);
+  if (!employesLimit.allowed) {
+    return res.status(409).json({ success: false, code: employesLimit.code, message: employesLimit.message, errors: { nom: employesLimit.message } });
+  }
+  let quotaReservation = await reserveQuota(sb, ownerId, 'employes', employesLimit.max);
+  if (!quotaReservation.allowed) {
+    return res.status(409).json({ success: false, code: quotaReservation.code, message: quotaReservation.message, errors: { nom: quotaReservation.message } });
+  }
+  const releaseEmployeeQuota = async () => {
+    if (!quotaReservation) return;
+    await releaseQuota(sb, quotaReservation?.id, ownerId).catch(() => {});
+    quotaReservation = null;
+  };
+
   const { data: createdUser, error: createError } = await sb.auth.admin.createUser({
     email: tenantEmailFor(finalUsername),
     password,
@@ -243,9 +263,11 @@ router.post('/', async (req, res) => {
   if (createError || !createdUser?.user?.id) {
     const msg = String(createError?.message || '').toLowerCase();
     if (msg.includes('already') || msg.includes('existe')) {
+      await releaseEmployeeQuota();
       return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
     }
     console.error('[employes/create]', createError?.message);
+    await releaseEmployeeQuota();
     return res.status(400).json({ success: false, message: 'Impossible de créer le compte employé.' });
   }
 
@@ -254,12 +276,14 @@ router.post('/', async (req, res) => {
     await provisionProfile(sb, accountUid, 'employe', finalUsername, true, email);
   } catch (profileError) {
     await sb.auth.admin.deleteUser(accountUid).catch(() => {});
+    await releaseEmployeeQuota();
     return res.status(500).json({ success: false, message: 'Impossible de finaliser le compte employé.' });
   }
   if (statut === 'inactif') {
     const { error: banError } = await sb.auth.admin.updateUserById(accountUid, { ban_duration: '8760h' });
     if (banError) {
       await sb.auth.admin.deleteUser(accountUid).catch(() => {});
+      await releaseEmployeeQuota();
       return res.status(503).json({ success: false, message: 'Impossible de synchroniser le statut du compte.' });
     }
   }
@@ -283,6 +307,7 @@ router.post('/', async (req, res) => {
 
   if (error) {
     await sb.auth.admin.deleteUser(accountUid).catch(() => {});
+    await releaseEmployeeQuota();
     console.error('[employes/create]', error.message);
     return res.status(400).json({ success: false, message: 'Erreur lors de la création de l\'employé.' });
   }
@@ -295,8 +320,13 @@ router.post('/', async (req, res) => {
     } catch (cleanupErr) {
       console.warn('[employes] nettoyage échec après rollback biens :', cleanupErr.message);
     }
+    await sb.auth.admin.deleteUser(accountUid).catch(() => {});
+    await releaseEmployeeQuota();
     return res.status(400).json({ success: false, message: biensError.message, errors: biensError.errors });
   }
+
+  await consumeQuota(sb, quotaReservation?.id, ownerId);
+  quotaReservation = null;
 
   await notify(accountUid, 'info', 'Votre compte employé a été créé par votre employeur. À votre première connexion, vous devrez choisir un nouveau mot de passe.');
   gitAutoBackup(`Sauvegarde auto : ajout employé (compte ${finalUsername})`);

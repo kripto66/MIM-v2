@@ -84,7 +84,7 @@
                 </div>
 
                 <div class="search-bar">
-                    <input type="search" id="tenantSearch" placeholder="🔎 Rechercher un locataire (nom, username, téléphone, email)…">
+                    <input type="search" id="tenantSearch" aria-label="Rechercher un locataire" placeholder="🔎 Rechercher un locataire (nom, username, téléphone, email)…">
                 </div>
 
                 <div id="locatairesList">
@@ -261,10 +261,6 @@
 
         const el = (id) => document.getElementById(id);
 
-        function escapeAttr(v) {
-            return String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
-
         function confirmPassword(message) {
             return new Promise((resolve) => {
                 const modal = el("confirmPwdModal");
@@ -411,7 +407,7 @@
                             ${lg
                                 ? `<p class="logement-chip"><strong>Logement :</strong> ${escapeHtml(lg.nom)} · ${typeLabel} · ${Number(lg.loyer_mensuel).toLocaleString("fr-FR")} FCFA/mois · ${escapeHtml(lg.adresse || "")}</p>`
                                 : `<p class="logement-chip logement-none">Aucun logement associé.</p>`}
-                            <p><span class="status ${cls}">${label}</span>${t.jour_echeance ? " · Échéance le " + escapeHtml(t.jour_echeance) : ""}${t.account_uid ? " · Compte actif" : ""}</p>
+                            <p><span class="status ${cls}">${escapeHtml(label)}</span>${t.jour_echeance ? " · Échéance le " + escapeHtml(t.jour_echeance) : ""}${t.account_uid ? " · Compte actif" : ""}</p>
                         </div>
                         <div class="card-actions">
                             <button class="btn btn-edit" data-edit-t="${t.id}">Modifier</button>

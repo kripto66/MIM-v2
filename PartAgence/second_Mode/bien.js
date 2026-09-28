@@ -112,7 +112,11 @@ async function load() {
 
     bien.nom = bienInfo && bienInfo.nom ? bienInfo.nom : "Bien #" + bien.id;
     bien.proprietaireNom = proprietaire ? proprietaire.name : null;
-    try { sessionStorage.setItem("mim_agence_bien_v1", JSON.stringify(bien)); } catch (e) {}
+    try {
+      sessionStorage.setItem("mim_agence_bien_v1", JSON.stringify(bien));
+    } catch (e) {
+      console.warn("[MIM] sessionStorage: contexte de bien non sauvegarde", e);
+    }
 
     // En-tête.
     document.title = `MIM — ${bien.nom}`;

@@ -493,7 +493,7 @@ function renderFinal(res) {
 
   const rows = r.categories
     .map((c) => {
-      const parts = [`${c.created} ${labels[c.category] || c.label}`];
+      const parts = [`${c.created} ${escapeHtml(labels[c.category] || c.label || "")}`];
       if (c.updated) parts.push(`${c.updated} mis à jour`);
       if (c.ignored) parts.push(`${c.ignored} ignorés (doublons)`);
       return `<li>${parts.join(" · ")}</li>`;
@@ -558,7 +558,7 @@ function renderFinal(res) {
             ${r.categories
               .flatMap((c) =>
                 c.rowErrors.map(
-                  (e) => `<li class="wprev-line"><span class="wprev-line-num">${c.label} · Ligne ${e.line}</span>${escapeHtml(e.message)}</li>`
+                  (e) => `<li class="wprev-line"><span class="wprev-line-num">${escapeHtml(c.label)} · Ligne ${e.line}</span>${escapeHtml(e.message)}</li>`
                 )
               )
               .join("")}

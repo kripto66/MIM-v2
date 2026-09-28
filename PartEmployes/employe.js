@@ -51,7 +51,11 @@ async function api(p, o = {}) {
     headers: { "Content-Type": "application/json", ...(o.headers || {}), ...csrfHeaders },
   });
   let b = null;
-  try { b = await r.json(); } catch {}
+  try {
+    b = await r.json();
+  } catch (err) {
+    console.warn("[MIM] reponse non-JSON (" + r.status + ")", err);
+  }
   if (!r.ok) {
     let e = Error(b?.message || b?.error || MIM.httpFallback[r.status] || "Erreur serveur");
     e.status = r.status;
@@ -275,6 +279,7 @@ function renderSalaires(list) {
   el.innerHTML = list
     .map((p) => {
       const st = p.statut || "attente";
+      const stCls = ["paye", "attente", "non_recu"].includes(st) ? st : "attente";
       let body = "";
       if (st === "attente") {
         body = `<div class="sal-actions"><button class="primary small" data-confirm="${p.id}">Confirmer la réception</button><button class="danger small" data-refuse="${p.id}">Je n'ai pas reçu</button></div>`;
@@ -285,7 +290,7 @@ function renderSalaires(list) {
       }
       const meta = [p.moyen_label, MOYEN_TYPE_LABELS[p.methode_paiement] || null].filter(Boolean).join(" · ");
       const ref = p.reference ? "Réf. " + esc(p.reference) : "";
-      return `<article class="card salaire"><span class="status st-${st}">${esc(SALAIRE_LABELS[st] || st)}</span><h3>${
+      return `<article class="card salaire"><span class="status st-${stCls}">${esc(SALAIRE_LABELS[st] || st)}</span><h3>${
         esc(p.mois) || "—"
       } — ${fmtMoney(p.montant)}</h3><div class="muted">${esc(meta || "—")}</div><div class="muted small">${
         p.date_paiement ? "Date de paiement : " + date(p.date_paiement) + (ref ? " · " + ref : "") : ref

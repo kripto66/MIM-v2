@@ -1,6 +1,10 @@
 (function () {
   'use strict';
 
+  // bfcache : gere dans /mim-errors.js (charge par toutes les pages,
+  // audit A7) ; ne pas le dupliquer ici (double location.reload()).
+
+
   var sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
 
@@ -22,11 +26,16 @@
   var logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn && !logoutBtn.dataset.mimLogout) {
     logoutBtn.dataset.mimLogout = '1';
-    logoutBtn.addEventListener('click', async function () {
+    logoutBtn.addEventListener('click', async function (e) {
+      // #logoutBtn est une <a href="#"> dans PartProprietairesShadow :
+      // sans preventDefault, le navigateur remonte en haut de page.
+      if (e && typeof e.preventDefault === 'function') e.preventDefault();
       await MIM._csrfReady;
       var apiBase = typeof mimApiBase === 'function' ? mimApiBase() : '/api';
       fetch(apiBase + '/auth/logout', { method: 'POST', credentials: 'include', headers: MIM.csrfHeader() })
-        .catch(function () {})
+        .catch(function (err) {
+          console.warn("[MIM] logout: appel /auth/logout en echec", err);
+        })
         .finally(function () {
           window.location.href = '/PartPublic/connexion.html';
         });

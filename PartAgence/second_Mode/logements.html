@@ -224,7 +224,7 @@
                             <h3>${escapeHtml(l.nom)}</h3>
                             <p>${l.type === "chambre" ? "Chambre" : "Appartement"}${l.nombre_chambres ? " · " + escapeHtml(l.nombre_chambres) + " chambre(s)" : ""} — <strong>${fmtFCFA(l.loyer_mensuel)}</strong> / mois</p>
                             ${l.adresse ? `<p class="muted">📍 ${escapeHtml(l.adresse)}</p>` : ""}
-                            <p><span class="status ${cls}">${label}</span></p>
+                            <p><span class="status ${cls}">${escapeHtml(label)}</span></p>
                         </div>
                         <div class="card-actions">
                             <button class="btn btn-edit" data-edit="${l.id}">Modifier</button>

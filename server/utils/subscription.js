@@ -169,6 +169,20 @@ export async function countLocataires(userId) {
   }
 }
 
+export async function countEmployes(userId) {
+  try {
+    const { count, error } = await serviceClient()
+      .from('employes')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .is('superseded_at', null);
+    if (error) throw new Error(error.message);
+    return count || 0;
+  } catch (err) {
+    throw new Error(`Compteur d'employés indisponible: ${err.message}`);
+  }
+}
+
 async function augmentStatus(userId, sub, base) {
   const plan = sub ? await planForSubscription(sub) : null;
   const latest = await latestPayment(userId);
@@ -339,6 +353,32 @@ export async function enforceLocatairesLimit(userId) {
   return { allowed: true, count, max, plan: plan.code };
 }
 
+// Limite d'employés du propriétaire. Chaque employé créé consomme un
+// compte Auth : sans plafond, un compte peut en créer un nombre illimité.
+// La colonne plans.max_employes est posée par la migration
+// 20260927100000_quota_essai.sql ; le plancher par défaut est appliqué
+// par la RPC reserve_quota elle-même.
+export async function enforceEmployesLimit(userId) {
+  const sub = await readSubscription(userId);
+  const plan = sub ? await planForSubscription(sub) : null;
+  if (sub && !plan) return { allowed: false, code: 'PLAN_UNAVAILABLE', message: 'Le plan d\'abonnement est indisponible.', count: 0, max: null };
+  const max = plan && plan.max_employes > 0 ? plan.max_employes : null;
+  if (max == null) return { allowed: true, count: 0, max: null };
+
+  const count = await countEmployes(userId);
+  if (count >= max) {
+    return {
+      allowed: false,
+      count,
+      max,
+      plan: plan.code,
+      message: `Votre plan ${plan.nom} (${max} employé${max > 1 ? 's' : ''}) est atteint. Passez au plan supérieur pour ajouter d'autres employés.`,
+      code: 'EMPLOYES_LIMIT_REACHED',
+    };
+  }
+  return { allowed: true, count, max, plan: plan.code };
+}
+
 // Nouvelle échéance : on prolonge à partir de l'échéance courante si
 // elle est encore dans le futur (renouvellement), sinon depuis maintenant.
 function addMonths(d, months) {
@@ -436,6 +476,10 @@ export async function createCheckout(userId, planCode, idempotencyKey = null, ac
       user_id: userId,
       plan: plan.code,
       montant: Number(plan.prix),
+      // Prix du plan figé au moment de la création du checkout : le
+      // lien Bictorys encaisse ce montant, aussi un changement de
+      // catalogue ne doit pas invalider le paiement en cours.
+      prix_plan: Number(plan.prix),
       devise: plan.devise,
       provider: 'bictorys',
       statut: 'pending',
@@ -731,7 +775,66 @@ export async function processWebhook(payload) {
 
 // ─── POLLING FALLBACK ───────────────────────────────────────────
 // Si le webhook n'est jamais arrivé, le propriétaire (ou un job)
-// interroge Bictorys pour actualiser son paiement en attente.
+// interroge Bictorys pour actualiser ses paiements en attente.
+//
+// Tous les paiements pending sont rafraîchis, pas seulement le plus
+// récent : avec un .limit(1), un checkout abandonné restait « pending »
+// pour toujours et restait réaffiché par readSubscription.
+const MAX_PENDING_RECONCILE = 10;
+
+// Date de règlement réelle renvoyée par Bictorys si elle existe,
+// sinon null (l'appelant retombe sur l'horloge locale). Seules des
+// dates réellement valides sont acceptées : une valeur inattendue
+// ferait échouer l'activation côté SQL.
+function paidDateOrNull(value) {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+async function reconcileOnePayment(payment) {
+  if (!payment.transaction_id) return { status: 'pending', reason: 'TRANSACTION_PENDING' };
+
+  let txn;
+  try {
+    if (isSimulate()) return { status: 'pending', reason: 'SIMULATION_REQUIRES_WEBHOOK' };
+    txn = await getTransaction(payment.transaction_id);
+  } catch (err) {
+    return { status: 'error', message: err.message };
+  }
+
+  if (txn.paymentReference && txn.paymentReference !== payment.reference) {
+    return { status: 'error', code: 'REFERENCE_MISMATCH' };
+  }
+  if (txn.merchantReference && txn.merchantReference !== `SUB-${payment.reference}`) {
+    return { status: 'error', code: 'MERCHANT_REFERENCE_MISMATCH' };
+  }
+  const transactionAmount = parseMoney(txn.amount);
+  if (transactionAmount === null || !txn.currency) {
+    return { status: 'error', code: 'TRANSACTION_DETAILS_INCOMPLETE' };
+  }
+  if (transactionAmount !== parseMoney(payment.montant)) {
+    return { status: 'error', code: 'AMOUNT_MISMATCH' };
+  }
+  if (String(txn.currency).toUpperCase() !== String(payment.devise || '').toUpperCase()) {
+    return { status: 'error', code: 'CURRENCY_MISMATCH' };
+  }
+
+  if (PAYMENT_OK.includes(String(txn.status || '').toLowerCase())) {
+    const applied = await applySucceededPayment({
+      ...payment,
+      transaction_id: txn.id || payment.transaction_id,
+      date_paiement: paidDateOrNull(txn.paidAt) || payment.date_paiement || new Date().toISOString(),
+    });
+    return { status: applied.applied ? 'paid' : 'already_paid' };
+  }
+  return { status: String(txn.status || 'pending').toLowerCase() };
+}
+
+// Priorité du retour : un paiement réellement encaissé gagne sur
+// tout le reste, une erreur gagne sur un simple « en attente ».
+const RECONCILE_RANK = { paid: 4, already_paid: 3, error: 2 };
+
 export async function reconcilePendingPayment(userId) {
   const { data, error } = await serviceClient()
     .from('abonnement_paiements')
@@ -740,48 +843,19 @@ export async function reconcilePendingPayment(userId) {
     .eq('provider', 'bictorys')
     .eq('statut', 'pending')
     .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(MAX_PENDING_RECONCILE);
   if (error) {
     const err = new Error('Impossible de lire le paiement en attente.');
     err.code = 'PAYMENT_LOOKUP_FAILED';
     throw err;
   }
-  if (!data) return { status: 'none' };
-  if (!data.transaction_id) return { status: 'pending', reason: 'TRANSACTION_PENDING' };
+  if (!data?.length) return { status: 'none' };
 
-  let txn;
-  try {
-    if (isSimulate()) return { status: 'pending', reason: 'SIMULATION_REQUIRES_WEBHOOK' };
-    txn = await getTransaction(data.transaction_id);
-  } catch (err) {
-    return { status: 'error', message: err.message };
+  const results = [];
+  for (const payment of data) {
+    results.push({ reference: payment.reference, ...(await reconcileOnePayment(payment)) });
   }
 
-  if (txn.paymentReference && txn.paymentReference !== data.reference) {
-    return { status: 'error', code: 'REFERENCE_MISMATCH' };
-  }
-  if (txn.merchantReference && txn.merchantReference !== `SUB-${data.reference}`) {
-    return { status: 'error', code: 'MERCHANT_REFERENCE_MISMATCH' };
-  }
-  const transactionAmount = parseMoney(txn.amount);
-  if (transactionAmount === null || !txn.currency) {
-    return { status: 'error', code: 'TRANSACTION_DETAILS_INCOMPLETE' };
-  }
-  if (transactionAmount !== parseMoney(data.montant)) {
-    return { status: 'error', code: 'AMOUNT_MISMATCH' };
-  }
-  if (String(txn.currency).toUpperCase() !== String(data.devise || '').toUpperCase()) {
-    return { status: 'error', code: 'CURRENCY_MISMATCH' };
-  }
-
-  if (PAYMENT_OK.includes(String(txn.status || '').toLowerCase())) {
-    const applied = await applySucceededPayment({
-      ...data,
-      transaction_id: txn.id || data.transaction_id,
-      date_paiement: new Date().toISOString(),
-    });
-    return { status: applied.applied ? 'paid' : 'already_paid' };
-  }
-  return { status: String(txn.status || 'pending').toLowerCase() };
+  const best = [...results].sort((a, b) => (RECONCILE_RANK[b.status] || 0) - (RECONCILE_RANK[a.status] || 0))[0];
+  return { ...best, reconciled: results.length };
 }

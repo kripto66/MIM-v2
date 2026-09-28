@@ -761,7 +761,7 @@ input.pw-strong { border-color: #27ae60 !important }
 /* =========================================
    NAVBAR (icônes)
 ========================================= */
-#tok { font-size: clamp(22px, 1.9rem, 28px); line-height: 1; width: 30px; text-align: center }
+.tok { font-size: clamp(22px, 1.9rem, 28px); line-height: 1; width: 30px; text-align: center }
 
 /* =========================================
    ANIMATIONS

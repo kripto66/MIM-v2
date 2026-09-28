@@ -877,10 +877,13 @@ async function scopedList(req, res, table) {
 }
 
 async function scopedCreate(req, res, table) {
+  // Déclarées AVANT le try : le catch les référence pour libérer le quota.
+  // Déclarées dans le try, elles levaient un ReferenceError dans le catch
+  // et remplissaient la réponse d'erreur d'une seconde exception.
+  const { bienId, proprietaireId } = req.scope || {};
+  let quotaReservation = null;
   try {
-    const { bienId, proprietaireId } = req.scope;
     const payload = req.body || {};
-    let quotaReservation = null;
 
     // Formulaire unique « Ajouter un locataire » (compte embarqué) :
     // même contrat de réponse que le CRUD générique.
@@ -1088,9 +1091,13 @@ async function scopedCreate(req, res, table) {
 // loyer en base ; les identifiants générés sont imprévisibles.
 // ============================================================
 async function scopedCreateTenant(req, res) {
+  // Même principe que scopedCreate : le catch libère les quotas, ces
+  // variables doivent donc exister hors du bloc try.
+  const { bienId, proprietaireId } = req.scope || {};
+  const admin = sb();
+  let logementReservation = null;
+  let locataireReservation = null;
   try {
-    const { bienId, proprietaireId } = req.scope;
-    const admin = sb();
     const payload = req.body || {};
 
     const autoAccount = !payload.username && !payload.password;
@@ -1109,8 +1116,6 @@ async function scopedCreateTenant(req, res) {
     let createdLogementId = null;
     let createdLogement = null;
     let logementLoyer = null;
-    let logementReservation = null;
-    let locataireReservation = null;
 
     if (!nom) {
       return res.status(400).json({ success: false, message: 'Le nom est obligatoire.', errors: { nom: 'Le nom est obligatoire.' } });
@@ -1409,11 +1414,12 @@ async function validateScopedEffectiveRecord(scope, table, record) {
 }
 
 async function scopedUpdate(req, res, table) {
+  // Déclarées avant le try pour être atteignables depuis le catch.
+  const { bienId, proprietaireId } = req.scope || {};
+  let logementReservation = null;
   try {
-    const { bienId, proprietaireId } = req.scope;
     const id = Number(req.params.id);
     const payload = req.body || {};
-    let logementReservation = null;
     if (!Number.isInteger(id) || id <= 0) {
       return res.status(400).json({ success: false, message: 'Identifiant invalide.' });
     }

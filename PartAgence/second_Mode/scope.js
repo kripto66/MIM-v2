@@ -86,5 +86,7 @@
       return parsed.data;
     });
   });
-  window.MIM.mode2ContextPromise.catch(function () {});
+  window.MIM.mode2ContextPromise.catch(function (err) {
+    console.warn("[agence] contexte du bien indisponible :", err);
+  });
 })();

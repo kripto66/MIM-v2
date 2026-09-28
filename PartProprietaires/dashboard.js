@@ -368,7 +368,7 @@ function renderPayments(paiements) {
         <span class="pay-line-ico">◈</span>
         <div class="pay-line-body">
           <strong>${locataire ? escapeHtml(locataire.nom) : "Locataire inconnu"}</strong>
-          <span>${formatMois(p.mois)}${logement ? " · " + escapeHtml(logement.nom) : ""}</span>
+          <span>${escapeHtml(formatMois(p.mois))}${logement ? " · " + escapeHtml(logement.nom) : ""}</span>
         </div>
         <span class="pay-line-sum ${statusClass}">${fmtShortFCFA(p.montant)}</span>
       </div>`;

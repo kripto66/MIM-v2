@@ -236,10 +236,6 @@
             return `${Number(n || 0).toLocaleString("fr-FR")} FCFA`;
         }
 
-        function escapeAttr(v) {
-            return String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
-
         // ============================================================
         // Paiements locataires : déclarations à valider
         // ============================================================
@@ -284,9 +280,9 @@
                     <div class="crud-card pending-card">
                         <div>
                             <h3>${escapeHtml(p.locataire_nom || "Locataire")}</h3>
-                            <p>${formatMois(p.mois)} — ${escapeHtml(p.logement_nom || "")}</p>
+                            <p>${escapeHtml(formatMois(p.mois))} — ${escapeHtml(p.logement_nom || "")}</p>
                             <p><span class="status status-warning">En attente de validation</span></p>
-                            <p class="pay-methode">${METHODE_LABELS[p.methode_paiement] || p.methode_paiement || "—"}${p.reference ? ` — réf. déclarée : ${escapeHtml(p.reference)}` : ""}</p>
+                            <p class="pay-methode">${escapeHtml(METHODE_LABELS[p.methode_paiement] || p.methode_paiement || "—")}${p.reference ? ` — réf. déclarée : ${escapeHtml(p.reference)}` : ""}</p>
                         </div>
                         <div class="card-amount">
                             <strong>${fmtFCFA(p.montant)}</strong>
@@ -423,8 +419,8 @@
                     <div class="crud-card">
                         <div>
                             <h3>${avatar}${locataire ? escapeHtml(locataire.nom) : "Locataire"}</h3>
-                            <p>${formatMois(p.mois)} — ${logement ? escapeHtml(logement.nom) : ""}</p>
-                            <p><span class="status ${cls}">${label}</span></p>
+                            <p>${escapeHtml(formatMois(p.mois))} — ${logement ? escapeHtml(logement.nom) : ""}</p>
+                            <p><span class="status ${cls}">${escapeHtml(label)}</span></p>
                         </div>
                         <div class="card-amount">
                             <strong>${fmtFCFA(p.montant)}</strong>

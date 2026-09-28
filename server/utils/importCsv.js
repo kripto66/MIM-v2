@@ -21,7 +21,7 @@
 
 import { tenantEmailFor, usernameIsValid, uniqueUsername, generateInitialPassword, provisionProfile } from './tenantAccount.js';
 import { notify } from './notifications.js';
-import { enforceImmeublesLimit, enforceLogementsLimit, enforceLocatairesLimit } from './subscription.js';
+import { enforceImmeublesLimit, enforceLogementsLimit, enforceLocatairesLimit, enforceEmployesLimit } from './subscription.js';
 import { reserveQuota, consumeQuota, releaseQuota } from './quota.js';
 
 // Ré-export de compatibilité (la logique vit désormais dans tenantAccount.js).
@@ -807,6 +807,7 @@ export async function executeImport(sb, ownerId, payload, opts = {}) {
     ['biens', await enforceImmeublesLimit(ownerId)],
     ['logements', await enforceLogementsLimit(ownerId)],
     ['locataires', await enforceLocatairesLimit(ownerId)],
+    ['employes', await enforceEmployesLimit(ownerId)],
   ];
   for (const [resource, limit] of quotaChecks) {
     if (limit.max != null && limit.count + (plannedByCategory[resource] || 0) > limit.max) {
@@ -1392,6 +1393,16 @@ async function importEmploye(sb, ownerId, ctx) {
     n++;
   }
   usernameSet.add(final);
+
+  // Vérification ligne à ligne : le contrôle global en tête d'import ne
+  // couvre pas les lignes créées au fur et à mesure (et l'import crée de
+  // vrais comptes Auth). On recompte avant chaque création.
+  const employesLimit = await enforceEmployesLimit(ownerId);
+  if (!employesLimit.allowed) {
+    usernameSet.delete(final);
+    result.rowErrors.push({ line, message: employesLimit.message });
+    return;
+  }
 
   const initialPassword = generateInitialPassword();
   const { data: createdUser, error: createError } = await sb.auth.admin.createUser({

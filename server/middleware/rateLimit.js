@@ -67,3 +67,14 @@ export const mfaVerifyRateLimit = makeLimiter({
     return `mfa:${req.ip}:${digest}`;
   },
 });
+
+// Limite globale par adresse IP. Les limiteurs ci-dessus sont clés
+// « ip + chemin » : un scanner peut donc balayer des milliers de chemins
+// à quota illimité. req.ip reflète l'adresse réelle du client parce que
+// TRUST_PROXY est réglé dans app.js avant tout montage de route.
+export const globalIpRateLimit = makeLimiter({
+  windowMs: 60 * 1000,
+  max: 600,
+  message: 'Trop de requêtes. Veuillez patienter.',
+  keyFn: (req) => `ip:${req.ip}`,
+});

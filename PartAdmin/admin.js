@@ -188,9 +188,9 @@ function monthLetter(ym) {
 function statCard(cfg) {
   const value = cfg.money ? money(cfg.raw) : Number(cfg.raw || 0).toLocaleString("fr-FR");
   return `<div class="stat-card" data-tilt style="--d:${cfg.d || 0}s">
-    <div class="stat-head"><span>${cfg.label}</span><span class="stat-icon">${svg(cfg.icon)}</span></div>
+    <div class="stat-head"><span>${escapeHtml(cfg.label)}</span><span class="stat-icon">${svg(cfg.icon)}</span></div>
     <div class="stat-value">${value}</div>
-    <div class="stat-sub">${cfg.sub || ""}</div>
+    <div class="stat-sub">${escapeHtml(cfg.sub || "")}</div>
   </div>`;
 }
 
@@ -244,7 +244,7 @@ function revenueChart(revenue12) {
 
   const dots = data
     .map((d, i) => {
-      const tip = `${d.label} — ${money(d.value)}`;
+      const tip = `${escapeAttr(d.label)} — ${money(d.value)}`;
       const left = ((X(i) / W) * 100).toFixed(2);
       const bottom = ((Y(d.value) / H) * 100).toFixed(2);
       return `<button type="button" class="chart-dot" aria-label="${tip}" data-tip="${tip}" style="left:${left}%;bottom:${bottom}%"></button>`;
@@ -436,10 +436,14 @@ async function initSystemStatus() {
 // Table / Navigation
 // ============================================================
 
-function activity(title, text, time) {
-  const safeTitle = typeof title === "string" ? escapeHtml(title) : (title ?? "");
-  const safeText = typeof text === "string" ? escapeHtml(text) : (text ?? "");
-  const safeTime = typeof time === "string" ? escapeHtml(time) : (time ?? "");
+function activity(title, text, time, raw = {}) {
+  // raw : objet { title, text, time } indiquant les arguments déjà en HTML
+  // assumé (construits par nos helpers, jamais issus de données utilisateur).
+  const cell = (value, key) =>
+    raw[key] ? String(value ?? "") : typeof value === "string" ? escapeHtml(value) : (value ?? "");
+  const safeTitle = cell(title, "title");
+  const safeText = cell(text, "text");
+  const safeTime = cell(time, "time");
   return `<div class="activity-row"><i class="dot"></i><div><strong>${safeTitle}</strong>${safeText ? `<small>${safeText}</small>` : ""}${safeTime ? `<small>${safeTime}</small>` : ""}</div></div>`;
 }
 
@@ -457,11 +461,17 @@ function tablePage(title, data, columns, headers, actions, onAction) {
 function rows(data, columns, actions, onAction) {
   if (!data || !data.length) return `<tr><td colspan="99" class="empty">Aucune donnée.</td></tr>`;
   const badgeCells = new Set(["statut", "status"]);
-  return data.map((r) => `<tr>${columns.map((k) => {
+  return data.map((r) => `<tr>${columns.map((col) => {
+    const isDesc = col !== null && typeof col === "object";
+    const k = isDesc ? col.key : col;
     if (badgeCells.has(k)) return `<td>${badge(r[k])}</td>`;
     if (k === "montant") return `<td class="num">${money(r[k])}</td>`;
     const val = r[k];
-    return `<td>${val != null ? escapeHtml(String(val)) : "—"}</td>`;
+    if (val == null) return `<td>—</td>`;
+    // Colonne déclarée { key, html: true } : contenu HTML construit par nos
+    // helpers (badges statiques) — jamais de donnée utilisateur brute.
+    if (isDesc && col.html) return `<td>${String(val)}</td>`;
+    return `<td>${escapeHtml(String(val))}</td>`;
   }).join("")}${actions && onAction ? `<td>${onAction(r)}</td>` : ""}</tr>`).join("");
 }
 
@@ -539,7 +549,7 @@ async function dashboard() {
       <tbody>${recentPayments.map((r) => `<tr><td>${escapeHtml(r.locataire)}</td><td>${escapeHtml(r.periode)}</td><td class="num">${money(r.montant)}</td><td>${badge(r.statut)}</td></tr>`).join("")}</tbody></table></div>
     </div>
     <div class="panel"><div class="panel-header"><h2>Incidents</h2><button class="btn secondary" onclick="navigate('incidents')">Voir tout</button></div>
-      <div class="activity">${recentIncidents.map((r) => activity(r.titre, `${r.logement} — ${r.locataire}`, badge(r.statut))).join("") || `<div class="empty">Aucun incident.</div>`}</div>
+      <div class="activity">${recentIncidents.map((r) => activity(r.titre, [r.logement, r.locataire].filter(Boolean).join(" — ") || "—", badge(r.statut), { time: true })).join("") || `<div class="empty">Aucun incident.</div>`}</div>
     </div>
   </div>`;
 
@@ -550,9 +560,11 @@ async function dashboard() {
 
 function subBadge(subscription) {
   if (!subscription) return `<span class="badge info">Aucun</span>`;
+  const date = escapeHtml(fmtDate(subscription.date_expiration));
+  const jours = escapeHtml(String(subscription.joursRestants ?? ""));
   return subscription.statut === "actif"
-    ? `<span class="badge success" title="Expire le ${fmtDate(subscription.date_expiration)}">Abonné · ${subscription.joursRestants} j</span>`
-    : `<span class="badge warning" title="Expiré le ${fmtDate(subscription.date_expiration)}">Expiré</span>`;
+    ? `<span class="badge success" title="Expire le ${date}">Abonné · ${jours} j</span>`
+    : `<span class="badge warning" title="Expiré le ${date}">Expiré</span>`;
 }
 
 async function proprietaires() {
@@ -566,7 +578,7 @@ async function proprietaires() {
   app.innerHTML = tablePage(
     "propriétaires",
     rowsData,
-    ["id", "nom", "email", "biens", "statut", "sub", "last_login"],
+    ["id", "nom", "email", "biens", "statut", { key: "sub", html: true }, "last_login"],
     ["ID", "Nom", "Email", "Biens", "Statut", "Abonnement", "Dernière connexion"],
     true,
     (r) =>
@@ -683,7 +695,7 @@ async function activite() {
   app.innerHTML = skeleton();
   const { data } = await apiRequest("/admin/activite");
   app.innerHTML = `<div class="panel"><div class="panel-header"><h2>Journal d'activité</h2><span class="panel-tag">100 derniers événements</span></div>
-    <div class="activity">${(data || []).map((a) => activity(a.action, `${a.user} — ${a.detail}`, a.date)).join("") || `<div class="empty">Aucune activité.</div>`}</div></div>`;
+    <div class="activity">${(data || []).map((a) => activity(a.action, [a.user, a.detail].filter(Boolean).join(" — ") || "—", a.date)).join("") || `<div class="empty">Aucune activité.</div>`}</div></div>`;
 }
 
 // ============================================================

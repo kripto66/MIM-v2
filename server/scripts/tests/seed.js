@@ -129,7 +129,11 @@ export async function wipeTestData(service) {
     const ids = [...accountIds];
     const { error: paymentMethodError } = await service.from('moyens_paiement_employes').delete().in('employe_uid', ids);
     if (paymentMethodError) throw new Error(`moyens_paiement_employes: ${paymentMethodError.message}`);
-    for (const table of ['notifications', 'sessions']) {
+    // Les tables filles d'un compte locataire/employé sont supprimées
+    // avec le même soin que celles d'un propriétaire : subscriptions a
+    // un FK ON DELETE RESTRICT vers auth.users, un compte de test qui
+    // garderait une souscription bloquerait donc deleteUser().
+    for (const table of CHILD_TABLES) {
       const { error } = await service.from(table).delete().in('user_id', ids);
       if (error) throw new Error(`${table}: ${error.message}`);
     }

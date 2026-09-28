@@ -1,12 +1,38 @@
 /* MIM — système unifié de messages d'erreur (toutes zones).
  * Chargé avant les helpers de requêtes : /mim-errors.js
  * API : MIM.parse(res), MIM.userMessage(err), MIM.handleAuthError(err),
- *       MIM.showError(msg), MIM.showSuccess(msg), escapeHtml(str). */
+ *       MIM.showError(msg), MIM.showSuccess(msg), escapeHtml(str),
+ *       escapeAttr(str). */
 window.MIM = window.MIM || {};
+
+/* bfcache (audit A7) : apres une deconnexion, un retour en arriere peut
+ * resservir la page depuis le cache (etat JS/CSS fige, session
+ * vieillie) ; on recharge. Place ici plutot que dans sidebar.js :
+ * ce fichier est charge par 46 des 47 pages (sidebar.js n'est pas
+ * present partout), donc le garde-fou couvre toutes les zones. */
+if (!window.MIM._bfcacheHooked) {
+  window.MIM._bfcacheHooked = true;
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) location.reload();
+  });
+}
 
 /* Échappement HTML (défini une seule fois, disponible dans toutes les
  * zones). Préserve null/undefined en chaîne vide. */
 function escapeHtml(str) {
+  return String(str ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  }[c]));
+}
+
+/* Échappement pour les attributs HTML (valeur entre guillemets).
+ * Exposée globalement comme escapeHtml : déclarée une seule fois ici,
+ * chargée en premier par toutes les pages (balise <script> en tête). */
+function escapeAttr(str) {
   return String(str ?? "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;",
     "<": "&lt;",

@@ -69,8 +69,9 @@
 
     function formatMois(ym) {
         var m = String(ym || "");
-        if (!/^\d{4}-\d{2}$/.test(m)) return m || "—";
-        return (MOIS[Number(m.slice(5, 7)) - 1] || "") + " " + m.slice(0, 4);
+        // Ne peut renvoyer que du texte sûr : toute valeur hors AAAA-MM → "—".
+        if (!/^\d{4}-\d{2}$/.test(m)) return "—";
+        return ((MOIS[Number(m.slice(5, 7)) - 1] || "") + " " + m.slice(0, 4)).trim();
     }
 
     function badge(statut) {

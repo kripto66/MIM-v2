@@ -62,7 +62,7 @@ CrudPage.init({
                     <p>${logement ? "Logement : " + escapeHtml(logement.nom) : "Aucun logement"}</p>
                     ${i.description ? `<p class="muted">${escapeHtml(i.description)}</p>` : ''}
                     ${i.photo ? `<img class="incident-photo" src="${escapeHtml(i.photo)}" alt="Photo de l'incident">` : ''}
-                    <p><span class="status ${cls}">${label}</span> <span class="muted">${formatDate(i.created_at)}</span></p>
+                    <p><span class="status ${cls}">${escapeHtml(label)}</span> <span class="muted">${formatDate(i.created_at)}</span></p>
                 </div>
                 <div class="card-actions">
                     <button class="btn btn-edit" data-edit="${i.id}">Modifier</button>

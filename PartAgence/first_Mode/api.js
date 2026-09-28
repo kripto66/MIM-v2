@@ -80,7 +80,9 @@ function showToast(message, type = "success") {
 const MOIS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 
 function formatMois(mois) {
-  if (!mois) return "";
-  const [y, m] = mois.split("-");
-  return `${MOIS_FR[Number(m) - 1]} ${y}`;
+    // Ne peut renvoyer que du texte sûr : toute valeur hors AAAA-MM → "—".
+    const value = typeof mois === "string" ? mois : "";
+    if (!/^\d{4}-\d{2}$/.test(value)) return "—";
+    const [y, m] = value.split("-");
+    return `${MOIS_FR[Number(m) - 1] || ""} ${y}`.trim();
 }

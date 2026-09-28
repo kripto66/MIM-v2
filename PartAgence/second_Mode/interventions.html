@@ -247,7 +247,7 @@
                             <p>${prestataire ? "Prestataire : " + escapeHtml(prestataire.nom) : ""}</p>
                             <p>${logement ? "Logement : " + escapeHtml(logement.nom) : ""}</p>
                             ${i.date_prevue ? `<p>Prévue le ${formatDate(i.date_prevue)}</p>` : ''}
-                            <p><span class="status ${cls}">${label}</span></p>
+                            <p><span class="status ${cls}">${escapeHtml(label)}</span></p>
                         </div>
                         <div class="card-actions">
                             <button class="btn btn-edit" data-edit="${i.id}">Modifier</button>

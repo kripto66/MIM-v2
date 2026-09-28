@@ -114,7 +114,9 @@
         if (prop) window.MIM.agenceBien.proprietaireNom = prop;
         try {
           sessionStorage.setItem("mim_agence_bien_v1", JSON.stringify(window.MIM.agenceBien));
-        } catch (e2) {}
+        } catch (e2) {
+          console.warn("[MIM] sessionStorage: contexte de bien non sauvegarde", e2);
+        }
         setBienLabels();
         render("Bien géré : " + nom + (prop ? " · " + prop : ""));
       } catch (e) {

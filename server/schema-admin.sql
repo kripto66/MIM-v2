@@ -3,7 +3,14 @@
 -- Ajoute 'admin' aux types de compte autorisés pour public.profiles.
 -- À exécuter dans Supabase : SQL Editor → New query
 -- ============================================================
+--
+-- NE PAS recréer profiles_account_type_check ici.
+-- L'état final fait foi : server/supabase-schema.sql:1250 et
+-- 20260924000000_security_integrity_hardening.sql:2 posent
+--     CHECK (account_type IN ('proprietaire','agence','entreprise',
+--                             'locataire','admin','employe','ultra_admin'))
+-- La variante historique de ce fichier (liste de 5 valeurs) écrasait la
+-- contrainte durcie et cassait les comptes 'employe' ET 'ultra_admin'.
+-- La largeur de la liste est portée par les migrations versionnées ;
+-- ce fichier ne fait plus que documenter l'ouverture du rôle 'admin'.
 
-ALTER TABLE public.profiles DROP CONSTRAINT IF EXISTS profiles_account_type_check;
-ALTER TABLE public.profiles ADD CONSTRAINT profiles_account_type_check
-    CHECK (account_type IN ('proprietaire', 'agence', 'entreprise', 'locataire', 'admin'));

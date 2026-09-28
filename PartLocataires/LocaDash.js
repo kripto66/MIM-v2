@@ -33,8 +33,10 @@ function fmtFCFA(n) {
 const MOIS_FR = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
 
 function formatMois(mois) {
-  if (!mois) return "";
-  const [y, m] = String(mois).split("-");
+  // Ne peut renvoyer que du texte sûr : toute valeur hors AAAA-MM → "—".
+  const value = typeof mois === "string" ? mois : "";
+  if (!/^\d{4}-\d{2}$/.test(value)) return "—";
+  const [y, m] = value.split("-");
   return `${MOIS_FR[Number(m) - 1] || ""} ${y}`.trim();
 }
 
@@ -141,7 +143,7 @@ function computeNextPaiement(paiements, loyer) {
   if (unpaid.length) {
     return {
       montant: fmtFCFA(unpaid[0].montant),
-      echeance: `${formatMois(unpaid[0].mois)} · ${badgeStatut(unpaid[0].statut, "paiement")}`,
+      echeance: `${escapeHtml(formatMois(unpaid[0].mois))} · ${badgeStatut(unpaid[0].statut, "paiement")}`,
       statut: unpaid[0].statut,
     };
   }
@@ -152,7 +154,7 @@ function computeNextPaiement(paiements, loyer) {
     )[0];
     return {
       montant: loyer != null ? fmtFCFA(loyer) : fmtFCFA(last.montant),
-      echeance: `${formatMois(nextMonthOf(last.mois))} · à venir`,
+      echeance: `${escapeHtml(formatMois(nextMonthOf(last.mois)))} · à venir`,
       statut: "paye",
     };
   }
@@ -248,7 +250,7 @@ function renderDashboard(data) {
   if (paiementCardEcheance) paiementCardEcheance.innerHTML = prochain.echeance;
   if (paiementCardStatut && prochain.statut) {
     const map = { paye: ["À jour", "success"], attente: ["En attente", "warning"], retard: ["En retard", "danger"], a_confirmer: ["À confirmer", "info"], en_validation: ["En attente de validation", "warning"], refuse: ["Refusé", "danger"] };
-    const [label, cls] = map[prochain.statut];
+    const [label, cls] = map[prochain.statut] || [prochain.statut, "info"];
     paiementCardStatut.textContent = label;
     paiementCardStatut.className = `status ${cls}`;
   }
@@ -276,7 +278,7 @@ function renderConfirmPayment(data) {
     zone.innerHTML = `
       <div class="confirm-payment-info">
         <strong>✅ Paiement reçu — en attente de validation</strong>
-        <p>Votre paiement de ${fmtFCFA(pending.montant)} (${formatMois(pending.mois)}) a bien été reçu. Il attend la validation de votre propriétaire.</p>
+        <p>Votre paiement de ${fmtFCFA(pending.montant)} (${escapeHtml(formatMois(pending.mois))}) a bien été reçu. Il attend la validation de votre propriétaire.</p>
         <button type="button" class="primary-button" id="confirmLegacyPayment">Confirmer la réception</button>
       </div>`;
     const button = document.getElementById("confirmLegacyPayment");
@@ -299,7 +301,7 @@ function renderConfirmPayment(data) {
     zone.innerHTML = `
       <div class="confirm-payment-info">
         <strong>⏳ Paiement en attente de validation</strong>
-        <p>Votre déclaration de ${formatMois(pending.mois)} attend la validation du propriétaire.</p>
+        <p>Votre déclaration de ${escapeHtml(formatMois(pending.mois))} attend la validation du propriétaire.</p>
       </div>`;
     return;
   }
@@ -308,7 +310,7 @@ function renderConfirmPayment(data) {
     zone.innerHTML = `
       <div class="confirm-payment-info">
         <strong>❌ Paiement refusé</strong>
-        <p>Votre déclaration de ${formatMois(pending.mois)} n'a pas été confirmée par votre propriétaire.</p>
+        <p>Votre déclaration de ${escapeHtml(formatMois(pending.mois))} n'a pas été confirmée par votre propriétaire.</p>
       </div>`;
     return;
   }
@@ -316,7 +318,7 @@ function renderConfirmPayment(data) {
   zone.innerHTML = `
     <div class="confirm-payment-info">
       <strong>💰 Loyer à payer</strong>
-      <p>Payez votre loyer de ${formatMois(pending.mois)} (${fmtFCFA(pending.montant)}) en ligne (Orange Money, Wave, Free Money…) ou directement auprès de votre propriétaire.</p>
+      <p>Payez votre loyer de ${escapeHtml(formatMois(pending.mois))} (${fmtFCFA(pending.montant)}) en ligne (Orange Money, Wave, Free Money…) ou directement auprès de votre propriétaire.</p>
       <a href="paiements.html" class="primary-button" type="button">📱 Payer mon loyer</a>
     </div>`;
 }

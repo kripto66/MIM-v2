@@ -107,7 +107,7 @@ async function loadMoyens() {
         list.innerHTML = items.map((m) => `
             <div class="crud-card">
                 <div>
-                    <h3>${TYPE_ICONS[m.type] || "💰"} ${TYPE_LABELS[m.type] || m.type}</h3>
+                    <h3>${escapeHtml(TYPE_ICONS[m.type] || "💰")} ${escapeHtml(TYPE_LABELS[m.type] || m.type)}</h3>
                     ${m.nom_titulaire ? `<p>${escapeHtml(m.nom_titulaire)}</p>` : ""}
                     ${m.numero ? `<p class="pay-methode">${escapeHtml(m.numero)}</p>` : ""}
                     ${m.banque ? `<p class="pay-methode">${escapeHtml(m.banque)}${m.num_compte ? " — " + escapeHtml(m.num_compte) : ""}</p>` : ""}
@@ -123,10 +123,6 @@ ${m.lien_paiement && MIM.httpsUrl(m.lien_paiement) ? `<p><a href="${escapeAttr(M
     } catch (err) {
         list.innerHTML = `<p class="muted">${escapeHtml(err.message)}</p>`;
     }
-}
-
-function escapeAttr(v) {
-    return String(v).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
 function applyTypeVisibility(type) {

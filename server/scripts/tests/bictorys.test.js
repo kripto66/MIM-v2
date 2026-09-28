@@ -218,10 +218,23 @@ export async function runBictorys(r, ctx) {
         );
       });
       const noAgencePlans = !proprietairePlans.some((p) => String(p.code).startsWith('agence_'));
-      if (ok && proprietairePlans.length === 4 && noAgencePlans && !plans.data.plans.some((p) => p.code === 'ultra')) {
-        r.pass(S, '4 plans propriétaire uniquement (1/3/10/25 immeubles) — aucun palier agence exposé, Ultra archivé');
+      // Essai automatique à l'inscription (migration
+      // 20260927100000_quota_essai.sql) : 5 formules propriétaire,
+      // dont une gratuite qui n'est jamais achetable
+      // (PLAN_CODES ne contient pas 'essai').
+      const essai = proprietairePlans.find((x) => x.code === 'essai');
+      const essaiOk = Boolean(
+        essai &&
+          Number(essai.prix) === 0 &&
+          Number(essai.max_immeubles) === 10 &&
+          Number(essai.max_logements) === 100 &&
+          Number(essai.max_locataires) === 100 &&
+          essai.actif === true,
+      );
+      if (ok && essaiOk && proprietairePlans.length === 5 && noAgencePlans && !plans.data.plans.some((p) => p.code === 'ultra')) {
+        r.pass(S, '5 formules propriǸtaire (essai + 1/3/10/25 immeubles) �?" aucun palier agence exposǸ, Ultra archivǸ');
       } else {
-        r.fail(S, '4 plans propriétaire uniquement — aucun palier agence exposé, Ultra archivé', JSON.stringify(plans.data?.plans?.map((p) => p.code)));
+        r.fail(S, '5 formules propriǸtaire (essai + 1/3/10/25 immeubles) �?" aucun palier agence exposǸ, Ultra archivǸ', JSON.stringify(plans.data?.plans?.map((p) => p.code)));
       }
     });
 
@@ -289,10 +302,11 @@ export async function runBictorys(r, ctx) {
 
       const proprietaireOnly = list.data.plans.filter((p) => p.audience === 'proprietaire' && p.actif).length;
       const agenceOnly = list.data.plans.filter((p) => p.audience === 'agence' && p.actif).length;
-      if (proprietaireOnly === 4 && agenceOnly === 3) {
-        r.pass(S, 'Ultra Admin : 4 formules propriétaire / 3 formules agence');
+      // 5 = standard / premium / pro / agence + essai automatique.
+      if (proprietaireOnly === 5 && agenceOnly === 3) {
+        r.pass(S, 'Ultra Admin : 5 formules propriǸtaire (dont essai) / 3 formules agence');
       } else {
-        r.fail(S, 'Ultra Admin : 4 formules propriétaire / 3 formules agence', `${proprietaireOnly}/${agenceOnly}`);
+        r.fail(S, 'Ultra Admin : 5 formules propriǸtaire (dont essai) / 3 formules agence', `${proprietaireOnly}/${agenceOnly}`);
       }
 
       // Création
@@ -382,12 +396,19 @@ export async function runBictorys(r, ctx) {
         r.fail(S, 'checkout standard → lien factice propre + paiement pending 7 000 XOF', JSON.stringify(res.data));
       }
 
-      // Le checkout n'active RIEN : subscription encore null (propriétaire dédié).
+      // Le checkout n'active JAMAIS rien : l'abonnement en place reste
+      // l'essai automatique, le plan acheté n'est activé que par le
+      // webhook succeeded (ou un encaissement manuel).
       const before = await me();
-      if (before.data?.subscription == null || before.data?.subscription?.statut === 'pending') {
-        r.pass(S, 'checkout seul → aucun abonnement actif');
+      const subNow = before.data?.subscription;
+      if (
+        subNow == null ||
+        subNow.statut === 'pending' ||
+        (subNow.planCode === 'essai' && subNow.statut === 'actif')
+      ) {
+        r.pass(S, 'checkout seul → abonnement inchangé (essai conservé, plan acheté non activé)');
       } else {
-        r.fail(S, 'checkout seul → aucun abonnement actif', JSON.stringify(before.data));
+        r.fail(S, 'checkout seul → abonnement inchangé (essai conservé, plan acheté non activé)', JSON.stringify(before.data));
       }
 
       // Plans invalides → refus clair.

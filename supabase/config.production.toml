@@ -1,0 +1,59 @@
+# ===================================================================
+# MIM - Référence de configuration POUR UN PROJET HÉBERGÉ (audit M8)
+#
+# ⚠ Ce fichier n'est PAS chargé par la CLI Supabase : celle-ci ne lit
+#   que `supabase/config.toml` du dossier de projet. Il sert de
+#   référence pour paramétrer un projet distant (dashboard Supabase ou
+#   copie locale en remplacement de config.toml dans un dossier
+#   dédié) : `config.toml` reste une configuration LOCALE, ouverte et
+#   volontairement souple pour les tests (voir son en-tête).
+#
+# Différences obligatoires avec la config locale :
+#   1. base strictement filtrée (CIDR de l'application + du poste
+#      d'administration, jamais 0.0.0.0/0) ;
+#   2. TLS imposé côté base et côté API ;
+#   3. limites d'authentification aux valeurs par défaut (la config
+#      locale porte 500 pour laisser passer les tests E2E, ce qui
+#      supprime la protection anti-énumération d'e-mails).
+# ===================================================================
+
+project_id = "MIM"
+
+[api]
+enabled = true
+# Exigé en production : l'API doit être joignable uniquement en HTTPS.
+[api.tls]
+enabled = true
+
+[db]
+# Restreindre l'accès à la base aux seules plages IP de l'application
+# et de l'administration. En production hébergée, ces CIDR proviennent
+# du réseau du projet (sortie NAT, bastion), jamais d'une valeur
+# générique.
+[db.network_restrictions]
+enabled = true
+# ATTENTION : une liste vide bloquerait TOUTES les connexions (sécurisant
+# mais coupant l'application). Remplacer l'exemple par les CIDR réels :
+#   - réseau de sortie de l'application (sortie NAT / VPC) ;
+#   - poste ou bastion d'administration.
+allowed_cidrs = [
+  "203.0.113.10/32",
+]
+# IPv6 non utilisée : toute connexion v6 est refusée.
+allowed_cidrs_v6 = []
+
+# Refuser toute connexion base non chiffrée.
+[db.ssl_enforcement]
+enabled = true
+
+[auth.rate_limit]
+# Valeurs par défaut Supabase/GoTrue (à re-vérifier dans la doc au
+# moment de l'usage) : la config locale passe email_sent,
+# token_refresh et sign_in_sign_ups à 500 pour les tests E2E.
+email_sent = 30
+sms_sent = 30
+anonymous_users = 30
+token_refresh = 150
+sign_in_sign_ups = 30
+token_verifications = 30
+web3 = 30

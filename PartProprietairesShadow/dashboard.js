@@ -218,7 +218,7 @@
                     UI.setText("ownerName", me.user.name);
                 }
             })
-            .catch(function () {});
+            .catch(function (err) { console.warn("[shadow] profil /auth/me :", err); });
 
         window.MandatApi.etat()
             .then(function (res) {
@@ -226,9 +226,9 @@
                     UI.setText("mandatDepuis", "Mandat depuis le " + UI.formatDate(res.mandat.depuis));
                 }
             })
-            .catch(function () {});
+            .catch(function (err) { console.warn("[shadow] mandat etat :", err); });
 
-        window.MandatApi.marquerMessagesLus().catch(function () {});
+        window.MandatApi.marquerMessagesLus().catch(function (err) { console.warn("[shadow] marquerMessagesLus :", err); });
         load();
 
         UI.live({ load: load, button: "refreshBtn", intervalMs: 180000 });

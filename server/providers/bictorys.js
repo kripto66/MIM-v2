@@ -189,6 +189,10 @@ export async function getTransaction(transactionId) {
     currency: data?.currency,
     paymentReference: data?.paymentReference || null,
     merchantReference: data?.merchantReference || null,
+    // Date de règlement annoncée par Bictorys (le nom du champ varie
+    // selon les versions de l'API) : sert à dater réellement
+    // subscriptions.date_paiement au lieu de l'horloge du serveur.
+    paidAt: data?.paidAt || data?.paid_at || data?.completedAt || data?.completed_at || null,
   };
 }
 

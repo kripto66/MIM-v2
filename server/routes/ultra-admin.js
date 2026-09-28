@@ -957,15 +957,17 @@ router.patch('/plans/:code', async (req, res) => {
       .single();
     if (error) throw error;
 
-    // Avertissement : un prix modifié casse l'activation des paiements
-    // en attente qui ont été créés avec l'ancien montant.
+    // Un plan désactivé bloque l'activation des paiements déjà
+    // engagés (activate_subscription_payment lève « Plan inactif. »).
+    // Le prix, lui, n'est plus un risque : montant est figé sur le
+    // paiement au moment du checkout (colonne prix_plan).
     const { data: pending } = await sb()
       .from('abonnement_paiements')
       .select('id')
       .eq('plan', code)
       .eq('statut', 'pending');
     const pendingCount = (pending || []).length;
-    const prixChange = Number(before.prix) !== values.prix;
+    const desactivationBloquante = !values.actif && pendingCount > 0;
 
     await auditLog({
       userId: req.user.id,
@@ -975,6 +977,7 @@ router.patch('/plans/:code', async (req, res) => {
         code,
         avant: { prix: Number(before.prix), actif: before.actif, max_immeubles: before.max_immeubles },
         apres: { prix: values.prix, actif: values.actif, max_immeubles: values.max_immeubles },
+        paiementsEnAttente: pendingCount,
       },
       ip: req.ip,
     });
@@ -982,8 +985,8 @@ router.patch('/plans/:code', async (req, res) => {
     res.json({
       success: true,
       plan: data,
-      avertissement: prixChange && pendingCount > 0
-        ? `${pendingCount} paiement(s) en attente ne pourront plus être activés avec le nouveau prix.`
+      avertissement: desactivationBloquante
+        ? `${pendingCount} paiement(s) en attente ne pourront plus être activés tant que le plan est désactivé.`
         : null,
     });
   } catch (e) {

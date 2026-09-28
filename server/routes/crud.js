@@ -312,17 +312,21 @@ export function createCrudRouter(tableName) {
     if (!logementId) return false;
 
     try {
-      const { data } = await admin
+      const { data, error } = await admin
         .from('locataires')
         .select('id')
         .eq('logement_id', logementId)
         .eq('statut', 'actif')
         .is('superseded_at', null)
         .eq('user_id', ownerId);
+      if (error) throw new Error(error.message);
       return (data || []).some((l) => String(l.id) !== String(excludeLocataireId));
     } catch (err) {
-      console.warn('[logementHasOtherActiveTenant]', err.message);
-      return false;
+      // Fail-closed : renvoyer `false` ici laissait passer la création
+      // d'un DEUXIÈME locataire actif sur le même logement dès que la
+      // base était momentanément indisponible.
+      console.error('[logementHasOtherActiveTenant]', err.message);
+      throw new Error('Vérification de l\'occupation du logement impossible. Réessayez.');
     }
   }
 
@@ -985,8 +989,34 @@ if (createdLogementId) {
         ? req.body.logement_update
         : null;
 
+    // Logement créé pendant une PUT : même plafond que le POST.
+    // Sans réserve, un compte au plafond de son plan créait des logements
+    // en boucle depuis la mise à jour d'un locataire.
+    let logementQuota = null;
+    let logementQuotaConsumed = false;
+
     if (logementNew) {
       const admin = serviceClient();
+      const logementsLimit = await enforceLogementsLimit(userId(req));
+      if (!logementsLimit.allowed) {
+        return res.status(409).json({ success: false, code: logementsLimit.code, message: logementsLimit.message, errors: { logement_nom: logementsLimit.message } });
+      }
+      logementQuota = await reserveQuota(admin, userId(req), 'logements', logementsLimit.max);
+      if (!logementQuota.allowed) {
+        return res.status(409).json({ success: false, code: logementQuota.code, message: logementQuota.message, errors: { logement_nom: logementQuota.message } });
+      }
+
+      // Filet de libération : le handler comporte de nombreux retours
+      // anticipés (400/404/409) après la réservation. Toute fin de
+      // réponse libère la réservation si elle n'a pas été consommée.
+      // release_quota est un no-op sur une réservation déjà consommée.
+      const releaseIfUnused = () => {
+        if (!logementQuota || logementQuotaConsumed) return;
+        releaseQuota(admin, logementQuota.id, userId(req)).catch(() => {});
+      };
+      res.on('finish', releaseIfUnused);
+      res.on('close', releaseIfUnused);
+
       const created = await createLogementForOwner(admin, userId(req), logementNew);
       if (created.errors || created.error) {
         const errors = created.errors
@@ -1094,6 +1124,11 @@ if (createdLogementId) {
       return res.status(400).json({ success: false, message: 'Erreur lors de la modification.' });
     }
 
+    if (logementQuota?.id && !logementQuotaConsumed) {
+      await consumeQuota(serviceClient(), logementQuota.id, userId(req));
+      logementQuotaConsumed = true;
+    }
+
     if (tableName === 'locataires' && body.logement_id && body.logement_id !== prev.logement_id) {
       const { error: paymentSyncError } = await serviceClient()
         .from('paiements')
@@ -1194,6 +1229,7 @@ if (createdLogementId) {
         .from('logements')
         .select('id')
         .eq('bien_id', id)
+        .limit(1)
         .maybeSingle();
 
       if (ref) {
@@ -1211,6 +1247,7 @@ if (createdLogementId) {
         .from('locataires')
         .select('id')
         .eq('logement_id', id)
+        .limit(1)
         .maybeSingle();
 
       if (ref) {

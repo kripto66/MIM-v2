@@ -156,7 +156,7 @@
                     </div>
 
                     <div class="search-bar">
-                        <input type="search" id="employeSearch" placeholder="🔎 Rechercher un employé (nom, prénom, poste)…">
+                        <input type="search" id="employeSearch" aria-label="Rechercher un employé" placeholder="🔎 Rechercher un employé (nom, prénom, poste)…">
                     </div>
 
                     <div id="employesPayList">
@@ -420,10 +420,6 @@
             return `${Number(n || 0).toLocaleString("fr-FR")} FCFA`;
         }
 
-        function escapeAttr(v) {
-            return String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
-
         // ============================================================
         // Onglets
         // ============================================================
@@ -485,9 +481,9 @@
                     <div class="crud-card pending-card">
                         <div>
                             <h3>${escapeHtml(p.locataire_nom || "Locataire")}</h3>
-                            <p>${formatMois(p.mois)} — ${escapeHtml(p.logement_nom || "")}</p>
+                            <p>${escapeHtml(formatMois(p.mois))} — ${escapeHtml(p.logement_nom || "")}</p>
                             <p><span class="status status-warning">En attente de validation</span></p>
-                            <p class="pay-methode">${METHODE_LABELS[p.methode_paiement] || p.methode_paiement || "—"}${p.reference ? ` — réf. déclarée : ${escapeHtml(p.reference)}` : ""}</p>
+                            <p class="pay-methode">${escapeHtml(METHODE_LABELS[p.methode_paiement] || p.methode_paiement || "—")}${p.reference ? ` — réf. déclarée : ${escapeHtml(p.reference)}` : ""}</p>
                         </div>
                         <div class="card-amount">
                             <strong>${fmtFCFA(p.montant)}</strong>
@@ -624,8 +620,8 @@
                     <div class="crud-card">
                         <div>
                             <h3>${avatar}${locataire ? escapeHtml(locataire.nom) : "Locataire"}</h3>
-                            <p>${formatMois(p.mois)} — ${logement ? escapeHtml(logement.nom) : ""}</p>
-                            <p><span class="status ${cls}">${label}</span></p>
+                                <p>${escapeHtml(formatMois(p.mois))} — ${logement ? escapeHtml(logement.nom) : ""}</p>
+                            <p><span class="status ${cls}">${escapeHtml(label)}</span></p>
                         </div>
                         <div class="card-amount">
                             <strong>${fmtFCFA(p.montant)}</strong>
@@ -686,7 +682,7 @@
                     return `
                         <div class="moyen-card ${m.actif ? "" : "moyen-inactif"}">
                             <div class="moyen-head">
-                                <span>${TYPE_ICONS[m.type] || "💰"} ${TYPE_LABELS[m.type] || m.type}</span>
+                                <span>${escapeHtml(TYPE_ICONS[m.type] || "💰")} ${escapeHtml(TYPE_LABELS[m.type] || m.type)}</span>
                                 ${m.actif ? '<span class="status status-success">Actif</span>' : '<span class="status status-info">Inactif</span>'}
                             </div>
                             <div class="moyen-body">${lines.join("") || '<p class="pay-hint">Aucun détail renseigné.</p>'}</div>
@@ -842,7 +838,7 @@
                         <div>
                             <h3>${escapeHtml(e.nom)}</h3>
                             <p>${escapeHtml(e.poste || "Employé")} — <strong>${fmtFCFA(e.salaire)}</strong> / mois</p>
-                            <p><span class="status ${sCls}">${sLabel}</span>${dernier ? ` <span class="pay-hint">(${formatMois(dernier.mois)})</span>` : ""}</p>
+                            <p><span class="status ${sCls}">${escapeHtml(sLabel)}</span>${dernier ? ` <span class="pay-hint">(${escapeHtml(formatMois(dernier.mois))})</span>` : ""}</p>
                             ${e.en_attente_confirmation ? `<p class="pay-hint">🟡 ${e.en_attente_confirmation} versement(s) en attente de confirmation de l'employé.</p>` : ""}
                         </div>
                         <div class="card-amount">
@@ -871,7 +867,7 @@
             const moyensOptions = moyens.length
                 ? moyens.map((m) => {
                     const detail = [m.nom_titulaire, m.numero, m.banque, m.num_compte].filter(Boolean).join(" — ");
-                    return `<option value="${m.id}">${TYPE_LABELS[m.type] || m.type}${detail ? ` — ${escapeHtml(detail)}` : ""}</option>`;
+                    return `<option value="${m.id}">${escapeHtml(TYPE_LABELS[m.type] || m.type)}${detail ? ` — ${escapeHtml(detail)}` : ""}</option>`;
                 }).join("")
                 : '<option value="">— Aucun moyen configuré —</option>';
 
@@ -890,7 +886,7 @@
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="payemp_montant">Montant (FCFA)</label>
-                                <input type="number" id="payemp_montant" min="0" step="0.01" value="${emp.salaire || ""}" required>
+                                <input type="number" id="payemp_montant" min="0" step="0.01" value="${escapeAttr(emp.salaire || "")}" required>
                             </div>
                             <div class="form-group">
                                 <label for="payemp_mois">Mois</label>
@@ -977,8 +973,8 @@
                         <div class="crud-card">
                             <div>
                                 <h3>${escapeHtml(p.emp_nom)} <span class="pay-hint">${escapeHtml(p.emp_poste)}</span></h3>
-                                <p>${formatMois(p.mois)} · ${p.moyen ? escapeHtml(p.moyen.label) : p.methode_paiement ? METHODE_LABELS[p.methode_paiement] : "—"}${p.reference ? ` — réf. ${escapeHtml(p.reference)}` : ""}</p>
-                                <p><span class="status ${sCls}">${sLabel}</span>${confirmInfo}</p>
+                                <p>${escapeHtml(formatMois(p.mois))} · ${p.moyen ? escapeHtml(p.moyen.label) : p.methode_paiement ? escapeHtml(METHODE_LABELS[p.methode_paiement] || p.methode_paiement) : "—"}${p.reference ? ` — réf. ${escapeHtml(p.reference)}` : ""}</p>
+                                <p><span class="status ${sCls}">${escapeHtml(sLabel)}</span>${confirmInfo}</p>
                                 ${p.rejection_reason ? `<p class="pay-hint">Motif : ${escapeHtml(p.rejection_reason)}</p>` : ""}
                             </div>
                             <div class="card-amount">
@@ -1002,8 +998,8 @@
                         return `
                             <div class="crud-card">
                                 <div>
-                                    <p><strong>${formatMois(p.mois)}</strong> · ${p.moyen ? escapeHtml(p.moyen.label) : p.methode_paiement ? METHODE_LABELS[p.methode_paiement] : "—"}</p>
-                                    <p><span class="status ${sCls}">${sLabel}</span>${p.confirmed_at ? ` <span class="pay-hint">Confirmé le ${formatDate(p.confirmed_at)}</span>` : ""}${p.rejected_at ? ` <span class="pay-hint">Refusé le ${formatDate(p.rejected_at)}</span>` : ""}</p>
+                                    <p><strong>${escapeHtml(formatMois(p.mois))}</strong> · ${p.moyen ? escapeHtml(p.moyen.label) : p.methode_paiement ? escapeHtml(METHODE_LABELS[p.methode_paiement] || p.methode_paiement) : "—"}</p>
+                                    <p><span class="status ${sCls}">${escapeHtml(sLabel)}</span>${p.confirmed_at ? ` <span class="pay-hint">Confirmé le ${formatDate(p.confirmed_at)}</span>` : ""}${p.rejected_at ? ` <span class="pay-hint">Refusé le ${formatDate(p.rejected_at)}</span>` : ""}</p>
                                     ${p.rejection_reason ? `<p class="pay-hint">Motif : ${escapeHtml(p.rejection_reason)}</p>` : ""}
                                 </div>
                                 <div class="card-amount"><strong>${fmtFCFA(p.montant)}</strong></div>

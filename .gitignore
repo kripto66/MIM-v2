@@ -5,6 +5,7 @@ config/*.local.php
 # Base de données et dumps
 *.sql.gz
 *.sql.zip
+backups/
 
 # Journalisation
 *.log

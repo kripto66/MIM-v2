@@ -1,4 +1,8 @@
-import 'dotenv/config';
+import './loadEnv.js';
+// AVANT TOUS les fichiers de routes : patch les Router/Route prototypes
+// pour que toute exception asynchrone d'un handler atterrisse sur le
+// middleware d'erreur final plutôt que de tuer le processus Node.
+import './middleware/asyncGuard.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
@@ -28,7 +32,7 @@ import { createCrudRouter } from './routes/crud.js';
 import { authenticate, requireActive, requirePasswordChanged, requireAdmin, requireUltraAdmin, requireRole, authenticatePage, requireZone } from './middleware/auth.js';
 import { csrfOriginGuard, csrfInitRoute } from './middleware/csrf.js';
 import { requireNoManagedWrites } from './middleware/mandatGuard.js';
-import { authRateLimit, apiRateLimit } from './middleware/rateLimit.js';
+import { authRateLimit, apiRateLimit, globalIpRateLimit } from './middleware/rateLimit.js';
 import { PUBLIC_BASE_URL, SITE_NAME, SITE_DESCRIPTION, SITE_LOCALE, PUBLIC_PAGES } from './seo-config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -93,8 +97,16 @@ app.use(
 );
 
 // Derrière un reverse proxy (Nginx…), req.ip doit refléter l'IP du client.
-if (process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production') {
-  app.set('trust proxy', 1);
+// EXPLICITE UNIQUEMENT : si la valeur est forcée en production alors que
+// Node est joignable directement, un attaquant fait varier X-Forwarded-For
+// et obtient des quotas de rate limit illimités. server.js refuse donc de
+// démarrer en production sans TRUST_PROXY défini.
+const trustProxy = String(process.env.TRUST_PROXY || '').toLowerCase();
+if (trustProxy === 'true') app.set('trust proxy', 1);
+else if (trustProxy === 'false') app.set('trust proxy', false);
+else if (process.env.NODE_ENV === 'production') {
+  console.warn('[config] TRUST_PROXY non défini : req.ip est l\'IP socket. Fixez TRUST_PROXY=true derrière un proxy, false sinon.');
+  app.set('trust proxy', false);
 }
 
 app.use((req, res, next) => {
@@ -148,6 +160,14 @@ app.use((req, res, next) => {
 // d'entrée capable d'activer une souscription. Le corps brut est requis
 // pour vérifier la signature : ce route est monté AVANT express.json.
 app.use('/api/webhooks', apiRateLimit, express.raw({ type: () => true, limit: '2mb' }), bictorysWebhookRoutes);
+
+// Plafond global par IP, monté avant toutes les routes /api hors
+// webhooks : les limiteurs par route sont clés « ip + chemin » et
+// laisseraient un scanner balayer des milliers de chemins sans atteindre
+// son quota. Les webhooks sont exclus (échange signé serveur à serveur,
+// déjà couverts par apiRateLimit) ; req.ip tient compte de TRUST_PROXY
+// et RATE_LIMIT_OFF (campagne E2E) coupe ce limiteur comme les autres.
+app.use('/api', globalIpRateLimit);
 
 app.use(express.json({ limit: '4mb' }));
 app.use(cookieParser());
@@ -218,7 +238,10 @@ app.get('/api/health', (req, res) => {
 
 // Les fonctionnalités métier exigent un compte ACTIF (ni suspendu, ni
 // dépendant d'un propriétaire suspendu). Les routes /api/auth restent
-// ouvertes aux comptes suspendus : profil, mot de passe, déconnexion, 2FA.
+// ouvertes aux comptes suspendus : profil, déconnexion, lecture de la 2FA
+// et vérification du mot de passe. Les écritures sensibles (enrôlement et
+// désactivation 2FA, changement de mot de passe) réimposent requireActive
+// au sein de routes/auth.js.
 // SameSite=Lax sur mim_token protège contre les attaques CSRF.
 //
 // /api/subscription est monté SANS requireActive : un propriétaire dont
@@ -236,11 +259,15 @@ app.use('/api/ultra-admin', authenticate, requireActive, requirePasswordChanged,
 app.use('/api/subscription', authenticate, requirePasswordChanged, requireRole('proprietaire', 'agence', 'entreprise'), subscriptionRoutes);
 app.use('/api/employes', authenticate, requireActive, requirePasswordChanged, requireRole('proprietaire', 'agence', 'entreprise'), mandatGuard, employesRoutes);
 app.use('/api/tasks', authenticate, requireActive, requirePasswordChanged, requireRole('proprietaire', 'agence', 'entreprise'), mandatGuard, tasksRoutes);
-app.use('/api/employe', authenticate, requireActive, requireRole('employe'), employeRoutes);
-app.use('/api/paiements-validation', authenticate, requireActive, requirePasswordChanged, requireRole('proprietaire', 'agence', 'entreprise'), validationsRoutes);
-app.use('/api/moyens-paiement', authenticate, requireActive, requirePasswordChanged, requireRole('proprietaire', 'agence', 'entreprise'), moyensPaiementRoutes);
-app.use('/api/import', authenticate, requireActive, requirePasswordChanged, requireRole('proprietaire', 'agence', 'entreprise'), importRoutes);
-app.use('/api/onboarding', authenticate, requireActive, requirePasswordChanged, requireRole('proprietaire', 'agence', 'entreprise'), importRoutes);
+// requirePasswordChanged est requis ici comme sur toutes les autres
+// routes métier : un employé créé avec `must_change_password = true` ne
+// devait pas pouvoir utiliser l'API sans avoir changé le mot de passe
+// initial connu de son créateur.
+app.use('/api/employe', authenticate, requireActive, requirePasswordChanged, requireRole('employe'), employeRoutes);
+app.use('/api/paiements-validation', authenticate, requireActive, requirePasswordChanged, requireRole('proprietaire', 'agence', 'entreprise'), mandatGuard, validationsRoutes);
+app.use('/api/moyens-paiement', authenticate, requireActive, requirePasswordChanged, requireRole('proprietaire', 'agence', 'entreprise'), mandatGuard, moyensPaiementRoutes);
+app.use('/api/import', authenticate, requireActive, requirePasswordChanged, requireRole('proprietaire', 'agence', 'entreprise'), mandatGuard, importRoutes);
+app.use('/api/onboarding', authenticate, requireActive, requirePasswordChanged, requireRole('proprietaire', 'agence', 'entreprise'), mandatGuard, importRoutes);
 app.use('/api/upload', authenticate, requireActive, requirePasswordChanged, uploadRoutes);
 app.use('/api/agence', authenticate, requireActive, requirePasswordChanged, requireRole('agence'), agenceRoutes);
 app.use('/api/mandat', authenticate, requireActive, requirePasswordChanged, requireRole('proprietaire', 'entreprise'), mandatRoutes);
@@ -254,5 +281,40 @@ app.use('/api/incidents', authenticate, requireActive, requirePasswordChanged, o
 app.use('/api/prestataires', authenticate, requireActive, requirePasswordChanged, ownerOnly, mandatGuard, createCrudRouter('prestataires'));
 app.use('/api/interventions', authenticate, requireActive, requirePasswordChanged, ownerOnly, mandatGuard, createCrudRouter('interventions'));
 app.use('/api/notifications', authenticate, requireActive, requirePasswordChanged, notificationsRoutes);
+
+// ─── 404 API ────────────────────────────────────────────────────────
+// Une route API inconnue doit renvoyer du JSON, pas la page 404 HTML
+// du serveur statique (sinon le client interprète du HTML comme une
+// réponse applicative).
+app.use('/api', (req, res) => {
+  res.status(404).json({ success: false, code: 'NOT_FOUND', message: 'Route inconnue.' });
+});
+
+// ─── Middleware d'erreur final ──────────────────────────────────────
+// Point d'atterrissage de asyncGuard.js : toute exception (synchrone ou
+// promesse rejetée) d'un handler devient une réponse 500 au lieu d'un
+// `unhandledRejection` qui tuerait le processus Node.
+// Cette fonction DOIT avoir 4 paramètres pour être reconnue comme
+// middleware d'erreur par Express (asyncGuard la laisse donc intacte).
+app.use((err, req, res, next) => {
+  if (res.headersSent) {
+    console.error('[api] erreur après envoi :', req.method, req.originalUrl, err?.stack || err);
+    return next(err);
+  }
+  const status = Number(err?.status || err?.statusCode) || 500;
+  if (status >= 500) {
+    console.error('[api]', req.method, req.originalUrl, err?.stack || err);
+  } else {
+    console.warn('[api]', status, req.method, req.originalUrl, err?.message);
+  }
+  return res.status(status).json({
+    success: false,
+    code: err?.code || (status >= 500 ? 'INTERNAL_ERROR' : 'ERROR'),
+    message:
+      status >= 500
+        ? 'Une erreur interne est survenue. Veuillez réessayer.'
+        : err?.message || 'Une erreur est survenue.',
+  });
+});
 
 export default app;

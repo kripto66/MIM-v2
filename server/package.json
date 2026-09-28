@@ -14,6 +14,9 @@
     "test:e2e": "node scripts/tests/run.js",
     "lint": "node scripts/quality.mjs lint",
     "typecheck": "node scripts/quality.mjs typecheck",
+    "schema:dump": "node scripts/dump-schema.mjs",
+    "schema:seed": "node scripts/dump-schema.mjs --seed",
+    "db:backup": "node scripts/backup.mjs",
     "audit": "npm audit --omit=dev --audit-level=high"
   },
   "engines": {

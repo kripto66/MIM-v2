@@ -14,13 +14,47 @@
 --      en remappant d'abord les rares lignes legacy paydunya/cinetpay.
 -- ============================================================
 
--- 1) Tables fournisseurs (avec leurs indexes/policies/sequences).
-DROP TABLE IF EXISTS public.paydunya_invoices CASCADE;
-DROP TABLE IF EXISTS public.paydunya_webhooks CASCADE;
-DROP TABLE IF EXISTS public.paydunya_redistributions CASCADE;
-DROP TABLE IF EXISTS public.cinetpay_payments CASCADE;
-DROP TABLE IF EXISTS public.cinetpay_webhooks CASCADE;
-DROP TABLE IF EXISTS public.cinetpay_payouts CASCADE;
+-- 1) Tables fournisseurs : DÉPLACÉES vers le schéma `archive`, jamais
+--    supprimées (audit C1) : factures, encaissements et déboursements
+--    sont des données comptables. `archive` n'est pas exposé par
+--    PostgREST (voir db-schemas de supabase/config.toml), donc il
+--    n'apparaît ni dans l'API ni dans le schéma public. Export
+--    possible à tout moment : pg_dump --schema=archive.
+--    `IF EXISTS` : sur une base déjà passée par l'ancienne version de
+--    cette migration (DROP TABLE), la boucle ne fait rien.
+CREATE SCHEMA IF NOT EXISTS archive;
+REVOKE ALL ON SCHEMA archive FROM PUBLIC, anon, authenticated;
+
+DO $do$
+DECLARE
+    t text;
+    r record;
+BEGIN
+    FOREACH t IN ARRAY ARRAY[
+        'paydunya_invoices', 'paydunya_webhooks', 'paydunya_redistributions',
+        'cinetpay_payments', 'cinetpay_webhooks', 'cinetpay_payouts'
+    ] LOOP
+        IF to_regclass('public.' || t) IS NULL THEN
+            CONTINUE;
+        END IF;
+        -- Les séquences propriétaires doivent suivre la table :
+        -- ALTER TABLE ... SET SCHEMA ne les déplace pas.
+        FOR r IN
+            SELECT n.nspname AS schema_name, c.relname AS sequence_name
+              FROM pg_class c
+              JOIN pg_namespace n ON n.oid = c.relnamespace
+              JOIN pg_depend d ON d.objid = c.oid
+                               AND d.classid = 'pg_class'::regclass
+                               AND d.deptype = 'a'
+             WHERE d.refobjid = to_regclass('public.' || t)
+               AND c.relkind = 'S'
+        LOOP
+            EXECUTE format('ALTER SEQUENCE %I.%I SET SCHEMA archive', r.schema_name, r.sequence_name);
+        END LOOP;
+        EXECUTE format('ALTER TABLE public.%I SET SCHEMA archive', t);
+    END LOOP;
+END
+$do$;
 
 -- 2) Colonnes PayDunya sur les moyens de paiement.
 ALTER TABLE public.moyens_paiement         DROP COLUMN IF EXISTS paydunya_alias;

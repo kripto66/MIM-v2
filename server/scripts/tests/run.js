@@ -74,7 +74,7 @@ async function startServer() {
     RATE_LIMIT_OFF: 'true',
     GIT_REPO_PATH: '',
     GIT_BACKUP: 'false',
-    NODE_ENV: '',
+    NODE_ENV: 'test',
     TEST_BASE: BASE,
     BICTORYS_AUTOCONFIRM: '0',
      BICTORYS_WEBHOOK_SECRET: process.env.BICTORYS_WEBHOOK_SECRET || 'bictorys_test_secret',

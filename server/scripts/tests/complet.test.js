@@ -147,32 +147,10 @@ export async function runComplet(r, ctx) {
     if (login.data.mustChangePassword === true) r.pass(S, 'mustChangePassword au premier login');
     else r.fail(S, 'mustChangePassword au premier login', String(login.data.mustChangePassword));
 
-    const me = await api('/employe/me', { jar: ejar });
-    if (
-      expectSuccess(r, me, S, 'GET /employe/me') &&
-      me.data.data.role === 'employe' &&
-      me.data.data.poste === 'Agent de sécurité'
-    ) {
-      r.pass(S, 'profil employé complet (rôle + poste)');
-    } else if (me.data?.data?.role !== 'employe') {
-      r.fail(S, 'profil employé complet (rôle + poste)', JSON.stringify(me.data).slice(0, 150));
-    }
-
-    const updName = await api('/employe/profile', {
-      method: 'PUT',
-      jar: ejar,
-      body: { name: 'Complet Employe Modifié' },
-    });
-    expectSuccess(r, updName, S, 'PUT /employe/profile (nom)');
-
-    const badUsername = await api('/employe/profile', {
-      method: 'PUT',
-      jar: ejar,
-      body: { username: 'X invalide !' },
-    });
-    if (badUsername.status === 400) r.pass(S, 'username invalide refusé (400)');
-    else r.fail(S, 'username invalide refusé (400)', `statut ${badUsername.status}`);
-
+    // Tant que must_change_password est vrai, l'employé est bloqué sur
+    // toutes les routes métier (requirePasswordChanged) sauf sur celle
+    // qui change le mot de passe : on vérifie d'abord cette sortie de
+    // secours, sinon le compte serait enfermé.
     const badPw = await api('/employe/password', {
       method: 'PUT',
       jar: ejar,
@@ -200,6 +178,32 @@ export async function runComplet(r, ctx) {
       r.fail(S, 'relogin : mustChangePassword repassé à false', `statut ${relog.status} mcp=${relog.data.mustChangePassword}`);
     }
     const workingJar = relog.status === 200 ? ej : ejar;
+
+    const me = await api('/employe/me', { jar: workingJar });
+    if (
+      expectSuccess(r, me, S, 'GET /employe/me') &&
+      me.data.data.role === 'employe' &&
+      me.data.data.poste === 'Agent de sécurité'
+    ) {
+      r.pass(S, 'profil employé complet (rôle + poste)');
+    } else if (me.data?.data?.role !== 'employe') {
+      r.fail(S, 'profil employé complet (rôle + poste)', JSON.stringify(me.data).slice(0, 150));
+    }
+
+    const updName = await api('/employe/profile', {
+      method: 'PUT',
+      jar: workingJar,
+      body: { name: 'Complet Employe Modifié' },
+    });
+    expectSuccess(r, updName, S, 'PUT /employe/profile (nom)');
+
+    const badUsername = await api('/employe/profile', {
+      method: 'PUT',
+      jar: workingJar,
+      body: { username: 'X invalide !' },
+    });
+    if (badUsername.status === 400) r.pass(S, 'username invalide refusé (400)');
+    else r.fail(S, 'username invalide refusé (400)', `statut ${badUsername.status}`);
 
     const list = await api('/employes', { jar });
     const fiche = (list.data?.data || []).find((e) => e.id === empId);

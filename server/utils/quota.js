@@ -1,7 +1,11 @@
 import crypto from 'node:crypto';
 
 export async function reserveQuota(sb, userId, resource, limit, idempotencyKey = null) {
-  if (limit === null || limit === undefined) return { allowed: true, id: null, max: null };
+  // On n'écourte JAMAIS l'appel quand `limit` est null : c'était le
+  // fail-open qui rendait les quotas décoratifs pour un compte sans
+  // abonnement (ou sans capacité de plan). La RPC reserve_quota est la
+  // seule source de vérité : elle lit le plan, applique son propre
+  // plafond par défaut et pose le verrou advisory.
   const { data, error } = await sb.rpc('reserve_quota', {
     p_user_id: userId,
     p_resource: resource,

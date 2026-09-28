@@ -56,18 +56,24 @@ export async function runAbonnement(r, ctx) {
   const dbPaiementsBefore = (await service.from('paiements').select('id')).data.length;
 
   // ----------------------------------------------------------
-  // 1. Héritage : un propriétaire sans abonnement garde l'accès.
+  // 1. Héritage : un propriétaire sans abonnement payant garde l'accès.
+  //    Depuis la migration 20260927100000_quota_essai.sql, chaque
+  //    inscription reçoit automatiquement 14 jours de plan « essai ».
   // ----------------------------------------------------------
-  await r.section('abonnement : héritage (aucun abonnement)', async () => {
+  await r.section('abonnement : héritage (essai automatique)', async () => {
     const me = await api('/auth/me', { jar: otherJar });
     if (me.status === 200 && me.data?.success) r.pass(S, 'propriétaire sans abonnement → accès conservé');
     else r.fail(S, 'propriétaire sans abonnement → accès conservé', `statut ${me.status}`);
 
     const sub = await api('/subscription/me', { jar: otherJar });
-    if (expectSuccess(r, sub, S, '/subscription/me sans abonnement') && sub.data.subscription === null) {
-      r.pass(S, 'sans abonnement → subscription null');
+    if (
+      expectSuccess(r, sub, S, '/subscription/me sans abonnement payant') &&
+      sub.data.subscription?.planCode === 'essai' &&
+      sub.data.subscription?.statut === 'actif'
+    ) {
+      r.pass(S, 'sans abonnement payant → essai automatique actif (14 j)');
     } else {
-      r.fail(S, 'sans abonnement → subscription null', JSON.stringify(sub.data));
+      r.fail(S, 'sans abonnement payant → essai automatique actif (14 j)', JSON.stringify(sub.data));
     }
   });
 

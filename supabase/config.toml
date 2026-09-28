@@ -1,5 +1,17 @@
 # For detailed configuration reference documentation, visit:
 # https://supabase.com/docs/guides/local-development/cli/config
+#
+# ⚠ CONFIGURATION LOCALE UNIQUEMENT (audit M8) ⚠
+# Ce fichier sert la stack Docker locale et la pile de tests E2E :
+#   - réseau ouvert (0.0.0.0/0), TLS éteint ;
+#   - limites d'authentification volontairement hautes (email_sent,
+#     token_refresh, sign_in_sign_ups = 500) pour que les tests créent
+#     des centaines de comptes sans être throttles ;
+#   - [db.ssl_enforcement] désactivé (l'API locale est en HTTP).
+# Le COPIER tel quel sur un projet hébergé rendrait la base accessible
+# depuis Internet, sans TLS, avec une protection anti-énumération
+# inexistante. Références des réglages à appliquer ailleurs :
+#   supabase/config.production.toml
 # A string used to distinguish different Supabase projects on the same host. Defaults to the
 # working directory name when running `supabase init`.
 project_id = "MIM"

@@ -201,6 +201,11 @@ async function verifyToken(req) {
   };
 }
 
+// Monté sur toutes les routes métier (app.js) et sur les écritures
+// sensibles de /api/auth (routes/auth.js). requireActive ne lit QUE
+// req.user.suspended : il suppose authenticate en amont. /login ne peut
+// pas l'utiliser (pas encore de req.user) mais refuse à la source les
+// mêmes motifs (banni, propriétaire suspendu, compte inactif).
 export function requireActive(req, res, next) {
   if (!req.user?.suspended) return next();
   const reasons = Array.isArray(req.user.suspendedReasons) ? req.user.suspendedReasons : [];
@@ -218,6 +223,84 @@ export function requireActive(req, res, next) {
   return res.status(401).json({ success: false, code: 'ACCOUNT_SUSPENDED', message: 'Votre compte a été suspendu.' });
 }
 
+// ─── Ré-authentification récente + 2FA par compte ─────────────────
+// Un jeton de session volé ne doit pas suffire pour enrôler ou
+// désactiver la double authentification : il faut un mot de passe
+// saisi récemment. Indexé par session en mémoire : un redémarrage du
+// serveur impose une nouvelle vérification, comportement sûr par défaut.
+const passwordVerifiedAt = new Map();
+const PASSWORD_REAUTH_WINDOW_MS = 10 * 60 * 1000;
+
+// Compteur PAR COMPTE (et non par IP) : un attaquant qui répartit ses
+// essais sur plusieurs adresses ne doit pas échapper au verrouillage,
+// et un compte ne doit pas être épuisé depuis un seul poste. Le
+// verrouillage double à chaque palier dépassé, plafonné.
+const mfaAccountAttempts = new Map();
+const MFA_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const MFA_FREE_ATTEMPTS = 5;
+const MFA_LOCK_BASE_MS = 60 * 1000;
+const MFA_LOCK_MAX_MS = 30 * 60 * 1000;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [sessionId, at] of passwordVerifiedAt) {
+    if (now - at > PASSWORD_REAUTH_WINDOW_MS) passwordVerifiedAt.delete(sessionId);
+  }
+  for (const [userId, entry] of mfaAccountAttempts) {
+    if (now - entry.at > MFA_ATTEMPT_WINDOW_MS && entry.lockedUntil <= now) mfaAccountAttempts.delete(userId);
+  }
+}, 60 * 1000).unref();
+
+export function markPasswordAuthenticated(sessionId) {
+  if (!sessionId) return;
+  passwordVerifiedAt.set(sessionId, Date.now());
+}
+
+export function requireRecentPasswordAuth(req, res, next) {
+  const at = passwordVerifiedAt.get(req.user?.session_id);
+  if (at && Date.now() - at <= PASSWORD_REAUTH_WINDOW_MS) return next();
+  return res.status(401).json({
+    success: false,
+    code: 'REAUTH_REQUIRED',
+    message: 'Confirmez votre mot de passe avant de continuer.',
+  });
+}
+
+export function mfaAccountLockRemainingMs(userId) {
+  const entry = userId ? mfaAccountAttempts.get(userId) : null;
+  if (!entry) return 0;
+  return Math.max(0, entry.lockedUntil - Date.now());
+}
+
+export function registerMfaAccountAttempt(userId, success) {
+  if (!userId) return;
+  const now = Date.now();
+  let entry = mfaAccountAttempts.get(userId);
+  if (!entry || (now - entry.at >= MFA_ATTEMPT_WINDOW_MS && entry.lockedUntil <= now)) {
+    entry = { at: now, count: 0, lockedUntil: 0 };
+    mfaAccountAttempts.set(userId, entry);
+  }
+  entry.at = now;
+  if (success) {
+    mfaAccountAttempts.delete(userId);
+    return;
+  }
+  entry.count += 1;
+  if (entry.count > MFA_FREE_ATTEMPTS) {
+    const doubling = entry.count - MFA_FREE_ATTEMPTS - 1;
+    entry.lockedUntil = now + Math.min(MFA_LOCK_BASE_MS * 2 ** doubling, MFA_LOCK_MAX_MS);
+  }
+}
+
+export function requireMfaAccountUnlocked(req, res, next) {
+  const lockMs = mfaAccountLockRemainingMs(req.user?.id);
+  if (lockMs > 0) {
+    res.setHeader('Retry-After', Math.ceil(lockMs / 1000));
+    return res.status(429).json({ success: false, message: 'Trop de tentatives de vérification. Réessayez dans quelques minutes.' });
+  }
+  return next();
+}
+
 export async function authenticate(req, res, next) {
   const result = await verifyToken(req);
   if (!result) {
@@ -229,8 +312,15 @@ export async function authenticate(req, res, next) {
   return next();
 }
 
+// Les routes de changement de mot de passe doivent rester atteignables
+// tant que must_change_password est vrai : sans exemption, un compte
+// forcé recevrait 403 sur la seule route capable de le débloquer et
+// serait enfermé définitivement.
+const PASSWORD_CHANGE_ROUTE = /(^|\/)(password|change-password)$/;
+
 export function requirePasswordChanged(req, res, next) {
   if (!req.user?.must_change_password) return next();
+  if (PASSWORD_CHANGE_ROUTE.test(String(req.path || ''))) return next();
   return res.status(403).json({
     success: false,
     code: 'PASSWORD_CHANGE_REQUIRED',

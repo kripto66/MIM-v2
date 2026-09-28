@@ -88,7 +88,7 @@
                 </div>
 
                 <div class="search-bar">
-                    <input type="search" id="employeSearch" placeholder="ðŸ”Ž Rechercher un employÃ© (nom, username, poste, tÃ©lÃ©phone)â€¦">
+                    <input type="search" id="employeSearch" aria-label="Rechercher un employé" placeholder="ðŸ”Ž Rechercher un employÃ© (nom, username, poste, tÃ©lÃ©phone)â€¦">
                 </div>
 
                 <div id="employesList">
@@ -366,10 +366,6 @@
             return n.toLocaleString("fr-FR") + " FCFA";
         }
 
-        function escapeAttr(v) {
-            return String(v ?? "").replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        }
-
         // Mois suivant (format YYYY-MM) pour prÃ©-remplir un salaire mensuel.
         function nextMonthOf(mois) {
             if (!mois) return "";
@@ -439,7 +435,7 @@ list.innerHTML = filtered.map((e) => {
                             <p>${e.poste ? escapeHtml(e.poste) + " Â· " : ""}${e.account_uid ? "Compte actif" : "Sans compte"}${e.phone ? " Â· " + escapeHtml(e.phone) : ""}${e.email ? " â€” " + escapeHtml(e.email) : ""}</p>
                             <p><strong>${formatFCFA(e.salaire)}</strong> / mois</p>
                             <p>${biens ? "<span class=\"logement-chip\">Biens : " + biens + "</span>" : ""}</p>
-                            <p><span class="status ${cls}">${label}</span>${e.paiements_count ? " Â· " + e.paiements_count + " paiement(s) Â· " + formatFCFA(e.total_paye) + " versÃ©s" : ""}</p>
+                            <p><span class="status ${cls}">${escapeHtml(label)}</span>${e.paiements_count ? " Â· " + e.paiements_count + " paiement(s) Â· " + formatFCFA(e.total_paye) + " versÃ©s" : ""}</p>
                         </div>
                         <div class="card-actions">
                             <button class="btn btn-edit" data-edit-e="${e.id}">Modifier</button>
@@ -464,7 +460,7 @@ list.innerHTML = filtered.map((e) => {
                             <h3>${escapeHtml(t.titre)}</h3>
                             <p>${escapeHtml(t.description || "")}</p>
                             <p>AssignÃ©e Ã  : <strong>${escapeHtml(t.employe_nom || "Personne")}</strong>${t.echeance ? " Â· Ã‰chÃ©ance le " + escapeHtml(t.echeance) : ""}</p>
-                            <p><span class="status ${cls}">${label}</span></p>
+                            <p><span class="status ${cls}">${escapeHtml(label)}</span></p>
                         </div>
                         <div class="card-actions">
                             <button class="btn btn-edit" data-edit-task="${t.id}">Modifier</button>

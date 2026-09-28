@@ -234,6 +234,22 @@ async function apiRequest(path, options = {}) {
 // ============================================================
 
 let confirmResolve = null;
+let confirmExpected = "";
+
+/* Affiche/efface le message d'erreur de la modale de confirmation
+ * (zone créée à la demande sous le champ de saisie). */
+function setConfirmError(message) {
+  const box = document.getElementById("confirmError");
+  const input = document.getElementById("confirmInput");
+  if (box) {
+    box.textContent = message || "";
+    box.hidden = !message;
+  }
+  if (input) {
+    if (message) input.setAttribute("aria-invalid", "true");
+    else input.removeAttribute("aria-invalid");
+  }
+}
 
 function confirmAction(title, message, opts = {}) {
   return new Promise((resolve) => {
@@ -248,8 +264,17 @@ function confirmAction(title, message, opts = {}) {
       inputLabel.textContent = opts.inputLabel || "";
       inputEl.value = "";
       inputEl.placeholder = opts.inputPlaceholder || "";
+      // Mot attendu : transmis explicitement par l'appelant, sinon on reprend
+      // le placeholder (qui contient le mot à saisir, ex. "SUPPRIMER").
+      confirmExpected = String(opts.expected || opts.inputPlaceholder || "").trim();
+      setConfirmError("");
+      if (!inputEl.dataset.mimConfirmCheck) {
+        inputEl.dataset.mimConfirmCheck = "1";
+        inputEl.addEventListener("input", () => setConfirmError(""));
+      }
     } else {
       inputGroup.style.display = "none";
+      confirmExpected = "";
     }
     document.getElementById("confirmModal").classList.add("active");
     const confirmBtn = document.getElementById("confirmBtn");
@@ -592,7 +617,9 @@ async function saas() {
   try {
     const { suspended } = await apiRequest("/ultra-admin/saas/status");
     isActive = !suspended;
-  } catch {}
+  } catch (err) {
+    console.warn("[MIM] ultra-admin: statut SaaS indisponible, on suppose actif", err);
+  }
 
   app.innerHTML = `
   <div class="panel" style="margin-bottom:1.5rem">
@@ -989,7 +1016,7 @@ function planRow(p) {
       </td>
       <td>${p.audience === "agence" ? "Agence" : "Propriétaire"}</td>
       <td class="num" data-field="prix">${Number(p.prix).toLocaleString("fr-FR")} ${escapeHtml(p.devise)}</td>
-      <td class="num">${p.max_imbiased ?? p.max_immeubles}</td>
+      <td class="num">${p.max_immeubles ?? "∞"}</td>
       <td class="num">${p.max_logements ?? "∞"}</td>
       <td class="num">${p.max_locataires ?? "∞"}</td>
       <td>${p.actif ? '<span class="badge ok">Actif</span>' : '<span class="badge">Archivé</span>'}</td>
@@ -1225,7 +1252,7 @@ document.addEventListener("click", async (e) => {
     const ok = await confirmAction(
       "Retirer le rôle admin",
       `Voulez-vous vraiment retirer le rôle admin à ${name} ?`,
-      { input: true, inputLabel: 'Tapez "CONFIRMER" pour valider', inputPlaceholder: "CONFIRMER", confirmText: "Retirer le rôle" }
+      { input: true, inputLabel: 'Tapez "CONFIRMER" pour valider', inputPlaceholder: "CONFIRMER", expected: "CONFIRMER", confirmText: "Retirer le rôle" }
     );
     if (!ok || ok !== true) return;
     showProgress("Retrait du rôle admin…", "danger");
@@ -1263,7 +1290,7 @@ document.addEventListener("click", async (e) => {
     const ok = await confirmAction(
       "Supprimer l'annonce",
       `Voulez-vous vraiment supprimer l'annonce "${title}" ? Cette action est irréversible.`,
-      { input: true, inputLabel: 'Tapez "SUPPRIMER" pour confirmer', inputPlaceholder: "SUPPRIMER", confirmText: "Supprimer" }
+      { input: true, inputLabel: 'Tapez "SUPPRIMER" pour confirmer', inputPlaceholder: "SUPPRIMER", expected: "SUPPRIMER", confirmText: "Supprimer" }
     );
     if (!ok || ok !== true) return;
     showProgress("Suppression de l'annonce…", "danger");
@@ -1303,7 +1330,7 @@ document.addEventListener("click", async (e) => {
     const ok = await confirmAction(
       "Supprimer l'événement",
       `Voulez-vous vraiment supprimer l'événement "${title}" ? Cette action est irréversible.`,
-      { input: true, inputLabel: 'Tapez "SUPPRIMER" pour confirmer', inputPlaceholder: "SUPPRIMER", confirmText: "Supprimer" }
+      { input: true, inputLabel: 'Tapez "SUPPRIMER" pour confirmer', inputPlaceholder: "SUPPRIMER", expected: "SUPPRIMER", confirmText: "Supprimer" }
     );
     if (!ok || ok !== true) return;
     showProgress("Suppression de l'événement…", "danger");
@@ -1320,7 +1347,7 @@ document.addEventListener("click", async (e) => {
     const ok = await confirmAction(
       "Supprimer la mise en avant",
       "Voulez-vous vraiment supprimer cet élément mis en avant ?",
-      { input: true, inputLabel: 'Tapez "SUPPRIMER" pour confirmer', inputPlaceholder: "SUPPRIMER", confirmText: "Supprimer" }
+      { input: true, inputLabel: 'Tapez "SUPPRIMER" pour confirmer', inputPlaceholder: "SUPPRIMER", expected: "SUPPRIMER", confirmText: "Supprimer" }
     );
     if (!ok || ok !== true) return;
     showProgress("Suppression…", "danger");
@@ -1337,7 +1364,7 @@ document.addEventListener("click", async (e) => {
     const ok = await confirmAction(
       "Suspendre le SaaS",
       "Voulez-vous vraiment suspendre la plateforme ? Tous les utilisateurs seront déconnectés.",
-      { input: true, inputLabel: 'Tapez "SUSPENDRE" pour confirmer', inputPlaceholder: "SUSPENDRE", confirmText: "Suspendre le SaaS", btnClass: "btn danger" }
+      { input: true, inputLabel: 'Tapez "SUSPENDRE" pour confirmer', inputPlaceholder: "SUSPENDRE", expected: "SUSPENDRE", confirmText: "Suspendre le SaaS", btnClass: "btn danger" }
     );
     if (!ok || ok !== true) return;
     showProgress("Suspension du SaaS…", "danger");
@@ -1394,12 +1421,36 @@ document.addEventListener("click", async (e) => {
 // Confirm modal wiring
 // ============================================================
 
+// Zone d'erreur de la modale de confirmation : créée ici car ultra.html n'en
+// contient pas (et ultra.html n'est pas modifiable depuis ce lot de correctifs).
+(function ensureConfirmErrorBox() {
+  const inputGroup = document.getElementById("confirmInputGroup");
+  if (!inputGroup || document.getElementById("confirmError")) return;
+  const box = document.createElement("p");
+  box.id = "confirmError";
+  box.hidden = true;
+  box.style.cssText = "margin:6px 0 0;color:var(--danger,#e5484d);font-size:.85rem;";
+  inputGroup.appendChild(box);
+})();
+
 document.getElementById("confirmBtn")?.addEventListener("click", () => {
   const inputGroup = document.getElementById("confirmInputGroup");
   if (inputGroup && inputGroup.style.display !== "none") {
     const input = document.getElementById("confirmInput");
     const val = (input?.value || "").trim();
-    if (!val) return;
+    const expected = confirmExpected;
+    // Sans mot attendu, une simple saisie non vide suffit (comportement d'origine).
+    if (!expected) {
+      if (!val) return;
+      resolveConfirm(true);
+      return;
+    }
+    // Comparaison insensible à la casse : toute autre saisie refuse la validation.
+    if (val.toLowerCase() !== expected.toLowerCase()) {
+      setConfirmError(`Saisie incorrecte : tapez « ${expected} » pour valider.`);
+      return;
+    }
+    setConfirmError("");
     resolveConfirm(true);
   } else {
     resolveConfirm(true);
@@ -1721,7 +1772,7 @@ function setAdminIdentity(user) {
     .toUpperCase();
   const avatars = document.querySelectorAll("#adminAvatar, #topAvatar");
   avatars.forEach((a) => (a.textContent = initials || "SA"));
-  const n1 = document.getElementById("adminName");
+  const n1 = document.getElementById("sidebarAdminName");
   const n2 = document.getElementById("topName");
   if (n1) n1.textContent = name;
   if (n2) n2.textContent = name.split(" ")[0];
@@ -1756,7 +1807,9 @@ async function init() {
     logoutBtn.addEventListener("click", async () => {
       try {
         await apiRequest("/auth/logout", { method: "POST" });
-      } catch {}
+      } catch (err) {
+        console.warn("[MIM] logout: appel /auth/logout en echec", err);
+      }
       window.location.href = "/PartPublic/connexion.html";
     });
   }

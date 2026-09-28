@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { anonClient, authedClient, serviceClient } from '../app.js';
-import { authenticate, ownerSuspendedFor, banStatusOf, businessAccountActive, invalidateMfaCache } from '../middleware/auth.js';
+import { authenticate, requireActive, requireRecentPasswordAuth, requireMfaAccountUnlocked, markPasswordAuthenticated, registerMfaAccountAttempt, mfaAccountLockRemainingMs, ownerSuspendedFor, banStatusOf, businessAccountActive, invalidateMfaCache } from '../middleware/auth.js';
 import { forgotPasswordRateLimit, mfaVerifyRateLimit } from '../middleware/rateLimit.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
 import { createSession, revokeAllSessions, revokeSession, createMfaChallenge, claimMfaChallenge, finishMfaChallenge, decryptSessionValue } from '../utils/sessions.js';
@@ -245,6 +245,7 @@ async function finalizeLogin(res, user, session, userAgent, ip) {
   const accountType = profile?.account_type || accountTypeOf(user);
   const appSession = await createSession({ userId: user.id, session, userAgent, ip });
   setAuthCookie(res, appSession.token);
+  markPasswordAuthenticated(appSession.id);
   gitAutoBackup(`Sauvegarde auto : connexion de ${user.email}`);
 
   let redirect = PAGE_BY_TYPE[accountType] || PAGE_BY_TYPE.proprietaire;
@@ -522,6 +523,15 @@ router.post('/verify-2fa', mfaVerifyRateLimit, async (req, res) => {
     return res.status(401).json({ success: false, message: 'Session de vérification expirée.' });
   }
 
+  // Verrouillage PAR COMPTE : mfaVerifyRateLimit ne plafonne que par IP
+  // (+ défi), contournable en répartissant les essais.
+  const lockMs = mfaAccountLockRemainingMs(challenge.user_id);
+  if (lockMs > 0) {
+    await finishMfaChallenge(challenge, false).catch(() => {});
+    res.setHeader('Retry-After', Math.ceil(lockMs / 1000));
+    return res.status(429).json({ success: false, message: 'Trop de tentatives de vérification. Réessayez dans quelques minutes.' });
+  }
+
   try {
     const sb = authedClient(challenge.supabase_access_token);
 
@@ -542,10 +552,12 @@ router.post('/verify-2fa', mfaVerifyRateLimit, async (req, res) => {
     });
 
     if (verifyError || !verified) {
+      registerMfaAccountAttempt(challenge.user_id, false);
       await finishMfaChallenge(challenge, false).catch(() => {});
       return res.status(400).json({ success: false, message: 'Code de vérification incorrect.' });
     }
 
+    registerMfaAccountAttempt(challenge.user_id, true);
     await finishMfaChallenge(challenge, true);
     res.clearCookie('mim_mfa_pending');
 
@@ -569,7 +581,13 @@ router.post('/verify-2fa', mfaVerifyRateLimit, async (req, res) => {
   }
 });
 
-router.get('/mfa/status', authenticate, async (req, res) => {
+// Les routes /mfa/* exigent une preuve de mot de passe RÉCENTE (et non le
+// simple jeton de session), plus un compteur de tentatives par compte.
+// requireActive n'est monté que sur enroll/disable : status et confirm
+// restent atteignables depuis un jeton aal1, sinon un compte déjà doté
+// d'un facteur vérifié recevrait MFA_REQUIRED (jeton non aal2) et ne
+// pourrait ni lire son état 2FA ni finaliser un enrôlement.
+router.get('/mfa/status', authenticate, requireRecentPasswordAuth, async (req, res) => {
   try {
     const { data, error } = await authedClient(req.user.supabase_token).auth.mfa.listFactors();
 
@@ -591,7 +609,7 @@ router.get('/mfa/status', authenticate, async (req, res) => {
   }
 });
 
-router.post('/mfa/enroll', authenticate, async (req, res) => {
+router.post('/mfa/enroll', authenticate, requireActive, requireRecentPasswordAuth, async (req, res) => {
   try {
     const { data, error } = await authedClient(req.user.supabase_token).auth.mfa.enroll({
       factorType: 'totp',
@@ -616,7 +634,7 @@ router.post('/mfa/enroll', authenticate, async (req, res) => {
   }
 });
 
-router.post('/mfa/confirm', authenticate, async (req, res) => {
+router.post('/mfa/confirm', authenticate, requireRecentPasswordAuth, requireMfaAccountUnlocked, async (req, res) => {
   const { factorId, code } = req.body;
 
   if (!factorId || !String(code || '').trim()) {
@@ -638,8 +656,10 @@ router.post('/mfa/confirm', authenticate, async (req, res) => {
     });
 
     if (verifyError || !verified) {
+      registerMfaAccountAttempt(req.user.id, false);
       return res.status(400).json({ success: false, message: 'Code incorrect.' });
     }
+    registerMfaAccountAttempt(req.user.id, true);
 
     const freshSession = {
       access_token: verified.access_token,
@@ -654,6 +674,7 @@ router.post('/mfa/confirm', authenticate, async (req, res) => {
     await revokeAllSessions(req.user.id, null, 'mfa_enabled');
     const appSession = await createSession({ userId: req.user.id, session: freshSession, userAgent: req.headers['user-agent'], ip: req.ip, action: 'mfa' });
     setAuthCookie(res, appSession.token);
+    markPasswordAuthenticated(appSession.id);
 
     res.json({ success: true, message: 'Double authentification activée.' });
   } catch (err) {
@@ -662,7 +683,7 @@ router.post('/mfa/confirm', authenticate, async (req, res) => {
   }
 });
 
-router.post('/mfa/disable', authenticate, async (req, res) => {
+router.post('/mfa/disable', authenticate, requireActive, requireRecentPasswordAuth, requireMfaAccountUnlocked, async (req, res) => {
   const { factorId, code } = req.body;
 
   if (!factorId || !String(code || '').trim()) {
@@ -684,8 +705,10 @@ router.post('/mfa/disable', authenticate, async (req, res) => {
     });
 
     if (verifyError) {
+      registerMfaAccountAttempt(req.user.id, false);
       return res.status(400).json({ success: false, message: 'Code incorrect.' });
     }
+    registerMfaAccountAttempt(req.user.id, true);
 
     const { error: unenrollError } = await sb.auth.mfa.unenroll({ factorId });
 
@@ -878,22 +901,34 @@ router.post('/claim-invitation', authenticate, async (req, res) => {
 });
 
 router.post('/logout', authenticate, async (req, res) => {
+  // Les deux invalidations sont indépendantes : une panne de l'autre
+  // côté ne doit jamais empêcher celle-ci (session résiduelle valide).
   let authRevoked = true;
-  try {
-    if (req.user?.supabase_token) {
+  let localRevoked = true;
+
+  if (req.user?.supabase_token) {
+    try {
       const result = await authedClient(req.user.supabase_token).auth.signOut();
       authRevoked = !result?.error;
+    } catch (err) {
+      authRevoked = false;
+      console.warn('[logout] révocation Supabase :', err.message);
     }
-    if (req.user?.session_id) await revokeSession(req.user.session_id, req.user.id, 'logout');
-  } catch (err) {
-    authRevoked = false;
-    console.warn('[logout] révocation :', err.message);
+  }
+
+  if (req.user?.session_id) {
+    try {
+      await revokeSession(req.user.session_id, req.user.id, 'logout');
+    } catch (err) {
+      localRevoked = false;
+      console.warn('[logout] révocation locale :', err.message);
+    }
   }
 
   res.clearCookie('mim_token', { path: '/' });
   res.clearCookie('mim_mfa_pending', { path: '/' });
   res.clearCookie('mim_csrf', { path: '/' });
-  if (!authRevoked) return res.status(503).json({ success: false, code: 'LOGOUT_RETRY', message: 'La session locale a été révoquée, mais Supabase doit être recontacté.' });
+  if (!localRevoked || !authRevoked) return res.status(503).json({ success: false, code: 'LOGOUT_RETRY', message: 'Déconnexion incomplète : reconnectez-vous pour révoquer les sessions restantes.' });
   if (req.user?.id) gitAutoBackup(`Sauvegarde auto : déconnexion utilisateur ${req.user.id}`);
   return res.json({ success: true, message: 'Déconnexion réussie.' });
 });
@@ -918,7 +953,7 @@ router.get('/me', authenticate, async (req, res) => {
   res.json({ success: true, user });
 });
 
-router.put('/change-password', authenticate, async (req, res) => {
+router.put('/change-password', authenticate, requireActive, async (req, res) => {
   const { current_password, password, password_confirm } = req.body;
 
   const pwError = passwordRuleError(password);
@@ -995,6 +1030,7 @@ router.put('/change-password', authenticate, async (req, res) => {
     }
     const appSession = await createSession({ userId: req.user.id, session: freshSession.session, userAgent: req.headers['user-agent'], ip: req.ip, action: 'password_change' });
     setAuthCookie(res, appSession.token);
+    markPasswordAuthenticated(appSession.id);
 
     const { error: profileError } = await serviceClient()
       .from('profiles')
@@ -1048,6 +1084,7 @@ router.post('/verify-password', authenticate, async (req, res) => {
     return res.status(403).json({ success: false, message: 'Mot de passe incorrect.' });
   }
 
+  markPasswordAuthenticated(req.user.session_id);
   res.json({ success: true });
 });
 
