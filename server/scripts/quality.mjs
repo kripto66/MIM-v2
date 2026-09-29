@@ -259,7 +259,7 @@ async function checkEnvTemplate() {
 // ---------------------------------------------------------------------
 const INNER_HTML_ASSIGN = [/\.(?:innerHTML|outerHTML)\s*=/g, /insertAdjacentHTML\s*\(\s*[^,)]*,/g];
 const SAFE_EXPR_CALL =
-  /\b(?:escapeHtml|escapeAttr|escape\w*|sanitize\w*|esc|label|badge|badgeStatut|statCard|activity|revenueChart|svg|money|format\w+|fmt\w+|encodeURI\w*|JSON\.stringify|Object\.keys|Array\.isArray|isNaN|isFinite)\s*\(/;
+  /\b(?:escapeHtml|escapeAttr|escape\w*|sanitize\w*|esc|linkify|label|badge|badgeStatut|statCard|activity|revenueChart|svg|money|format\w+|fmt\w+|encodeURI\w*|JSON\.stringify|Object\.keys|Array\.isArray|isNaN|isFinite)\s*\(/;
 const FREE_TEXT_FIELD =
   /\b(?:nom|nom_complet|name|prenom|email|mail|adresse|ville|rue|quartier|titre|title|label|libelle|detail|message|commentaire|motif|raison|contenu|description|username|identifiant|societe|entreprise|raison_sociale|banque|iban|rib|note|obs|observation|objet|subject|texte|content|slug|fichier|filename|image|avatar|url|chemin|path|telephone|tel)\b/;
 const STATIC_TABLE_ROOT = /^\s*[A-Z][A-Z0-9_]{2,}\s*[.[]/;

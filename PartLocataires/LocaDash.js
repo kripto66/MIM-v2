@@ -365,7 +365,7 @@ function renderNotifications(notifications) {
         <div class="notification-item">
           <span>${icon}</span>
           <div>
-            <strong>${escapeHtml(n.message)}</strong>
+            <strong>${MIM.linkify(n.message)}</strong>
             ${n.date ? `<p>${formatDate(n.date)}</p>` : ""}
           </div>
           <button class="btn btn-delete btn-sm" data-delete-notif="${n.id}" title="Supprimer">✕</button>
@@ -378,10 +378,10 @@ async function deleteNotif(id) {
   try {
     await tenantRequest(`/notifications/${id}`, { method: "DELETE" });
     MIM.swrClear("locataire:dashboard");
-    showToast("Notification supprimée.");
+    showTenantError("Notification supprimée.", true);
     const data = await tenantRequest("/locataire/dashboard");
     renderDashboard(data);
   } catch (err) {
-    showToast(err.message, "error");
+    showTenantError(err.message);
   }
 }

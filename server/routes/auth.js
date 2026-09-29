@@ -7,10 +7,11 @@ import { createSession, revokeAllSessions, revokeSession, createMfaChallenge, cl
 import { newOAuthClient, storeFlow, getFlow, deleteFlow } from '../utils/oauth.js';
 import { resolveLoginEmail, tenantEmailFor, usernameIsValid, TENANT_EMAIL_DOMAIN } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
-import { issueResetToken, tryConsumeResetToken, finalizeResetToken, releaseResetToken, generateResetToken, hashResetToken, sendResetEmail } from '../utils/passwordReset.js';
+import { issueResetToken, tryConsumeResetToken, finalizeResetToken, releaseResetToken, generateResetToken, hashResetToken, sendResetEmail, buildResetLink } from '../utils/passwordReset.js';
 import { subscriptionExpiredFor } from '../utils/subscription.js';
 import { auditLog, LEVELS } from '../utils/audit.js';
 import { isSaasSuspended, isAllowedDuringSuspension } from '../utils/saasStatus.js';
+import { notify } from '../utils/notifications.js';
 
 const router = Router();
 
@@ -1258,6 +1259,15 @@ router.post('/forgot', forgotPasswordRateLimit, async (req, res) => {
 
   try {
     const rawToken = await issueResetToken(target.id);
+    // Le lien est aussi déposé dans le compte du concerné : ses
+    // notifications (RLS « chacun voit les siennes ») servent de canal de
+    // secours quand la boîte mail est injoignable alors qu'une session
+    // reste ouverte sur un autre appareil. L'e-mail reste envoyé.
+    await notify(
+      target.id,
+      'system',
+      `Reinitialisation du mot de passe MIM : ouvrez ce lien dans les 30 minutes (usage unique) ${buildResetLink(rawToken)} - si ce n'etait pas vous, ignorez ce message.`
+    );
     await sendResetEmail({ email: target.email, rawToken });
   } catch (err) {
     // Jamais de jeton ni de mot de passe dans les logs : erreur technique seule.

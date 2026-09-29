@@ -232,9 +232,9 @@ export async function runBictorys(r, ctx) {
           essai.actif === true,
       );
       if (ok && essaiOk && proprietairePlans.length === 5 && noAgencePlans && !plans.data.plans.some((p) => p.code === 'ultra')) {
-        r.pass(S, '5 formules propriǸtaire (essai + 1/3/10/25 immeubles) �?" aucun palier agence exposǸ, Ultra archivǸ');
+        r.pass(S, '5 formules propriétaire (essai + 1/3/10/25 immeubles) — aucun palier agence exposé, Ultra archivé');
       } else {
-        r.fail(S, '5 formules propriǸtaire (essai + 1/3/10/25 immeubles) �?" aucun palier agence exposǸ, Ultra archivǸ', JSON.stringify(plans.data?.plans?.map((p) => p.code)));
+        r.fail(S, '5 formules propriétaire (essai + 1/3/10/25 immeubles) — aucun palier agence exposé, Ultra archivé', JSON.stringify(plans.data?.plans?.map((p) => p.code)));
       }
     });
 
@@ -304,9 +304,9 @@ export async function runBictorys(r, ctx) {
       const agenceOnly = list.data.plans.filter((p) => p.audience === 'agence' && p.actif).length;
       // 5 = standard / premium / pro / agence + essai automatique.
       if (proprietaireOnly === 5 && agenceOnly === 3) {
-        r.pass(S, 'Ultra Admin : 5 formules propriǸtaire (dont essai) / 3 formules agence');
+        r.pass(S, 'Ultra Admin : 5 formules propriétaire (dont essai) / 3 formules agence');
       } else {
-        r.fail(S, 'Ultra Admin : 5 formules propriǸtaire (dont essai) / 3 formules agence', `${proprietaireOnly}/${agenceOnly}`);
+        r.fail(S, 'Ultra Admin : 5 formules propriétaire (dont essai) / 3 formules agence', `${proprietaireOnly}/${agenceOnly}`);
       }
 
       // Création

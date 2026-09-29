@@ -455,7 +455,7 @@ function incidentStatus(x) {
 function cardFor(kind) {
   if (kind === "notifications") {
     return (x) =>
-      `<div class="notice ${x.read || x.is_read ? "" : "unread"}"><b>${esc(x.title || "Notification")}</b><div class="muted">${esc(x.message || x.description || "")}</div><small>${date(x.created_at)}</small></div>`;
+      `<div class="notice ${x.read || x.is_read ? "" : "unread"}"><b>${esc(x.title || "Notification")}</b><div class="muted">${MIM.linkify(x.message || x.description || "")}</div><small>${date(x.created_at)}</small></div>`;
   }
   if (kind === "incidents") {
     return (x) => {

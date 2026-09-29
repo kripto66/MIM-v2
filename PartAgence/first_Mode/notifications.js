@@ -17,7 +17,7 @@ async function load() {
         list.innerHTML = data.map((n) => `
             <div class="crud-card ${n.lu ? "notification-read" : ""}">
                 <div>
-                    <h3>${escapeHtml(n.message)}</h3>
+                    <h3>${MIM.linkify(n.message)}</h3>
                     <p class="muted">${formatDate(n.created_at)}</p>
                 </div>
                 <div>

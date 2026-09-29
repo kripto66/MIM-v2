@@ -5,7 +5,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIM â€” ParamÃ¨tres</title>
+    <title>MIM — Paramètres</title>
     <meta name="robots" content="noindex, nofollow">
     <link rel="stylesheet" href="/mim-errors.css">
     <script src="/mim-errors.js"></script>
@@ -32,7 +32,7 @@
                 <a href="dashboard.html">Tableau de bord</a>
                 <a href="biens.html">Mes biens</a>
                 <a href="locataires.html">Locataires & Logements</a>
-                <a href="employes.html">Mes employÃ©s</a>
+                <a href="employes.html">Mes employés</a>
                 <div class="nav-category">Finances</div>
                 <a href="paiements.html">Paiements</a>
                 <a href="abonnements.html">Mon abonnement</a>
@@ -42,13 +42,13 @@
                 <a href="interventions.html">Interventions</a>
                 <a href="notifications.html">Notifications</a>
                 <div class="nav-category">Configuration</div>
-                <a href="parametres.html" class="active">ParamÃ¨tres</a>
+                <a href="parametres.html" class="active">Paramètres</a>
                 <a href="import.html">Importer / Configurer</a>
             </nav>
 
             <div class="sidebar-footer">
 
-                <button id="logoutBtn" type="button">DÃ©connexion</button>
+                <button id="logoutBtn" type="button">Déconnexion</button>
 
             </div>
 
@@ -64,12 +64,12 @@
                     aria-label="Ouvrir le menu"
                     aria-expanded="false"
                 >
-                    â˜°
+                    ☰
                 </button>
 
                 <div class="welcome">
-                    <h1>ParamÃ¨tres</h1>
-                    <p>GÃ©rez votre profil et vos informations personnelles.</p>
+                    <h1>Paramètres</h1>
+                    <p>Gérez votre profil et vos informations personnelles.</p>
                 </div>
 
             </header>
@@ -85,12 +85,12 @@
                     <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
                         <img id="avatarPreview" alt="Photo de profil"
                             style="width:84px;height:84px;border-radius:50%;object-fit:cover;background:#e9edf2;border:2px solid #dfe5ec;"
-                            src="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84'%3E%3Crect width='84' height='84' fill='%23e9edf2'/%3E%3Ctext x='42' y='50' font-size='32' text-anchor='middle' fill='%239aa7b4'%3EðŸ‘¤%3C/text%3E%3C/svg%3E">
+                            src="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84'%3E%3Crect width='84' height='84' fill='%23e9edf2'/%3E%3Ctext x='42' y='50' font-size='32' text-anchor='middle' fill='%239aa7b4'%3E👤%3C/text%3E%3C/svg%3E">
                         <div>
                             <label for="avatarInput" class="btn btn-secondary" style="display:inline-block;cursor:pointer;">Changer la photo</label>
                             <input type="file" id="avatarInput" accept="image/jpeg,image/png,image/webp" hidden>
                             <button type="button" class="btn btn-delete" id="avatarRemoveBtn" style="display:none;">Supprimer la photo</button>
-                            <p class="muted" style="margin-top:6px;">JPEG, PNG ou WebP â€” 2 Mo maximum.</p>
+                            <p class="muted" style="margin-top:6px;">JPEG, PNG ou WebP — 2 Mo maximum.</p>
                         </div>
                     </div>
 
@@ -102,12 +102,12 @@
                     <div class="form-group">
                         <label for="email">Email</label>
                         <input type="email" id="email" name="email" disabled>
-                        <small class="muted">L'email ne peut pas Ãªtre modifiÃ© ici.</small>
+                        <small class="muted">L'email ne peut pas être modifié ici.</small>
                     </div>
 
                     <div class="form-row">
                         <div class="form-group">
-                            <label for="phone">TÃ©lÃ©phone</label>
+                            <label for="phone">Téléphone</label>
                             <input type="tel" id="phone" name="phone">
                         </div>
                         <div class="form-group">
@@ -130,13 +130,13 @@
                 </div>
 
                 <p class="muted" style="margin-bottom:15px;">
-                    Les moyens ci-dessous sont affichÃ©s Ã  vos locataires pour payer leurs loyers
-                    <strong>directement</strong> (hors MIM). Vous vÃ©rifiez la rÃ©ception puis validez leur dÃ©claration
+                    Les moyens ci-dessous sont affichés à vos locataires pour payer leurs loyers
+                    <strong>directement</strong> (hors MIM). Vous vérifiez la réception puis validez leur déclaration
                     dans la page Paiements.
                 </p>
 
                 <div id="moyensList">
-                    <p class="muted">Chargementâ€¦</p>
+                    <p class="muted">Chargement…</p>
                 </div>
 
             </section>
@@ -148,7 +148,7 @@
                 </div>
 
                 <div id="subscriptionPanel" class="subscription-panel">
-                    <p class="muted">Chargement de votre abonnementâ€¦</p>
+                    <p class="muted">Chargement de votre abonnement…</p>
                 </div>
 
             </section>
@@ -160,13 +160,13 @@
                 </div>
 
                 <p class="muted" style="margin-bottom:15px;">
-                    Importez de nouveaux biens, logements, locataires ou employÃ©s Ã  partir de fichiers CSV.
-                    Les comptes de connexion sont crÃ©Ã©s automatiquement (mot de passe initial Ã  changer
-                    Ã  la premiÃ¨re connexion).
+                    Importez de nouveaux biens, logements, locataires ou employés à partir de fichiers CSV.
+                    Les comptes de connexion sont créés automatiquement (mot de passe initial à changer
+                    à la première connexion).
                 </p>
 
                 <div class="param-actions">
-                    <a href="import.html" class="btn btn-primary">ðŸ“¥ Importer des donnÃ©es</a>
+                    <a href="import.html" class="btn btn-primary">📥 Importer des données</a>
                     <a href="import.html" class="btn btn-secondary" id="resumeSetupLink" hidden>Reprendre l'assistant de configuration</a>
                 </div>
 
@@ -179,8 +179,8 @@
                 </div>
 
                 <p class="muted" style="margin-bottom:15px;">
-                    Ã€ chaque connexion, dÃ©connexion et modification, une sauvegarde est automatiquement
-                    crÃ©Ã©e sur GitHub.
+                    À chaque connexion, déconnexion et modification, une sauvegarde est automatiquement
+                    créée sur GitHub.
                 </p>
 
                 <button class="btn btn-secondary" id="manualBackupBtn">Effectuer une sauvegarde maintenant</button>
@@ -202,7 +202,7 @@
                         <option value="wave">Wave</option>
                         <option value="orange_money">Orange Money</option>
                         <option value="virement">Virement bancaire</option>
-                        <option value="especes">EspÃ¨ces</option>
+                        <option value="especes">Espèces</option>
                     </select>
                 </div>
                 <div class="form-group" id="moyenTitulaireGroup">
@@ -210,24 +210,24 @@
                     <input type="text" id="moyenTitulaire" maxlength="120">
                 </div>
                 <div class="form-group" id="moyenNumeroGroup">
-                    <label for="moyenNumero">NumÃ©ro (ex : +221 77 123 45 67)</label>
+                    <label for="moyenNumero">Numéro (ex : +221 77 123 45 67)</label>
                     <input type="text" id="moyenNumero" maxlength="40">
                 </div>
                 <div class="form-group" id="moyenLienGroup">
                     <label for="moyenLien">Lien de paiement (optionnel)</label>
-                    <input type="url" id="moyenLien" maxlength="300" placeholder="https://â€¦">
+                    <input type="url" id="moyenLien" maxlength="300" placeholder="https://…">
                 </div>
                 <div class="form-group" id="moyenBanqueGroup">
                     <label for="moyenBanque">Banque</label>
                     <input type="text" id="moyenBanque" maxlength="120">
                 </div>
                 <div class="form-group" id="moyenCompteGroup">
-                    <label for="moyenCompte">NÂ° de compte</label>
+                    <label for="moyenCompte">N° de compte</label>
                     <input type="text" id="moyenCompte" maxlength="40">
                 </div>
 <div class="form-group">
-                    <label for="moyenInstructions">Instructions (affichÃ©es au locataire)</label>
-                    <textarea id="moyenInstructions" rows="2" maxlength="500" placeholder="Ex : payez en espÃ¨ces le 5 de chaque moisâ€¦"></textarea>
+                    <label for="moyenInstructions">Instructions (affichées au locataire)</label>
+                    <textarea id="moyenInstructions" rows="2" maxlength="500" placeholder="Ex : payez en espèces le 5 de chaque mois…"></textarea>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="moyenCancel">Annuler</button>

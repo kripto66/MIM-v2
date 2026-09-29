@@ -1,7 +1,7 @@
 // ============================================================
 // MIM — PartAgence/second_Mode/mode2.js (PHASE 7)
 //
-// Infra commune des SOUS-PAGES d'un bien géré (MODЕ 2). À inclure
+// Infra commune des SOUS-PAGES d'un bien géré (MODE 2). À inclure
 // APRÈS scope.js et AVANT api.js, sur chaque page de gestion :
 //     scope.js → mode2.js → api.js → crud.js → <page>.js
 // Elle :

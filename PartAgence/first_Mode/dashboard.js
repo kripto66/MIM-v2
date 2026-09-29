@@ -385,7 +385,7 @@ function renderNotifications(notifications) {
     + notifications.slice(0, 5).map((n) => `
     <div class="list-item ${n.lu ? "" : "unread"}">
       <div class="list-item-info">
-        <h3>${escapeHtml(n.message)}</h3>
+                <h3>${MIM.linkify(n.message)}</h3>
         <p>${formatDateTime(n.created_at)}</p>
       </div>
       <div class="card-actions">

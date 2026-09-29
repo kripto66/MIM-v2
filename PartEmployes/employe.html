@@ -60,7 +60,7 @@
         <p>Tâches réellement assignées à votre compte.</p>
     </div><button class="secondary" data-refresh="tasks">Actualiser</button>
 </div><div class="filters"><input id="taskQ" aria-label="Rechercher une tâche" placeholder="Rechercher…">
-    <select id="taskS"><option value="">Tous</option>
+    <select id="taskS" aria-label="Filtrer les tâches par statut"><option value="">Tous</option>
         <option value="a_faire">À faire</option>
         <option value="en_cours">En cours</option>
         <option value="termine">Terminées</option>
@@ -70,7 +70,7 @@
     </div>
     <button class="secondary" data-refresh="incidents">Actualiser</button>
 </div><div class="filters"><input id="incidentQ" aria-label="Rechercher un incident" placeholder="Rechercher…">
-    <select id="incidentS"><option value="">Tous</option><option value="nouveau">Nouveau</option>
+    <select id="incidentS" aria-label="Filtrer les incidents par état"><option value="">Tous</option><option value="nouveau">Nouveau</option>
         <option value="en_cours">En cours</option>
         <option value="resolu">Résolu</option></select>
     </div><div id="incidentsList"></div></section>

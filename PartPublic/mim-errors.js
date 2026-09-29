@@ -229,6 +229,22 @@ MIM.swrClear = function (key) {
   }
 };
 
+/* Échappe un texte puis transforme ses URL en liens cliquables :
+ * utilisé pour les messages de notification (le lien de récupération de
+ * mot de passe doit rester cliquable sans jamais injecter de HTML). */
+MIM.linkify = function (text) {
+  var s = String(text == null ? "" : text);
+  s = s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+  return s.replace(/(https?:\/\/[^\s<]+)/g, function (url) {
+    return '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + "</a>";
+  });
+};
+
 MIM._csrfToken = "";
 MIM._csrfReady = fetch((MIM.apiHost ? MIM.apiHost() : window.location.origin) + "/api/csrf-token", {
   credentials: "include",

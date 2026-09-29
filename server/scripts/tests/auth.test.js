@@ -425,6 +425,22 @@ export async function runAuth(r, ctx) {
     }
     await service.from('password_reset_tokens').delete().eq('user_id', userId);
 
+    // Le lien arrive aussi dans les notifications du compte concerne
+    // (canal de secours quand la boite mail est injoignable).
+    const { data: resetNotifs } = await service
+      .from('notifications')
+      .select('type, message')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    const linkNotif = (resetNotifs || []).find((n) => /reset\.html#token=/.test(String(n.message || '')));
+    if (linkNotif && linkNotif.type === 'system') {
+      r.pass(S, 'lien de recuperation depose dans les notifications du compte');
+    } else {
+      r.fail(S, 'lien de recuperation depose dans les notifications du compte', JSON.stringify(resetNotifs));
+    }
+    await service.from('notifications').delete().eq('user_id', userId).eq('type', 'system');
+
     const unknown = await api('/auth/forgot', { method: 'POST', body: { email: 'inexistant@mimtest.com' } });
     if (expectSuccess(r, unknown, S, "forgot email inconnu → même réponse (pas d'énumération)")) {
       r.pass(S, "forgot email inconnu → même réponse (pas d'énumération)");

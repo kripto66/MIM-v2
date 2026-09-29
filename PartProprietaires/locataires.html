@@ -5,7 +5,7 @@
 
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIM â€” Locataires & Logements</title>
+    <title>MIM — Locataires & Logements</title>
     <meta name="robots" content="noindex, nofollow">
     <link rel="stylesheet" href="/mim-errors.css">
     <script src="/mim-errors.js"></script>
@@ -32,7 +32,7 @@
                 <a href="dashboard.html">Tableau de bord</a>
                 <a href="biens.html">Mes biens</a>
                 <a href="locataires.html" class="active">Locataires & Logements</a>
-                <a href="employes.html">Mes employÃ©s</a>
+                <a href="employes.html">Mes employés</a>
                 <div class="nav-category">Finances</div>
                 <a href="paiements.html">Paiements</a>
                 <a href="abonnements.html">Mon abonnement</a>
@@ -42,13 +42,13 @@
                 <a href="interventions.html">Interventions</a>
                 <a href="notifications.html">Notifications</a>
                 <div class="nav-category">Configuration</div>
-                <a href="parametres.html">ParamÃ¨tres</a>
+                <a href="parametres.html">Paramètres</a>
                 <a href="import.html">Importer / Configurer</a>
             </nav>
 
             <div class="sidebar-footer">
 
-                <button id="logoutBtn" type="button">DÃ©connexion</button>
+                <button id="logoutBtn" type="button">Déconnexion</button>
 
             </div>
 
@@ -64,12 +64,12 @@
                     aria-label="Ouvrir le menu"
                     aria-expanded="false"
                 >
-                    â˜°
+                    ☰
                 </button>
 
 <div class="welcome">
                     <h1>Locataires</h1>
-                    <p>CrÃ©ez vos locataires et leurs logements sur une seule page : l'adresse du logement est reprise de celle du bien.</p>
+                    <p>Créez vos locataires et leurs logements sur une seule page : l'adresse du logement est reprise de celle du bien.</p>
                 </div>
 
                 <button class="btn btn-primary" id="addBtn">+ Ajouter un locataire</button>
@@ -83,7 +83,7 @@
                 </div>
 
                 <div class="search-bar">
-                    <input type="search" id="tenantSearch" aria-label="Rechercher un locataire" placeholder="ðŸ”Ž Rechercher un locataire (nom, username, tÃ©lÃ©phone, email)â€¦">
+                    <input type="search" id="tenantSearch" aria-label="Rechercher un locataire" placeholder="🔎 Rechercher un locataire (nom, username, téléphone, email)…">
                 </div>
 
                 <div id="locatairesList">
@@ -114,7 +114,7 @@
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="phone">TÃ©lÃ©phone</label>
+                        <label for="phone">Téléphone</label>
                         <input type="tel" id="phone" name="phone" placeholder="Ex : 77 123 45 67">
                     </div>
                     <div class="form-group">
@@ -126,7 +126,7 @@
                 <hr class="form-separator">
 
                 <div class="form-group">
-                    <label for="bien_id">Bien / RÃ©sidence</label>
+                    <label for="bien_id">Bien / Résidence</label>
                     <select id="bien_id" name="bien_id"></select>
                 </div>
 
@@ -134,12 +134,12 @@
                     <div class="form-row">
                         <div class="form-group">
                             <label for="nb_nom">Nom du bien</label>
-                            <input type="text" id="nb_nom" name="nb_nom" placeholder="Ex : RÃ©sidence Diop">
+                            <input type="text" id="nb_nom" name="nb_nom" placeholder="Ex : Résidence Diop">
                         </div>
                         <div class="form-group">
                             <label for="nb_type">Type</label>
                             <select id="nb_type" name="nb_type">
-                                <option value="residence">RÃ©sidence</option>
+                                <option value="residence">Résidence</option>
                                 <option value="immeuble">Immeuble</option>
                                 <option value="villa">Villa</option>
                                 <option value="terrain">Terrain</option>
@@ -178,7 +178,7 @@
 
                     <div class="form-hint">
                         L'adresse du logement est reprise automatiquement de celle du bien
-                        (modifiez-la sur le bien si nÃ©cessaire).
+                        (modifiez-la sur le bien si nécessaire).
                     </div>
                 </fieldset>
 
@@ -189,14 +189,14 @@
                         <small class="form-hint" id="loyerHint"></small>
                     </div>
                     <div class="form-group">
-                        <label for="jour_echeance">Jour d'Ã©chÃ©ance (1-31)</label>
+                        <label for="jour_echeance">Jour d'échéance (1-31)</label>
                         <input type="number" id="jour_echeance" name="jour_echeance" min="1" max="31" placeholder="ex : 5">
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="date_entree">Date d'entrÃ©e</label>
+                        <label for="date_entree">Date d'entrée</label>
                         <input type="date" id="date_entree" name="date_entree">
                     </div>
                     <div class="form-group">
@@ -209,9 +209,9 @@
                 </div>
 
 <div class="form-hint tenant-auto-hint" id="autoAccountHint">
-                    Le compte de connexion du locataire sera crÃ©Ã© automatiquement.
-                    Un username imprÃ©visible et un mot de passe initial temporaire
-                    seront gÃ©nÃ©rÃ©s (Ã  changer Ã  la premiÃ¨re connexion).
+                    Le compte de connexion du locataire sera créé automatiquement.
+                    Un username imprévisible et un mot de passe initial temporaire
+                    seront générés (à changer à la première connexion).
                 </div>
 
                 <div class="modal-actions">
@@ -224,18 +224,18 @@
         </div>
     </div>
 
-    <!-- ====================== MODAL RÃ‰SULTAT (IDENTIFIANTS) ====================== -->
+    <!-- ====================== MODAL RÉSULTAT (IDENTIFIANTS) ====================== -->
 
     <div class="modal-overlay" id="resultModal" style="display:none;">
         <div class="modal">
 
-            <h2>âœ… Locataire crÃ©Ã© avec succÃ¨s</h2>
+            <h2>✅ Locataire créé avec succès</h2>
 
             <div class="result-summary" id="resultSummary"></div>
 
             <div class="account-credentials" id="accountCredentials" style="display:none;">
                 <p class="result-note">
-                    Le locataire devra modifier son username et son mot de passe lors de sa premiÃ¨re connexion.
+                    Le locataire devra modifier son username et son mot de passe lors de sa première connexion.
                 </p>
                 <button type="button" class="btn btn-primary" id="copyCredentialsBtn">Copier les identifiants</button>
             </div>
@@ -251,7 +251,7 @@
 
     <div class="modal-overlay" id="confirmPwdModal" style="display:none;">
         <div class="modal">
-            <h2>Confirmer l'opÃ©ration</h2>
+            <h2>Confirmer l'opération</h2>
             <p class="form-hint">Saisissez votre mot de passe pour confirmer cette action sensible.</p>
             <form id="confirmPwdForm">
                 <div class="form-group">
@@ -303,8 +303,8 @@ const LOCATAIRE_STATUS = {
 
         function renderBienOptions(currentId) {
             const currentIdStr = currentId == null ? null : String(currentId);
-            let html = '<option value="">â€” Aucun â€”</option>';
-            html += '<option value="__new_bien__">+ CrÃ©er un bienâ€¦</option>';
+            let html = '<option value="">— Aucun —</option>';
+            html += '<option value="__new_bien__">+ Créer un bien…</option>';
             for (const b of state.biens) {
                 const selected = String(b.id) === currentIdStr ? " selected" : "";
                 html += `<option value="${b.id}"${selected}>${escapeHtml(b.nom)}</option>`;
@@ -320,16 +320,16 @@ const LOCATAIRE_STATUS = {
             const current = sorted.find((l) => String(l.id) === currentIdStr);
             const freeInBien = inBien.filter((l) => !occupied.has(String(l.id)));
 
-            let html = '<option value="__new__">+ CrÃ©er un logementâ€¦</option>';
+            let html = '<option value="__new__">+ Créer un logement…</option>';
 
             if (current) html += `<option value="${current.id}">${escapeHtml(current.nom)} (actuel)</option>`;
 
             for (const l of freeInBien) {
                 if (current && String(l.id) === currentIdStr) continue;
-                const note = l.statut === "occupe" ? " (occupÃ©)" : l.statut === "maintenance" ? " (maintenance)" : " (libre)";
+                const note = l.statut === "occupe" ? " (occupé)" : l.statut === "maintenance" ? " (maintenance)" : " (libre)";
                 html += `<option value="${l.id}">${escapeHtml(l.nom)}${note}</option>`;
             }
-            if (freeInBien.length === 0 && !current) html += '<option value="" disabled>â€” Aucun logement libre dans ce bien â€”</option>';
+            if (freeInBien.length === 0 && !current) html += '<option value="" disabled>— Aucun logement libre dans ce bien —</option>';
             return html;
         }
 
@@ -393,7 +393,7 @@ const lg = selectedLogement();
             if (lg) {
                 loyerInput.value = lg.loyer_mensuel ?? "";
                 loyerInput.disabled = true;
-                loyerHint.textContent = "Loyer enregistrÃ© sur le logement (modifiable dans la fiche locataire).";
+                loyerHint.textContent = "Loyer enregistré sur le logement (modifiable dans la fiche locataire).";
             } else {
                 loyerInput.disabled = false;
                 loyerHint.textContent = "";
@@ -431,7 +431,7 @@ function renderLocataires() {
                 : state.tenants;
             if (!filtered.length) {
                 list.innerHTML = state.tenants.length
-                    ? '<div class="empty-state">Aucun locataire ne correspond Ã  cette recherche.</div>'
+                    ? '<div class="empty-state">Aucun locataire ne correspond à cette recherche.</div>'
                     : '<div class="empty-state">Aucun locataire pour le moment.</div>';
                 return;
             }
@@ -446,11 +446,11 @@ function renderLocataires() {
                     <div class="crud-card">
                         <div>
                             <h3>${avatar}${escapeHtml(t.nom)}</h3>
-                            <p>${t.username ? "Username : " + escapeHtml(t.username) + " Â· " : ""}${escapeHtml(t.phone || "")}${t.email ? " â€” " + escapeHtml(t.email) : ""}</p>
+                            <p>${t.username ? "Username : " + escapeHtml(t.username) + " · " : ""}${escapeHtml(t.phone || "")}${t.email ? " — " + escapeHtml(t.email) : ""}</p>
                             ${lg
-                                ? `<p class="logement-chip"><strong>Logement :</strong> ${escapeHtml(lg.nom)} Â· ${typeLabel} Â· ${Number(lg.loyer_mensuel).toLocaleString("fr-FR")} FCFA/mois Â· ${escapeHtml(lg.adresse || "")}</p>`
-                                : `<p class="logement-chip logement-none">Aucun logement associÃ©.</p>`}
-                            <p><span class="status ${cls}">${escapeHtml(label)}</span>${t.jour_echeance ? " Â· Ã‰chÃ©ance le " + escapeHtml(t.jour_echeance) : ""}${t.account_uid ? " Â· Compte actif" : ""}</p>
+                                ? `<p class="logement-chip"><strong>Logement :</strong> ${escapeHtml(lg.nom)} · ${typeLabel} · ${Number(lg.loyer_mensuel).toLocaleString("fr-FR")} FCFA/mois · ${escapeHtml(lg.adresse || "")}</p>`
+                                : `<p class="logement-chip logement-none">Aucun logement associé.</p>`}
+                            <p><span class="status ${cls}">${escapeHtml(label)}</span>${t.jour_echeance ? " · Échéance le " + escapeHtml(t.jour_echeance) : ""}${t.account_uid ? " · Compte actif" : ""}</p>
                         </div>
                         <div class="card-actions">
                             <button class="btn btn-edit" data-edit-t="${t.id}">Modifier</button>
@@ -512,7 +512,7 @@ function renderLocataires() {
             el("loyer_mensuel").value = lg?.loyer_mensuel ?? "";
             el("loyer_mensuel").disabled = false;
             el("loyerHint").textContent = currentId
-                ? "Le loyer est enregistrÃ© sur le logement et sera mis Ã  jour."
+                ? "Le loyer est enregistré sur le logement et sera mis à jour."
                 : "";
             el("tenantModal").style.display = "flex";
         }
@@ -538,14 +538,14 @@ function renderLocataires() {
 
             const errors = validateFields(form, [
                 { name: "nom", test: (i) => !i.value.trim(), message: "Le nom complet est obligatoire." },
-                { name: "bien_id", test: (i) => !i.value, message: "Choisissez le bien / rÃ©sidence." },
+                { name: "bien_id", test: (i) => !i.value, message: "Choisissez le bien / résidence." },
                 ...(createNewBien ? [
                     { name: "nb_nom", test: (i) => !i.value.trim(), message: "Le nom du bien est obligatoire." },
                 ] : []),
                 {
                     name: "jour_echeance",
                     test: (i) => i.value !== "" && (Number(i.value) < 1 || Number(i.value) > 31),
-                    message: "Le jour d'Ã©chÃ©ance doit Ãªtre entre 1 et 31.",
+                    message: "Le jour d'échéance doit être entre 1 et 31.",
                 },
                 ...(mode === "new" ? [...lgRules, {
                     name: "loyer_mensuel",
@@ -617,7 +617,7 @@ function renderLocataires() {
                 if (!editing && res.autoAccount && res.account) {
                     showResultSummary(res);
                 } else {
-                    showToast(editing ? "Locataire modifiÃ© avec succÃ¨s." : "Locataire crÃ©Ã© avec succÃ¨s.");
+                    showToast(editing ? "Locataire modifié avec succès." : "Locataire créé avec succès.");
                 }
                 await loadAll();
             } catch (err) {
@@ -641,9 +641,9 @@ function renderLocataires() {
 
             const rows = [
                 ["Nom", escapeHtml(data.nom)],
-                ["Appartement", lg ? `${escapeHtml(lg.nom)}${bien ? ` Â· ${escapeHtml(bien.nom)}` : ""}` : "â€”"],
+                ["Appartement", lg ? `${escapeHtml(lg.nom)}${bien ? ` · ${escapeHtml(bien.nom)}` : ""}` : "—"],
                 ["Loyer", `${loyer.toLocaleString("fr-FR")} FCFA`],
-                ["Ã‰chÃ©ance", data.jour_echeance ? `le ${escapeHtml(data.jour_echeance)} de chaque mois` : "â€”"],
+                ["Échéance", data.jour_echeance ? `le ${escapeHtml(data.jour_echeance)} de chaque mois` : "—"],
                 ["Compte", escapeHtml(res.account.username)],
                 ["Mot de passe initial", escapeHtml(res.account.password)],
             ];
@@ -652,7 +652,7 @@ function renderLocataires() {
                 .join("");
             if (res.echeance && res.echeance.mois) {
                 el("resultSummary").innerHTML +=
-                    `<div class="result-row"><span>Ã‰chÃ©ance crÃ©Ã©e</span><strong>${escapeHtml(res.echeance.mois)}</strong></div>`;
+                    `<div class="result-row"><span>Échéance créée</span><strong>${escapeHtml(res.echeance.mois)}</strong></div>`;
             }
             const creds = el("accountCredentials");
             creds.style.display = "block";
@@ -688,7 +688,7 @@ async function deleteTenant(id) {
                 try {
                     await navigator.clipboard.writeText(creds);
                     const b = el("copyCredentialsBtn");
-                    b.textContent = "Identifiants copiÃ©s âœ“";
+                    b.textContent = "Identifiants copiés ✓";
                     setTimeout(() => (b.textContent = "Copier les identifiants"), 2000);
                 } catch (err) {
                     showToast("Impossible de copier les identifiants.", "error");
