@@ -1786,7 +1786,12 @@ async function init() {
       return;
     }
     setAdminIdentity(user);
-  } catch {
+  } catch (err) {
+    console.warn("[MIM] init: /auth/me en echec", err);
+    if (typeof MIM !== "undefined" && typeof MIM.handleAuthError === "function" && MIM.handleAuthError(err)) return;
+    if (typeof MIM !== "undefined" && typeof MIM.showError === "function") {
+      MIM.showError(MIM.userMessage(err) || "Impossible de vérifier votre session.");
+    }
     return;
   }
 

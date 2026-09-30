@@ -73,6 +73,7 @@
       sessionStorage.setItem(SEEN_KEY, JSON.stringify(ids.slice(0, SEEN_MAX)));
     } catch (e) {
       /* quota dépassé : on perd l'historique des toasts, pas d'impact */
+      console.debug("[MIM] notifications: historique des toasts non sauvegarde", e);
     }
   }
 
@@ -115,6 +116,7 @@
       primed = true;
     } catch (err) {
       /* réseau coupé ou serveur absent : on retentera au prochain tick */
+      console.debug("[MIM] notifications: sonar en echec, nouvel essai au prochain tick", err);
     } finally {
       inFlight = false;
     }

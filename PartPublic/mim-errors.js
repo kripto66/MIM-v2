@@ -225,7 +225,8 @@ MIM.swrClear = function (key) {
   try {
     sessionStorage.removeItem("mim:swr:" + key);
   } catch (err) {
-    /* rien à faire */
+    /* stockage inaccessible ou vol : le cache sera régénéré */
+    console.debug("[MIM] swr: impossible d'invalider le cache", err);
   }
 };
 
@@ -253,8 +254,9 @@ MIM._csrfReady = fetch((MIM.apiHost ? MIM.apiHost() : window.location.origin) + 
   if (!res.ok) return;
   const data = await res.json();
   MIM._csrfToken = typeof data.csrfToken === "string" ? data.csrfToken : "";
-}).catch(function () {
+}).catch(function (err) {
   /* jeton CSRF indisponible : on continue avec un jeton vide */
+  console.warn("[MIM] csrf: recuperation du jeton impossible", err);
 });
 /* Cache de rendu « stale-while-revalidate » (changements de page).
  * Au retour sur un dashboard, on peint immédiatement les dernières données
@@ -299,6 +301,7 @@ MIM.swr = function (key, load, paint) {
             if (payload.length < 1000000) sessionStorage.setItem(storageKey, payload);
           } catch (err) {
             /* quota dépassé : on continue sans cache */
+            console.debug("[MIM] swr: ecriture du cache impossible", err);
           }
           paint(fresh);
           return fresh;
@@ -315,7 +318,8 @@ MIM.swr = function (key, load, paint) {
       try {
         sessionStorage.removeItem(storageKey);
       } catch (err) {
-        /* rien à faire */
+        /* stockage inaccessible : rien à nettoyer côté client */
+        console.debug("[MIM] swr: effacement du cache impossible", err);
       }
     },
   };

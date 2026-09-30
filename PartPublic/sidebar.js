@@ -158,11 +158,13 @@
       try {
         var abs = new URL(ref, pageUrl);
         if (abs.origin !== window.location.origin) continue;
-        fetch(abs.href, { credentials: 'include', cache: 'force-cache' }).catch(function () {
+        fetch(abs.href, { credentials: 'include', cache: 'force-cache' }).catch(function (err) {
           /* asset injoignable : la navigation le demandera */
+          console.debug('[MIM] prefetch: asset en echec', abs.href, err);
         });
       } catch (e) {
         /* URL invalide : on ignore */
+        console.debug('[MIM] prefetch: href invalide', ref, e);
       }
     }
   }

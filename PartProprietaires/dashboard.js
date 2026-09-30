@@ -751,5 +751,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  Onboarding.maybeShow().catch(function () { /* assistant facultatif */ });
+    Onboarding.maybeShow().catch(function (err) {
+      /* assistant facultatif : la page reste utilisable sans lui */
+      console.warn("[MIM] onboarding: affichage impossible", err);
+    });
 });

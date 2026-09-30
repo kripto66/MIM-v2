@@ -31,6 +31,7 @@
         sessionStorage.setItem(KEY, JSON.stringify(current));
       } catch (e) {
         /* stockage indisponible : on continue sans persistance */
+        console.debug("[MIM] mode2: sessionStorage non ecritable", e);
       }
     }
   } else {
@@ -44,6 +45,7 @@
       }
     } catch (e) {
       /* sessionStorage indisponible */
+      console.debug("[MIM] mode2: sessionStorage illisible", e);
     }
   }
 

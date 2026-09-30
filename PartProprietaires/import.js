@@ -456,6 +456,7 @@ async function runImport() {
       }
     } catch (err) {
       // Polling transitoire (pas encore de run) : on attend le POST.
+      console.debug("[MIM] import: avancement indisponible", err);
     }
   }, 400);
 

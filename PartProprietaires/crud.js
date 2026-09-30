@@ -182,7 +182,9 @@ const CrudPage = {
         try {
           await apiRequest("/auth/logout", { method: "POST" });
         } catch (err) {
-          /* on déconnecte quand même */
+          /* on déconnecte quand même : la session côté serveur peut rester
+             ouverte, d'où le trace pour le diagnostic. */
+          console.warn("[MIM] logout: appel /auth/logout en echec", err);
         }
         window.location.href = "/PartPublic/connexion.html";
       });

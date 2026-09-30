@@ -10,8 +10,9 @@ function mimApiBase() {
   // formulaire recharge la page au lieu d'appeler l'API.
   try {
     if (typeof API !== 'undefined') return API;
-  } catch {
-    /* API en TDZ : on calcule la base ci-dessous */
+  } catch (err) {
+    /* API en TDZ : on calcule la base ci-dessous (trace pour le dev) */
+    console.debug('[MIM] apiBase: API en TDZ, base par defaut', err);
   }
   const host = (window.MIM && MIM.apiHost) ? MIM.apiHost() : 'http://localhost:3000';
   return host + '/api';

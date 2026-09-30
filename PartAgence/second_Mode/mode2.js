@@ -61,6 +61,7 @@
       try {
         url = new URL(href, window.location.origin);
       } catch (e) {
+        console.debug("[MIM] mode2: lien de navigation invalide", href, e);
         return;
       }
       if (url.origin !== window.location.origin || url.pathname.indexOf("/PartAgence/second_Mode/") !== 0) return;
@@ -120,6 +121,7 @@
         setBienLabels();
         render("Bien géré : " + nom + (prop ? " · " + prop : ""));
       } catch (e) {
+        console.warn("[MIM] mode2: contexte du bien indisponible", e);
         render("Bien géré : " + (bien.nom || "Bien #" + bien.id));
       }
     })();

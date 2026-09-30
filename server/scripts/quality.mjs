@@ -633,6 +633,68 @@ async function checkEncoding() {
   return errors;
 }
 
+// ---------------------------------------------------------------------
+// Dette D8 : un catch entièrement silencieux (corps réduit à des
+// commentaires) masque les pannes. Chaque échec doit au minimum tracer
+// en console (console.warn pour un échec réel, console.debug pour une
+// condition d'environnement attendue : stockage absent, réseau coupé…),
+// et signaler l'erreur à l'utilisateur quand l'action lui appartient.
+// ---------------------------------------------------------------------
+const CATCH_OPEN = /catch\s*(?:\([^)]*\))?\s*\{/g;
+
+function silentCatchLines(content) {
+  const lines = [];
+  CATCH_OPEN.lastIndex = 0;
+  let match;
+  while ((match = CATCH_OPEN.exec(content))) {
+    let i = match.index + match[0].length;
+    let depth = 1;
+    while (i < content.length && depth > 0) {
+      const c = content[i];
+      if (c === "'" || c === '"') {
+        i++;
+        while (i < content.length && content[i] !== c) {
+          if (content[i] === '\\') i++;
+          i++;
+        }
+      } else if (c === '`') {
+        i++;
+        while (i < content.length && content[i] !== '`') {
+          if (content[i] === '\\') i++;
+          i++;
+        }
+      } else if (c === '/' && content[i + 1] === '/') {
+        while (i < content.length && content[i] !== '\n') i++;
+      } else if (c === '{') depth++;
+      else if (c === '}') depth--;
+      i++;
+    }
+    const body = content.slice(match.index + match[0].length, i - 1);
+    const stripped = body
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/[^\n]*/g, '')
+      .trim();
+    if (!stripped) lines.push(lineOf(content, match.index));
+  }
+  return lines;
+}
+
+async function checkSilentCatches() {
+  const errors = [];
+  for (const file of await collectFrontFiles()) {
+    const content = await readIfPresent(file);
+    if (!content) continue;
+    const lines = silentCatchLines(content);
+    if (lines.length) {
+      errors.push(
+        `${relative(file)} (l.${lines.join(', l.')}) : catch silencieux — `
+        + 'trace console obligatoire (console.warn / console.debug), message utilisateur si l\'action appartient à l\'utilisateur (dette D8).',
+      );
+    }
+  }
+  return errors;
+}
+
 async function runGuards(files) {
   const htmlFiles = await collectFrontFiles();
   const scanned = [...new Set([...files, ...htmlFiles])];
@@ -648,6 +710,7 @@ async function runGuards(files) {
   errors.push(...await checkDuplicateIds());
   errors.push(...await checkViewport());
   errors.push(...await checkEncoding());
+  errors.push(...await checkSilentCatches());
   return errors;
 }
 
@@ -667,4 +730,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log(`${mode}: ${files.length} fichiers JavaScript vérifiés${mode === 'lint' ? ' + contrôles de garde (migrations, XSS, innerHTML, schéma de référence, démarrage, configuration, helpers chargés, doublons d\'id, viewport, encodage)' : ''}`);
+console.log(`${mode}: ${files.length} fichiers JavaScript vérifiés${mode === 'lint' ? ' + contrôles de garde (migrations, XSS, innerHTML, schéma de référence, démarrage, configuration, helpers chargés, doublons d\'id, viewport, encodage, catch silencieux)' : ''}`);

@@ -25,8 +25,9 @@ const Onboarding = (() => {
   function dismiss() {
     try {
       localStorage.setItem(LS_KEY, "1");
-    } catch {
-      /* stockage indisponible */
+    } catch (err) {
+      /* stockage indisponible : l'assistant reviendra à la prochaine visite */
+      console.debug("[MIM] onboarding: choix non mémorisé", err);
     }
   }
 

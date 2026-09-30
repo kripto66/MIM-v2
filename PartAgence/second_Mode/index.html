@@ -19,7 +19,10 @@
                         var obj = JSON.parse(saved);
                         if (obj && obj.id) id = obj.id;
                     }
-                } catch (e) { /* ignore */ }
+                } catch (e) {
+                    /* sessionStorage corrompu : on part sans bien mémorisé */
+                    console.debug("[MIM] mode2: sessionStorage illisible", e);
+                }
             }
             if (id) {
                 location.replace("/PartAgence/second_Mode/bien.html?bien=" + encodeURIComponent(id));

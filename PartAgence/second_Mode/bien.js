@@ -55,6 +55,7 @@ function exposeMode2Links() {
     try {
       url = new URL(href, window.location.origin);
     } catch (e) {
+      console.debug("[MIM] mode2: lien de navigation invalide", href, e);
       return;
     }
     if (url.origin !== window.location.origin || url.pathname.indexOf("/PartAgence/second_Mode/") !== 0) return;
