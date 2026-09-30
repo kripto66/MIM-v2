@@ -1,4 +1,5 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -445,16 +446,29 @@ async function checkSchemaDump() {
 
 // ---------------------------------------------------------------------
 // Dette D6 : définition vs chargement des helpers partagés.
-// Une page qui appelle un helper défini dans PartPublic/mim-ui.js ou
-// PartPublic/mim-errors.js doit charger ce fichier : sinon la page
-// s'ouvre puis lève une ReferenceError au premier appel (bug critique
-// du 27/09 et bug B1 du 29/09 relevés par l'audit frontend).
+// Une page qui appelle un helper défini dans un script partagé de
+// PartPublic doit charger ce fichier : sinon la page s'ouvre puis lève
+// une ReferenceError au premier appel (bug critique du 27/09 et bug B1
+// du 29/09 relevés par l'audit frontend).
+// Les appels protégés par `typeof x === 'function'` (sidebar.js et son
+// mimApiBase) sont ignorés : la dépendance y est explicite et sans risque.
 // ---------------------------------------------------------------------
 const SHARED_HELPER_FILES = [
-  ['PartPublic/mim-ui.js', 'mim-ui.js'],
-  ['PartPublic/mim-errors.js', 'mim-errors.js'],
+  'PartPublic/mim-ui.js',
+  'PartPublic/mim-errors.js',
+  'PartPublic/form-utils.js',
+  'PartPublic/sidebar.js',
+  'PartPublic/dash-fx.js',
+  'PartPublic/password-strength.js',
+  'PartPublic/mim-poll.js',
+  'PartPublic/footer.js',
 ];
-const TOP_LEVEL_FUNCTION = /(?:^|\n)\s*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g;
+// Toute déclaration `function` (mim-ui.js est enveloppé dans une IIFE et
+// indenté), mais `const`/`let`/`var` seulement en colonne 0 : un
+// `var res = await fetch(...)` imbriqué n'est pas un helper global.
+const ANY_FUNCTION_DECL = /(?:^|\n)\s*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g;
+const TOP_LEVEL_BINDING = /^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/gm;
+const TOP_LEVEL_MEMBER = /^(?:window|globalThis|self|MIM|MIMUI|CrudPage|Onboarding)\.([A-Za-z_$][\w$]*)\s*=/gm;
 const SCRIPT_SRC = /<script[^>]+src="([^"]+)"/g;
 const SCRIPT_INLINE = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
 const DEFINED_FUNCTIONS = /function\s+([A-Za-z_$][\w$]*)\s*\(/g;
@@ -464,7 +478,13 @@ const CALLED = /(?<![.\w$'"`])([A-Za-z_$][\w$]*)\s*\(/g;
 
 function resolveFrontRef(specifier, directory) {
   if (specifier.startsWith('../')) return path.join(root, specifier.slice(3));
-  if (specifier.startsWith('/')) return path.join(root, specifier.slice(1));
+  if (specifier.startsWith('/')) {
+    // PartPublic est monté à la racine de l'express.static (app.js) : les
+    // pages demandent /mim-errors.js autant que /PartPublic/mim-ui.js.
+    const direct = path.join(root, specifier.slice(1));
+    if (existsSync(direct)) return direct;
+    return path.join(root, 'PartPublic', specifier.slice(1));
+  }
   return path.join(directory, specifier);
 }
 
@@ -479,15 +499,17 @@ async function readIfPresent(file) {
 async function checkHelperLoading() {
   const errors = [];
   const shared = new Map();
-  for (const [rel, scriptName] of SHARED_HELPER_FILES) {
+  for (const rel of SHARED_HELPER_FILES) {
     const content = await readIfPresent(path.join(root, rel));
     if (!content) {
       errors.push(`${rel}: absent — les helpers partagés doivent rester chargés par toutes les pages.`);
       continue;
     }
     const names = new Set();
-    for (const match of content.matchAll(TOP_LEVEL_FUNCTION)) names.add(match[1]);
-    shared.set(scriptName, { home: rel, names });
+    for (const pattern of [ANY_FUNCTION_DECL, TOP_LEVEL_BINDING, TOP_LEVEL_MEMBER]) {
+      for (const match of content.matchAll(pattern)) names.add(match[1]);
+    }
+    shared.set(path.basename(rel), { home: rel, names });
   }
   for (const page of await collectPages()) {
     const html = await readIfPresent(page);
@@ -499,19 +521,29 @@ async function checkHelperLoading() {
     for (const match of html.matchAll(SCRIPT_INLINE)) inline.push(match[1]);
     const loadedNames = new Set(loaded.map((specifier) => path.basename(specifier)));
 
-    let source = inline.join('\n');
+    const sources = [];
+    for (const text of inline) sources.push(text);
     for (const specifier of loaded) {
       const file = resolveFrontRef(specifier, directory);
       const content = file.endsWith('.js') ? await readIfPresent(file) : null;
-      if (content) source += `\n${content}`;
+      if (content) sources.push(content);
     }
+    const source = sources.join('\n');
 
     const defined = new Set();
     for (const pattern of [DEFINED_FUNCTIONS, DEFINED_CONST, DEFINED_MEMBERS]) {
       for (const match of source.matchAll(pattern)) defined.add(match[1]);
     }
+
     const called = new Set();
-    for (const match of source.matchAll(CALLED)) called.add(match[1]);
+    CALLED.lastIndex = 0;
+    let match;
+    while ((match = CALLED.exec(source)) !== null) {
+      const name = match[1];
+      const before = source.slice(Math.max(0, match.index - 120), match.index);
+      if (new RegExp(`typeof\\s+${name}\\s*===`).test(before)) continue; // garde typeof explicite
+      called.add(name);
+    }
 
     for (const [scriptName, { home, names }] of shared) {
       if (loadedNames.has(scriptName)) continue;
@@ -519,7 +551,7 @@ async function checkHelperLoading() {
       if (missing.length) {
         errors.push(
           `${relative(page)}: appelle ${missing.join(', ')} (defini dans ${home}) sans charger `
-          + `<script src="/${scriptName}"> — ReferenceError au premier appel (audit frontend D6).`,
+          + `<script src="/${home}"> — ReferenceError au premier appel (audit frontend D6).`,
         );
       }
     }
