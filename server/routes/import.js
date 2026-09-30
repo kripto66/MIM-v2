@@ -191,6 +191,9 @@ router.post('/preview', async (req, res) => {
   }
 
   try {
+    // M-03 : même checksum que /execute — il relie l'aperçu à
+    // l'exécution et permet de retrouver les usernames réservés.
+    const sourceChecksum = crypto.createHash('sha256').update(JSON.stringify({ categories, files })).digest('hex');
     let payload = { categories, files };
     if (mode === 'grouped') {
       payload = expandGroupedPayload(req.body, fileContent);
@@ -198,7 +201,7 @@ router.post('/preview', async (req, res) => {
         return res.status(400).json({ success: false, message: payload.error });
       }
     }
-    const result = await prepareImport(sb, ownerId, { ...payload, duplicatePolicy, fileContent });
+    const result = await prepareImport(sb, ownerId, { ...payload, duplicatePolicy, fileContent, sourceChecksum });
     if (result.error) {
       return res.status(400).json({ success: false, message: result.error });
     }
@@ -261,7 +264,7 @@ router.post('/execute', async (req, res) => {
     }
 
     try {
-      const result = await executeImport(sb, ownerId, { ...payload, duplicatePolicy, fileContent }, {
+      const result = await executeImport(sb, ownerId, { ...payload, duplicatePolicy, fileContent, sourceChecksum }, {
         onProgress: (done, total) => {
           run.done = done;
            run.total = total;

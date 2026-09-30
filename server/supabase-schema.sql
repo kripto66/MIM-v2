@@ -1013,6 +1013,21 @@ ALTER SEQUENCE public.featured_items_id_seq OWNED BY public.featured_items.id;
 
 
 --
+-- Name: import_drafts; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.import_drafts (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    source_checksum text NOT NULL,
+    usernames jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.import_drafts OWNER TO postgres;
+
+--
 -- Name: import_run_rows; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -2313,6 +2328,22 @@ ALTER TABLE ONLY public.featured_items
 
 
 --
+-- Name: import_drafts import_drafts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.import_drafts
+    ADD CONSTRAINT import_drafts_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: import_drafts import_drafts_user_checksum_uq; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.import_drafts
+    ADD CONSTRAINT import_drafts_user_checksum_uq UNIQUE (user_id, source_checksum);
+
+
+--
 -- Name: import_run_rows import_run_rows_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -2750,6 +2781,13 @@ CREATE INDEX idx_platform_events_date ON public.platform_events USING btree (eve
 --
 
 CREATE INDEX idx_platform_events_status ON public.platform_events USING btree (status);
+
+
+--
+-- Name: import_drafts_created_at_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX import_drafts_created_at_idx ON public.import_drafts USING btree (created_at);
 
 
 --
@@ -3975,6 +4013,12 @@ ALTER TABLE public.employes_biens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.featured_items ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: import_drafts; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.import_drafts ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: import_run_rows; Type: ROW SECURITY; Schema: public; Owner: postgres
 --
 
@@ -4663,6 +4707,13 @@ GRANT ALL ON TABLE public.featured_items TO service_role;
 --
 
 GRANT ALL ON SEQUENCE public.featured_items_id_seq TO service_role;
+
+
+--
+-- Name: TABLE import_drafts; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.import_drafts TO service_role;
 
 
 --

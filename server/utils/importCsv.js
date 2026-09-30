@@ -253,8 +253,27 @@ const CATEGORY_DEFS = {
 // Préparation : validation + doublons + aperçu (aucune écriture)
 // ------------------------------------------------------------
 
+// M-03 : durée de vie d'un draft d'aperçu (usernames réservés).
+const DRAFT_TTL_MS = 24 * 60 * 60 * 1000;
+
+// M-03 : consomme le username réservé à l'aperçu s'il est toujours
+// syntaxiquement valide, inutilisé dans ce lot ET libre en base ;
+// sinon null (le générateur classique prend le relais). Un compte
+// créé entre-temps entre le draft et l'exécution ne doit jamais être
+// doublonné.
+async function consumeReservedUsername(sb, reserved, seenUsernames) {
+  if (!reserved || seenUsernames.has(reserved)) return null;
+  if (!usernameIsValid(reserved)) return null;
+  const { data } = await sb.from('profiles').select('id').eq('username', reserved).maybeSingle();
+  if (data) return null;
+  // Pas d'ajout au set ici : c'est le bloc appelant qui fait
+  // seenUsernames.add(final) après sa boucle de suffixage (un ajout
+  // ici ferait suffixer le nom réservé en « ...2 »).
+  return reserved;
+}
+
 export async function prepareImport(sb, ownerId, payload) {
-  const { categories = [], files = {}, duplicatePolicy = 'ignore', fileContent } = payload || {};
+  const { categories = [], files = {}, duplicatePolicy = 'ignore', fileContent, sourceChecksum } = payload || {};
 
   const contentOf = fileContent || ((f) => String(f?.content || ''));
   const isCsvEmpty = (f) => !String(contentOf(f) || '').trim();
@@ -269,6 +288,31 @@ export async function prepareImport(sb, ownerId, payload) {
     const file = files[cat];
     if (!file || isCsvEmpty(file)) {
       return { error: `Le fichier de la catégorie « ${CATEGORY_DEFS[cat].label} » est vide ou manquant.` };
+    }
+  }
+
+  // ---- Draft d'aperçu (M-03) : les usernames réservés lors du
+  // précédent passage (même checksum de fichiers) sont réutilisés, ce
+  // qui rend l'exécution cohérente avec ce que l'utilisateur a vu.
+  // Best-effort : une table absente ne doit pas bloquer l'import.
+  let draftUsernames = null;
+  let previewId = null;
+  if (sourceChecksum) {
+    const purge = await sb
+      .from('import_drafts')
+      .delete()
+      .lt('created_at', new Date(Date.now() - DRAFT_TTL_MS).toISOString());
+    if (purge.error) console.warn('[import/draft] purge :', purge.error.message);
+    const { data, error } = await sb
+      .from('import_drafts')
+      .select('id, usernames')
+      .eq('user_id', ownerId)
+      .eq('source_checksum', sourceChecksum)
+      .maybeSingle();
+    if (error) console.warn('[import/draft] lecture :', error.message);
+    else if (data) {
+      draftUsernames = data.usernames || {};
+      previewId = data.id;
     }
   }
 
@@ -374,9 +418,9 @@ export async function prepareImport(sb, ownerId, payload) {
       } else if (cat === 'logements') {
         await prepareLogement(sb, ownerId, report, { line, v, seenUsernames, bienNoms, logementKeys, batch });
       } else if (cat === 'locataires') {
-        generated = await prepareLocataire(sb, ownerId, report, { line, v, seenUsernames, bienNoms, logementKeys, batch, locataireKeys });
+        generated = await prepareLocataire(sb, ownerId, report, { line, v, seenUsernames, bienNoms, logementKeys, batch, locataireKeys, reserved: draftUsernames?.[cat] });
       } else if (cat === 'employes') {
-        generated = await prepareEmploye(sb, ownerId, report, { line, v, seenUsernames, bienNoms, employeNoms, batch });
+        generated = await prepareEmploye(sb, ownerId, report, { line, v, seenUsernames, bienNoms, employeNoms, batch, reserved: draftUsernames?.[cat] });
       }
 
       if (generated) {
@@ -409,11 +453,40 @@ export async function prepareImport(sb, ownerId, payload) {
     { total: 0, ok: 0, errors: 0, duplicates: 0 }
   );
 
+  // ---- Persistance du draft (M-03) : les usernames réellement
+  // affichés (réservés réutilisés + nouveaux) sont écrits pour que
+  // l'exécution crée exactement ces identifiants. Aucun draft si ce
+  // lot ne crée aucun compte.
+  if (sourceChecksum) {
+    const usernames = {};
+    for (const rep of categoryReports) {
+      if (rep.category !== 'locataires' && rep.category !== 'employes') continue;
+      for (const acc of rep.accounts) {
+        if (!acc?.username) continue;
+        usernames[rep.category] = usernames[rep.category] || {};
+        usernames[rep.category][String(acc.line)] = acc.username;
+      }
+    }
+    if (Object.keys(usernames).length) {
+      const { data, error } = await sb
+        .from('import_drafts')
+        .upsert(
+          { user_id: ownerId, source_checksum: sourceChecksum, usernames },
+          { onConflict: 'user_id,source_checksum' },
+        )
+        .select('id')
+        .single();
+      if (error) console.warn('[import/draft] écriture :', error.message);
+      else previewId = data.id;
+    }
+  }
+
   return {
     ready: totals.errors === 0,
     totals,
     duplicatePolicy,
     categories: categoryReports,
+    previewId,
   };
 }
 
@@ -568,7 +641,7 @@ async function prepareLogement(sb, ownerId, report, ctx) {
 }
 
 async function prepareLocataire(sb, ownerId, report, ctx) {
-  const { line, v, seenUsernames, bienNoms, logementKeys, batch, locataireKeys } = ctx;
+  const { line, v, seenUsernames, bienNoms, logementKeys, batch, locataireKeys, reserved } = ctx;
 
   if (report.errors.some((e) => e.line === 0)) return;
 
@@ -681,7 +754,11 @@ async function prepareLocataire(sb, ownerId, report, ctx) {
   if (logementKey) locataireKeys.add(`${logementKey}|${nom.toLowerCase()}`);
 
   // Username généré (visible dans l'aperçu, créé à l'exécution).
-  const username = await uniqueUsername(sb, prenom, nom);
+  // M-03 : le nom réservé lors du précédent passage (mêmes fichiers)
+  // est réutilisé s'il est toujours libre — l'aperçu et l'exécution
+  // doivent afficher les mêmes identifiants.
+  const username = (await consumeReservedUsername(sb, reserved?.[String(line)], seenUsernames))
+    || await uniqueUsername(sb, prenom, nom);
   let final = username;
   let n = 2;
   while (seenUsernames.has(final)) {
@@ -693,7 +770,7 @@ async function prepareLocataire(sb, ownerId, report, ctx) {
 }
 
 async function prepareEmploye(sb, ownerId, report, ctx) {
-  const { line, v, seenUsernames, bienNoms, employeNoms, batch } = ctx;
+  const { line, v, seenUsernames, bienNoms, employeNoms, batch, reserved } = ctx;
 
   if (report.errors.some((e) => e.line === 0)) return;
 
@@ -767,7 +844,9 @@ async function prepareEmploye(sb, ownerId, report, ctx) {
   }
   employeNoms.add(key);
 
-  const username = await uniqueUsername(sb, prenom, nom);
+  // M-03 : identique au locataire, le nom réservé à l'aperçu prime.
+  const username = (await consumeReservedUsername(sb, reserved?.[String(line)], seenUsernames))
+    || await uniqueUsername(sb, prenom, nom);
   let final = username;
   let n = 2;
   while (seenUsernames.has(final)) {
@@ -827,6 +906,19 @@ export async function executeImport(sb, ownerId, payload, opts = {}) {
   const logementCache = new Map(); // `${bienNom}|${logementNom}` -> {id, nom, loyer_mensuel}
   const usernameSet = new Set();
 
+  // M-03 : les usernames retenus pendant la préparation (draft
+  // réutilisé ou générés) sont CEUX créés ici — l'aperçu affiqué ne
+  // doit jamais différer du rapport final.
+  const reservedByCategory = {};
+  for (const catReport of prepared.categories) {
+    if (catReport.category !== 'locataires' && catReport.category !== 'employes') continue;
+    for (const acc of catReport.accounts) {
+      if (!acc?.username) continue;
+      reservedByCategory[catReport.category] = reservedByCategory[catReport.category] || {};
+      reservedByCategory[catReport.category][String(acc.line)] = acc.username;
+    }
+  }
+
   // --- Progression réelle : les lignes sont traitées en lots et
   // l'event loop est libérée régulièrement (setImmediate) pour que
   // le polling GET /api/import/progress/:runId puisse répondre. ---
@@ -869,9 +961,9 @@ export async function executeImport(sb, ownerId, payload, opts = {}) {
         } else if (cat === 'logements') {
           await importLogement(sb, ownerId, { line, v, result, duplicatePolicy, bienCache, logementCache });
         } else if (cat === 'locataires') {
-          await importLocataire(sb, ownerId, { line, v, result, duplicatePolicy, logementCache, bienCache, usernameSet });
+          await importLocataire(sb, ownerId, { line, v, result, duplicatePolicy, logementCache, bienCache, usernameSet, reserved: reservedByCategory.locataires });
         } else if (cat === 'employes') {
-          await importEmploye(sb, ownerId, { line, v, result, duplicatePolicy, usernameSet, bienCache });
+          await importEmploye(sb, ownerId, { line, v, result, duplicatePolicy, usernameSet, bienCache, reserved: reservedByCategory.employes });
         }
       } catch (err) {
         console.error(`[import/${cat}] ligne ${line} :`, err.message);
@@ -1138,7 +1230,7 @@ async function resolveLogement(sb, ownerId, { v, bienCache, logementCache }) {
 }
 
 async function importLocataire(sb, ownerId, ctx) {
-  const { line, v, result, duplicatePolicy, logementCache, bienCache, usernameSet } = ctx;
+  const { line, v, result, duplicatePolicy, logementCache, bienCache, usernameSet, reserved } = ctx;
 
   const { prenom, nom } = splitFullName(v.nom, v.prenom);
   if (!nom) {
@@ -1230,7 +1322,10 @@ async function importLocataire(sb, ownerId, ctx) {
     return;
   }
 
-  const username = await uniqueUsername(sb, prenom, nom);
+  // M-03 : exactement l'username retenu à l'aperçu (draft) s'il est
+  // toujours libre ; sinon régénération cohérente.
+  const username = (await consumeReservedUsername(sb, reserved?.[String(line)], usernameSet))
+    || await uniqueUsername(sb, prenom, nom);
   let final = username;
   let n = 2;
   while (usernameSet.has(final)) {
@@ -1324,7 +1419,7 @@ async function importLocataire(sb, ownerId, ctx) {
 }
 
 async function importEmploye(sb, ownerId, ctx) {
-  const { line, v, result, duplicatePolicy, usernameSet, bienCache } = ctx;
+  const { line, v, result, duplicatePolicy, usernameSet, bienCache, reserved } = ctx;
 
   const { prenom, nom } = splitFullName(v.nom, v.prenom);
   if (!nom) {
@@ -1406,7 +1501,10 @@ async function importEmploye(sb, ownerId, ctx) {
     }
   }
 
-  const username = await uniqueUsername(sb, prenom, nom);
+  // M-03 : exactement l'username retenu à l'aperçu (draft) s'il est
+  // toujours libre ; sinon régénération cohérente.
+  const username = (await consumeReservedUsername(sb, reserved?.[String(line)], usernameSet))
+    || await uniqueUsername(sb, prenom, nom);
   let final = username;
   let n = 2;
   while (usernameSet.has(final)) {

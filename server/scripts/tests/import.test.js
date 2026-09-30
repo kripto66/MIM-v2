@@ -470,6 +470,81 @@ const text = await res.text();
   });
 
   // ----------------------------------------------------------
+  // M-03 : les usernames affichés à l'aperçu doivent être exactement
+  // ceux créés à l'exécution (draft persisté par checksum).
+  await r.section('M-03 : aperçu et exécution partagent les usernames', async () => {
+    const { data: bien } = await service
+      .from('biens')
+      .select('id')
+      .eq('user_id', ownerId)
+      .ilike('nom', bien1)
+      .maybeSingle();
+    if (!bien) {
+      r.blocked(S, 'M-03 : logement de test', 'bien de la section import introuvable');
+      return;
+    }
+
+    const logNom = `Studio M03-${SUFFIX}`;
+    const lg = await api('/logements', {
+      method: 'POST',
+      jar,
+      body: { bien_id: bien.id, nom: logNom, type: 'chambre', adresse: 'Adresse M03', loyer_mensuel: 70000, statut: 'libre' },
+    });
+    if (lg.status !== 201) {
+      r.fail(S, 'M-03 : logement de test créé', JSON.stringify(lg.data));
+      return;
+    }
+
+    const nomFormule = '=SUM(A1:A2)';
+    const content = csv(LOC_HEADERS, [
+      [nomFormule, 'M03', '', '+22179555555', bien1, logNom, '70000', '25', '', 'actif'],
+    ]);
+    const body = { categories: ['locataires'], files: { locataires: { filename: 'm03.csv', content } } };
+
+    try {
+      const prev = await api('/import/preview', { method: 'POST', jar, body });
+      const previewUsers = prev.data?.categories?.[0]?.accounts?.map((a) => a.username) ?? [];
+      if (prev.status === 200 && prev.data.previewId && previewUsers.length === 1) {
+        r.pass(S, 'aperçu → previewId + 1 username réservé');
+      } else {
+        r.fail(S, 'aperçu → previewId + 1 username réservé', JSON.stringify(prev.data));
+      }
+
+      const exe = await api('/import/execute', { method: 'POST', jar, body });
+      const exeUsers = exe.data?.report?.categories?.[0]?.accounts?.map((a) => a.username) ?? [];
+      if (exe.status === 201 && exeUsers.length === 1 && previewUsers[0] && exeUsers[0] === previewUsers[0]) {
+        r.pass(S, 'exécution → même username que l\'aperçu');
+      } else {
+        r.fail(S, 'exécution → même username que l\'aperçu',
+          `aperçu=${JSON.stringify(previewUsers)} exécution=${JSON.stringify(exeUsers)} statut=${exe.status}`);
+      }
+
+      // Nom de formule : importé intact (aucune interprétation côté
+      // serveur ; l'échappement à l'export relève de csvCell côté client).
+      const { data: fiche } = await service
+        .from('locataires')
+        .select('nom, username')
+        .eq('user_id', ownerId)
+        .ilike('nom', nomFormule)
+        .maybeSingle();
+      if (fiche?.nom === nomFormule && fiche.username === previewUsers[0]) {
+        r.pass(S, 'nom de formule importé intact, compte rattaché au même username');
+      } else {
+        r.fail(S, 'nom de formule importé intact, compte rattaché au même username', JSON.stringify(fiche));
+      }
+    } finally {
+      const { data: fiche } = await service
+        .from('locataires')
+        .select('id')
+        .eq('user_id', ownerId)
+        .ilike('nom', '=SUM(A1:A2)')
+        .maybeSingle();
+      if (fiche) await api(`/locataires/${fiche.id}`, { method: 'DELETE', jar });
+      await api(`/logements/${lg.data.data.id}`, { method: 'DELETE', jar });
+    }
+  });
+
+  // ----------------------------------------------------------
   await r.section('sécurité : isolation entre propriétaires', async () => {
     // Un second propriétaire ne peut PAS référencer les biens/logements du premier.
     const otherEmail = `importother${SUFFIX}@mimtest.com`;
