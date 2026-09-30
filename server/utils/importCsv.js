@@ -23,6 +23,7 @@ import { tenantEmailFor, usernameIsValid, uniqueUsername, generateInitialPasswor
 import { notify } from './notifications.js';
 import { enforceImmeublesLimit, enforceLogementsLimit, enforceLocatairesLimit, enforceEmployesLimit } from './subscription.js';
 import { reserveQuota, consumeQuota, releaseQuota } from './quota.js';
+import { creerEcheanceInitiale } from './echeances.js';
 
 // Ré-export de compatibilité (la logique vit désormais dans tenantAccount.js).
 export { uniqueUsername };
@@ -1269,7 +1270,7 @@ async function importLocataire(sb, ownerId, ctx) {
     return;
   }
 
-  const { error: insertError } = await sb.from('locataires').insert({
+  const { data: insertedLocataire, error: insertError } = await sb.from('locataires').insert({
     user_id: ownerId,
     account_uid: accountUid,
     username: final,
@@ -1281,13 +1282,33 @@ async function importLocataire(sb, ownerId, ctx) {
     date_entree: v.dateentree || null,
     jour_echeance: jour,
     statut,
-  });
+  }).select('id').single();
 
   if (insertError) {
     await releaseQuota(sb, reservation.id, ownerId).catch(() => {});
     await sb.auth.admin.deleteUser(accountUid).catch(() => {});
     result.rowErrors.push({ line, message: `Création impossible : ${insertError.message}` });
     return;
+  }
+
+  // H-11 : échéance initiale du mois courant, à l'identique de la
+  // création par formulaire (sinon le locataire importé n'apparaît
+  // dans aucun loyer). Échec = erreur de ligne + compensation.
+  if (logementId && loyerLogement != null) {
+    const echeance = await creerEcheanceInitiale(sb, {
+      userId: ownerId,
+      locataireId: insertedLocataire.id,
+      logementId,
+      montant: loyerLogement,
+      dateEntree: v.dateentree || null,
+    });
+    if (echeance.error) {
+      await releaseQuota(sb, reservation.id, ownerId).catch(() => {});
+      await sb.from('locataires').delete().eq('id', insertedLocataire.id).eq('user_id', ownerId);
+      await sb.auth.admin.deleteUser(accountUid).catch(() => {});
+      result.rowErrors.push({ line, message: `Impossible de créer l'échéance du loyer : ${echeance.error}` });
+      return;
+    }
   }
 
   await consumeQuota(sb, reservation.id, ownerId);

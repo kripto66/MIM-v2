@@ -277,6 +277,19 @@ const text = await res.text();
       r.fail(S, 'fiche locataire créée avec compte + logement', JSON.stringify(fiche));
     }
 
+    // H-11 : l'import crée l'échéance initiale, au même titre que la
+    // création par formulaire (loyer du logement importé : 150 000).
+    const { data: echeances } = await service
+      .from('paiements')
+      .select('id, montant, statut, logement_id')
+      .eq('user_id', ownerId)
+      .eq('locataire_id', fiche?.id ?? -1);
+    if (echeances?.length === 1 && echeances[0].statut === 'attente' && Number(echeances[0].montant) === 150000) {
+      r.pass(S, 'échéance initiale créée pour le locataire importé (150 000 XOF)');
+    } else {
+      r.fail(S, 'échéance initiale créée pour le locataire importé (150 000 XOF)', JSON.stringify(echeances));
+    }
+
     // Le profil auth du locataire : must_change_password = true, mot de passe initial.
     if (fiche?.account_uid) {
       const { data: profile } = await service

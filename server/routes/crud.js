@@ -410,7 +410,12 @@ export function createCrudRouter(tableName) {
         logementId: id,
         montant: clean.loyer_mensuel,
       });
-      if (synced.error) console.warn('[updateLogement] échéances ouvertes :', synced.error);
+      if (synced.error) {
+        // H-11 : ne jamais annoncer un succès partiel — le
+        // propriétaire doit savoir que les échéances n'ont pas suivi.
+        console.warn('[updateLogement] échéances ouvertes :', synced.error);
+        return { data, syncError: synced.error };
+      }
     }
 
     return { data };
@@ -1032,6 +1037,9 @@ if (createdLogementId) {
     } else if (logementUpdate) {
       const admin = serviceClient();
       const updated = await updateLogementForOwner(admin, userId(req), logementUpdate);
+      if (updated.syncError) {
+        return res.status(503).json({ success: false, code: 'RENT_SYNC_FAILED', message: 'Le loyer a été modifié, mais les échéances ouvertes n\'ont pas pu être synchronisées.' });
+      }
       if (updated.errors || updated.error) {
         const errors = updated.errors
           ? Object.fromEntries(Object.entries(updated.errors).map(([k, v]) => [`logement_${k}`, v]))
@@ -1139,6 +1147,28 @@ if (createdLogementId) {
         .is('superseded_at', null);
       if (paymentSyncError) {
         return res.status(503).json({ success: false, code: 'PAYMENT_SYNC_FAILED', message: 'Le locataire a été déplacé, mais les échéances ouvertes n\'ont pas pu être synchronisées.' });
+      }
+
+      // H-11 : les échéances ré-attribuées suivent le loyer du
+      // NOUVEAU logement (sans quoi le locataire continuerait de
+      // devoir l'ancien loyer jusqu'à la prochaine échéance).
+      const { data: newLogement } = await serviceClient()
+        .from('logements')
+        .select('loyer_mensuel')
+        .eq('id', body.logement_id)
+        .eq('user_id', userId(req))
+        .maybeSingle();
+      if (!newLogement) {
+        return res.status(503).json({ success: false, code: 'PAYMENT_SYNC_FAILED', message: 'Le locataire a été déplacé, mais le loyer du logement cible est introuvable.' });
+      }
+      if (newLogement.loyer_mensuel != null) {
+        const synced = await syncMontantEcheancesOuvertes(serviceClient(), {
+          logementId: body.logement_id,
+          montant: newLogement.loyer_mensuel,
+        });
+        if (synced.error) {
+          return res.status(503).json({ success: false, code: 'PAYMENT_SYNC_FAILED', message: 'Le locataire a été déplacé, mais le montant des échéances ouvertes n\'a pas pu être synchronisé.' });
+        }
       }
     }
 

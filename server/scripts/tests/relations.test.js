@@ -133,7 +133,7 @@ export async function runRelations(r, ctx) {
     const lg2 = await api('/logements', {
       method: 'POST',
       jar,
-      body: { bien_id: o1.bienId, nom: 'Move L2', type: 'chambre', adresse: 'B', loyer_mensuel: 40000, statut: 'libre' },
+      body: { bien_id: o1.bienId, nom: 'Move L2', type: 'chambre', adresse: 'B', loyer_mensuel: 55000, statut: 'libre' },
     });
     if (!expectSuccess(r, lg1, S, r, [201]) || !expectSuccess(r, lg2, S, r, [201])) return;
     const id1 = lg1.data.data.id;
@@ -148,6 +148,16 @@ export async function runRelations(r, ctx) {
     if (!expectSuccess(r, loc, S, r, [201])) return;
     const locId = loc.data.data.id;
 
+    // Échéance ouverte sur l'ancien logement (40 000) : le déplacement
+    // doit la ré-attribuer ET la resynchroniser au loyer cible (H-11).
+    const pay = await api('/paiements', {
+      method: 'POST',
+      jar,
+      body: { locataire_id: locId, logement_id: id1, montant: 40000, mois: ctx.seed.month, statut: 'attente' },
+    });
+    if (!expectSuccess(r, pay, S, r, [201])) return;
+    const payId = pay.data.data.id;
+
     const upd = await api(`/locataires/${locId}`, { method: 'PUT', jar, body: { logement_id: id2 } });
     if (!expectSuccess(r, upd, S, r)) return;
 
@@ -156,6 +166,18 @@ export async function runRelations(r, ctx) {
     if (s1 === 'libre' && s2 === 'occupe') r.pass(S, 'ancien logement libéré, nouveau occupé');
     else r.fail(S, 'ancien logement libéré, nouveau occupé', `L1=${s1} L2=${s2}`);
 
+    const { data: ech } = await service
+      .from('paiements')
+      .select('logement_id, montant, statut')
+      .eq('id', payId)
+      .maybeSingle();
+    if (ech && Number(ech.logement_id) === Number(id2) && Number(ech.montant) === 55000 && ech.statut === 'attente') {
+      r.pass(S, 'échéance ré-attribuée ET resynchronisée au loyer cible (55 000)');
+    } else {
+      r.fail(S, 'échéance ré-attribuée ET resynchronisée au loyer cible (55 000)', JSON.stringify(ech));
+    }
+
+    await service.from('paiements').delete().eq('id', payId);
     await api(`/locataires/${locId}`, { method: 'DELETE', jar });
     await api(`/logements/${id1}`, { method: 'DELETE', jar });
     await api(`/logements/${id2}`, { method: 'DELETE', jar });
