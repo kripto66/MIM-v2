@@ -21,7 +21,7 @@ import { Router } from 'express';
 import { serviceClient } from '../app.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
-import { tenantEmailFor, usernameIsValid, uniqueUsername, splitFullName, generateInitialPassword, provisionProfile } from '../utils/tenantAccount.js';
+import { tenantEmailFor, usernameIsValid, uniqueUsername, splitFullName, generateInitialPassword, provisionProfile, rollbackCreatedAccount, deleteAuthAccount } from '../utils/tenantAccount.js';
 import { notify, tenantUidOfLocataire, logementNomOf } from '../utils/notifications.js';
 import { creerEcheanceSuivante, creerEcheanceInitiale, currentSimulatedMois } from '../utils/echeances.js';
 import { enforceImmeublesLimit, enforceLogementsLimit, enforceLocatairesLimit } from '../utils/subscription.js';
@@ -686,7 +686,10 @@ router.post('/proprietaires', async (req, res) => {
     try {
       await provisionProfile(sb(), proprietaireId, 'proprietaire', finalUsername, true, email);
     } catch (profileError) {
-      await sb().auth.admin.deleteUser(proprietaireId).catch(() => {});
+      // Même compensation que le lien de gestion : la souscription
+      // d'essai (FK RESTRICT) doit être purgée, sinon deleteUser échoue
+      // et laisse un compte propriétaire orphelin (H-19).
+      await deleteAuthAccount(sb(), proprietaireId, 'proprietaires/provision');
       return res.status(500).json({ success: false, message: 'Impossible de finaliser le compte propriétaire.' });
     }
 
@@ -697,11 +700,16 @@ router.post('/proprietaires', async (req, res) => {
       .single();
 
     if (lienError) {
+      // H-19 : le compte existe mais n'est rattache a aucune agence —
+      // ses identifiants ne seront jamais retournes. On rembourse la
+      // creation (profil + liens cascadeent) plutot que de laisser un
+      // compte Auth orphelin.
+      await rollbackCreatedAccount(sb(), proprietaireId, 'proprietaires/link');
       if (String(lienError.message).includes('duplicate')) {
         return res.status(409).json({ success: false, message: 'Ce propriétaire est déjà géré par votre agence.' });
       }
       console.error('[agence/proprietaires/link]', lienError.message);
-      return res.status(500).json({ success: false, message: 'Le compte a été créé mais le rattachement a échoué. Contactez le support.' });
+      return res.status(500).json({ success: false, message: 'Le rattachement du propriétaire a échoué : le compte créé a été annulé. Réessayez.' });
     }
 
     try {
@@ -727,6 +735,11 @@ router.post('/proprietaires', async (req, res) => {
 
 // Création d'un bien AU NOM d'un propriétaire géré + liaison agence.
 router.post('/proprietaires/:proprietaireId/biens', async (req, res) => {
+  // H-19 : tracés AVANT le try — le catch rembourse le bien déjà créé
+  // et libère la reservation de quota. Jamais de bien cree sans lien de
+  // gestion (invisible au portefeuille), jamais de quota fuit.
+  let createdBienId = null;
+  let reservation = null;
   try {
     const proprietaireId = req.params.proprietaireId;
     const agenceId = req.user.id;
@@ -744,7 +757,7 @@ router.post('/proprietaires/:proprietaireId/biens', async (req, res) => {
 
     const limit = await enforceImmeublesLimit(proprietaireId);
     if (!limit.allowed) return res.status(409).json({ success: false, code: limit.code, message: limit.message });
-    const reservation = await reserveQuota(sb(), proprietaireId, 'biens', limit.max);
+    reservation = await reserveQuota(sb(), proprietaireId, 'biens', limit.max);
     if (!reservation.allowed) return res.status(409).json({ success: false, code: reservation.code, message: reservation.message });
 
     const { data: bien, error } = await sb()
@@ -758,21 +771,32 @@ router.post('/proprietaires/:proprietaireId/biens', async (req, res) => {
       console.error('[agence/proprietaires/biens]', error.message);
       return res.status(500).json({ success: false, message: 'Erreur lors de la création du bien.' });
     }
+    createdBienId = bien.id;
 
     const { error: linkError } = await sb()
       .from('agences_biens')
       .insert({ user_id: agenceId, agence_id: agenceId, proprietaire_id: proprietaireId, bien_id: bien.id, statut: 'actif' });
     if (linkError) {
-      await sb().from('biens').delete().eq('id', bien.id).eq('user_id', proprietaireId);
+      // H-19 : pas de lien -> pas de bien. La suppression en cascade
+      // retire aussi les liaisons partielles, la quota est libérée.
+      await bestEffortDelete(sb().from('biens').delete().eq('id', bien.id).eq('user_id', proprietaireId));
+      createdBienId = null;
       await releaseQuota(sb(), reservation.id, proprietaireId).catch(() => {});
-      return res.status(500).json({ success: false, message: 'Le bien a été créé mais le mandat a échoué.' });
+      console.error('[agence/proprietaires/biens/link]', linkError.message);
+      return res.status(500).json({ success: false, message: 'Le mandat n\'a pas pu être posé : le bien a été annulé. Réessayez.' });
     }
+    createdBienId = null;
     await consumeQuota(sb(), reservation.id, proprietaireId);
 
     gitAutoBackup(`Sauvegarde auto : bien créé par une agence`);
 
     res.status(201).json({ success: true, data: bien, message: 'Bien créé pour le propriétaire et ajouté au portefeuille de l\'agence.' });
   } catch (err) {
+    if (createdBienId) {
+      await bestEffortDelete(sb().from('biens').delete().eq('id', createdBienId).eq('user_id', req.user.id));
+      createdBienId = null;
+    }
+    if (reservation?.id) await releaseQuota(sb(), reservation.id, req.user.id).catch(() => {});
     console.error('[agence/proprietaires/biens]', err.message);
     res.status(500).json({ success: false, message: 'Erreur lors de la création du bien.' });
   }
@@ -1100,6 +1124,11 @@ async function scopedCreate(req, res, table) {
       if (!quotaReservation.allowed) {
         return res.status(409).json({ success: false, code: quotaReservation.code, message: quotaReservation.message });
       }
+      // H-19 : le quota est consomme AVANT l'insertion : une insertion
+      // qui echoue ne laisse alors aucune ligne, et une reservation
+      // consommee sans ligne n'affecte aucun compteur (seules les
+      // reservations « reserved » entrent dans le plafond).
+      await consumeQuota(sb(), quotaReservation.id, proprietaireId);
     }
 
     // Anti-doublon paiement : une seule ligne (locataire, mois). Si une
@@ -1163,7 +1192,6 @@ async function scopedCreate(req, res, table) {
       return res.status(500).json({ success: false, message: 'Erreur lors de la création.' });
     }
 
-    await consumeQuota(sb(), quotaReservation?.id, proprietaireId);
     gitAutoBackup(`Sauvegarde auto : ${req.user.account_type} · création ${table} (bien ${bienId})`);
     res.status(201).json({ success: true, data });
   } catch (err) {
@@ -1187,6 +1215,37 @@ async function scopedCreateTenant(req, res) {
   const admin = sb();
   let logementReservation = null;
   let locataireReservation = null;
+  // H-19 : tout objet créé pendant la requête est tracé ici, pour que
+  // la moindre sortie anormale (dont le catch global) rembourse en
+  // cascade — aucune donnée orpheline.
+  let createdLogementId = null;
+  let createdAccountUid = null;
+  let createdLocataireId = null;
+
+  // Remboursement en cascade, dans l'ordre inverse de création :
+  // échéances -> fiche locataire -> compte Auth -> logement embarqué
+  // -> réservations de quota. Idempotent (chaque étape est sautée si
+  // l'objet n'a pas été créé) et jamais leakant : les réservations déjà
+  // consommées sont ignorées par release_quota et les compteurs ne
+  // tiennent que des lignes réellement présentes.
+  const rollback = async (contexte) => {
+    if (createdLocataireId) {
+      await bestEffortDelete(admin.from('paiements').delete().eq('locataire_id', createdLocataireId));
+      await bestEffortDelete(admin.from('locataires').delete().eq('id', createdLocataireId).eq('user_id', proprietaireId));
+      createdLocataireId = null;
+    }
+    if (createdAccountUid) {
+      await rollbackCreatedAccount(admin, createdAccountUid, contexte);
+      createdAccountUid = null;
+    }
+    if (createdLogementId) {
+      await bestEffortDelete(admin.from('logements').delete().eq('id', createdLogementId).eq('user_id', proprietaireId));
+      createdLogementId = null;
+    }
+    await releaseQuota(admin, logementReservation?.id, proprietaireId).catch(() => {});
+    await releaseQuota(admin, locataireReservation?.id, proprietaireId).catch(() => {});
+  };
+
   try {
     const payload = req.body || {};
 
@@ -1203,7 +1262,6 @@ async function scopedCreateTenant(req, res) {
     const statut = payload.statut || 'actif';
 
     let logementId = logementNew ? null : payload.logement_id || null;
-    let createdLogementId = null;
     let createdLogement = null;
     let logementLoyer = null;
 
@@ -1326,8 +1384,7 @@ async function scopedCreateTenant(req, res) {
     if (statut === 'actif' && logementId) {
       const { data: other } = await admin.from('locataires').select('id').eq('user_id', proprietaireId).eq('logement_id', logementId).eq('statut', 'actif').limit(1);
       if (other?.length) {
-        if (createdLogementId) await bestEffortDelete(admin.from('logements').delete().eq('id', createdLogementId));
-        await releaseQuota(admin, locataireReservation?.id, proprietaireId).catch(() => {});
+        await rollback('tenant:occupied');
         return res.status(400).json({ success: false, message: 'Ce logement est déjà occupé par un autre locataire actif.', errors: { logement_id: 'Ce logement est déjà occupé par un autre locataire actif.' } });
       }
     }
@@ -1348,8 +1405,7 @@ async function scopedCreateTenant(req, res) {
     });
 
     if (createError || !createdUser?.user?.id) {
-      await releaseQuota(admin, locataireReservation?.id, proprietaireId).catch(() => {});
-      if (createdLogementId) await bestEffortDelete(admin.from('logements').delete().eq('id', createdLogementId));
+      await rollback('tenant:createUser');
       const msg = String(createError?.message || '').toLowerCase();
       if (msg.includes('already') || msg.includes('existe')) {
         return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
@@ -1359,12 +1415,12 @@ async function scopedCreateTenant(req, res) {
     }
 
     const accountUid = createdUser.user.id;
+    createdAccountUid = accountUid;
     try {
       await provisionProfile(admin, accountUid, 'locataire', finalUsername, true, email);
     } catch (profileError) {
-      await admin.auth.admin.deleteUser(accountUid).catch(() => {});
-      await releaseQuota(admin, locataireReservation?.id, proprietaireId).catch(() => {});
-      if (createdLogementId) await bestEffortDelete(admin.from('logements').delete().eq('id', createdLogementId));
+      console.error('[agence/tenant:profile]', profileError.message);
+      await rollback('tenant:profile');
       return res.status(500).json({ success: false, message: 'Impossible de finaliser le compte locataire.' });
     }
 
@@ -1387,12 +1443,11 @@ async function scopedCreateTenant(req, res) {
       .single();
 
     if (rowError) {
-      await releaseQuota(admin, locataireReservation?.id, proprietaireId).catch(() => {});
-      if (createdLogementId) await bestEffortDelete(admin.from('logements').delete().eq('id', createdLogementId));
-      await admin.auth.admin.deleteUser(accountUid).catch(() => {});
       console.error('[agence/tenant:insert]', rowError.message);
+      await rollback('tenant:insert');
       return res.status(400).json({ success: false, message: 'Erreur lors de la création du locataire.' });
     }
+    createdLocataireId = row.id;
 
     if (logementId) {
       await admin.from('logements').update({ statut: 'occupe' }).eq('id', logementId).eq('user_id', proprietaireId);
@@ -1408,12 +1463,8 @@ async function scopedCreateTenant(req, res) {
         dateEntree,
       });
       if (echeance.error) {
-        await releaseQuota(admin, locataireReservation?.id, proprietaireId).catch(() => {});
-        await bestEffortDelete(admin.from('paiements').delete().eq('locataire_id', row.id));
-        await bestEffortDelete(admin.from('locataires').delete().eq('id', row.id).eq('user_id', proprietaireId));
-        await admin.auth.admin.deleteUser(accountUid).catch(() => {});
-        if (createdLogementId) await bestEffortDelete(admin.from('logements').delete().eq('id', createdLogementId));
         console.error('[agence/tenant:échéance]', echeance.error);
+        await rollback('tenant:echeance');
         return res.status(400).json({ success: false, message: 'Impossible de créer l\'échéance du loyer. Veuillez réessayer.' });
       }
     }
@@ -1437,8 +1488,9 @@ async function scopedCreateTenant(req, res) {
       echeance: echeance && echeance.created ? { mois: echeance.mois } : null,
     });
   } catch (err) {
-    await releaseQuota(admin, logementReservation?.id, proprietaireId).catch(() => {});
-    await releaseQuota(admin, locataireReservation?.id, proprietaireId).catch(() => {});
+    // H-19 : le catch global rembourse aussi ce qui avait déjà été créé
+    // (avant : logement, compte et fiche survivaient à l'exception).
+    await rollback('tenant');
     console.error('[agence/tenant]', err.message);
     res.status(500).json({ success: false, message: 'Erreur lors de la création du locataire.' });
   }
@@ -1507,6 +1559,20 @@ async function scopedUpdate(req, res, table) {
   // Déclarées avant le try pour être atteignables depuis le catch.
   const { bienId, proprietaireId } = req.scope || {};
   let logementReservation = null;
+  // H-19 : un logement « logement_new » créé pendant la requête doit
+  // être remboursé si la validation principale ou la mise à jour de la
+  // fiche échoue — jamais de logement orphelin. Une fois la fiche
+  // sauvegardée, le logement est référencé : plus de rollback.
+  let createdLogementId = null;
+  let saved = false;
+  const rollbackLogement = async (contexte) => {
+    if (createdLogementId) {
+      await bestEffortDelete(sb().from('logements').delete().eq('id', createdLogementId).eq('user_id', proprietaireId));
+      createdLogementId = null;
+    }
+    await releaseQuota(sb(), logementReservation?.id, proprietaireId).catch(() => {});
+    if (contexte) console.warn(`[agence/update:${table}]`, `rollback du logement créé (${contexte})`);
+  };
   try {
     const id = Number(req.params.id);
     const payload = req.body || {};
@@ -1579,6 +1645,7 @@ async function scopedUpdate(req, res, table) {
           return res.status(400).json({ success: false, message: 'Erreur lors de la création du logement.', errors: { logement: 'Erreur lors de la création du logement.' } });
         }
         await consumeQuota(admin, logementReservation?.id, proprietaireId);
+        createdLogementId = logement.id;
         clean.logement_id = logement.id;
       } else if (payload.logement_update && typeof payload.logement_update === 'object') {
         const targetId = Number(payload.logement_update.id);
@@ -1614,6 +1681,7 @@ async function scopedUpdate(req, res, table) {
       ...(await validateScopedEffectiveRecord(req.scope, table, effective)),
     };
     if (Object.keys(effectiveErrors).length) {
+      await rollbackLogement('validation');
       return res.status(400).json({ success: false, message: 'Données invalides.', errors: effectiveErrors });
     }
 
@@ -1649,8 +1717,10 @@ async function scopedUpdate(req, res, table) {
     const { data, error } = await updateQuery.select().single();
     if (error) {
       console.error(`[agence/update:${table}]`, error.message);
+      await rollbackLogement('save');
       return res.status(500).json({ success: false, message: 'Erreur lors de la modification.' });
     }
+    saved = true;
 
     if (table === 'locataires') {
       const targetLogementId = data.logement_id;
@@ -1697,7 +1767,9 @@ async function scopedUpdate(req, res, table) {
     gitAutoBackup(`Sauvegarde auto : ${req.user.account_type} · modification ${table} (bien ${bienId})`);
     res.json({ success: true, data });
   } catch (err) {
-    await releaseQuota(sb(), logementReservation?.id, proprietaireId).catch(() => {});
+    // H-19 : toute exception postérieure à la création du logement
+    // embarqué le rembourse (avant : il restait orphelin).
+    if (!saved) await rollbackLogement('exception');
     console.error(`[agence/update:${table}]`, err.message);
     res.status(500).json({ success: false, message: 'Erreur lors de la modification.' });
   }
@@ -1734,6 +1806,39 @@ async function scopedDelete(req, res, table) {
       const { data: full } = await sb().from(table).select(cfg.bienColumn).eq('id', id).maybeSingle();
       if (full && Number(full[cfg.bienColumn]) !== Number(bienId)) {
         return res.status(403).json({ success: false, message: 'Hors du bien géré.' });
+      }
+    }
+
+    // H-19 : mêmes invariants de suppression que le CRUD propriétaire —
+    // un logement porteur d'un historique (locataire ou paiement) n'est
+    // jamais supprimé, sous peine de fiche locataire sans logement ni
+    // d'historique financier orphelin.
+    if (table === 'logements') {
+      const { data: ref } = await sb()
+        .from('locataires')
+        .select('id')
+        .eq('logement_id', id)
+        .limit(1)
+        .maybeSingle();
+      if (ref) {
+        return res.status(409).json({
+          success: false,
+          code: 'TENANT_HISTORY_PRESENT',
+          message: 'Ce logement est lié à un historique de locataire et ne peut pas être supprimé.',
+        });
+      }
+      const { data: payment } = await sb()
+        .from('paiements')
+        .select('id')
+        .eq('logement_id', id)
+        .limit(1)
+        .maybeSingle();
+      if (payment) {
+        return res.status(409).json({
+          success: false,
+          code: 'FINANCIAL_HISTORY_PRESENT',
+          message: 'Ce logement possède des paiements historiques et ne peut pas être supprimé.',
+        });
       }
     }
 

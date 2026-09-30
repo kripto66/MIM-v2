@@ -44,6 +44,7 @@ const SUITE_DEFINITIONS = [
   ['csrf-validation', () => import('./csrf-validation.test.js').then(({ runCsrfValidation }) => runCsrfValidation)],
   ['resetpwd', () => import('./resetpwd.test.js').then(({ runResetPwd }) => runResetPwd)],
   ['mandat', () => import('./mandat.test.js').then(({ runMandat }) => runMandat)],
+  ['agence', () => import('./agence.test.js').then(({ runAgence }) => runAgence)],
 ];
 
 const runner = new Runner();

@@ -37,6 +37,68 @@ export async function provisionProfile(sb, userId, accountType, username, mustCh
   }
 }
 
+// ------------------------------------------------------------
+// Tables dont la FK vers auth.users est ON DELETE RESTRICT.
+// deleteUser() les prend en compte : sans purge prealable il echoue,
+// le compte reste alors en place (profil + lien de gestion inclus) et
+// l'invariant H-19 « aucun compte orphelin » est viole. C'est le cas
+// depuis mim_trial_subscription_on_signup : toute inscription
+// proprietaire/agence/entreprise recoit une souscription d'essai.
+// Les colonnes sont toutes nommees user_id (meme nom partout).
+// ------------------------------------------------------------
+const AUTH_RESTRICT_TABLES = [
+  'subscriptions',
+  'abonnement_paiements',
+  'paiements_employes',
+  'paiements',
+  'versements',
+];
+
+// Purge best-effort : une table vide ne doit jamais empecher la
+// suppression du compte, mais un echec est signale pour diagnostic.
+async function purgeAuthLinkedRows(sb, userId, contexte) {
+  for (const table of AUTH_RESTRICT_TABLES) {
+    const { error } = await sb.from(table).delete().eq('user_id', userId);
+    if (error) console.warn(`[tenantAccount/${contexte}] purge ${table} : ${error.message}`);
+  }
+}
+
+// Suppression complete d'un compte Auth + ses lignes RESTRICT.
+// Ne leve jamais : l'appelant peut enchaîner (aucun double effet).
+export async function deleteAuthAccount(sb, userId, contexte = 'account') {
+  if (!userId) return { ok: true };
+  try {
+    await purgeAuthLinkedRows(sb, userId, contexte);
+    const { error } = await sb.auth.admin.deleteUser(userId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  } catch (err) {
+    console.error(`[tenantAccount/${contexte}] suppression du compte ${userId} :`, err.message);
+    return { ok: false, error: err.message };
+  }
+}
+
+// ------------------------------------------------------------
+// Compensation de creation de compte (H-19).
+// Un compte cree via l'API Admin Supabase n'appartient a aucune
+// transaction : quand l'etape suivante (rattachement, lien de gestion)
+// echoue, le compte est supprime immediatement. Le profil et les liens
+// cascadeent depuis auth.users (ON DELETE CASCADE), les lignes
+// RESTRICT (souscription d'essai notamment) sont purgees avant :
+// jamais de compte orphelin dont les identifiants ne sont retournes
+// a personne.
+// Ne leve jamais — un rollback qui echoue est journalise, l'appelant
+// repond quand meme (aucun double effet).
+// ------------------------------------------------------------
+export async function rollbackCreatedAccount(sb, userId, contexte = 'account') {
+  if (!userId) return { ok: true };
+  const result = await deleteAuthAccount(sb, userId, `rollback/${contexte}`);
+  if (!result.ok) {
+    console.error(`[tenantAccount/${contexte}] rollback du compte ${userId} :`, result.error);
+  }
+  return result;
+}
+
 export function usernameIsValid(username) {
   return /^[a-z0-9._-]{3,32}$/.test(String(username || '').trim().toLowerCase());
 }
