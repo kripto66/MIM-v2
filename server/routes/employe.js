@@ -9,7 +9,7 @@ import { Router } from 'express';
 import { anonClient, authedClient, serviceClient } from '../app.js';
 import { gitAutoBackup } from '../utils/gitBackup.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
-import { tenantEmailFor, usernameIsValid } from '../utils/tenantAccount.js';
+import { tenantEmailFor, usernameIsValid, lockAccountUsernameChange } from '../utils/tenantAccount.js';
 import { notify } from '../utils/notifications.js';
 import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paymentLinkError, TYPE_MOYEN_LABELS } from '../utils/paiementMethodes.js';
 
@@ -776,7 +776,7 @@ router.delete('/moyens-paiement/:id', requireEmploye, async (req, res) => {
 // ============================================================
 // Mise à jour du profil (nom, username, email d'affichage).
 // ============================================================
-router.put('/profile', requireEmploye, async (req, res) => {
+router.put('/profile', requireEmploye, lockAccountUsernameChange, async (req, res) => {
   const sb = serviceClient();
   const uid = req.user.id;
 
@@ -798,15 +798,25 @@ router.put('/profile', requireEmploye, async (req, res) => {
 
     const email = req.body.email !== undefined ? String(req.body.email || '').trim() || null : null;
 
-    const updates = {};
     if (name !== null) {
-      updates.name = name;
-      await sb.from('profiles').update({ name }).eq('id', uid);
-      await sb.from('employes').update({ nom: name }).eq('account_uid', uid);
+      const { error: nameProfileError } = await sb.from('profiles').update({ name }).eq('id', uid);
+      if (nameProfileError) {
+        console.error('[employe/profile] nom (profil) :', nameProfileError.message);
+        return res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
+      }
+      const { error: nameFicheError } = await sb.from('employes').update({ nom: name }).eq('account_uid', uid);
+      if (nameFicheError) {
+        console.error('[employe/profile] nom (fiche) :', nameFicheError.message);
+        return res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
+      }
     }
 
     if (email !== null) {
-      await sb.from('employes').update({ email }).eq('account_uid', uid);
+      const { error: emailFicheError } = await sb.from('employes').update({ email }).eq('account_uid', uid);
+      if (emailFicheError) {
+        console.error('[employe/profile] email (fiche) :', emailFicheError.message);
+        return res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
+      }
     }
 
     if (req.body.username !== undefined) {
@@ -832,14 +842,59 @@ router.put('/profile', requireEmploye, async (req, res) => {
           return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
         }
 
+        // M-02 : profil d'abord (index unique + CAS sur l'ancien username),
+        // email Auth ensuite avec compensation, fiche en dernier avec
+        // rollback complet — aucun etat melange en cas d'echec.
+        const previousUsername = employe.username || null;
+
+        const restoreProfile = async () => {
+          let query = sb.from('profiles').update({ username: previousUsername }).eq('id', uid);
+          query = previousUsername === null ? query.is('username', username) : query.eq('username', username);
+          const { error } = await query;
+          if (error) console.error('[employe/profile] rollback profil impossible :', error.message);
+        };
+
+        let profileQuery = sb.from('profiles').update({ username }).eq('id', uid);
+        profileQuery = previousUsername === null
+          ? profileQuery.is('username', null)
+          : profileQuery.eq('username', previousUsername);
+
+        const { data: updatedProfile, error: profileError } = await profileQuery.select('id');
+
+        if (profileError) {
+          if (profileError.code === '23505') {
+            return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+          }
+          console.error('[employe/profile] username (profil) :', profileError.message);
+          return res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
+        }
+
+        if (!updatedProfile?.length) {
+          return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Le nom d\'utilisateur a été modifié entre-temps, rechargez la page.', errors: { username: 'Le nom d\'utilisateur a été modifié entre-temps, rechargez la page.' } });
+        }
+
         const { error: emailError } = await sb.auth.admin.updateUserById(uid, { email: tenantEmailFor(username) });
         if (emailError) {
           console.error('[employe/profile] username email :', emailError.message);
-          return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+          await restoreProfile();
+          if (emailError.code === '23505' || emailError.code === 'email_exists') {
+            return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+          }
+          return res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
         }
 
-        await sb.from('profiles').update({ username }).eq('id', uid);
-        await sb.from('employes').update({ username }).eq('account_uid', uid);
+        const { error: ficheUsernameError } = await sb.from('employes').update({ username }).eq('account_uid', uid);
+        if (ficheUsernameError) {
+          console.error('[employe/profile] username (fiche) :', ficheUsernameError.message);
+          if (previousUsername !== null) {
+            const { error: emailRollback } = await sb.auth.admin.updateUserById(uid, { email: tenantEmailFor(previousUsername) });
+            if (emailRollback) console.error('[employe/profile] rollback email Auth impossible :', emailRollback.message);
+          } else {
+            console.warn('[employe/profile] ancien username inconnu, email Auth non restauré');
+          }
+          await restoreProfile();
+          return res.status(500).json({ success: false, message: 'Une erreur est survenue.' });
+        }
       }
     }
 

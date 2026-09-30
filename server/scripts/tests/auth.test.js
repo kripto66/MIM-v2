@@ -5,6 +5,7 @@
 
 import { api, newJar, expectSuccess, BASE, createConfirmedSession } from './lib.js';
 import { totpForSecret, totpWindowForSecret } from './totp.js';
+import { tenantEmailFor } from '../../utils/tenantAccount.js';
 
 const PW = 'Test1234!';
 const S = 'auth';
@@ -304,6 +305,62 @@ export async function runAuth(r, ctx) {
     const forbidden = await api('/auth/update-username', { method: 'PUT', jar: own.jar, body: { username: 'ownerwant' } });
     if (forbidden.status === 403) r.pass(S, 'propriétaire ne peut pas modifier de username → 403');
     else r.fail(S, 'propriétaire ne peut pas modifier de username → 403', `statut ${forbidden.status}`);
+
+    // ----------------------------------------------------------
+    // M-02 : compensation si l'email interne dérivé est déjà pris.
+    // Le profil ne doit PAS rester modifié quand l'écriture Auth échoue.
+    const { data: fiche } = await service.from('locataires').select('account_uid').eq('id', tenantId).maybeSingle();
+    const accountUid = fiche?.account_uid;
+    const ghostUsername = `ghost${Date.now() % 1000000}`;
+    const ghost = accountUid ? await service.auth.admin.createUser({
+      email: tenantEmailFor(ghostUsername),
+      password: PW,
+      email_confirm: true,
+    }) : { error: new Error('compte du locataire introuvable') };
+    if (ghost.error) {
+      r.blocked(S, 'M-02 : création du compte fantôme', ghost.error.message);
+    } else {
+      try {
+        const blocked = await api('/auth/update-username', { method: 'PUT', jar: jarT, body: { username: ghostUsername } });
+        if (blocked.status >= 400) r.pass(S, 'M-02 : email interne déjà pris → refus');
+        else r.fail(S, 'M-02 : email interne déjà pris → refus', `statut ${blocked.status}`);
+
+        const { data: prof } = await service.from('profiles').select('username').eq('id', accountUid).maybeSingle();
+        if (prof?.username === newName) r.pass(S, 'M-02 : profil compensé (username inchangé)');
+        else r.fail(S, 'M-02 : profil compensé (username inchangé)', JSON.stringify(prof));
+
+        const { data: authUser } = await service.auth.admin.getUserById(accountUid);
+        if (authUser?.user?.email === tenantEmailFor(newName)) r.pass(S, 'M-02 : email Auth toujours aligné sur le profil');
+        else r.fail(S, 'M-02 : email Auth toujours aligné sur le profil', String(authUser?.user?.email));
+
+        const stillLogin = await api('/auth/login', { method: 'POST', jar: newJar(), body: { identifier: newName, password: PW } });
+        if (stillLogin.status === 200) r.pass(S, 'M-02 : connexion toujours possible après refus');
+        else r.fail(S, 'M-02 : connexion toujours possible après refus', `statut ${stillLogin.status}`);
+
+        // ----------------------------------------------------------
+        // M-02 : deux changements concurrents → jamais d'état mélangé.
+        const concA = `conca${Date.now() % 1000000}`;
+        const concB = `concb${Date.now() % 1000000}`;
+        const [ra, rb] = await Promise.all([
+          api('/auth/update-username', { method: 'PUT', jar: jarT, body: { username: concA } }),
+          api('/auth/update-username', { method: 'PUT', jar: jarT, body: { username: concB } }),
+        ]);
+        const statuses = [ra.status, rb.status];
+        const okCount = statuses.filter((s) => s === 200).length;
+        const refusedCount = statuses.filter((s) => s === 409).length;
+        if (okCount >= 1 && okCount + refusedCount === 2) r.pass(S, 'M-02 : concurrence → réponses 200/409 uniquement');
+        else r.fail(S, 'M-02 : concurrence → réponses 200/409 uniquement', `statuts ${JSON.stringify(statuses)}`);
+
+        const { data: prof2 } = await service.from('profiles').select('username').eq('id', accountUid).maybeSingle();
+        const { data: auth2 } = await service.auth.admin.getUserById(accountUid);
+        const coherent = Boolean(prof2?.username) && auth2?.user?.email === tenantEmailFor(prof2.username);
+        const parmiLesDeux = [concA, concB].includes(prof2?.username);
+        if (coherent && parmiLesDeux) r.pass(S, 'M-02 : profil et email interne cohérents après concurrence');
+        else r.fail(S, 'M-02 : profil et email interne cohérents après concurrence', `profil=${prof2?.username} email=${auth2?.user?.email}`);
+      } finally {
+        await service.auth.admin.deleteUser(ghost.data.user.id).catch(() => {});
+      }
+    }
 
     await cleanup();
   });

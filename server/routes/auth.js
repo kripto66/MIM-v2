@@ -5,7 +5,7 @@ import { forgotPasswordRateLimit, mfaVerifyRateLimit } from '../middleware/rateL
 import { gitAutoBackup } from '../utils/gitBackup.js';
 import { createSession, revokeAllSessions, revokeSession, createMfaChallenge, claimMfaChallenge, finishMfaChallenge, decryptSessionValue } from '../utils/sessions.js';
 import { newOAuthClient, storeFlow, getFlow, deleteFlow } from '../utils/oauth.js';
-import { resolveLoginEmail, tenantEmailFor, usernameIsValid, TENANT_EMAIL_DOMAIN } from '../utils/tenantAccount.js';
+import { resolveLoginEmail, tenantEmailFor, usernameIsValid, lockAccountUsernameChange, TENANT_EMAIL_DOMAIN } from '../utils/tenantAccount.js';
 import { passwordRuleError } from '../utils/passwordPolicy.js';
 import { issueResetToken, tryConsumeResetToken, finalizeResetToken, releaseResetToken, generateResetToken, hashResetToken, sendResetEmail, buildResetLink } from '../utils/passwordReset.js';
 import { subscriptionExpiredFor } from '../utils/subscription.js';
@@ -1089,7 +1089,7 @@ router.post('/verify-password', authenticate, async (req, res) => {
   res.json({ success: true });
 });
 
-router.put('/update-username', authenticate, async (req, res) => {
+router.put('/update-username', authenticate, lockAccountUsernameChange, async (req, res) => {
   const username = String(req.body?.username || '').trim().toLowerCase();
 
   // Seuls les comptes locataires et employés ont un username : un
@@ -1114,6 +1114,26 @@ router.put('/update-username', authenticate, async (req, res) => {
   try {
     const sb = serviceClient();
 
+    // Etat de depart : sert de base au verrou conditionnel (CAS) et a la
+    // compensation si une ecriture ulterieure echoue. M-02 : l'email Auth
+    // derive du username, il doit rester aligne sur le profil a tout
+    // moment, y compris sous concurrence.
+    const { data: profileRow, error: readError } = await sb
+      .from('profiles')
+      .select('username')
+      .eq('id', req.user.id)
+      .maybeSingle();
+
+    if (readError) {
+      console.error('[update-username] profil (lecture) :', readError.message);
+      return res.status(500).json({ success: false, message: 'Erreur lors de la mise à jour du username.' });
+    }
+
+    const previousUsername = profileRow?.username ?? null;
+    if (previousUsername === username) {
+      return res.json({ success: true, message: 'Username modifié avec succès.', username });
+    }
+
     const { data: taken } = await sb
       .from('profiles')
       .select('id')
@@ -1125,47 +1145,95 @@ router.put('/update-username', authenticate, async (req, res) => {
       return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
     }
 
-    // L'email interne dérive du username : on le met à jour pour que la
-    // connexion par username continue de fonctionner.
-    const newEmail = tenantEmailFor(username);
+    // Restaure l'email Auth interne vers l'etat de depart (best-effort).
+    const restoreAuthEmail = async (context) => {
+      if (previousUsername === null) {
+        // On ne connait pas l'ancien email derive : rien a restaurer de fiable.
+        console.warn(`[update-username] ${context} : ancien username inconnu, email Auth non restauré`);
+        return;
+      }
+      const { error } = await sb.auth.admin.updateUserById(req.user.id, {
+        email: tenantEmailFor(previousUsername),
+      });
+      if (error) console.error(`[update-username] ${context} : rollback email Auth impossible :`, error.message);
+    };
 
-    const { error: emailError } = await sb.auth.admin.updateUserById(req.user.id, {
-      email: newEmail,
-    });
+    // Rollback du profil vers l'etat de depart (best-effort, journalise).
+    const restoreProfile = async (context) => {
+      let query = sb
+        .from('profiles')
+        .update({ username: previousUsername })
+        .eq('id', req.user.id);
+      query = previousUsername === null
+        ? query.is('username', username)
+        : query.eq('username', username);
+      const { error } = await query;
+      if (error) console.error(`[update-username] ${context} : rollback profil impossible :`, error.message);
+    };
 
-    if (emailError) {
-      console.error('[update-username]', emailError.message);
-      return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
-    }
-
-    const { error: profileError } = await sb
+    // 1) Profil d'abord : l'index unique profiles_username_uniq tranche la
+    //    concurrence, et le CAS sur l'ancien username fait echouer le
+    //    perdant plutot que de melanger email Auth et profil.
+    let profileQuery = sb
       .from('profiles')
       .update({ username })
       .eq('id', req.user.id);
+    profileQuery = previousUsername === null
+      ? profileQuery.is('username', null)
+      : profileQuery.eq('username', previousUsername);
+
+    const { data: updatedProfile, error: profileError } = await profileQuery.select('id');
 
     if (profileError) {
+      if (profileError.code === '23505') {
+        return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+      }
       console.error('[update-username] profil :', profileError.message);
       return res.status(500).json({ success: false, message: 'Erreur lors de la mise à jour du username.' });
     }
 
+    if (!updatedProfile?.length) {
+      // Un changement concurrent a gagne entre la lecture et l'ecriture :
+      // on n'a rien ecrit, on refuse plutot que de desynchroniser.
+      return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Le nom d\'utilisateur a été modifié entre-temps, rechargez la page.', errors: { username: 'Le nom d\'utilisateur a été modifié entre-temps, rechargez la page.' } });
+    }
+
+    // 2) Email interne aligne sur le profil ; en cas d'echec on compense.
+    const { error: emailError } = await sb.auth.admin.updateUserById(req.user.id, {
+      email: tenantEmailFor(username),
+    });
+
+    if (emailError) {
+      console.error('[update-username] email Auth :', emailError.message);
+      await restoreProfile('email Auth');
+      if (emailError.code === '23505' || emailError.code === 'email_exists') {
+        return res.status(409).json({ success: false, code: 'USERNAME_ALREADY_EXISTS', message: 'Ce nom d\'utilisateur est déjà utilisé.', errors: { username: 'Ce nom d\'utilisateur est déjà utilisé.' } });
+      }
+      return res.status(500).json({ success: false, message: 'Erreur lors de la mise à jour du username.' });
+    }
+
+    // 3) Fiche metier : resultat verifie, rollback complet si echec pour
+    //    ne laisser aucun etat melange (profil/email/fiche).
+    let businessError = null;
     if (req.user.account_type === 'locataire') {
-      const { error: locataireError } = await sb
+      const { error } = await sb
         .from('locataires')
         .update({ username })
         .eq('account_uid', req.user.id);
-
-      if (locataireError) {
-        console.warn('[update-username] fiche locataire :', locataireError.message);
-      }
+      businessError = error;
     } else if (req.user.account_type === 'employe') {
-      const { error: employeError } = await sb
+      const { error } = await sb
         .from('employes')
         .update({ username })
         .eq('account_uid', req.user.id);
+      businessError = error;
+    }
 
-      if (employeError) {
-        console.warn('[update-username] fiche employé :', employeError.message);
-      }
+    if (businessError) {
+      console.error('[update-username] fiche métier :', businessError.message);
+      await restoreAuthEmail('fiche métier');
+      await restoreProfile('fiche métier');
+      return res.status(500).json({ success: false, message: 'Erreur lors de la mise à jour du username.' });
     }
 
     gitAutoBackup(`Sauvegarde auto : changement de username ${req.user.id}`);

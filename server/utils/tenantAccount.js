@@ -84,6 +84,47 @@ export async function withUsernameLock(username, operation) {
   }
 }
 
+// ------------------------------------------------------------
+// Verrou de CHANGEMENT de username, par compte.
+// La sequence profil → email Auth → fiche n'est pas transactionnelle
+// (chaque appel PostgREST est sa propre transaction) : sans
+// serialisation, deux changements concurrents du meme compte peuvent
+// croiser leurs etapes et laisser l'email interne derive d'un autre
+// username que celui du profil (M-02). Une seule requete "gagne" par
+// compte a la fois, l'autre repart sur l'etat deja mis a jour.
+// ------------------------------------------------------------
+const accountChangeLocks = new Map();
+
+export async function withUsernameChangeLock(userId, operation) {
+  const key = String(userId || '');
+  if (!key) return operation();
+  const previous = accountChangeLocks.get(key) || Promise.resolve();
+  let release;
+  const current = new Promise((resolve) => { release = resolve; });
+  accountChangeLocks.set(key, current);
+  await previous;
+  try {
+    return await operation();
+  } finally {
+    release();
+    if (accountChangeLocks.get(key) === current) accountChangeLocks.delete(key);
+  }
+}
+
+// Middleware : verrouille le compte pendant toute la duree de la route,
+// le verrou n'etant relache qu'a l'envoi de la reponse. A placer AVANT le
+// handler : la lecture de l'ancien username (base du CAS) se fait alors
+// sous verrou. next() est appele en microtache, Express le supporte.
+export function lockAccountUsernameChange(req, res, next) {
+  if (!req.user?.id) return next();
+  withUsernameChangeLock(req.user.id, () => new Promise((resolve) => {
+    const release = () => resolve();
+    res.once('finish', release);
+    res.once('close', release);
+    next();
+  })).catch(next);
+}
+
 function randomToken(length) {
   let out = '';
   for (let i = 0; i < length; i++) {
