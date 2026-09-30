@@ -643,6 +643,9 @@ CREATE TABLE public.agences_proprietaires (
     proprietaire_id uuid NOT NULL,
     statut text DEFAULT 'actif'::text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
+    revoque_par uuid,
+    motif text,
+    updated_at timestamp with time zone,
     CONSTRAINT agences_proprietaires_statut_check CHECK ((statut = ANY (ARRAY['actif'::text, 'inactif'::text])))
 );
 
@@ -650,6 +653,27 @@ ALTER TABLE ONLY public.agences_proprietaires FORCE ROW LEVEL SECURITY;
 
 
 ALTER TABLE public.agences_proprietaires OWNER TO postgres;
+
+--
+-- Name: COLUMN agences_proprietaires.revoque_par; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.agences_proprietaires.revoque_par IS 'Compte (agence ou proprietaire) a l''origine de la derniere suspension : seul ce compte peut reactiver.';
+
+
+--
+-- Name: COLUMN agences_proprietaires.motif; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.agences_proprietaires.motif IS 'Motif saisi lors de la derniere transition de statut (obligatoire).';
+
+
+--
+-- Name: COLUMN agences_proprietaires.updated_at; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.agences_proprietaires.updated_at IS 'Horodatage de la derniere transition de statut.';
+
 
 --
 -- Name: agences_proprietaires_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
@@ -3085,6 +3109,14 @@ ALTER TABLE ONLY public.agences_proprietaires
 
 ALTER TABLE ONLY public.agences_proprietaires
     ADD CONSTRAINT agences_proprietaires_proprietaire_id_fkey FOREIGN KEY (proprietaire_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: agences_proprietaires agences_proprietaires_revoque_par_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.agences_proprietaires
+    ADD CONSTRAINT agences_proprietaires_revoque_par_fkey FOREIGN KEY (revoque_par) REFERENCES auth.users(id) ON DELETE SET NULL;
 
 
 --

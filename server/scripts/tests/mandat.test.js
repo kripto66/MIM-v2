@@ -6,6 +6,9 @@
 //   * messagerie propriétaire <-> agence
 //   * un propriétaire SANS mandat ne peut pas utiliser ces routes
 //   * isolation : un propriétaire ne voit jamais le mandat d'un autre
+//   * H-18 : révocation / suspension du mandat (routes scoped → 403,
+//     traçage motif + horodatage + acteur, réactivation réservée au
+//     compte qui a prononcé la suspension)
 // ============================================================
 
 import { api, newJar, createConfirmedSession } from './lib.js';
@@ -316,6 +319,172 @@ export async function runMandat(r, ctx) {
     r.pass(S, 'propriétaire voit les 2 messages (envoyés + reçus)');
   } else {
     r.fail(S, 'propriétaire voit les 2 messages (envoyés + reçus)', JSON.stringify(threadProprio.data?.messages?.length));
+  }
+
+  // --- 12. H-18 : révocation du mandat côté propriétaire ---
+  const sansMotif = await api('/mandat/statut', {
+    method: 'PATCH',
+    jar: jarShadow,
+    body: { statut: 'inactif' },
+  });
+  if (sansMotif.status === 400 && sansMotif.data?.errors?.motif) {
+    r.pass(S, 'H-18 : révocation sans motif → 400');
+  } else {
+    r.fail(S, 'H-18 : révocation sans motif → 400', `statut ${sansMotif.status}`);
+  }
+
+  const statutInvalide = await api('/mandat/statut', {
+    method: 'PATCH',
+    jar: jarShadow,
+    body: { statut: 'suspendu', motif: 'Test H-18' },
+  });
+  if (statutInvalide.status === 400) {
+    r.pass(S, 'H-18 : statut invalide → 400');
+  } else {
+    r.fail(S, 'H-18 : statut invalide → 400', `statut ${statutInvalide.status}`);
+  }
+
+  const revoc = await api('/mandat/statut', {
+    method: 'PATCH',
+    jar: jarShadow,
+    body: { statut: 'inactif', motif: 'Fin du mandat (test H-18)' },
+  });
+  if (revoc.status === 200 && revoc.data?.changed && revoc.data?.statut === 'inactif') {
+    r.pass(S, 'H-18 : révocation par le propriétaire → 200');
+  } else {
+    r.fail(S, 'H-18 : révocation par le propriétaire → 200', `statut ${revoc.status} ${JSON.stringify(revoc.data)}`);
+  }
+
+  // Traçabilité : motif, horodatage et acteur sur la ligne de liaison.
+  const { data: trace } = await service
+    .from('agences_proprietaires')
+    .select('statut, motif, revoque_par, updated_at')
+    .eq('proprietaire_id', gere.user.id)
+    .maybeSingle();
+  if (trace?.statut === 'inactif' && trace?.motif && trace?.revoque_par === gere.user.id && trace?.updated_at) {
+    r.pass(S, 'H-18 : liaison tracée (motif, horodatage, acteur)');
+  } else {
+    r.fail(S, 'H-18 : liaison tracée (motif, horodatage, acteur)', JSON.stringify(trace));
+  }
+
+  // Test recommandé du finding : toutes les routes scoped tombent en 403.
+  const ctxRevoque = await api(`/agence/bien/${bienId}/contexte`, { jar: agenceJar });
+  if (ctxRevoque.status === 403) {
+    r.pass(S, 'H-18 : route scoped agence après révocation → 403');
+  } else {
+    r.fail(S, 'H-18 : route scoped agence après révocation → 403', `statut ${ctxRevoque.status}`);
+  }
+
+  const dashRevoque = await api('/mandat/dashboard', { jar: jarShadow });
+  if (dashRevoque.status === 404 && dashRevoque.data?.code === 'MANDAT_NOT_FOUND') {
+    r.pass(S, 'H-18 : espace délégué fermé après révocation (404)');
+  } else {
+    r.fail(S, 'H-18 : espace délégué fermé après révocation (404)', `statut ${dashRevoque.status}`);
+  }
+
+  const pfRevoque = await api('/agence/portefeuille', { jar: agenceJar });
+  if (pfRevoque.status === 200 && (pfRevoque.data.data || []).length === 0) {
+    r.pass(S, 'H-18 : portefeuille vide après révocation');
+  } else {
+    r.fail(S, 'H-18 : portefeuille vide après révocation', JSON.stringify(pfRevoque.data?.data?.length));
+  }
+
+  const statsRevoque = await api('/agence/stats', { jar: agenceJar });
+  if (statsRevoque.status === 200 && statsRevoque.data?.stats?.totalBiens === 0) {
+    r.pass(S, 'H-18 : statistiques sans les biens révoqués');
+  } else {
+    r.fail(S, 'H-18 : statistiques sans les biens révoqués', JSON.stringify(statsRevoque.data?.stats));
+  }
+
+  const vRevoque = await api('/agence/versements', {
+    method: 'POST',
+    jar: agenceJar,
+    body: { proprietaire_id: gere.user.id, montant: 10000 },
+  });
+  if (vRevoque.status === 403) {
+    r.pass(S, 'H-18 : écriture agence vers propriétaire révoqué → 403');
+  } else {
+    r.fail(S, 'H-18 : écriture agence vers propriétaire révoqué → 403', `statut ${vRevoque.status}`);
+  }
+
+  // Gouvernance : l'agence ne peut pas dérévoquer la décision du propriétaire.
+  const reactAgence = await api(`/agence/proprietaires/${gere.user.id}/statut`, {
+    method: 'PATCH',
+    jar: agenceJar,
+    body: { statut: 'actif', motif: 'Test H-18' },
+  });
+  if (reactAgence.status === 403 && reactAgence.data?.code === 'MANDAT_REVOKED_BY_OTHER') {
+    r.pass(S, 'H-18 : l\'agence ne peut pas réactiver la révocation du propriétaire (403)');
+  } else {
+    r.fail(S, 'H-18 : l\'agence ne peut pas réactiver la révocation du propriétaire (403)', `statut ${reactAgence.status}`);
+  }
+
+  const reactProprio = await api('/mandat/statut', {
+    method: 'PATCH',
+    jar: jarShadow,
+    body: { statut: 'actif', motif: 'Rétablissement (test H-18)' },
+  });
+  if (reactProprio.status === 200 && reactProprio.data?.statut === 'actif') {
+    r.pass(S, 'H-18 : réactivation par le propriétaire → 200');
+  } else {
+    r.fail(S, 'H-18 : réactivation par le propriétaire → 200', `statut ${reactProprio.status}`);
+  }
+
+  const ctxRetabli = await api(`/agence/bien/${bienId}/contexte`, { jar: agenceJar });
+  if (ctxRetabli.status === 200) {
+    r.pass(S, 'H-18 : accès agence restaurés après réactivation');
+  } else {
+    r.fail(S, 'H-18 : accès agence restaurés après réactivation', `statut ${ctxRetabli.status}`);
+  }
+
+  // --- 13. H-18 : suspension côté agence (aller-retour) ---
+  const susp = await api(`/agence/proprietaires/${gere.user.id}/statut`, {
+    method: 'PATCH',
+    jar: agenceJar,
+    body: { statut: 'inactif', motif: 'Clôture provisoire (test H-18)' },
+  });
+  if (susp.status === 200 && susp.data?.changed && susp.data?.statut === 'inactif') {
+    r.pass(S, 'H-18 : suspension par l\'agence → 200');
+  } else {
+    r.fail(S, 'H-18 : suspension par l\'agence → 200', `statut ${susp.status} ${JSON.stringify(susp.data)}`);
+  }
+
+  const ctxSuspendu = await api(`/agence/bien/${bienId}/contexte`, { jar: agenceJar });
+  if (ctxSuspendu.status === 403) {
+    r.pass(S, 'H-18 : route scoped après suspension → 403');
+  } else {
+    r.fail(S, 'H-18 : route scoped après suspension → 403', `statut ${ctxSuspendu.status}`);
+  }
+
+  // Gouvernance symétrique : le propriétaire ne peut pas réactiver
+  // la suspension décidée par l'agence.
+  const reactOwnerSurSusp = await api('/mandat/statut', {
+    method: 'PATCH',
+    jar: jarShadow,
+    body: { statut: 'actif', motif: 'Test H-18' },
+  });
+  if (reactOwnerSurSusp.status === 403 && reactOwnerSurSusp.data?.code === 'MANDAT_REVOKED_BY_OTHER') {
+    r.pass(S, 'H-18 : le propriétaire ne peut pas réactiver la suspension de l\'agence (403)');
+  } else {
+    r.fail(S, 'H-18 : le propriétaire ne peut pas réactiver la suspension de l\'agence (403)', `statut ${reactOwnerSurSusp.status}`);
+  }
+
+  const reprise = await api(`/agence/proprietaires/${gere.user.id}/statut`, {
+    method: 'PATCH',
+    jar: agenceJar,
+    body: { statut: 'actif', motif: 'Reprise (test H-18)' },
+  });
+  if (reprise.status === 200 && reprise.data?.statut === 'actif') {
+    r.pass(S, 'H-18 : l\'agence réactive sa propre suspension → 200');
+  } else {
+    r.fail(S, 'H-18 : l\'agence réactive sa propre suspension → 200', `statut ${reprise.status} ${JSON.stringify(reprise.data)}`);
+  }
+
+  const ctxRepris = await api(`/agence/bien/${bienId}/contexte`, { jar: agenceJar });
+  if (ctxRepris.status === 200) {
+    r.pass(S, 'H-18 : accès restaurés après reprise par l\'agence');
+  } else {
+    r.fail(S, 'H-18 : accès restaurés après reprise par l\'agence', `statut ${ctxRepris.status}`);
   }
 
   // Nettoyage

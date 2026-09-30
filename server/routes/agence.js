@@ -30,6 +30,9 @@ import { formatMois } from '../utils/mois.js';
 import { revokeAllSessions } from '../utils/sessions.js';
 import { sanitize, validateResource } from './crud.js';
 import { isValidMonth, parseMoney } from '../utils/inputValidation.js';
+import { MANDAT_STATUTS, mandatMotifError, mandatReactivateError, applyMandatStatut } from '../utils/mandatRevocation.js';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const router = Router();
 const sb = () => serviceClient();
@@ -135,10 +138,20 @@ router.get('/portefeuille', async (req, res) => {
       .eq('statut', 'actif')
       .order('created_at', { ascending: false });
 
-    if (!liaisons.length) return res.json({ success: true, data: [] });
+    // H-18 : seuls les mandats ACTIFS restent visibles — un mandat
+    // révoqué disparaît immédiatement du portefeuille.
+    const { data: mandatsActifs = [] } = await sb()
+      .from('agences_proprietaires')
+      .select('proprietaire_id')
+      .eq('agence_id', req.user.id)
+      .eq('statut', 'actif');
+    const ownersActifs = new Set(mandatsActifs.map((m) => m.proprietaire_id));
+    const portefeuille = liaisons.filter((l) => ownersActifs.has(l.proprietaire_id));
 
-    const bienIds = liaisons.map((l) => l.bien_id);
-    const ownerIds = [...new Set(liaisons.map((l) => l.proprietaire_id))];
+    if (!portefeuille.length) return res.json({ success: true, data: [] });
+
+    const bienIds = portefeuille.map((l) => l.bien_id);
+    const ownerIds = [...new Set(portefeuille.map((l) => l.proprietaire_id))];
 
     const [biensRes, ownersRes, logementsRes] = await Promise.all([
       sb().from('biens').select('id, user_id, nom, type, adresse, ville, pays, description').in('id', bienIds),
@@ -149,7 +162,7 @@ router.get('/portefeuille', async (req, res) => {
     const ownerBy = new Map((ownersRes.data || []).map((o) => [o.id, o]));
     const byBien = (rows, bienId) => (rows || []).filter((r) => r.bien_id === bienId);
 
-    const data = liaisons.map((l) => {
+    const data = portefeuille.map((l) => {
       const bien = (biensRes.data || []).find((b) => b.id === l.bien_id) || null;
       const owner = bien ? ownerBy.get(bien.user_id) : null;
       const logements = byBien(logementsRes.data, l.bien_id);
@@ -385,18 +398,20 @@ router.get('/stats', async (req, res) => {
   try {
     const agenceId = req.user.id;
 
-    const { data: biensLiaisons = [] } = await sb()
-      .from('agences_biens')
-      .select('bien_id, proprietaire_id')
-      .eq('agence_id', agenceId)
-      .eq('statut', 'actif');
+    // H-18 : les deux sources de liaison sont lues ensemble pour ne
+    // compter que les biens couverts par un mandat ACTIF (un mandat
+    // révoqué disparaît immédiatement des statistiques).
+    const [{ data: biensLiaisons = [] }, { data: proprietairesLiaisons = [] }] = await Promise.all([
+      sb().from('agences_biens').select('bien_id, proprietaire_id').eq('agence_id', agenceId).eq('statut', 'actif'),
+      sb().from('agences_proprietaires').select('proprietaire_id').eq('agence_id', agenceId).eq('statut', 'actif'),
+    ]);
 
-    const bienIds = biensLiaisons.map((l) => l.bien_id);
+    const ownersActifs = new Set(proprietairesLiaisons.map((l) => l.proprietaire_id));
+    const bienIds = biensLiaisons.filter((l) => ownersActifs.has(l.proprietaire_id)).map((l) => l.bien_id);
     const bienIdsEsc = bienIds.length ? bienIds : [0];
 
-    const [{ data: biens = [] }, { data: proprietairesLiaisons = [] }, { data: logements = [] }, { data: versementsAttente = [] }, { data: messages = [] }] = await Promise.all([
+    const [{ data: biens = [] }, { data: logements = [] }, { data: versementsAttente = [] }, { data: messages = [] }] = await Promise.all([
       sb().from('biens').select('id').in('id', bienIdsEsc.length ? bienIdsEsc : [0]),
-      sb().from('agences_proprietaires').select('proprietaire_id').eq('agence_id', agenceId).eq('statut', 'actif'),
       sb().from('logements').select('id, bien_id, statut, loyer_mensuel').in('bien_id', bienIdsEsc.length ? bienIdsEsc : [0]),
       sb().from('versements').select('id, montant').eq('agence_id', agenceId).eq('statut', 'attente'),
       sb().from('messages').select('id').eq('agence_id', agenceId).eq('lu_par_destinataire', false),
@@ -502,6 +517,9 @@ router.get('/proprietaires', async (req, res) => {
           id: l.id,
           proprietaire_id: l.proprietaire_id,
           statut: l.statut,
+          motif: l.motif || null,
+          updated_at: l.updated_at || null,
+          revoque_par: l.revoque_par || null,
           created_at: l.created_at,
           biens_count: biensByOwner.get(l.proprietaire_id) || 0,
           nom: p?.name || null,
@@ -514,6 +532,78 @@ router.get('/proprietaires', async (req, res) => {
   } catch (err) {
     console.error('[agence/proprietaires]', err.message);
     res.status(500).json({ success: false, message: 'Erreur lors du chargement des propriétaires.' });
+  }
+});
+
+// ------------------------------------------------------------
+// H-18 — Suspension / réactivation du mandat d'un propriétaire.
+// L'agence met fin à sa propre gestion (statut -> inactif) avec
+// motif tracé ; la réactivation n'appartient qu'au compte qui a
+// prononcé la suspension (voir utils/mandatRevocation.js).
+// ------------------------------------------------------------
+router.patch('/proprietaires/:proprietaireId/statut', async (req, res) => {
+  try {
+    const agenceId = req.user.id;
+    const proprietaireId = String(req.params.proprietaireId || '');
+    const statut = String(req.body?.statut || '').trim();
+    const motif = req.body?.motif ? String(req.body.motif).trim() : '';
+
+    if (!UUID_RE.test(proprietaireId)) {
+      return res.status(400).json({ success: false, message: 'Identifiant de propriétaire invalide.' });
+    }
+    if (!MANDAT_STATUTS.has(statut)) {
+      return res.status(400).json({ success: false, message: "Statut invalide (attendu : 'actif' ou 'inactif')." });
+    }
+
+    const { data: liaison, error: readError } = await sb()
+      .from('agences_proprietaires')
+      .select('id, agence_id, proprietaire_id, statut, revoque_par, motif, updated_at')
+      .eq('agence_id', agenceId)
+      .eq('proprietaire_id', proprietaireId)
+      .maybeSingle();
+    if (readError) throw readError;
+    if (!liaison) {
+      return res.status(404).json({ success: false, message: 'Ce propriétaire ne fait pas partie de votre portefeuille.' });
+    }
+
+    if (statut === liaison.statut) {
+      return res.json({ success: true, changed: false, statut: liaison.statut, message: 'Aucun changement.' });
+    }
+
+    const motifError = mandatMotifError(motif);
+    if (motifError) {
+      return res.status(400).json({ success: false, message: motifError, errors: { motif: motifError } });
+    }
+
+    const forbidden = mandatReactivateError(liaison, statut, agenceId);
+    if (forbidden) {
+      return res.status(forbidden.status).json({ success: false, code: forbidden.code, message: forbidden.message });
+    }
+
+    const result = await applyMandatStatut({
+      liaison,
+      scope: { agence_id: agenceId },
+      statut,
+      motif,
+      actorId: agenceId,
+      actorRole: 'agence',
+      ip: req.ip,
+    });
+    if (!result.ok) {
+      return res.status(result.status).json({ success: false, code: result.code, message: result.message });
+    }
+
+    res.json({
+      success: true,
+      changed: true,
+      statut,
+      message: statut === 'inactif'
+        ? 'Mandat suspendu : vos accès à ce propriétaire sont coupés.'
+        : 'Mandat réactivé.',
+    });
+  } catch (err) {
+    console.error('[agence/proprietaires/statut]', err.message);
+    res.status(500).json({ success: false, message: 'Impossible de changer le statut du mandat.' });
   }
 });
 

@@ -9,6 +9,7 @@
 import { Router } from 'express';
 import { serviceClient } from '../app.js';
 import { notify } from '../utils/notifications.js';
+import { MANDAT_STATUTS, mandatMotifError, mandatReactivateError, applyMandatStatut } from '../utils/mandatRevocation.js';
 
 const router = Router();
 const sb = () => serviceClient();
@@ -16,7 +17,7 @@ const sb = () => serviceClient();
 async function mandatOf(userId) {
   const { data, error } = await sb()
     .from('agences_proprietaires')
-    .select('id, agence_id, statut, created_at')
+    .select('id, agence_id, statut, motif, updated_at, created_at')
     .eq('proprietaire_id', userId)
     .eq('statut', 'actif')
     .order('created_at', { ascending: false })
@@ -59,8 +60,81 @@ router.get('/etat', requireMandate, async (req, res) => {
         ? { id: agence.id, name: agence.name, email: agence.email, phone: agence.phone, username: agence.username }
         : null,
       depuis: req.mandat.created_at,
+      motif: req.mandat.motif || null,
+      maj: req.mandat.updated_at || null,
     },
   });
+});
+
+// ------------------------------------------------------------
+// H-18 — Révocation / réactivation du mandat par le propriétaire.
+// Route SANS requireMandate : le propriétaire doit pouvoir révoquer
+// même s'il consulte l'état d'une liaison déjà inactive. La
+// révocation coupe immédiatement l'accès de l'agence (mandatGuard,
+// requireMandateBien, portefeuille et stats) et rouvre ses propres
+// écritures (plus de mandat actif = garde délégué inactif).
+// ------------------------------------------------------------
+router.patch('/statut', async (req, res) => {
+  try {
+    const proprietaireId = req.user.id;
+    const statut = String(req.body?.statut || '').trim();
+    const motif = req.body?.motif ? String(req.body.motif).trim() : '';
+
+    if (!MANDAT_STATUTS.has(statut)) {
+      return res.status(400).json({ success: false, message: "Statut invalide (attendu : 'actif' ou 'inactif')." });
+    }
+
+    const { data: liaison, error } = await sb()
+      .from('agences_proprietaires')
+      .select('id, agence_id, proprietaire_id, statut, revoque_par, motif, updated_at, created_at')
+      .eq('proprietaire_id', proprietaireId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) throw error;
+    if (!liaison) {
+      return res.status(404).json({ success: false, code: 'MANDAT_NOT_FOUND', message: 'Aucun mandat pour ce compte.' });
+    }
+
+    if (statut === liaison.statut) {
+      return res.json({ success: true, changed: false, statut: liaison.statut, message: 'Aucun changement.' });
+    }
+
+    const motifError = mandatMotifError(motif);
+    if (motifError) {
+      return res.status(400).json({ success: false, message: motifError, errors: { motif: motifError } });
+    }
+
+    const forbidden = mandatReactivateError(liaison, statut, proprietaireId);
+    if (forbidden) {
+      return res.status(forbidden.status).json({ success: false, code: forbidden.code, message: forbidden.message });
+    }
+
+    const result = await applyMandatStatut({
+      liaison,
+      scope: { proprietaire_id: proprietaireId },
+      statut,
+      motif,
+      actorId: proprietaireId,
+      actorRole: 'proprietaire',
+      ip: req.ip,
+    });
+    if (!result.ok) {
+      return res.status(result.status).json({ success: false, code: result.code, message: result.message });
+    }
+
+    res.json({
+      success: true,
+      changed: true,
+      statut,
+      message: statut === 'inactif'
+        ? 'Mandat révoqué : votre agence n\'a plus accès à vos biens.'
+        : 'Mandat rétabli.',
+    });
+  } catch (err) {
+    console.error('[mandat/statut]', err.message);
+    res.status(500).json({ success: false, message: 'Impossible de changer le statut du mandat.' });
+  }
 });
 
 router.get('/dashboard', requireMandate, async (req, res) => {
