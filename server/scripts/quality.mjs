@@ -462,6 +462,12 @@ const SHARED_HELPER_FILES = [
   'PartPublic/password-strength.js',
   'PartPublic/mim-poll.js',
   'PartPublic/footer.js',
+  // Dette D4 : api.js / crud.js / notifications.js n'ont plus qu'un
+  // exemplaire (PartPublic) — le contrôle veille à ce qu'une page qui
+  // appelle apiRequest/CrudPage charge bien le fichier qui les définit.
+  'PartPublic/api.js',
+  'PartPublic/crud.js',
+  'PartPublic/notifications.js',
 ];
 // Toute déclaration `function` (mim-ui.js est enveloppé dans une IIFE et
 // indenté), mais `const`/`let`/`var` seulement en colonne 0 : un
@@ -472,9 +478,15 @@ const TOP_LEVEL_MEMBER = /^(?:window|globalThis|self|MIM|MIMUI|CrudPage|Onboardi
 const SCRIPT_SRC = /<script[^>]+src="([^"]+)"/g;
 const SCRIPT_INLINE = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
 const DEFINED_FUNCTIONS = /function\s+([A-Za-z_$][\w$]*)\s*\(/g;
+// Méthode abrégée (`async load() {`) : sans elle, la définition elle-même
+// est comptée comme un appel et le contrôle accuse à tort une page qui
+// charge crud.js.
+const DEFINED_METHODS = /(?:^|[\s;{}])(?:async\s+)?([A-Za-z_$][\w$]*)\s*\([^)]*\)\s*\{/g;
 const DEFINED_CONST = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/g;
 const DEFINED_MEMBERS = /(?:window|globalThis|self|MIM|MIMUI|CrudPage|Onboarding)\.([A-Za-z_$][\w$]*)\s*=/g;
 const CALLED = /(?<![.\w$'"`])([A-Za-z_$][\w$]*)\s*\(/g;
+// « async load( », « function load( », « get load( » : déclaration, pas appel.
+const DEFINITION_BEFORE = /(?:^|[^\w$.])(?:async\s+|function\s+|get\s+|set\s+)$/;
 
 function resolveFrontRef(specifier, directory) {
   if (specifier.startsWith('../')) return path.join(root, specifier.slice(3));
@@ -531,7 +543,7 @@ async function checkHelperLoading() {
     const source = sources.join('\n');
 
     const defined = new Set();
-    for (const pattern of [DEFINED_FUNCTIONS, DEFINED_CONST, DEFINED_MEMBERS]) {
+    for (const pattern of [DEFINED_FUNCTIONS, DEFINED_METHODS, DEFINED_CONST, DEFINED_MEMBERS]) {
       for (const match of source.matchAll(pattern)) defined.add(match[1]);
     }
 
@@ -542,6 +554,7 @@ async function checkHelperLoading() {
       const name = match[1];
       const before = source.slice(Math.max(0, match.index - 120), match.index);
       if (new RegExp(`typeof\\s+${name}\\s*===`).test(before)) continue; // garde typeof explicite
+      if (DEFINITION_BEFORE.test(before)) continue; // déclaration, pas appel
       called.add(name);
     }
 
@@ -679,6 +692,35 @@ function silentCatchLines(content) {
   return lines;
 }
 
+// ---------------------------------------------------------------------
+// Dette D4 : duplication des espaces. Deux fichiers Part* strictement
+// identiques signifient qu'une correction devra être réappliquée N fois
+// (cause racine des bugs du 27/09). Un seul exemplaire doit exister,
+// dans PartPublic quand le fichier est partagé.
+// ---------------------------------------------------------------------
+const DUP_MIN_SIZE = 128; // sous ce seuil, un fichier identique n'est qu'un gabarit vide
+
+async function checkDuplicateFrontFiles() {
+  const errors = [];
+  const byContent = new Map();
+  for (const file of await collectFrontAssets()) {
+    const content = await readIfPresent(file);
+    if (content === null || content.length < DUP_MIN_SIZE) continue;
+    const key = content.replace(/\r\n/g, '\n');
+    if (!byContent.has(key)) byContent.set(key, []);
+    byContent.get(key).push(relative(file));
+  }
+  for (const files of byContent.values()) {
+    if (files.length > 1) {
+      errors.push(
+        `${files.join(' | ')} : fichiers strictement identiques — `
+        + 'un seul exemplaire doit subsister (dette D4, duplication des espaces).',
+      );
+    }
+  }
+  return errors;
+}
+
 async function checkSilentCatches() {
   const errors = [];
   for (const file of await collectFrontFiles()) {
@@ -710,6 +752,7 @@ async function runGuards(files) {
   errors.push(...await checkDuplicateIds());
   errors.push(...await checkViewport());
   errors.push(...await checkEncoding());
+  errors.push(...await checkDuplicateFrontFiles());
   errors.push(...await checkSilentCatches());
   return errors;
 }
@@ -730,4 +773,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log(`${mode}: ${files.length} fichiers JavaScript vérifiés${mode === 'lint' ? ' + contrôles de garde (migrations, XSS, innerHTML, schéma de référence, démarrage, configuration, helpers chargés, doublons d\'id, viewport, encodage, catch silencieux)' : ''}`);
+console.log(`${mode}: ${files.length} fichiers JavaScript vérifiés${mode === 'lint' ? ' + contrôles de garde (migrations, XSS, innerHTML, schéma de référence, démarrage, configuration, helpers chargés, doublons d\'id, viewport, encodage, duplication, catch silencieux)' : ''}`);

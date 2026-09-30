@@ -5,9 +5,10 @@
 // - Lit ?bien=<id> (historique : ?id=) et le mémorise en sessionStorage.
 // - En l'absence de paramètre, restaure le dernier bien mémorisé.
 // - Pose MIM.agenceBien = { id, nom? } puis commute MIM.apiBase sur
-//   `/api/agence/bien/<id>` : c'est là que api.js (PartProprietaires)
-//   construit ensuite son préfixe `API`, permettant de réutiliser le JS
-//   propriétaire APRÈS avoir changé simplement la base.
+//   `/api/agence/bien/<id>` : c'est là que api.js (PartPublic, unique
+//   exemplaire partagé avec l'espace propriétaire) construit ensuite son
+//   préfixe `API`, permettant de réutiliser le JS propriétaire APRÈS
+//   avoir changé simplement la base.
 //
 // Ordre d'inclusion dans chaque page MODE 2 :
 //   scope.js → api.js → crud.js → <page réutilisée>.js
