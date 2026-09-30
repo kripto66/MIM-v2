@@ -17,6 +17,7 @@ import crypto from 'node:crypto';
 import { serviceClient } from '../app.js';
 import { getNow } from './simulation.js';
 import { sendMail } from './mailer.js';
+import { purgeResetTokens } from './resetTokenPurge.js';
 
 export const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
@@ -41,6 +42,10 @@ function resetBaseUrl() {
 export async function issueResetToken(userId) {
   const sb = serviceClient();
   const now = await getNow();
+
+  // L-02 : ménage opportuniste des jetons expirés avant émission
+  // (best-effort : ne doit jamais faire échouer la récupération).
+  await purgeResetTokens(sb);
 
   const { error: revokeError } = await sb
     .from('password_reset_tokens')
@@ -125,6 +130,8 @@ export async function finalizeResetToken(tokenHash) {
     .eq('token_hash', tokenHash)
     .eq('status', 'processing');
   if (error) throw error;
+  // L-02 : ménage opportuniste après consommation réussie.
+  await purgeResetTokens(sb);
 }
 
 export async function releaseResetToken(tokenHash) {

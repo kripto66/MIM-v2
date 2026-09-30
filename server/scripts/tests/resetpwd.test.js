@@ -130,6 +130,32 @@ export async function runResetPwd(r, ctx) {
 
   await cleanTokens(service, user.id);
 
+  // 9b) L-02 : une demande de réinitialisation purge les jetons expirés.
+  await r.section('purge des jetons expirés (L-02)', async () => {
+    const now = Date.now();
+    await insertToken(service, user.id, generateResetToken(), new Date(now - 60 * 1000));
+    await insertToken(service, user.id, generateResetToken(), new Date(now - 60 * 1000));
+    await insertToken(service, user.id, generateResetToken(), new Date(now + 60 * DAY));
+
+    const res = await api('/auth/forgot', { method: 'POST', body: { email: user.email } });
+    if (res.status === 200) r.pass(S, 'demande après insertion de jetons expirés → 200');
+    else r.fail(S, 'demande après insertion de jetons expirés → 200', `statut ${res.status}`);
+
+    const { data: restants } = await service
+      .from('password_reset_tokens')
+      .select('expires_at')
+      .eq('user_id', user.id);
+    const expirations = (restants || []).map((t) => new Date(t.expires_at).getTime());
+    const expireRestants = expirations.filter((t) => t < now).length;
+    if (expirations.length === 2 && expireRestants === 0) {
+      r.pass(S, 'jetons expirés purgés (2 restants, aucun périmé)');
+    } else {
+      r.fail(S, 'jetons expirés purgés (2 restants, aucun périmé)',
+        `restants=${expirations.length} périmés=${expireRestants}`);
+    }
+    await cleanTokens(service, user.id);
+  });
+
   // 10) Rate-limit du forfait (unitaire) : 3/10 min, clé IP + email.
   await r.section('rate-limit du forfait (unitaire)', async () => {
     const call = async (email) => {

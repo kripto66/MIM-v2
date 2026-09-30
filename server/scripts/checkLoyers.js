@@ -20,6 +20,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
 import { getNow } from '../utils/simulation.js';
+import { purgeResetTokens } from '../utils/resetTokenPurge.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
@@ -173,6 +174,10 @@ async function main() {
       }
     }
   }
+
+  // L-02 : purge journalisée des jetons de récupération expirés
+  // (job systématique, en complément des déclenchements opportunistes).
+  await purgeResetTokens(supabase);
 
   if (failures > 0) {
     throw new Error(`${failures} opération(s) ont échoué.`);
