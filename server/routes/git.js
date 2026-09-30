@@ -10,8 +10,26 @@ router.post('/backup', async (req, res) => {
     return res.json({ success: true, message: 'Sauvegarde effectuée avec succès.' });
   }
 
-  if (result.reason === 'nothing_to_commit') {
-    return res.json({ success: true, message: 'Rien à sauvegarder (déjà à jour).' });
+  if (result.reason === 'push_failed') {
+    // H-16 : le commit local a été créé mais le remote est injoignable.
+    return res.status(502).json({
+      success: false,
+      message: 'Commit local créé mais la poussée a échoué : la prochaine sauvegarde retentera.',
+    });
+  }
+
+  if (result.reason === 'queue_full') {
+    return res.status(503).json({
+      success: false,
+      message: 'File de sauvegarde saturée, réessayez dans un instant.',
+    });
+  }
+
+  if (result.reason === 'timeout') {
+    return res.status(504).json({
+      success: false,
+      message: 'Sauvegarde trop longue, réessayez dans un instant.',
+    });
   }
 
   if (result.reason === 'disabled') {

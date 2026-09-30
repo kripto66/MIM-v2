@@ -82,6 +82,99 @@ export async function runComplet(r, ctx) {
     }
   });
 
+  await r.section('sauvegardes code/base (H-16)', async () => {
+    const { execFileSync } = await import('node:child_process');
+    const fs = await import('node:fs');
+    const os = await import('node:os');
+    const pathMod = await import('node:path');
+
+    const git = (args, cwd) => execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }).trim();
+    const tmp = fs.mkdtempSync(pathMod.join(os.tmpdir(), 'mim-h16-'));
+    const savedEnv = {
+      GIT_REPO_PATH: process.env.GIT_REPO_PATH,
+      GIT_BACKUP: process.env.GIT_BACKUP,
+      GIT_BRANCH: process.env.GIT_BRANCH,
+      MIM_DB_BACKUP_DIR: process.env.MIM_DB_BACKUP_DIR,
+      MIM_DB_CONTAINER: process.env.MIM_DB_CONTAINER,
+      MIM_DB_BACKUP_INTERVAL_MS: process.env.MIM_DB_BACKUP_INTERVAL_MS,
+    };
+
+    try {
+      // ---- Volet git : un commit retenu localement doit partir des que
+      // le remote redevient disponible, meme sans nouveau changement.
+      const remote = pathMod.join(tmp, 'remote.git');
+      const work = pathMod.join(tmp, 'work');
+      fs.mkdirSync(remote);
+      fs.mkdirSync(work);
+      git(['init', '--bare', remote]);
+      git(['symbolic-ref', 'HEAD', 'refs/heads/master'], remote);
+      git(['init'], work);
+      git(['config', 'user.email', 'h16@mim.test'], work);
+      git(['config', 'user.name', 'H16'], work);
+      fs.writeFileSync(pathMod.join(work, 'a.txt'), 'v1');
+      git(['add', '-A'], work);
+      git(['commit', '-m', 'init'], work);
+      git(['remote', 'add', 'origin', remote], work);
+      git(['push', '-u', 'origin', 'master'], work);
+
+      process.env.GIT_REPO_PATH = work;
+      process.env.GIT_BACKUP = 'true';
+      process.env.GIT_BRANCH = 'master';
+
+      // Instance fraîche : ENABLED est figé au chargement du module.
+      const gitBackup = await import(`../../utils/gitBackup.js?h16=${Date.now()}`);
+
+      // Remote injoignable : le commit est retenu, l'echec est signale.
+      fs.renameSync(remote, `${remote}.off`);
+      fs.writeFileSync(pathMod.join(work, 'a.txt'), 'v2');
+      const blocked = await gitBackup.gitAutoBackup('test H-16');
+      if (blocked.success === false && blocked.reason === 'push_failed') {
+        r.pass(S, 'remote injoignable → push_failed (et non succès trompeur)');
+      } else {
+        r.fail(S, 'remote injoignable → push_failed', JSON.stringify(blocked));
+      }
+      const localHead = git(['log', '-1', '--format=%s'], work);
+      if (localHead === 'Sauvegarde code MIM') r.pass(S, 'commit local conservé malgré le push refusé');
+      else r.fail(S, 'commit local conservé malgré le push refusé', localHead);
+
+      // Remote restauré, AUCUN changement nouveau : le retard doit partir.
+      fs.renameSync(`${remote}.off`, remote);
+      const retried = await gitBackup.gitAutoBackup('test H-16');
+      if (retried.success === true) r.pass(S, 'remote rétabli → poussée réussie sans nouveau commit');
+      else r.fail(S, 'remote rétabli → poussée réussie sans nouveau commit', JSON.stringify(retried));
+      const remoteHead = git(['log', '-1', '--format=%s', 'master'], remote);
+      if (remoteHead === 'Sauvegarde code MIM') r.pass(S, 'commit en retard présent sur le remote');
+      else r.fail(S, 'commit en retard présent sur le remote', remoteHead);
+
+      // ---- Volet base : throttle + echec best-effort (jamais d'exception).
+      process.env.MIM_DB_BACKUP_DIR = pathMod.join(tmp, 'dumps');
+      process.env.MIM_DB_CONTAINER = 'mim-inexistant-h16';
+      process.env.MIM_DB_BACKUP_INTERVAL_MS = '3600000';
+      const dbBackup = await import('../../utils/dbBackup.js');
+
+      const failed = await dbBackup.runDbBackup();
+      if (failed.success === false && failed.reason === 'dump_failed') r.pass(S, 'pg_dump impossible → échec retourné, pas d\'exception');
+      else r.fail(S, 'pg_dump impossible → échec retourné, pas d\'exception', JSON.stringify(failed));
+
+      fs.writeFileSync(pathMod.join(tmp, 'dumps', '.last-dump'), new Date().toISOString());
+      const throttled = await dbBackup.runDbBackup();
+      if (throttled.reason === 'throttled') r.pass(S, 'dump récent → throttle (pas de rejeu)');
+      else r.fail(S, 'dump récent → throttle (pas de rejeu)', JSON.stringify(throttled));
+
+      const forced = await dbBackup.runDbBackup({ force: true });
+      if (forced.success === false && forced.reason === 'dump_failed') r.pass(S, '--force ignore le throttle');
+      else r.fail(S, '--force ignore le throttle', JSON.stringify(forced));
+    } catch (error) {
+      r.fail(S, 'sauvegardes H-16', error.message);
+    } finally {
+      for (const [key, value] of Object.entries(savedEnv)) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   await r.section('locataire confirme un paiement a_confirmer', async () => {
     const tenant = owner.locataires[0];
     const session = await loginForBusiness(owner.locataires[0].username, OWNER_PASSWORD);

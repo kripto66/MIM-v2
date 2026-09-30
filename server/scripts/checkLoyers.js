@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { createClient } from '@supabase/supabase-js';
 import { getNow } from '../utils/simulation.js';
 import { purgeResetTokens } from '../utils/resetTokenPurge.js';
+import { runDbBackup } from '../utils/dbBackup.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '..', '.env') });
@@ -178,6 +179,18 @@ async function main() {
   // L-02 : purge journalisée des jetons de récupération expirés
   // (job systématique, en complément des déclenchements opportunistes).
   await purgeResetTokens(supabase);
+
+  // H-16 : la sauvegarde git ne couvre aucune donnée Supabase. Le dump
+  // de la base part au même rythme que ce cron, throttlé par
+  // utils/dbBackup.js (throttled) — best-effort : un échec est visible
+  // en log sans faire échouer la vérification des loyers.
+  try {
+    const dump = await runDbBackup();
+    if (dump.success) console.log('[cron] sauvegarde de la base : OK');
+    else if (dump.reason !== 'throttled') console.warn('[cron] sauvegarde de la base EN ÉCHEC :', dump.reason);
+  } catch (err) {
+    console.warn('[cron] sauvegarde de la base EN ÉCHEC :', err.message);
+  }
 
   if (failures > 0) {
     throw new Error(`${failures} opération(s) ont échoué.`);

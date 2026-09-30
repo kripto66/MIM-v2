@@ -112,6 +112,13 @@ function redact(value) {
     .slice(0, 200);
 }
 
+// File d'attente bornée (H-16) : sans limite, une panne prolongee du
+// remote ferait grossir la file indéfiniment.
+const MAX_QUEUED = 5;
+const BACKUP_TIMEOUT_MS = Number(process.env.GIT_BACKUP_TIMEOUT_MS) || 60000;
+
+let queued = 0;
+
 async function runBackup() {
   if (!ENABLED) return { success: false, reason: 'disabled' };
 
@@ -120,6 +127,9 @@ async function runBackup() {
   if (!gitExe) return { success: false, reason: 'git_introuvable' };
 
   const branch = process.env.GIT_BRANCH || 'master';
+  // H-16 : le message de commit est VOLONTAIREMENT constant et sans PII.
+  // Les libelles passes par les appelants (emails, usernames, noms) sont
+  // ignore : ils ne doivent JAMAIS atteindre l'historique git.
   const safeMessage = 'Sauvegarde code MIM';
 
   try {
@@ -134,26 +144,64 @@ async function runBackup() {
     const staged = await runGit(gitExe, repo, ['diff', '--cached', '--name-only', '-z']);
     const hasStagedChanges = splitPaths(staged.stdout).length > 0;
     if (hasStagedChanges) {
-      await runGit(gitExe, repo, ['commit', '-m', safeMessage]);
+      try {
+        await runGit(gitExe, repo, ['commit', '-m', safeMessage]);
+      } catch (error) {
+        const detail = `${error.stderr || ''}\n${error.stdout || ''}`;
+        if (!/nothing to commit/i.test(detail)) throw error;
+        // Le worktree s'est vidé entre-temps : rien a committer, on
+        // continue pour pousser d'eventuels commits retenus localement.
+      }
     }
-    await runGit(gitExe, repo, ['push', 'origin', branch]);
 
-    console.log(`[git] Sauvegarde code OK : ${safeMessage}`);
-    return { success: true };
+    // H-16 : le push est TENTÉ à chaque sauvegarde, même sans nouveau
+    // commit, pour qu'un commit retenu locallement parte des que le
+    // remote redevient disponible. Un echec est signale distinctement
+    // (la prochaine sauvegarde retentera) au lieu d'etre detruit par un
+    // « rien à sauvegarder » trompeur.
+    try {
+      await runGit(gitExe, repo, ['push', 'origin', branch]);
+    } catch (error) {
+      const detail = `${error.stderr || ''}\n${error.stdout || ''}\n${error.message || ''}`;
+      console.warn('[git] Push impossible (nouveau commit retenu localement si present) :', redact(detail));
+      return { success: false, reason: 'push_failed', committed: hasStagedChanges };
+    }
+
+    console.log(hasStagedChanges
+      ? `[git] Sauvegarde code OK : ${safeMessage}`
+      : '[git] Poussée OK (aucun nouveau commit, remote à jour)');
+    return { success: true, committed: hasStagedChanges };
   } catch (err) {
     const detail = `${err.stderr || ''}\n${err.stdout || ''}\n${err.message || ''}`;
-    if (/nothing to commit/i.test(detail)) return { success: false, reason: 'nothing_to_commit' };
     if (/secret|private key|credential/i.test(detail)) return { success: false, reason: 'secret_detected' };
     console.warn('[git] Sauvegarde ignorée :', redact(detail));
     return { success: false, reason: redact(detail) };
   }
 }
 
+// Timeout borne sur la REPONSE (H-16) : le travail git continue en
+// arrière-plan, la file d'attente attend la version reelle.
+function withTimeout(task) {
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve({ success: false, reason: 'timeout' }), BACKUP_TIMEOUT_MS);
+  });
+  return Promise.race([task, timeout]).finally(() => clearTimeout(timer));
+}
+
+// `message` est un libelle de traçabilite CONSOLE uniquement : il peut
+// contenir des emails ou usernames (PII) et ne doit jamais devenir un
+// message de commit (H-16).
 export function gitAutoBackup(message) {
-  const task = pipeline.then(() => runBackup(message));
-  pipeline = task.then(
-    () => {},
-    () => {}
-  );
-  return task;
+  if (!ENABLED) return Promise.resolve({ success: false, reason: 'disabled' });
+  if (queued >= MAX_QUEUED) {
+    console.warn(`[git] File de sauvegarde saturée (${MAX_QUEUED}) : demande ignorée`);
+    return Promise.resolve({ success: false, reason: 'queue_full' });
+  }
+
+  queued += 1;
+  const raw = pipeline.then(() => runBackup());
+  const settled = raw.finally(() => { queued -= 1; });
+  pipeline = settled.then(() => {}, () => {});
+  return withTimeout(settled);
 }

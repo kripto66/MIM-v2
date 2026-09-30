@@ -1,11 +1,16 @@
 // Sauvegarde de la base (format custom pg_dump -Fc) :
 //
-//   node server/scripts/backup.mjs
+//   node server/scripts/backup.mjs [--force]
 //
 // Écrit `backups/mim-<horodatage>.dump`. C'est le point de restauration
 // que l'audit M7 constatait absent du dépôt (aucun pg_dump versionné, et
 // depuis l'audit C1 aucune manière de revenir en arrière sur des tables
 // comptables).
+//
+// La logique (throttle, dump, stamp) vit dans utils/dbBackup.js : ce
+// fichier n'est que la ligne de commande manuelle. Le cron checkLoyers
+// appelle runDbBackup() sans --force, donc throttlé (H-16 : la
+// sauvegarde git ne couvre pas les données Supabase).
 //
 // Restauration (dans un conteneur, sur une base de contrôle d'abord) :
 //
@@ -16,46 +21,25 @@
 // `postgres:17` (pg_dump et pg_restore doivent avoir la même version
 // majeure que la base cible).
 //
-// Variables d'environnement : MIM_DB_CONTAINER, MIM_DB_USER, MIM_DB_NAME
-// (voir scripts/dump-schema.mjs).
+// Variables d'environnement : MIM_DB_CONTAINER, MIM_DB_USER, MIM_DB_NAME,
+// MIM_DB_BACKUP_DIR, MIM_DB_BACKUP_INTERVAL_MS.
 
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync, statSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { runDbBackup, dbBackupRestoreHint } from '../utils/dbBackup.js';
 
-const dirname = path.dirname(fileURLToPath(import.meta.url));
-const serverDir = path.resolve(dirname, '..');
-const repoDir = path.resolve(serverDir, '..');
+const force = process.argv.includes('--force');
 
-const container = process.env.MIM_DB_CONTAINER || 'supabase_db_MIM';
-const user = process.env.MIM_DB_USER || 'postgres';
-const dbName = process.env.MIM_DB_NAME || 'postgres';
+const result = await runDbBackup({ force });
 
-const outDir = path.join(repoDir, 'backups');
-mkdirSync(outDir, { recursive: true });
-
-const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-const target = path.join(outDir, `mim-${stamp}.dump`);
-
-let payload;
-try {
-  payload = execFileSync(
-    'docker',
-    ['exec', container, 'pg_dump', '-U', user, '-d', dbName, '-Fc'],
-    { maxBuffer: 1024 * 1024 * 1024, windowsHide: true },
-  );
-} catch (error) {
-  console.error(`[backup] pg_dump a échoué dans ${container} :`);
-  console.error(String(error.stdout || '') + String(error.stderr || error.message));
-  process.exit(1);
+if (result.success) {
+  console.log('[backup] restauration :');
+  console.log(`  ${dbBackupRestoreHint(result.file)}`);
+  process.exit(0);
 }
 
-writeFileSync(target, payload);
+if (result.reason === 'throttled') {
+  console.log(`[backup] dump récent déjà présent (${result.last}) : rien à faire. Utiliser --force pour forcer.`);
+  process.exit(0);
+}
 
-const sizeMb = (statSync(target).size / (1024 * 1024)).toFixed(2);
-console.log(`[backup] ${path.relative(process.cwd(), target)} (${sizeMb} Mo).`);
-console.log('[backup] restauration :');
-console.log(
-  `  docker exec -i ${container} pg_restore -U ${user} -d ${dbName} --clean --if-exists --no-owner < ${path.relative(process.cwd(), target).split(path.sep).join('/')}`,
-);
+console.error(`[backup] échec (${result.reason}).`);
+process.exit(1);
