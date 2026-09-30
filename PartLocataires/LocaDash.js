@@ -112,10 +112,23 @@ async function loadTenantIdentity() {
     const { user } = await tenantRequest("/auth/me");
     const name = user.name || "Locataire";
     // Le profil est rempli par profil.html lui-même (profileNameInput /
-    // profilePhoneInput) : on ne touche ici qu'aux éléments partagés.
-    for (const id of ["userName", "welcomeName"]) {
+    // profilePhoneInput) : on ne touche ici qu'aux éléments partagés
+    // (topbar, bloc utilisateur de la sidebar, accueil).
+    for (const id of ["welcomeName", "sideName", "topName"]) {
       const el = document.getElementById(id);
       if (el) el.textContent = name;
+    }
+    for (const id of ["sideRole", "topRole"]) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = "Locataire";
+    }
+    const initial = escapeHtml(((name.trim()[0]) || "L").toUpperCase());
+    const avatarHtml = user.avatar_url
+      ? `<img src="${escapeAttr(user.avatar_url)}" alt="">`
+      : initial;
+    for (const id of ["avatar", "topAvatar"]) {
+      const el = document.getElementById(id);
+      if (el) el.innerHTML = avatarHtml;
     }
     const unlinkedEmail = document.getElementById("unlinkedEmail");
     const unlinkedEmailWrap = document.getElementById("unlinkedEmailWrap");
@@ -280,7 +293,7 @@ function renderConfirmPayment(data) {
       <div class="confirm-payment-info">
         <strong>✅ Paiement reçu — en attente de validation</strong>
         <p>Votre paiement de ${fmtFCFA(pending.montant)} (${escapeHtml(formatMois(pending.mois))}) a bien été reçu. Il attend la validation de votre propriétaire.</p>
-        <button type="button" class="primary-button" id="confirmLegacyPayment">Confirmer la réception</button>
+        <button type="button" class="btn-primary" id="confirmLegacyPayment">Confirmer la réception</button>
       </div>`;
     const button = document.getElementById("confirmLegacyPayment");
     if (button) {
@@ -321,7 +334,7 @@ function renderConfirmPayment(data) {
     <div class="confirm-payment-info">
       <strong>💰 Loyer à payer</strong>
       <p>Payez votre loyer de ${escapeHtml(formatMois(pending.mois))} (${fmtFCFA(pending.montant)}) en ligne (Orange Money, Wave, Free Money…) ou directement auprès de votre propriétaire.</p>
-      <a href="paiements.html" class="primary-button" type="button">📱 Payer mon loyer</a>
+      <a href="paiements.html" class="btn-primary">📱 Payer mon loyer</a>
     </div>`;
 }
 
@@ -368,7 +381,7 @@ function renderNotifications(notifications) {
             <strong>${MIM.linkify(n.message)}</strong>
             ${n.date ? `<p>${formatDate(n.date)}</p>` : ""}
           </div>
-          <button class="btn btn-delete btn-sm" data-delete-notif="${n.id}" title="Supprimer">✕</button>
+          <button type="button" class="btn-delete" data-delete-notif="${n.id}" title="Supprimer">✕</button>
         </div>`;
     })
     .join("");

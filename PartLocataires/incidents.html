@@ -34,12 +34,24 @@
             </a>
 
             <button
+                type="button"
                 class="close-menu"
                 id="closeMenu"
                 aria-label="Fermer le menu"
             >
                 ×
             </button>
+
+        </div>
+
+        <div class="sidebar-user">
+
+            <span class="avatar" id="avatar">L</span>
+
+            <div class="sidebar-user-info">
+                <strong id="sideName">Locataire</strong>
+                <small id="sideRole">Chargement…</small>
+            </div>
 
         </div>
 
@@ -80,10 +92,11 @@
         <div class="sidebar-footer">
 
             <button
-                class="logout-button"
+                type="button"
+                class="logout logout-button"
                 id="logoutButton"
             >
-                 Déconnexion
+                Déconnexion
             </button>
 
         </div>
@@ -100,6 +113,7 @@
         <header class="topbar">
 
             <button
+                type="button"
                 class="menu-button"
                 id="menuButton"
                 data-sidebar-toggle
@@ -111,7 +125,9 @@
 
             <div class="topbar-title">
 
-                <h1>Incidents</h1>
+                <span class="eyebrow">Espace locataire</span>
+
+                <h1 id="title">Incidents</h1>
 
                 <p>
                     Les problèmes signalés sur votre logement.
@@ -124,21 +140,12 @@
                 class="user-profile"
             >
 
-                <div class="avatar">
-                    L
-                </div>
+                <span class="avatar" id="topAvatar">L</span>
 
-                <div class="user-info">
-
-                    <strong id="userName">
-                        Locataire
-                    </strong>
-
-                    <span>
-                        Locataire
-                    </span>
-
-                </div>
+                <span class="user-info">
+                    <strong id="topName">Locataire</strong>
+                    <span id="topRole">Locataire</span>
+                </span>
 
             </a>
 
@@ -158,13 +165,14 @@
 
             <div class="section-title">
 
-                <h2>Signaler un incident</h2>
-
-                <p>Décrivez le problème sur votre logement. Une photo peut être jointe.</p>
+                <div>
+                    <h2>Signaler un incident</h2>
+                    <p>Décrivez le problème sur votre logement. Une photo peut être jointe.</p>
+                </div>
 
             </div>
 
-            <form id="incidentForm" class="tenant-form" novalidate>
+            <form id="incidentForm" class="form" novalidate>
 
                 <div class="form-group">
                     <label for="titre">Titre</label>
@@ -178,12 +186,13 @@
 
                 <div class="form-group">
                     <label for="photo">Photo (facultatif)</label>
-                    <input type="file" id="photo" name="photo" accept="image/*" data-photo-input>
-                    <p class="photo-hint" id="photoStatus"></p>
+                    <label for="photo" class="btn-secondary file-btn">Joindre une photo</label>
+                    <input type="file" id="photo" name="photo" accept="image/*" data-photo-input hidden>
+                    <p class="form-hint" id="photoStatus"></p>
                 </div>
 
                 <div class="form-actions">
-                    <button type="submit" class="btn-submit" id="incidentSubmitBtn">Signaler l'incident</button>
+                    <button type="submit" class="btn-primary" id="incidentSubmitBtn">Signaler l'incident</button>
                 </div>
 
             </form>
@@ -194,9 +203,10 @@
 
             <div class="section-title">
 
-                <h2>Incidents de mon logement</h2>
-
-                <p>Suivi des incidents déclarés sur votre logement.</p>
+                <div>
+                    <h2>Incidents de mon logement</h2>
+                    <p>Suivi des incidents déclarés sur votre logement.</p>
+                </div>
 
             </div>
 

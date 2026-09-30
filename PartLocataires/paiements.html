@@ -34,12 +34,24 @@
             </a>
 
             <button
+                type="button"
                 class="close-menu"
                 id="closeMenu"
                 aria-label="Fermer le menu"
             >
                 ×
             </button>
+
+        </div>
+
+        <div class="sidebar-user">
+
+            <span class="avatar" id="avatar">L</span>
+
+            <div class="sidebar-user-info">
+                <strong id="sideName">Locataire</strong>
+                <small id="sideRole">Chargement…</small>
+            </div>
 
         </div>
 
@@ -80,10 +92,11 @@
         <div class="sidebar-footer">
 
             <button
-                class="logout-button"
+                type="button"
+                class="logout logout-button"
                 id="logoutButton"
             >
-                 Déconnexion
+                Déconnexion
             </button>
 
         </div>
@@ -100,6 +113,7 @@
         <header class="topbar">
 
             <button
+                type="button"
                 class="menu-button"
                 id="menuButton"
                 data-sidebar-toggle
@@ -111,7 +125,9 @@
 
             <div class="topbar-title">
 
-                <h1>Mes paiements</h1>
+                <span class="eyebrow">Espace locataire</span>
+
+                <h1 id="title">Mes paiements</h1>
 
                 <p>
                     L'historique de vos loyers.
@@ -124,21 +140,12 @@
                 class="user-profile"
             >
 
-                <div class="avatar">
-                    L
-                </div>
+                <span class="avatar" id="topAvatar">L</span>
 
-                <div class="user-info">
-
-                    <strong id="userName">
-                        Locataire
-                    </strong>
-
-                    <span>
-                        Locataire
-                    </span>
-
-                </div>
+                <span class="user-info">
+                    <strong id="topName">Locataire</strong>
+                    <span id="topRole">Locataire</span>
+                </span>
 
             </a>
 
@@ -158,9 +165,10 @@
 
             <div class="section-title">
 
-                <h2>Loyer à payer</h2>
-
-                <p id="payerSubtitle">Votre échéance et les moyens de paiement de votre propriétaire.</p>
+                <div>
+                    <h2>Loyer à payer</h2>
+                    <p id="payerSubtitle">Votre échéance et les moyens de paiement de votre propriétaire.</p>
+                </div>
 
             </div>
 
@@ -174,9 +182,10 @@
 
             <div class="section-title">
 
-                <h2>Historique des loyers</h2>
-
-                <p>Tous les paiements enregistrés pour votre logement.</p>
+                <div>
+                    <h2>Historique des loyers</h2>
+                    <p>Tous les paiements enregistrés pour votre logement.</p>
+                </div>
 
             </div>
 
@@ -189,21 +198,21 @@
     </main>
 
     <!-- Modal de confirmation « J'ai effectué le paiement » -->
-    <div class="modal-overlay" id="declareModal" style="display:none;">
-        <div class="modal">
-            <h2>Confirmer votre paiement</h2>
-            <div id="declareModalBody"></div>
-            <div class="form-group" style="margin-top:12px;">
-                <label for="declareReference">Référence déclarée (optionnel)</label>
-                <input type="text" id="declareReference" maxlength="80" placeholder="N° de transaction, motif…">
-                <small>Référence déclarée par vous : elle ne remplace pas la vérification du propriétaire.</small>
-            </div>
-            <div class="modal-actions">
-                <button type="button" class="btn btn-secondary" id="declareCancel">Annuler</button>
-                <button type="button" class="btn btn-primary" id="declareConfirm">Confirmer la déclaration</button>
+        <div class="modal-overlay hidden" id="declareModal">
+            <div class="modal">
+                <h3>Confirmer votre paiement</h3>
+                <div id="declareModalBody"></div>
+                <div class="form-group">
+                    <label for="declareReference">Référence déclarée (optionnel)</label>
+                    <input type="text" id="declareReference" maxlength="80" placeholder="N° de transaction, motif…">
+                    <small class="form-hint">Référence déclarée par vous : elle ne remplace pas la vérification du propriétaire.</small>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" id="declareCancel">Annuler</button>
+                    <button type="button" class="btn-primary" id="declareConfirm">Confirmer la déclaration</button>
+                </div>
             </div>
         </div>
-    </div>
 
     <script src="LocaDash.js"></script>
     <script>
@@ -319,7 +328,7 @@
                         </div>
                         <p>Votre paiement de <strong>${fmtFCFA(pending.montant)}</strong> a bien été reçu. Il attend la validation de votre propriétaire.</p>
                         ${pending.date_paiement ? `<p class="payer-meta">Reçu le ${formatDate(pending.date_paiement)}</p>` : ""}
-                        <button type="button" class="declare-btn" data-confirm-legacy="${escapeAttr(pending.id)}">Confirmer la réception</button>
+                        <button type="button" class="btn-primary declare-btn" data-confirm-legacy="${escapeAttr(pending.id)}">Confirmer la réception</button>
                     </div>`;
                 if (subtitle) subtitle.textContent = "Votre paiement est enregistré : il attend la validation du propriétaire.";
                 return;
@@ -398,7 +407,7 @@
                                 <span>${icon} ${label}</span>
                             </div>
                             ${lines.join("")}
-                            <button type="button" class="declare-btn" data-method="${m.id}">J'ai effectué le paiement</button>
+                            <button type="button" class="btn-primary declare-btn" data-method="${m.id}">J'ai effectué le paiement</button>
                         </div>`;
                 }).join("");
             }
@@ -433,7 +442,7 @@
                 <p><strong>Montant : ${fmtFCFA(pending.montant)}</strong></p>
                 <p><strong>Méthode : ${escapeHtml(TYPE_LABELS[method.type] || method.type)}</strong></p>
                 <p>Vous confirmez avoir effectué le paiement à votre propriétaire.</p>`;
-            document.getElementById("declareModal").style.display = "flex";
+            document.getElementById("declareModal").classList.remove("hidden");
         }
 
         async function submitDeclaration() {
@@ -446,7 +455,7 @@
                     method: "POST",
                     body: JSON.stringify({ moyen_paiement_id: declareTarget, reference }),
                 });
-                document.getElementById("declareModal").style.display = "none";
+                document.getElementById("declareModal").classList.add("hidden");
                 showTenantError(res.message || "Déclaration enregistrée.", true);
                 await reloadPage();
             } catch (err) {
@@ -490,7 +499,7 @@
                             <p>${p.validated_at ? "Validé le " + formatDate(p.validated_at) : p.validation_requested_at ? "Déclaré le " + formatDate(p.validation_requested_at) : p.date_paiement ? "Payé le " + formatDate(p.date_paiement) : "Non réglé"}</p>
                             ${p.rejection_reason && p.statut === "refuse" ? `<p class="payer-note">Motif : ${escapeHtml(p.rejection_reason)}</p>` : ""}
                         </div>
-                        <div style="text-align:right;">
+                        <div class="list-item-side">
                             <div class="list-item-amount">${fmtFCFA(p.montant)}</div>
                             <div>${badgeStatut(p.statut, "paiement")}</div>
                         </div>
@@ -527,13 +536,13 @@
                 });
 
                 document.getElementById("declareCancel").addEventListener("click", () => {
-                    document.getElementById("declareModal").style.display = "none";
+                    document.getElementById("declareModal").classList.add("hidden");
                     document.getElementById("declareConfirm").disabled = false;
                 });
                 document.getElementById("declareConfirm").addEventListener("click", submitDeclaration);
                 document.getElementById("declareModal").addEventListener("click", (e) => {
                     if (e.target.id === "declareModal") {
-                        document.getElementById("declareModal").style.display = "none";
+                        document.getElementById("declareModal").classList.add("hidden");
                         document.getElementById("declareConfirm").disabled = false;
                     }
                 });

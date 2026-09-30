@@ -34,12 +34,24 @@
             </a>
 
             <button
+                type="button"
                 class="close-menu"
                 id="closeMenu"
                 aria-label="Fermer le menu"
             >
                 ×
             </button>
+
+        </div>
+
+        <div class="sidebar-user">
+
+            <span class="avatar" id="avatar">L</span>
+
+            <div class="sidebar-user-info">
+                <strong id="sideName">Locataire</strong>
+                <small id="sideRole">Chargement…</small>
+            </div>
 
         </div>
 
@@ -80,10 +92,11 @@
         <div class="sidebar-footer">
 
             <button
-                class="logout-button"
+                type="button"
+                class="logout logout-button"
                 id="logoutButton"
             >
-                 Déconnexion
+                Déconnexion
             </button>
 
         </div>
@@ -100,6 +113,7 @@
         <header class="topbar">
 
             <button
+                type="button"
                 class="menu-button"
                 id="menuButton"
                 data-sidebar-toggle
@@ -111,7 +125,9 @@
 
             <div class="topbar-title">
 
-                <h1>Notifications</h1>
+                <span class="eyebrow">Espace locataire</span>
+
+                <h1 id="title">Notifications</h1>
 
                 <p>
                     Les informations importantes concernant votre logement.
@@ -124,21 +140,12 @@
                 class="user-profile"
             >
 
-                <div class="avatar">
-                    L
-                </div>
+                <span class="avatar" id="topAvatar">L</span>
 
-                <div class="user-info">
-
-                    <strong id="userName">
-                        Locataire
-                    </strong>
-
-                    <span>
-                        Locataire
-                    </span>
-
-                </div>
+                <span class="user-info">
+                    <strong id="topName">Locataire</strong>
+                    <span id="topRole">Locataire</span>
+                </span>
 
             </a>
 
@@ -158,9 +165,10 @@
 
             <div class="section-title">
 
-                <h2>Notifications récentes</h2>
-
-                <p>Paiements, incidents et informations de votre logement.</p>
+                <div>
+                    <h2>Notifications récentes</h2>
+                    <p>Paiements, incidents et informations de votre logement.</p>
+                </div>
 
             </div>
 

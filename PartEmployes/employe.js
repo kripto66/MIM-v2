@@ -134,17 +134,23 @@ async function me() {
     u = d?.data || d?.user || d;
   S.me = u;
   let n = u.name || u.full_name || u.username || "Employé";
+  let role = u.role || u.employee_role || "Employé";
+  let initial = n[0]?.toUpperCase() || "E";
   $("#sideName").textContent = n;
   $("#topName").textContent = n;
   $("#welcome").textContent = n;
-  $("#avatar").textContent = n[0]?.toUpperCase() || "E";
+  $("#avatar").textContent = initial;
+  $("#topAvatar").textContent = initial;
   if (u.avatar_url) {
-    $("#avatar").innerHTML = `<img src="${esc(u.avatar_url)}" alt="">`;
+    let img = `<img src="${esc(u.avatar_url)}" alt="">`;
+    $("#avatar").innerHTML = img;
+    $("#topAvatar").innerHTML = img;
   }
-  $("#sideRole").textContent = u.role || u.employee_role || "Employé";
+  $("#sideRole").textContent = role;
+  $("#topRole").textContent = role;
   $("#pName").value = u.name || u.full_name || "";
   $("#pUsername").value = u.username || "";
-  $("#pRole").value = u.role || u.employee_role || "";
+  $("#pRole").value = role;
   $("#pEmail").value = u.email || "";
   setAvatar(u.avatar_url || null);
 }
@@ -263,7 +269,7 @@ function renderMoyens(list) {
         esc(MOYEN_TYPE_LABELS[m.type] || m.type)
       }</b> ${m.actif === false ? '<span class="status st-non_recu">Inactif</span>' : ""}<div class="muted small">${
         details || "—"
-      }</div>${m.instructions ? `<div class="muted small">${esc(m.instructions)}</div>` : ""}<div class="sal-actions"><button class="secondary small" data-edit="${
+      }</div>${m.instructions ? `<div class="muted small">${esc(m.instructions)}</div>` : ""}<div class="sal-actions"><button class="btn-secondary small" data-edit="${
         m.id
       }">Modifier</button><button class="danger small" data-del="${m.id}">Supprimer</button></div></div>`;
     })
@@ -282,7 +288,7 @@ function renderSalaires(list) {
       const stCls = ["paye", "attente", "non_recu"].includes(st) ? st : "attente";
       let body = "";
       if (st === "attente") {
-        body = `<div class="sal-actions"><button class="primary small" data-confirm="${p.id}">Confirmer la réception</button><button class="danger small" data-refuse="${p.id}">Je n'ai pas reçu</button></div>`;
+        body = `<div class="sal-actions"><button class="btn-primary small" data-confirm="${p.id}">Confirmer la réception</button><button class="danger small" data-refuse="${p.id}">Je n'ai pas reçu</button></div>`;
       } else if (st === "paye") {
         body = `<div class="muted small ok">✔ Reçu — confirmé le ${dateTime(p.confirmed_at)}</div>`;
       } else if (st === "non_recu") {
@@ -465,7 +471,7 @@ function cardFor(kind) {
         ${x.logement && x.logement !== "—" ? `<div class="muted"><b>${esc(x.logement)}</b>${x.tenant ? " — " + esc(x.tenant) : ""}</div>` : ""}
         <div class="muted">${esc(x.description || "")}</div>
         <small>${dateTime(x.created_at)}</small>
-        ${resolved ? `<small class="muted">Résolu${x.resolved_at ? " le " + date(x.resolved_at) : ""}</small>` : `<button class="primary resolve-btn" data-resolve="${x.id}">Résoudre</button>`}
+        ${resolved ? `<small class="muted">Résolu${x.resolved_at ? " le " + date(x.resolved_at) : ""}</small>` : `<button class="btn-primary resolve-btn" data-resolve="${x.id}">Résoudre</button>`}
       </article>`;
     };
   }
@@ -539,6 +545,13 @@ $("#logout").onclick = async () => {
   } finally {
     location.href = "/PartPublic/connexion.html";
   }
+};
+
+// Fermeture du rail mobile (bouton × du header sidebar).
+$("#closeMenu").onclick = () => {
+  $("#sidebar").classList.remove("open");
+  const ov = $("#sidebarOverlay");
+  if (ov) ov.classList.remove("active");
 };
 $("#readAll").onclick = async () => {
   try {

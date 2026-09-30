@@ -34,12 +34,24 @@
             </a>
 
             <button
+                type="button"
                 class="close-menu"
                 id="closeMenu"
                 aria-label="Fermer le menu"
             >
                 ×
             </button>
+
+        </div>
+
+        <div class="sidebar-user">
+
+            <span class="avatar" id="avatar">L</span>
+
+            <div class="sidebar-user-info">
+                <strong id="sideName">Locataire</strong>
+                <small id="sideRole">Chargement…</small>
+            </div>
 
         </div>
 
@@ -80,10 +92,11 @@
         <div class="sidebar-footer">
 
             <button
-                class="logout-button"
+                type="button"
+                class="logout logout-button"
                 id="logoutButton"
             >
-                 Déconnexion
+                Déconnexion
             </button>
 
         </div>
@@ -100,6 +113,7 @@
         <header class="topbar">
 
             <button
+                type="button"
                 class="menu-button"
                 id="menuButton"
                 data-sidebar-toggle
@@ -111,7 +125,9 @@
 
             <div class="topbar-title">
 
-                <h1>Mon profil</h1>
+                <span class="eyebrow">Espace locataire</span>
+
+                <h1 id="title">Mon profil</h1>
 
                 <p>
                     Vos informations personnelles.
@@ -124,21 +140,12 @@
                 class="user-profile"
             >
 
-                <div class="avatar">
-                    L
-                </div>
+                <span class="avatar" id="topAvatar">L</span>
 
-                <div class="user-info">
-
-                    <strong id="userName">
-                        Locataire
-                    </strong>
-
-                    <span>
-                        Locataire
-                    </span>
-
-                </div>
+                <span class="user-info">
+                    <strong id="topName">Locataire</strong>
+                    <span id="topRole">Locataire</span>
+                </span>
 
             </a>
 
@@ -150,47 +157,58 @@
 
             <div class="section-title">
 
-                <h2>Informations du compte</h2>
-
-                <p>Mettez à jour vos informations personnelles.</p>
+                <div>
+                    <h2>Informations du compte</h2>
+                    <p>Mettez à jour vos informations personnelles.</p>
+                </div>
 
             </div>
 
             <form id="profileForm">
 
-                <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px;">
+                <div class="avatar-edit">
+
                     <img id="avatarPreview" alt="Photo de profil"
-                        style="width:84px;height:84px;border-radius:50%;object-fit:cover;background:#e9edf2;border:2px solid #dfe5ec;"
-                        src="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84'%3E%3Crect width='84' height='84' fill='%23e9edf2'/%3E%3Ctext x='42' y='50' font-size='32' text-anchor='middle' fill='%239aa7b4'%3E👤%3C/text%3E%3C/svg%3E">
-                    <div>
-                        <label for="avatarInput" class="secondary-button" style="display:inline-block;cursor:pointer;">Changer la photo</label>
+                        src="data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='84' height='84'%3E%3Crect width='84' height='84' fill='%23f0ebfa'/%3E%3Ctext x='42' y='52' font-size='32' text-anchor='middle' fill='%237c3aed'%3E👤%3C/text%3E%3C/svg%3E">
+
+                    <div class="avatar-edit-actions">
+                        <label for="avatarInput" class="btn-secondary file-btn">Changer la photo</label>
                         <input type="file" id="avatarInput" accept="image/jpeg,image/png,image/webp" hidden>
-                        <button type="button" class="danger-button" id="avatarRemoveBtn" style="display:none;">Supprimer la photo</button>
-                        <p class="form-hint" style="margin-top:6px;">JPEG, PNG ou WebP — 2 Mo maximum.</p>
+                        <button type="button" class="danger small" id="avatarRemoveBtn" style="display:none;">Supprimer la photo</button>
+                        <small>JPEG, PNG ou WebP — 2 Mo maximum.</small>
                     </div>
+
                 </div>
 
-                <div class="form-group">
-                    <label for="profileNameInput">Nom complet</label>
-                    <input type="text" id="profileNameInput" name="name" required>
+                <div class="form-row">
+
+                    <div class="form-group">
+                        <label for="profileNameInput">Nom complet</label>
+                        <input type="text" id="profileNameInput" name="name" required autocomplete="name">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="profileUsernameInput">Username (connexion)</label>
+                        <input type="text" id="profileUsernameInput" name="username" autocomplete="username">
+                        <p class="form-hint">Utilisé pour vous connecter. Vous pouvez le modifier.</p>
+                        <small class="username-status" id="usernameStatus"></small>
+                    </div>
+
                 </div>
 
-                <div class="form-group">
-                    <label for="profileUsernameInput">Username (connexion)</label>
-                    <input type="text" id="profileUsernameInput" name="username" autocomplete="username">
-                    <p class="form-hint">Utilisé pour vous connecter. Vous pouvez le modifier.</p>
-                    <small class="username-status" id="usernameStatus"></small>
-                </div>
+                <div class="form-row">
 
-                <div class="form-group">
-                    <label for="profileEmail">Email</label>
-                    <input type="email" id="profileEmail" disabled>
-                    <p class="form-hint">L'email n'est pas utilisé pour votre connexion.</p>
-                </div>
+                    <div class="form-group">
+                        <label for="profileEmail">Email</label>
+                        <input type="email" id="profileEmail" disabled autocomplete="email">
+                        <p class="form-hint">L'email n'est pas utilisé pour votre connexion.</p>
+                    </div>
 
-                <div class="form-group">
-                    <label for="profilePhoneInput">Téléphone</label>
-                    <input type="tel" id="profilePhoneInput" name="phone">
+                    <div class="form-group">
+                        <label for="profilePhoneInput">Téléphone</label>
+                        <input type="tel" id="profilePhoneInput" name="phone" autocomplete="tel">
+                    </div>
+
                 </div>
 
                 <div class="form-group">
@@ -202,7 +220,7 @@
 
                 <button
                     type="submit"
-                    class="primary-button"
+                    class="btn-primary"
                     id="profileSubmitBtn"
                 >
                     Enregistrer les modifications
@@ -216,9 +234,10 @@
 
             <div class="section-title">
 
-                <h2>Changer le mot de passe</h2>
-
-                <p>Mettez à jour votre mot de passe de connexion.</p>
+                <div>
+                    <h2>Changer le mot de passe</h2>
+                    <p>Mettez à jour votre mot de passe de connexion.</p>
+                </div>
 
             </div>
 
@@ -243,7 +262,7 @@
 
                 <button
                     type="submit"
-                    class="primary-button"
+                    class="btn-primary"
                     id="passwordSubmitBtn"
                 >
                     Changer le mot de passe
