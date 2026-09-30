@@ -35,7 +35,7 @@ async function collectSourceFiles(directory) {
   return collectFiles(directory, JS_EXTENSIONS);
 }
 
-async function collectFrontFiles() {
+async function collectPartFiles(extensions) {
   const files = [];
   let entries;
   try {
@@ -45,10 +45,22 @@ async function collectFrontFiles() {
   }
   for (const entry of entries) {
     if (entry.isDirectory() && entry.name.startsWith('Part')) {
-      files.push(...await collectFiles(path.join(root, entry.name), FRONT_EXTENSIONS));
+      files.push(...await collectFiles(path.join(root, entry.name), extensions));
     }
   }
   return files;
+}
+
+async function collectFrontFiles() {
+  return collectPartFiles(FRONT_EXTENSIONS);
+}
+
+async function collectPages() {
+  return (await collectPartFiles(new Set(['.html']))).filter((file) => file.endsWith('.html'));
+}
+
+async function collectFrontAssets() {
+  return collectPartFiles(new Set(['.html', '.js', '.css']));
 }
 
 function relative(file) {
@@ -431,6 +443,164 @@ async function checkSchemaDump() {
   return errors;
 }
 
+// ---------------------------------------------------------------------
+// Dette D6 : définition vs chargement des helpers partagés.
+// Une page qui appelle un helper défini dans PartPublic/mim-ui.js ou
+// PartPublic/mim-errors.js doit charger ce fichier : sinon la page
+// s'ouvre puis lève une ReferenceError au premier appel (bug critique
+// du 27/09 et bug B1 du 29/09 relevés par l'audit frontend).
+// ---------------------------------------------------------------------
+const SHARED_HELPER_FILES = [
+  ['PartPublic/mim-ui.js', 'mim-ui.js'],
+  ['PartPublic/mim-errors.js', 'mim-errors.js'],
+];
+const TOP_LEVEL_FUNCTION = /(?:^|\n)\s*(?:async\s+)?function\s+([A-Za-z_$][\w$]*)\s*\(/g;
+const SCRIPT_SRC = /<script[^>]+src="([^"]+)"/g;
+const SCRIPT_INLINE = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
+const DEFINED_FUNCTIONS = /function\s+([A-Za-z_$][\w$]*)\s*\(/g;
+const DEFINED_CONST = /(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=/g;
+const DEFINED_MEMBERS = /(?:window|globalThis|self|MIM|MIMUI|CrudPage|Onboarding)\.([A-Za-z_$][\w$]*)\s*=/g;
+const CALLED = /(?<![.\w$'"`])([A-Za-z_$][\w$]*)\s*\(/g;
+
+function resolveFrontRef(specifier, directory) {
+  if (specifier.startsWith('../')) return path.join(root, specifier.slice(3));
+  if (specifier.startsWith('/')) return path.join(root, specifier.slice(1));
+  return path.join(directory, specifier);
+}
+
+async function readIfPresent(file) {
+  try {
+    return await readFile(file, 'utf8');
+  } catch {
+    return null;
+  }
+}
+
+async function checkHelperLoading() {
+  const errors = [];
+  const shared = new Map();
+  for (const [rel, scriptName] of SHARED_HELPER_FILES) {
+    const content = await readIfPresent(path.join(root, rel));
+    if (!content) {
+      errors.push(`${rel}: absent — les helpers partagés doivent rester chargés par toutes les pages.`);
+      continue;
+    }
+    const names = new Set();
+    for (const match of content.matchAll(TOP_LEVEL_FUNCTION)) names.add(match[1]);
+    shared.set(scriptName, { home: rel, names });
+  }
+  for (const page of await collectPages()) {
+    const html = await readIfPresent(page);
+    if (!html) continue;
+    const directory = path.dirname(page);
+    const loaded = [];
+    const inline = [];
+    for (const match of html.matchAll(SCRIPT_SRC)) loaded.push(match[1]);
+    for (const match of html.matchAll(SCRIPT_INLINE)) inline.push(match[1]);
+    const loadedNames = new Set(loaded.map((specifier) => path.basename(specifier)));
+
+    let source = inline.join('\n');
+    for (const specifier of loaded) {
+      const file = resolveFrontRef(specifier, directory);
+      const content = file.endsWith('.js') ? await readIfPresent(file) : null;
+      if (content) source += `\n${content}`;
+    }
+
+    const defined = new Set();
+    for (const pattern of [DEFINED_FUNCTIONS, DEFINED_CONST, DEFINED_MEMBERS]) {
+      for (const match of source.matchAll(pattern)) defined.add(match[1]);
+    }
+    const called = new Set();
+    for (const match of source.matchAll(CALLED)) called.add(match[1]);
+
+    for (const [scriptName, { home, names }] of shared) {
+      if (loadedNames.has(scriptName)) continue;
+      const missing = [...called].filter((name) => names.has(name) && !defined.has(name));
+      if (missing.length) {
+        errors.push(
+          `${relative(page)}: appelle ${missing.join(', ')} (defini dans ${home}) sans charger `
+          + `<script src="/${scriptName}"> — ReferenceError au premier appel (audit frontend D6).`,
+        );
+      }
+    }
+  }
+  return errors;
+}
+
+// ---------------------------------------------------------------------
+// Dette D2 : un id déclaré deux fois dans une page est invalide et devient
+// un piège dès que les deux occurrences coexistent. Seul le HTML statique
+// est compté : les id écrits dans un <script> (branches de ternaires,
+// gabarits rendus au clic) ne peuvent pas exister ensemble dans le DOM.
+// ---------------------------------------------------------------------
+const STATIC_HTML = /<script\b[^>]*>[\s\S]*?<\/script>/gi;
+const STATIC_STYLE = /<style\b[^>]*>[\s\S]*?<\/style>/gi;
+const HTML_ID = /\sid="([^"$]+)"/g;
+
+async function checkDuplicateIds() {
+  const errors = [];
+  for (const page of await collectPages()) {
+    const html = await readIfPresent(page);
+    if (!html) continue;
+    const staticHtml = html.replace(STATIC_HTML, '').replace(STATIC_STYLE, '');
+    const ids = new Map();
+    for (const match of staticHtml.matchAll(HTML_ID)) {
+      const id = match[1];
+      if (!ids.has(id)) ids.set(id, { count: 0, index: match.index });
+      ids.get(id).count += 1;
+    }
+    for (const [id, info] of ids) {
+      if (info.count > 1) {
+        errors.push(
+          `${relative(page)}:${lineOf(staticHtml, info.index)}: id="${id}" déclaré ${info.count} fois `
+          + 'dans le HTML statique — un seul élément porteur de cet id peut exister dans le DOM.',
+        );
+      }
+    }
+  }
+  return errors;
+}
+
+// ---------------------------------------------------------------------
+// Dette D6 : chaque page doit déclarer meta viewport (rendu mobile) et
+// l'encodage ne doit jamais régresser vers du CP1252 réinterprété
+// (bugs B2/B6 de l'audit : « Mes employÃ©s », « DÃ©connexion », U+FFFD).
+// ---------------------------------------------------------------------
+const VIEWPORT_META = /<meta[^>]+name="viewport"/i;
+const MOJIBAKE = /Ã[\u0080-\u00BF]|â€|Â[¡¿«»]|âŒ|âœ|ðŸ|[\u01F0-\u01FF]/g;
+const REPLACEMENT_CHAR = /\uFFFD/g;
+
+async function checkViewport() {
+  const errors = [];
+  for (const page of await collectPages()) {
+    const html = await readIfPresent(page);
+    if (html && !VIEWPORT_META.test(html)) {
+      errors.push(`${relative(page)}: <meta name="viewport"> absente — rendu dézoomé sur mobile.`);
+    }
+  }
+  return errors;
+}
+
+async function checkEncoding() {
+  const errors = [];
+  for (const file of await collectFrontAssets()) {
+    const content = await readIfPresent(file);
+    if (!content) continue;
+    const bad = new Set();
+    for (const match of content.matchAll(MOJIBAKE)) bad.add(match[0]);
+    const replacement = content.match(REPLACEMENT_CHAR);
+    if (replacement) bad.add(`\uFFFD (x${replacement.length})`);
+    if (bad.size) {
+      const first = content.search(/Ã[\u0080-\u00BF]|â€|Â[¡¿«»]|âŒ|âœ|ðŸ|[\u01F0-\u01FF]|\uFFFD/);
+      errors.push(
+        `${relative(file)}:${lineOf(content, first)}: séquence d'encodage corrompue `
+        + `${[...bad].join(', ')} — texte CP1252 réinterprété (audit B2/B6).`,
+      );
+    }
+  }
+  return errors;
+}
+
 async function runGuards(files) {
   const htmlFiles = await collectFrontFiles();
   const scanned = [...new Set([...files, ...htmlFiles])];
@@ -442,6 +612,10 @@ async function runGuards(files) {
   errors.push(...await checkSchemaDump());
   errors.push(...await checkBootOrder());
   errors.push(...await checkEnvTemplate());
+  errors.push(...await checkHelperLoading());
+  errors.push(...await checkDuplicateIds());
+  errors.push(...await checkViewport());
+  errors.push(...await checkEncoding());
   return errors;
 }
 
@@ -461,4 +635,4 @@ if (errors.length) {
   process.exit(1);
 }
 
-console.log(`${mode}: ${files.length} fichiers JavaScript vérifiés${mode === 'lint' ? ' + contrôles de garde (migrations, XSS, innerHTML, schéma de référence, démarrage, configuration)' : ''}`);
+console.log(`${mode}: ${files.length} fichiers JavaScript vérifiés${mode === 'lint' ? ' + contrôles de garde (migrations, XSS, innerHTML, schéma de référence, démarrage, configuration, helpers chargés, doublons d\'id, viewport, encodage)' : ''}`);
