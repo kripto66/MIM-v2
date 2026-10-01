@@ -282,7 +282,12 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
         if (delBtn) {
-            if (!confirm("Supprimer ce moyen de paiement ?")) return;
+            const ok = await MIM.confirmPassword({
+                title: "Supprimer ce moyen de paiement ?",
+                message: "Les locataires ne pourront plus payer par ce moyen.",
+                confirmLabel: "Supprimer",
+            });
+            if (!ok) return;
             try {
                 const res = await apiRequest(`/moyens-paiement/${delBtn.dataset.deletemoyen}`, { method: "DELETE" });
                 showToast(res.message || "Moyen supprimé.");

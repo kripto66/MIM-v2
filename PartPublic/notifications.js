@@ -75,7 +75,12 @@ async function deleteNotif(id) {
 }
 
 async function deleteAll() {
-    if (!confirm("Supprimer toutes vos notifications ? Cette action est irréversible.")) return;
+    const ok = await MIM.confirmPassword({
+        title: "Supprimer toutes vos notifications ?",
+        message: "Cette action est irréversible.",
+        confirmLabel: "Tout supprimer",
+    });
+    if (!ok) return;
     try {
         await apiRequest("/notifications", { method: "DELETE" });
         showToast("Toutes les notifications ont été supprimées.");

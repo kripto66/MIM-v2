@@ -63,5 +63,18 @@
         marquerMessagesLus: function () {
             return request("/messages/lus", { method: "POST" });
         },
+        /* Moyens de réception : par où l'agence vous verse. */
+        moyensReception: function () {
+            return request("/moyens-reception");
+        },
+        ajouterMoyenReception: function (body) {
+            return request("/moyens-reception", { method: "POST", body: body });
+        },
+        majMoyenReception: function (id, body) {
+            return request("/moyens-reception/" + id, { method: "PUT", body: body });
+        },
+        supprimerMoyenReception: function (id) {
+            return request("/moyens-reception/" + id, { method: "DELETE" });
+        },
     };
 })();

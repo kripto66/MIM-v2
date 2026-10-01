@@ -306,7 +306,12 @@ function renderSalaires(list) {
 }
 
 async function confirmPaiement(id) {
-  if (!confirm("Confirmez-vous avoir bien reçu ce salaire ?")) return;
+  const ok = await MIM.confirmPassword({
+    title: "Confirmer la réception de ce salaire ?",
+    message: "Vous atteste avoir bien reçu ce montant.",
+    confirmLabel: "Confirmer la réception",
+  });
+  if (!ok) return;
   try {
     const r = await api(E.paiements + "/" + id + "/confirmer", { method: "POST", body: "{}" });
     toast(r?.message || "Paiement confirmé");
@@ -386,14 +391,19 @@ $("#moyenSave").onclick = async () => {
     toast(x.message, "error");
   }
 };
-$("#moyensList").onclick = (e) => {
+$("#moyensList").onclick = async (e) => {
   const ed = e.target.closest("[data-edit]");
   const del = e.target.closest("[data-del]");
   if (ed) {
     const m = (S.moyens || []).find((x) => String(x.id) === ed.dataset.edit);
     if (m) openMoyenModal(m);
   } else if (del) {
-    if (!confirm("Supprimer ce moyen de réception ?")) return;
+    const ok = await MIM.confirmPassword({
+      title: "Supprimer ce moyen de réception ?",
+      message: "Vous ne pourrez plus être payé par ce moyen.",
+      confirmLabel: "Supprimer",
+    });
+    if (!ok) return;
     api(E.moyens + "/" + del.dataset.del, { method: "DELETE" })
       .then(() => {
         toast("Moyen de paiement supprimé");

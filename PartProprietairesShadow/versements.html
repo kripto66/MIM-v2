@@ -49,7 +49,47 @@
                 </header>
                 <div id="versementsList"></div>
             </section>
+
+            <section class="mim-section">
+                <header>
+                    <h2>Moyens de réception</h2>
+                    <button class="btn btn-primary btn-sm" id="addMoyenBtn" type="button">+ Ajouter un moyen</button>
+                </header>
+                <p class="section-meta">Indiquez à votre agence comment vous souhaitez recevoir vos versements.</p>
+                <div id="moyensList"></div>
+            </section>
         </main>
+    </div>
+
+    <!-- Modal : ajout / édition d'un moyen de réception -->
+    <div class="modal-overlay" id="moyenOverlay" style="display:none;">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="moyenModalTitle">
+            <h2 id="moyenModalTitle">Ajouter un moyen de réception</h2>
+
+            <div class="form-group">
+                <label for="moyenType">Type</label>
+                <select id="moyenType">
+                    <option value="wave">Wave</option>
+                    <option value="orange_money">Orange Money</option>
+                    <option value="virement">Virement bancaire</option>
+                    <option value="especes">Espèces</option>
+                </select>
+            </div>
+
+            <div id="moyenFields"></div>
+
+            <div class="form-group" style="margin-top:14px;">
+                <label class="form-label" style="display:flex;align-items:center;gap:8px;">
+                    <input type="checkbox" id="moyenActif" checked style="width:auto;">
+                    Moyen actif (visible par mon agence)
+                </label>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn btn-secondary" id="moyenCancel" type="button">Annuler</button>
+                <button class="btn btn-primary" id="moyenSave" type="button">Enregistrer</button>
+            </div>
+        </div>
     </div>
 
     <script src="/PartPublic/mim-ui.js"></script>

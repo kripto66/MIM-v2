@@ -105,11 +105,11 @@
                 validateBtn.disabled = true;
                 try {
                     const res = await apiRequest(`/paiements-validation/${id}/valider`, { method: "POST" });
-                    alert(res.message || "Paiement validé.");
+                    MIM.showSuccess(res.message || "Paiement validé.");
                     await Promise.all([loadPending(), CrudPage.load()]);
                 } catch (err) {
                     validateBtn.disabled = false;
-                    alert(err.message);
+                    MIM.showError(err.message);
                 }
                 return;
             }
@@ -129,7 +129,7 @@
                 ? document.getElementById("refusMotifAutre").value.trim()
                 : select.value;
             if (!motif) {
-                alert("Indiquez le motif du refus.");
+                MIM.showError("Indiquez le motif du refus.");
                 return;
             }
             const btn = document.getElementById("refusConfirm");
@@ -140,11 +140,11 @@
                     body: JSON.stringify({ motif }),
                 });
                 document.getElementById("refusModal").style.display = "none";
-                alert(res.message || "Déclaration refusée.");
+                MIM.showSuccess(res.message || "Déclaration refusée.");
                 refusTargetId = null;
                 await Promise.all([loadPending(), CrudPage.load()]);
             } catch (err) {
-                alert(err.message);
+                MIM.showError(err.message);
             } finally {
                 btn.disabled = false;
             }

@@ -40,3 +40,166 @@
   background: #1d4ed8;
   color: #fff;
 }
+
+/* ============================================================
+ * Confirmation par mot de passe (MIM.confirmPassword).
+ * Remplace les confirm() / alert() de confirmation : le composant
+ * est créé à la demande par mim-errors.js, donc aucune balise à
+ * ajouter dans les pages. Chargé partout (46/47 pages).
+ * ============================================================ */
+
+.mim-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(17, 8, 31, 0.62);
+  backdrop-filter: blur(2px);
+  z-index: 1000;
+}
+
+.mim-confirm-overlay.open {
+  display: flex;
+}
+
+/* La div « confirmer » demandée : centrée à l'écran par le conteneur. */
+.confirmer {
+  width: min(430px, 100%);
+  background: #fff;
+  color: #1f2937;
+  border-radius: 16px;
+  padding: 24px 22px 20px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4);
+  font-family: inherit;
+  animation: mim-confirm-in 0.18s ease-out;
+}
+
+@keyframes mim-confirm-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.confirmer h2 {
+  margin: 0 0 8px;
+  font-size: 17px;
+  line-height: 1.35;
+  color: #111827;
+}
+
+.confirmer .mim-confirm-text {
+  margin: 0 0 16px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #4b5563;
+}
+
+.confirmer .mim-confirm-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #374151;
+  text-transform: none;
+}
+
+/* Champ optionnel intégré (référence, motif…) — remplace window.prompt. */
+.confirmer .mim-confirm-extra {
+  margin-bottom: 14px;
+}
+
+.confirmer .mim-confirm-extra[hidden] {
+  display: none;
+}
+
+.confirmer input[type="password"],
+.confirmer input[type="text"] {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 12px;
+  font-size: 15px;
+  font-family: inherit;
+  color: #111827;
+  background: #f9fafb;
+  border: 1px solid #d1d5db;
+  border-radius: 9px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.confirmer input:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.18);
+  background: #fff;
+}
+
+.confirmer input[aria-invalid="true"] {
+  border-color: #dc2626;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.14);
+}
+
+.confirmer .mim-confirm-error {
+  margin: 8px 0 0;
+  font-size: 12.5px;
+  color: #b91c1c;
+  min-height: 1em;
+}
+
+.confirmer .mim-confirm-error:empty {
+  min-height: 0;
+}
+
+.mim-confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.mim-confirm-actions button {
+  padding: 9px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: inherit;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+}
+
+.mim-confirm-actions button:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.mim-btn-cancel {
+  background: #f3f4f6;
+  color: #374151;
+  border-color: #d1d5db;
+}
+
+.mim-btn-cancel:hover:not(:disabled) {
+  background: #e5e7eb;
+}
+
+.mim-btn-ok {
+  background: linear-gradient(135deg, #8b5cf6, #d946ef);
+  color: #fff;
+}
+
+.mim-btn-ok:hover:not(:disabled) {
+  filter: brightness(1.06);
+}
+
+/* Surcharge sur les zones sombres : le fond reste blanc (lisibilité),
+ * seuls les textes sont adaptés si la zone définit déjà des variables. */
+[data-espace] .confirmer h2 {
+  color: #111827;
+}

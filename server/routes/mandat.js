@@ -10,6 +10,7 @@ import { Router } from 'express';
 import { serviceClient } from '../app.js';
 import { notify } from '../utils/notifications.js';
 import { MANDAT_STATUTS, mandatMotifError, mandatReactivateError, applyMandatStatut } from '../utils/mandatRevocation.js';
+import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paymentLinkError } from '../utils/paiementMethodes.js';
 
 const router = Router();
 const sb = () => serviceClient();
@@ -806,6 +807,121 @@ router.post('/messages/lus', requireMandate, async (req, res) => {
     .eq('lu_par_destinataire', false);
   if (error) return res.status(500).json({ success: false, message: 'Impossible de marquer les messages comme lus.' });
   res.json({ success: true });
+});
+
+// ============================================================
+// Moyens de RÉCEPTION — par où l'agence verse l'argent au
+// propriétaire (Wave, Orange Money, virement, espèces).
+//
+// Même table que /api/moyens-paiement, mais exposée ici pour
+// l'espace délégué : /api/moyens-paiement est protégé par
+// mandatGuard (table NO_BIEN_TABLES) et refuserait (403
+// MANDAT_MANAGED_BY_AGENCY) tout propriétaire TOUT confié —
+// soit exactement le cas de l'espace shadow. Un moyen de
+// réception n'est pas une ressource gérée par l'agence : c'est
+// le compte du propriétaire lui-même.
+// ============================================================
+
+// Liste des moyens de réception du propriétaire.
+router.get('/moyens-reception', requireMandate, async (req, res) => {
+  try {
+    const { data, error } = await sb()
+      .from('moyens_paiement')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .order('type', { ascending: true })
+      .order('id', { ascending: true });
+    if (error) throw error;
+    res.json({ success: true, data: data || [] });
+  } catch (err) {
+    console.error('[mandat/moyens-reception]', err.message);
+    res.status(500).json({ success: false, message: 'Impossible de charger vos moyens de réception.' });
+  }
+});
+
+// Ajout d'un moyen de réception.
+router.post('/moyens-reception', requireMandate, async (req, res) => {
+  try {
+    const type = String((req.body || {}).type || '');
+    if (!TYPES_MOYENS_PAIEMENT.includes(type)) {
+      return res.status(400).json({ success: false, message: 'Type de moyen de réception invalide.' });
+    }
+
+    const linkError = paymentLinkError(req.body?.lien_paiement);
+    if (linkError) {
+      return res.status(400).json({ success: false, message: linkError, errors: { lien_paiement: linkError } });
+    }
+
+    const clean = sanitizeMoyenBody(type, req.body);
+    const { data, error } = await sb()
+      .from('moyens_paiement')
+      .insert({ user_id: req.user.id, type, ...clean })
+      .select()
+      .single();
+    if (error) throw error;
+
+    res.status(201).json({ success: true, data, message: 'Moyen de réception enregistré.' });
+  } catch (err) {
+    console.error('[mandat/moyens-reception] insert :', err.message);
+    res.status(500).json({ success: false, message: 'Impossible d\'enregistrer ce moyen de réception.' });
+  }
+});
+
+// Modification d'un moyen de réception.
+router.put('/moyens-reception/:id', requireMandate, async (req, res) => {
+  try {
+    const { data: existing } = await sb()
+      .from('moyens_paiement')
+      .select('*')
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .maybeSingle();
+    if (!existing) {
+      return res.status(404).json({ success: false, message: 'Moyen de réception introuvable.' });
+    }
+
+    const linkError = paymentLinkError(req.body?.lien_paiement);
+    if (linkError) {
+      return res.status(400).json({ success: false, message: linkError, errors: { lien_paiement: linkError } });
+    }
+
+    const clean = sanitizeMoyenBody(existing.type, req.body);
+    const { data, error } = await sb()
+      .from('moyens_paiement')
+      .update(clean)
+      .eq('id', existing.id)
+      .eq('user_id', req.user.id)
+      .select()
+      .single();
+    if (error) throw error;
+
+    res.json({ success: true, data, message: 'Moyen de réception mis à jour.' });
+  } catch (err) {
+    console.error('[mandat/moyens-reception] update :', err.message);
+    res.status(500).json({ success: false, message: 'Impossible de mettre à jour ce moyen de réception.' });
+  }
+});
+
+// Suppression d'un moyen de réception.
+router.delete('/moyens-reception/:id', requireMandate, async (req, res) => {
+  try {
+    const { data, error } = await sb()
+      .from('moyens_paiement')
+      .delete()
+      .eq('id', req.params.id)
+      .eq('user_id', req.user.id)
+      .select()
+      .single();
+    if (error) throw error;
+    if (!data) {
+      return res.status(404).json({ success: false, message: 'Moyen de réception introuvable.' });
+    }
+
+    res.json({ success: true, data, message: 'Moyen de réception supprimé.' });
+  } catch (err) {
+    console.error('[mandat/moyens-reception] delete :', err.message);
+    res.status(500).json({ success: false, message: 'Impossible de supprimer ce moyen de réception.' });
+  }
 });
 
 export default router;

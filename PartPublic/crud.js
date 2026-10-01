@@ -163,7 +163,12 @@ const CrudPage = {
   },
 
   async deleteItem(id) {
-    if (!confirm("Voulez-vous vraiment supprimer cet élément ?")) return;
+    const ok = await MIM.confirmPassword({
+      title: "Supprimer cet élément ?",
+      message: "Cette action est définitive.",
+      confirmLabel: "Supprimer",
+    });
+    if (!ok) return;
 
     try {
       await apiRequest(`/${this.config.resource}/${id}`, { method: "DELETE" });

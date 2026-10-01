@@ -45,6 +45,15 @@
             var res = await window.MandatApi.messages();
             render(res.messages || []);
         } catch (err) {
+            // Meme repli que les 4 autres pages de l'espace : sans mandat,
+            // on bascule vers l'espace complet au lieu d'un cul-de-sac.
+            if (err && err.code === "MANDAT_NOT_FOUND") {
+                MIM.showError("Aucun mandat actif. Vous pouvez continuer dans votre espace propriétaire complet.");
+                setTimeout(function () {
+                    window.location.href = "/PartProprietaires/dashboard.html";
+                }, 2500);
+                return;
+            }
             MIM.showError((err && err.message) || "Impossible de charger la messagerie.");
         }
     }

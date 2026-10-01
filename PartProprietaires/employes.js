@@ -284,7 +284,12 @@ const editing = employeeEditId != null;
         async function deleteEmployee(id) {
             const emp = state.employes.find((e) => String(e.id) === String(id));
             if (!emp) return;
-            if (!confirm(`Voulez-vous vraiment supprimer ${emp.nom} ? Son compte d'accès (login) sera supprimé définitivement.`)) return;
+            const okEmp = await MIM.confirmPassword({
+                title: `Supprimer ${emp.nom} ?`,
+                message: "Son compte d'accès (login) sera supprimé définitivement.",
+                confirmLabel: "Supprimer",
+            });
+            if (!okEmp) return;
             try {
                 const res = await apiRequest(`/employes/${id}`, { method: "DELETE" });
                 showToast(res.message);
@@ -472,7 +477,12 @@ const lab = p.statut === "paye" ? "Payé" : "En attente";
         }
 
         async function deleteTask(id) {
-            if (!confirm("Voulez-vous vraiment supprimer cette tâche ?")) return;
+            const okTask = await MIM.confirmPassword({
+                title: "Supprimer cette tâche ?",
+                message: "Cette action est définitive.",
+                confirmLabel: "Supprimer",
+            });
+            if (!okTask) return;
             try {
                 const res = await apiRequest(`/tasks/${id}`, { method: "DELETE" });
                 showToast(res.message);

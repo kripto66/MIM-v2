@@ -146,11 +146,11 @@
                 validateBtn.disabled = true;
                 try {
                     const res = await apiRequest(`/paiements-validation/${id}/valider`, { method: "POST" });
-                    alert(res.message || "Paiement validé.");
+                    MIM.showSuccess(res.message || "Paiement validé.");
                     await Promise.all([loadPending(), CrudPage.load()]);
                 } catch (err) {
                     validateBtn.disabled = false;
-                    alert(err.message);
+                    MIM.showError(err.message);
                 }
                 return;
             }
@@ -170,7 +170,7 @@
                 ? document.getElementById("refusMotifAutre").value.trim()
                 : select.value;
             if (!motif) {
-                alert("Indiquez le motif du refus.");
+                MIM.showError("Indiquez le motif du refus.");
                 return;
             }
             const btn = document.getElementById("refusConfirm");
@@ -181,11 +181,11 @@
                     body: JSON.stringify({ motif }),
                 });
                 document.getElementById("refusModal").style.display = "none";
-                alert(res.message || "Déclaration refusée.");
+                MIM.showSuccess(res.message || "Déclaration refusée.");
                 refusTargetId = null;
                 await Promise.all([loadPending(), CrudPage.load()]);
             } catch (err) {
-                alert(err.message);
+                MIM.showError(err.message);
             } finally {
                 btn.disabled = false;
             }
@@ -361,7 +361,7 @@
                 document.getElementById("moyenModal").style.display = "none";
                 await loadMoyens();
             } catch (err) {
-                alert(err.message);
+                MIM.showError(err.message);
             } finally {
                 btn.disabled = false;
             }
@@ -389,7 +389,7 @@
                     }
                     document.getElementById("moyenModal").style.display = "flex";
                 } catch (err) {
-                    alert(err.message);
+                    MIM.showError(err.message);
                 }
                 return;
             }
@@ -405,18 +405,23 @@
                     });
                     await loadMoyens();
                 } catch (err) {
-                    alert(err.message);
+                    MIM.showError(err.message);
                 }
                 return;
             }
 
             if (del) {
-                if (!confirm("Supprimer ce moyen de paiement ?")) return;
+                const okMoyen = await MIM.confirmPassword({
+                    title: "Supprimer ce moyen de paiement ?",
+                    message: "Les locataires ne pourront plus payer par ce moyen.",
+                    confirmLabel: "Supprimer",
+                });
+                if (!okMoyen) return;
                 try {
                     await apiRequest(`/moyens-paiement/${del.dataset.mdelete}`, { method: "DELETE" });
                     await loadMoyens();
                 } catch (err) {
-                    alert(err.message);
+                    MIM.showError(err.message);
                 }
             }
         }
@@ -571,6 +576,12 @@
             if (!payEmpTarget) return;
             const form = document.getElementById("payEmpForm");
             const btn = form.querySelector('button[type="submit"]');
+            const okPay = await MIM.confirmPassword({
+                title: "Déclarer ce versement ?",
+                message: `Vous déclarez un salaire de ${fmtFCFA(Number(form.payemp_montant.value) || 0)} à ${payEmpTarget.nom || "cet employé"}.`,
+                confirmLabel: "Déclarer",
+            });
+            if (!okPay) return;
             btn.disabled = true;
             try {
                 const res = await apiRequest(`/employes/${payEmpTarget.id}/paiements`, {
@@ -584,10 +595,10 @@
                     }),
                 });
                 document.getElementById("payEmpModal").style.display = "none";
-                alert(res.message || "Versement déclaré.");
+                MIM.showSuccess(res.message || "Versement déclaré.");
                 await Promise.all([loadEmployes()]);
             } catch (err) {
-                alert(err.message);
+                MIM.showError(err.message);
                 btn.disabled = false;
             }
         }
@@ -651,7 +662,7 @@
                     : '<div class="empty-state">Aucun versement pour cet employé.</div>';
                 document.getElementById("histModal").style.display = "flex";
             } catch (err) {
-                alert(err.message);
+                MIM.showError(err.message);
             }
         }
 

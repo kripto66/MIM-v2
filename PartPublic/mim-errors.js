@@ -220,6 +220,317 @@ MIM._createToast = function () {
   return t;
 };
 
+/* ============================================================
+ * Confirmation centralisée (remplace confirm() / alert()).
+ *
+ *   const ok = await MIM.confirmPassword({
+ *     title: "Supprimer ce moyen ?",
+ *     message: "Cette action est définitive.",
+ *     confirmLabel: "Supprimer",
+ *     requirePassword: true   // défaut
+ *   });
+ *   if (!ok) return;
+ *
+ * - La div .confirmer est créée à la demande puis réutilisée :
+ *   aucune balise à ajouter dans les pages (styles dans mim-errors.css).
+ * - requirePassword: true vérifie le mot de passe via
+ *   POST /api/auth/verify-password AVANT de résoudre à true. La
+ *   promesse ne se résout jamais si le mot de passe est faux.
+ * - Echap ou clic sur le fond = annulation (résout false).
+ * ============================================================ */
+MIM._confirmEl = null;
+MIM._confirmBusy = false;
+
+MIM._confirmDom = function () {
+  if (MIM._confirmEl && document.body.contains(MIM._confirmEl)) return MIM._confirmEl;
+
+  const overlay = document.createElement("div");
+  overlay.className = "mim-confirm-overlay";
+  overlay.setAttribute("role", "dialog");
+  overlay.setAttribute("aria-modal", "true");
+  overlay.setAttribute("aria-labelledby", "mimConfirmTitle");
+  overlay.innerHTML =
+    '<form class="confirmer" method="dialog" novalidate>' +
+    '<h2 id="mimConfirmTitle"></h2>' +
+    '<p class="mim-confirm-text"></p>' +
+    '<div class="mim-confirm-extra" hidden>' +
+    '<label class="mim-confirm-label" id="mimConfirmExtraLabel" for="mimConfirmExtra"></label>' +
+    '<input id="mimConfirmExtra" type="text" autocomplete="off" spellcheck="false">' +
+    "</div>" +
+    '<label class="mim-confirm-label mim-confirm-pw-label" for="mimConfirmPw">Confirmer en entrant votre mot de passe</label>' +
+    '<input id="mimConfirmPw" name="password" type="password" autocomplete="current-password" spellcheck="false">' +
+    '<p class="mim-confirm-error" id="mimConfirmErr" role="alert"></p>' +
+    '<div class="mim-confirm-actions">' +
+    '<button type="button" class="mim-btn-cancel">Annuler</button>' +
+    '<button type="submit" class="mim-btn-ok">Confirmer</button>' +
+    "</div>" +
+    "</form>";
+
+  document.body.appendChild(overlay);
+  MIM._confirmEl = overlay;
+
+  const form = overlay.querySelector("form");
+  const input = overlay.querySelector("#mimConfirmPw");
+  const label = overlay.querySelector(".mim-confirm-pw-label");
+  const pwGroup = [label, input];
+
+  // Rejoue la dernière tentative sur Entrée (submit du formulaire).
+  form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    if (MIM._confirmAttempt && !MIM._confirmBusy) MIM._confirmAttempt();
+  });
+
+  const cancel = function () {
+    if (MIM._confirmBusy) return;
+    MIM._settle(false);
+  };
+  overlay.querySelector(".mim-btn-cancel").addEventListener("click", cancel);
+
+  // Clic sur le fond sombre = annulation.
+  overlay.addEventListener("mousedown", function (e) {
+    if (e.target === overlay) cancel();
+  });
+
+  overlay.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !MIM._confirmBusy) {
+      e.preventDefault();
+      cancel();
+    }
+  });
+
+  // Mémorise le champ pour le réafficher proprement à chaque ouverture.
+  overlay._input = input;
+  overlay._label = label;
+  overlay._pwGroup = pwGroup;
+  return overlay;
+};
+
+MIM._settle = function (value) {
+  const overlay = MIM._confirmEl;
+  MIM._confirmBusy = false;
+  if (overlay) {
+    overlay.classList.remove("open");
+    const input = overlay._input;
+    input.value = "";
+    input.removeAttribute("aria-invalid");
+    overlay.querySelector("#mimConfirmErr").textContent = "";
+    const extra = overlay.querySelector("#mimConfirmExtra");
+    extra.value = "";
+    extra.removeAttribute("aria-invalid");
+    overlay.querySelector(".mim-confirm-extra").hidden = true;
+    // Réarmement systématique : le succès appelle _settle depuis la
+    // chaîne de vérification, dont le dernier .then abandonne (cancelled)
+    // avant d'y penser. Sans ça, les boutons resteraient verrouillés
+    // sur « Vérification… » tant qu'on ne rouvrirait pas le dialogue.
+    const okBtn = overlay.querySelector(".mim-btn-ok");
+    const cancelBtn = overlay.querySelector(".mim-btn-cancel");
+    okBtn.disabled = false;
+    cancelBtn.disabled = false;
+    okBtn.textContent = overlay._okLabel || "Confirmer";
+    if (overlay._restoreFocus && typeof overlay._restoreFocus.focus === "function") {
+      try {
+        overlay._restoreFocus.focus();
+      } catch (err) {
+        // L'élément d'origine peut avoir été retiré du DOM entre-temps.
+        console.debug("[MIM] confirm: impossible de rendre le focus", err);
+      }
+    }
+  }
+  document.removeEventListener("keydown", MIM._confirmEsc, true);
+  const attempt = MIM._confirmAttempt;
+  const resolve = MIM._confirmResolve;
+  MIM._confirmAttempt = null;
+  MIM._confirmResolve = null;
+  if (attempt) attempt.cancelled = true;
+  if (resolve) resolve(value);
+};
+
+/* Échap global tant que la fenêtre est ouverte (l'écouteur posé sur le
+ * conteneur ne capte que si le focus y est). */
+MIM._confirmEsc = function (e) {
+  if (e.key === "Escape" && !MIM._confirmBusy) {
+    e.preventDefault();
+    MIM._settle(false);
+  }
+};
+
+/**
+ * Ouvre la fenêtre de confirmation (remplace confirm() / alert() / prompt()).
+ *
+ * @param {object} opts
+ *   title        : titre du dialogue
+ *   message      : texte d'explication (optionnel)
+ *   confirmLabel : libellé du bouton de confirmation
+ *   cancelLabel  : libellé du bouton d'annulation
+ *   requirePassword : false pour une confirmation sans saisie (défaut: true)
+ *   extraField   : { name, label, value?, required? } — champ texte optionnel
+ *                  intégré au dialogue (repli du window.prompt)
+ *   values       : objet FOURNI PAR L'APPELANT, rempli à la clé
+ *                  extraField.name SI et seulement SI la promesse résout true
+ * @returns {Promise<boolean>} true seulement si confirmé (et mot de passe validé)
+ */
+MIM.confirmPassword = function (opts) {
+  const o = opts || {};
+  const needPw = o.requirePassword !== false;
+
+  // Confirmation déjà ouverte : on ignore l'appel imbriqué.
+  if (MIM._confirmResolve) return Promise.resolve(false);
+
+  const overlay = MIM._confirmDom();
+  overlay.querySelector("#mimConfirmTitle").textContent = o.title || "Confirmer l'action";
+  overlay.querySelector(".mim-confirm-text").textContent = o.message || "";
+  overlay.querySelector(".mim-confirm-text").style.display = o.message ? "" : "none";
+  overlay.querySelector(".mim-btn-ok").textContent = o.confirmLabel || "Confirmer";
+  overlay.querySelector(".mim-btn-cancel").textContent = o.cancelLabel || "Annuler";
+
+  const okBtn = overlay.querySelector(".mim-btn-ok");
+  const cancelBtn = overlay.querySelector(".mim-btn-cancel");
+  const errBox = overlay.querySelector("#mimConfirmErr");
+  const input = overlay._input;
+
+  // Mémorisé pour que _settle() restaure le libellé d'origine.
+  overlay._okLabel = o.confirmLabel || "Confirmer";
+
+  // Mot de passe requis ou non : on masque le bloc correspondant.
+  overlay._pwGroup.forEach(function (el) { el.style.display = needPw ? "" : "none"; });
+  input.required = needPw;
+  input.removeAttribute("aria-invalid");
+  overlay._restoreFocus = document.activeElement;
+
+  /* Champ optionnel (ex. référence du virement) — remplace le
+   * window.prompt() : même dialogue, mêmes raccourcis. La valeur saisie
+   * est recopiée dans opts.values[nom] UNIQUEMENT après confirmation. */
+  const extraWrap = overlay.querySelector(".mim-confirm-extra");
+  const extraInput = overlay.querySelector("#mimConfirmExtra");
+  const extraLabel = overlay.querySelector("#mimConfirmExtraLabel");
+  const extraName = o.extraField ? (o.extraField.name || "extra") : null;
+  overlay._extraName = extraName;
+  overlay._extraValues = extraName ? (o.values || {}) : null;
+  overlay._extraRequired = !!(o.extraField && o.extraField.required);
+  extraWrap.hidden = !o.extraField;
+  extraInput.value = (o.extraField && o.extraField.value) || "";
+  extraInput.removeAttribute("aria-invalid");
+  extraLabel.textContent = (o.extraField && o.extraField.label) || "";
+
+  // Réarme toujours à l'ouverture : un précédent essai peut avoir laissé
+  // les boutons verrouillés (« Vérification… » interrompue).
+  okBtn.disabled = false;
+  cancelBtn.disabled = false;
+  okBtn.textContent = o.confirmLabel || "Confirmer";
+  errBox.textContent = "";
+
+  overlay.classList.add("open");
+  document.addEventListener("keydown", MIM._confirmEsc, true);
+  // Focus après le rendu (sinon le navigateur peut le voler au formulaire).
+  setTimeout(function () { input.focus(); }, 0);
+
+  /* Valide le champ optionnel avant toute requête (échec rapide). */
+  function checkExtra() {
+    extraInput.removeAttribute("aria-invalid");
+    if (!overlay._extraName || !overlay._extraRequired) return true;
+    const v = extraInput.value.trim();
+    if (v) return true;
+    errBox.textContent = "Renseignez " + (extraLabel.textContent || "ce champ") + ".";
+    extraInput.setAttribute("aria-invalid", "true");
+    extraInput.focus();
+    return false;
+  }
+
+  /* Recopie la valeur saisie dans opts.values — uniquement si la
+   * confirmation aboutit (le promesse résout true). */
+  function collectExtra() {
+    if (overlay._extraName && overlay._extraValues) {
+      overlay._extraValues[overlay._extraName] = extraInput.value.trim();
+    }
+  }
+
+  return new Promise(function (resolve) {
+    MIM._confirmResolve = resolve;
+
+    /* Tentative de confirmation (clic sur « Confirmer » ou Entrée). */
+    MIM._confirmAttempt = function attempt() {
+      if (MIM._confirmBusy) return;
+      if (!checkExtra()) return;
+
+      if (!needPw) {
+        collectExtra();
+        MIM._settle(true);
+        return;
+      }
+
+      const password = input.value;
+      if (!password) {
+        errBox.textContent = "Saisissez votre mot de passe.";
+        input.setAttribute("aria-invalid", "true");
+        input.focus();
+        return;
+      }
+
+      MIM._confirmBusy = true;
+      okBtn.disabled = true;
+      cancelBtn.disabled = true;
+      okBtn.textContent = "Vérification…";
+      errBox.textContent = "";
+
+      const csrf = (window.MIM && MIM._csrfReady) ? MIM._csrfReady : Promise.resolve();
+
+      csrf
+        .then(function () {
+          if (attempt.cancelled) return { status: 499 };
+          return fetch((MIM.apiHost ? MIM.apiHost() : window.location.origin) + "/api/auth/verify-password", {
+            method: "POST",
+            credentials: "include",
+            headers: Object.assign(
+              { "Content-Type": "application/json", Accept: "application/json" },
+              typeof MIM.csrfHeader === "function" ? MIM.csrfHeader() : {}
+            ),
+            body: JSON.stringify({ password: password }),
+          });
+        })
+        .then(function (res) {
+          if (attempt.cancelled) return;
+          if (res.status === 200) {
+            collectExtra();
+            MIM._settle(true);
+            return;
+          }
+          if (res.status === 499) return;
+          if (res.status === 401 || res.status === 403) {
+            errBox.textContent = "Mot de passe incorrect.";
+            input.setAttribute("aria-invalid", "true");
+            input.select();
+            return;
+          }
+          return res
+            .json()
+            .catch(function () { return {}; })
+            .then(function (body) {
+              if (attempt.cancelled) return;
+              errBox.textContent = (body && body.message) || "Vérification impossible. Réessayez.";
+            });
+        })
+        .catch(function () {
+          if (attempt.cancelled) return;
+          errBox.textContent = "Connexion au serveur interrompue. Réessayez.";
+        })
+        .then(function () {
+          MIM._confirmBusy = false;
+          if (attempt.cancelled) return;
+          okBtn.disabled = false;
+          cancelBtn.disabled = false;
+          okBtn.textContent = o.confirmLabel || "Confirmer";
+          if (overlay.classList.contains("open")) input.focus();
+        });
+    };
+  });
+};
+
+/* Variante simple (sans mot de passe) pour les confirmations bénignes. */
+MIM.confirmPlain = function (opts) {
+  const o = Object.assign({}, opts || {}, { requirePassword: false });
+  return MIM.confirmPassword(o);
+};
+
 /* Invalide un cache de rendu (après une création, une suppression…). */
 MIM.swrClear = function (key) {
   try {

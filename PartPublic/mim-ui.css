@@ -326,6 +326,15 @@ body[data-espace] .live-dot {
     color: var(--dim);
 }
 
+/* Colonne d'actions à droite d'une ligne : sans gap, deux boutons se
+ * collent (leur marge verticale seule ne les sépare pas en flex). */
+.mim-list-item .li-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
 .mim-empty {
     padding: 22px;
     border: 1px dashed var(--line-strong);

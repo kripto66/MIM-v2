@@ -90,8 +90,13 @@
             });
         });
         node.querySelectorAll("[data-annule]").forEach(function (btn) {
-            btn.addEventListener("click", function () {
-                if (!window.confirm("Annuler ce versement ?")) return;
+            btn.addEventListener("click", async function () {
+                var ok = await MIM.confirmPassword({
+                    title: "Annuler ce versement ?",
+                    message: "Le versement passera en statut annulé.",
+                    confirmLabel: "Annuler le versement",
+                });
+                if (!ok) return;
                 setStatut(Number(btn.getAttribute("data-annule")), "annule", btn);
             });
         });
