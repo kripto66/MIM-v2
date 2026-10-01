@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIM — Rapport de gestion</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/mim-errors.css">
+    <script src="/mim-errors.js"></script>
+    <link rel="stylesheet" href="/PartProprietaires/style.css">
+    <link rel="stylesheet" href="/PartPublic/mim-ui.css">
+    <link rel="stylesheet" href="rapport.css">
+</head>
+
+<body data-espace="shadow">
+
+    <div class="dashboard">
+
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
+            <a class="logo" href="dashboard.html" data-sidebar-toggle-logo title="Mon espace délégué">MIM</a>
+            <nav class="sidebar-menu">
+                <div class="nav-category">Mon espace</div>
+                <a href="dashboard.html">Vue d'ensemble</a>
+                <a href="parc.html">Mon parc</a>
+                <a href="entretien.html">Entretien</a>
+                <a href="versements.html">Versements</a>
+                <a href="messages.html">Messagerie</a>
+                <a class="active" href="rapport.html">Rapport</a>
+                <div class="nav-category">Session</div>
+                <a href="#" id="logoutBtn">Déconnexion</a>
+            </nav>
+        </aside>
+
+        <main class="main-content">
+            <header class="dashboard-header">
+                <button class="menu-toggle" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">☰</button>
+                <div class="welcome">
+                    <h1>Rapport de gestion<span class="accent">.</span></h1>
+                    <p id="greetingSub">Synthèse imprimable de votre parc confié.</p>
+                </div>
+            </header>
+
+            <div id="apiMessage" class="api-message" style="display:none;"></div>
+
+            <div class="rapport-toolbar">
+                <button class="refresh-btn" id="printBtn" type="button" title="Imprimer ou enregistrer en PDF">
+                    <span class="refresh-ico">🖨</span><span>Imprimer / PDF</span>
+                </button>
+                <button class="refresh-btn" id="refreshBtn" type="button" title="Actualiser les données">
+                    <span class="refresh-ico">↻</span><span>Actualiser</span>
+                </button>
+                <span class="section-meta" id="rapportEdition"></span>
+            </div>
+
+            <article class="rapport-doc" id="rapportDoc">
+
+                <header class="rapport-entete">
+                    <h1>Rapport de gestion<span class="accent">.</span></h1>
+                    <p id="rapportPeriode">Période en cours…</p>
+                </header>
+
+                <section class="mim-section">
+                    <header>
+                        <h2>Synthèse du mois</h2>
+                        <span class="section-meta" id="syntheseMeta"></span>
+                    </header>
+                    <div class="mim-kpi-grid" id="syntheseKpis"></div>
+                </section>
+
+                <section class="mim-section">
+                    <header>
+                        <h2>Revenus — 6 derniers mois</h2>
+                        <span class="section-meta" id="revenusMeta"></span>
+                    </header>
+                    <div id="revenusTable"></div>
+                </section>
+
+                <section class="mim-section">
+                    <header>
+                        <h2>Dépenses</h2>
+                        <span class="section-meta" id="depensesMeta"></span>
+                    </header>
+                    <div id="depensesTable"></div>
+                </section>
+
+                <section class="mim-section">
+                    <header>
+                        <h2>Parc confié</h2>
+                        <span class="section-meta" id="parcMeta"></span>
+                    </header>
+                    <div id="parcTable"></div>
+                </section>
+
+                <section class="mim-section">
+                    <header>
+                        <h2>Entretien</h2>
+                        <span class="section-meta" id="entretienMeta"></span>
+                    </header>
+                    <div id="entretienTable"></div>
+                </section>
+
+                <section class="mim-section">
+                    <header>
+                        <h2>Versements de l'agence</h2>
+                        <span class="section-meta" id="versementsMeta"></span>
+                    </header>
+                    <div id="versementsTable"></div>
+                </section>
+
+                <div class="rapport-signature">
+                    <div class="sig-box">Signature du propriétaire</div>
+                    <div class="sig-box">Signature de l'agence</div>
+                </div>
+
+                <p class="rapport-pied" id="rapportPied"></p>
+
+            </article>
+        </main>
+
+    </div>
+
+    <script src="/PartPublic/mim-ui.js"></script>
+    <script src="api.js"></script>
+    <script src="rapport.js"></script>
+    <script src="/PartPublic/sidebar.js"></script>
+
+</body>
+
+</html>
