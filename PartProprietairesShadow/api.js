@@ -42,6 +42,9 @@
         finances: function () {
             return request("/finances");
         },
+        entretien: function () {
+            return request("/entretien");
+        },
         versements: function () {
             return request("/versements");
         },

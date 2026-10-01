@@ -520,6 +520,109 @@ router.get('/finances', requireMandate, async (req, res) => {
 });
 
 // ------------------------------------------------------------
+// Entretien du parc confié — incidents et interventions en détail
+// (lecture seule, jointures logement/bien/prestataire explicites).
+// ------------------------------------------------------------
+router.get('/entretien', requireMandate, async (req, res) => {
+  try {
+    const proprietaireId = req.user.id;
+    const bienIds = await mandatBienIds(proprietaireId);
+    const bienIdsEsc = bienIds.length ? bienIds : [0];
+
+    const [{ data: biens = [], error: bienError }, { data: logements = [], error: lgError }] = await Promise.all([
+      sb().from('biens').select('id, nom').eq('user_id', proprietaireId).in('id', bienIdsEsc),
+      sb().from('logements').select('id, bien_id, nom').eq('user_id', proprietaireId).in('bien_id', bienIdsEsc),
+    ]);
+    if (bienError || lgError) throw new Error(bienError?.message || lgError.message);
+    const bienById = new Map(biens.map((b) => [b.id, b]));
+    const logementById = new Map(logements.map((l) => [l.id, l]));
+    const logementIds = logements.map((l) => l.id);
+    const logementIdsEsc = logementIds.length ? logementIds : [0];
+
+    const [incRes, intRes, preRes] = await Promise.all([
+      sb()
+        .from('incidents')
+        .select('id, logement_id, titre, description, statut, created_at')
+        .eq('user_id', proprietaireId)
+        .in('logement_id', logementIdsEsc)
+        .order('created_at', { ascending: false }),
+      sb()
+        .from('interventions')
+        .select('id, incident_id, prestataire_id, logement_id, titre, description, statut, date_prevue, created_at')
+        .eq('user_id', proprietaireId)
+        .in('logement_id', logementIdsEsc)
+        .order('date_prevue', { ascending: false }),
+      sb().from('prestataires').select('id, nom, specialite, phone').eq('user_id', proprietaireId),
+    ]);
+    if (incRes.error || intRes.error || preRes.error) {
+      throw new Error(incRes.error?.message || intRes.error?.message || preRes.error?.message);
+    }
+
+    const lieu = (logementId) => {
+      const lg = logementById.get(logementId) || null;
+      const bien = lg ? bienById.get(lg.bien_id) || null : null;
+      return { logement_id: logementId, logement_nom: lg?.nom || null, bien_nom: bien?.nom || null };
+    };
+    const prestataireById = new Map((preRes.data || []).map((p) => [p.id, p]));
+    const incById = new Map((incRes.data || []).map((i) => [i.id, i]));
+
+    const intByIncident = new Map();
+    for (const it of intRes.data || []) {
+      if (!it.incident_id) continue;
+      if (!intByIncident.has(it.incident_id)) intByIncident.set(it.incident_id, []);
+      intByIncident.get(it.incident_id).push(it);
+    }
+    const resumeIntervention = (it) => ({
+      id: it.id,
+      titre: it.titre,
+      statut: it.statut,
+      date_prevue: it.date_prevue,
+      prestataire: it.prestataire_id ? prestataireById.get(it.prestataire_id) || null : null,
+    });
+
+    const incidents = (incRes.data || []).map((inc) => ({
+      id: inc.id,
+      titre: inc.titre,
+      description: inc.description || null,
+      statut: inc.statut,
+      created_at: inc.created_at,
+      ...lieu(inc.logement_id),
+      interventions: (intByIncident.get(inc.id) || []).map(resumeIntervention),
+    }));
+
+    const interventions = (intRes.data || []).map((it) => ({
+      id: it.id,
+      titre: it.titre,
+      description: it.description || null,
+      statut: it.statut,
+      date_prevue: it.date_prevue,
+      created_at: it.created_at,
+      ...lieu(it.logement_id),
+      prestataire: it.prestataire_id ? prestataireById.get(it.prestataire_id) || null : null,
+      incident: it.incident_id && incById.has(it.incident_id)
+        ? { id: it.incident_id, titre: incById.get(it.incident_id).titre, statut: incById.get(it.incident_id).statut }
+        : null,
+    }));
+
+    res.json({
+      success: true,
+      incidents,
+      interventions,
+      totaux: {
+        incidents: incidents.length,
+        incidentsOuverts: incidents.filter((i) => i.statut !== 'resolu').length,
+        interventions: interventions.length,
+        interventionsPlanifiees: interventions.filter((i) => i.statut === 'planifie').length,
+        interventionsTerminees: interventions.filter((i) => i.statut === 'termine').length,
+      },
+    });
+  } catch (err) {
+    console.error('[mandat/entretien]', err.message);
+    res.status(500).json({ success: false, message: "Impossible de charger l'entretien du parc." });
+  }
+});
+
+// ------------------------------------------------------------
 // Versements : le propriétaire confirme la réception d'un virement
 // ------------------------------------------------------------
 

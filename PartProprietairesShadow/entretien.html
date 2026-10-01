@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIM — Mon parc</title>
+    <title>MIM — Entretien</title>
     <meta name="robots" content="noindex, nofollow">
     <link rel="stylesheet" href="/mim-errors.css">
     <script src="/mim-errors.js"></script>
@@ -20,8 +20,8 @@
             <nav class="sidebar-menu">
                 <div class="nav-category">Mon espace</div>
                 <a href="dashboard.html">Vue d'ensemble</a>
-                <a class="active" href="parc.html">Mon parc</a>
-                <a href="entretien.html">Entretien</a>
+                <a href="parc.html">Mon parc</a>
+                <a class="active" href="entretien.html">Entretien</a>
                 <a href="versements.html">Versements</a>
                 <a href="messages.html">Messagerie</a>
                 <div class="nav-category">Session</div>
@@ -34,8 +34,8 @@
                 <button class="menu-toggle" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">☰</button>
                 <div id="apiMessage" class="api-message" style="display:none;"></div>
                 <div class="welcome">
-                    <h1>Mon parc<span class="accent">.</span></h1>
-                    <p id="greetingSub">Logements et locataires gérés par votre agence.</p>
+                    <h1>Entretien<span class="accent">.</span></h1>
+                    <p id="greetingSub">Incidents et interventions gérés par votre agence.</p>
                 </div>
                 <div class="header-actions">
                     <button class="refresh-btn" id="refreshBtn" type="button" title="Actualiser les données">
@@ -48,25 +48,25 @@
 
             <section class="mim-section">
                 <header>
-                    <h2>Logements</h2>
-                    <span class="section-meta" id="logementsMeta"></span>
+                    <h2>Incidents signalés</h2>
+                    <span class="section-meta" id="incidentsMeta"></span>
                 </header>
-                <div id="logementsList"></div>
+                <div id="incidentsList"></div>
             </section>
 
             <section class="mim-section">
                 <header>
-                    <h2>Locataires</h2>
-                    <span class="section-meta" id="locatairesMeta"></span>
+                    <h2>Interventions</h2>
+                    <span class="section-meta" id="interventionsMeta"></span>
                 </header>
-                <div id="locatairesList"></div>
+                <div id="interventionsList"></div>
             </section>
         </main>
     </div>
 
     <script src="/PartPublic/mim-ui.js"></script>
     <script src="api.js"></script>
-    <script src="parc.js"></script>
+    <script src="entretien.js"></script>
     <script src="/PartPublic/sidebar.js"></script>
 
 </body>

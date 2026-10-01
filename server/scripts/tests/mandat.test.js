@@ -281,6 +281,87 @@ export async function runMandat(r, ctx) {
     r.fail(S, 'finances sans mandat → 404 (fail-closed)', `statut ${finSans.status}`);
   }
 
+  // --- 4d. Entretien : incidents et interventions en détail ---
+  const { data: preRow, error: preErr } = await service
+    .from('prestataires')
+    .insert({ user_id: gere.user.id, nom: 'Plombier Mandat', specialite: 'plomberie', phone: '+221770000010' })
+    .select('id')
+    .single();
+  const { data: incRow, error: incErr } = await service
+    .from('incidents')
+    .insert({
+      user_id: gere.user.id,
+      logement_id: logementId,
+      titre: 'is_test Fuite d eau',
+      description: 'Fuite sous l evier',
+      statut: 'nouveau',
+    })
+    .select('id')
+    .single();
+  if (preErr || incErr || !preRow?.id || !incRow?.id) {
+    r.blocked(S, 'entretien : fixtures incident/prestataire', preErr?.message || incErr?.message || 'id manquant');
+  } else {
+    const { error: intErr } = await service.from('interventions').insert({
+      user_id: gere.user.id,
+      incident_id: incRow.id,
+      prestataire_id: preRow.id,
+      logement_id: logementId,
+      titre: 'is_test Intervention plomberie',
+      statut: 'planifie',
+      date_prevue: '2026-10-15',
+    });
+    if (intErr) r.blocked(S, 'entretien : intervention de test', intErr.message);
+  }
+
+  const entRes = await api('/mandat/entretien', { jar: jarShadow });
+  const ent = entRes.data;
+  if (entRes.status === 200 && ent?.success) {
+    r.pass(S, 'GET /mandat/entretien → 200');
+  } else {
+    r.fail(S, 'GET /mandat/entretien → 200', `statut ${entRes.status}`);
+  }
+
+  const inc0 = ent?.incidents?.[0];
+  if (
+    ent?.incidents?.length === 1 &&
+    inc0?.titre === 'is_test Fuite d eau' &&
+    inc0?.logement_nom === 'is_test Logement mandat' &&
+    inc0?.bien_nom === `Bien mandat ${stamp}` &&
+    inc0?.statut === 'nouveau'
+  ) {
+    r.pass(S, 'entretien : incident détaillé (logement, bien, statut)');
+  } else {
+    r.fail(S, 'entretien : incident détaillé (logement, bien, statut)', JSON.stringify(ent?.incidents));
+  }
+
+  const int0 = ent?.interventions?.[0];
+  if (
+    ent?.interventions?.length === 1 &&
+    int0?.titre === 'is_test Intervention plomberie' &&
+    int0?.statut === 'planifie' &&
+    int0?.date_prevue === '2026-10-15' &&
+    int0?.prestataire?.nom === 'Plombier Mandat' &&
+    int0?.incident?.titre === 'is_test Fuite d eau' &&
+    inc0?.interventions?.length === 1
+  ) {
+    r.pass(S, 'entretien : intervention avec prestataire et rattachée à l\'incident');
+  } else {
+    r.fail(S, 'entretien : intervention avec prestataire et rattachée à l\'incident', JSON.stringify(ent?.interventions));
+  }
+
+  if (ent?.totaux?.incidents === 1 && ent?.totaux?.incidentsOuverts === 1 && ent?.totaux?.interventionsPlanifiees === 1) {
+    r.pass(S, 'entretien : totaux (incidents ouverts, interventions planifiées)');
+  } else {
+    r.fail(S, 'entretien : totaux (incidents ouverts, interventions planifiées)', JSON.stringify(ent?.totaux));
+  }
+
+  const entSans = await api('/mandat/entretien', { jar: sansMandat.jar });
+  if (entSans.status === 404) {
+    r.pass(S, 'entretien sans mandat → 404 (fail-closed)');
+  } else {
+    r.fail(S, 'entretien sans mandat → 404 (fail-closed)', `statut ${entSans.status}`);
+  }
+
   // --- 5. Le shadow ne peut PAS créer de locataire/employé ---
   const createLoc = await api('/locataires', {
     method: 'POST',
@@ -613,6 +694,9 @@ export async function runMandat(r, ctx) {
   await service.from('messages').delete().eq('proprietaire_id', gere.user.id);
   await service.from('paiements').delete().eq('user_id', gere.user.id);
   await service.from('locataires').delete().eq('user_id', gere.user.id);
+  await service.from('interventions').delete().eq('user_id', gere.user.id);
+  await service.from('incidents').delete().eq('user_id', gere.user.id);
+  await service.from('prestataires').delete().eq('user_id', gere.user.id);
   await service.from('agences_biens').delete().eq('proprietaire_id', gere.user.id);
   await service.from('agences_proprietaires').delete().eq('proprietaire_id', gere.user.id);
   await service.from('logements').delete().eq('user_id', gere.user.id);
