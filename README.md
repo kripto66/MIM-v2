@@ -155,7 +155,9 @@ node server/scripts/tests/run.js --suite=auth
 node server/scripts/tests/run.js --no-server --no-seed
 ```
 
-`npm run lint` et `npm run typecheck` n'exigent pas ESLint, TypeScript ou un autre outil absent : ils utilisent le parseur JavaScript de Node et contrôlent les manifests du projet. `npm run audit` utilise l'audit npm du lockfile.
+La suite `frontend` (audit D7) exécute les 50 pages HTML dans jsdom (devDependency) : scripts résolus depuis le disque, `fetch` simulé, shims des API absentes — toute exception non catchée au chargement ou à l'init `DOMContentLoaded` fait échouer la suite. Elle détecte donc les `ReferenceError` et les pages blanches sans navigateur ; sa sensibilité est vérifiée par mutation (une `ReferenceError` injectée doit la passer au rouge).
+
+`npm run lint` et `npm run typecheck` n'exigent pas ESLint, TypeScript ou un autre outil absent : ils utilisent le parseur JavaScript de Node et contrôlent les manifests du projet. `npm run audit` utilise l'audit npm du lockfile. `npm run lint` inclut les garde-fous d'audit (migrations, XSS/`innerHTML`, schéma de référence, helpers chargés par page, doublons d'id, viewport, encodage, fichiers dupliqués, catches silencieux, vecteurs inline sous CSP).
 
 ## Licence
 

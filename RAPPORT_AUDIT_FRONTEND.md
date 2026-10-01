@@ -2,7 +2,7 @@
 
 **Audits :** **27/09/2026** (lecture seule) · **29/09/2026** (revue complète des 8 espaces + corrections)
 **Périmètre :** `C:\xampp\htdocs\MIM2.1\MIM` — **47 pages HTML**, **45 fichiers JS (10 997 lignes)**, **11 CSS**, **43 scripts distincts** répartis dans `PartPublic`, `PartProprietaires`, `PartAgence` (`first_Mode` / `second_Mode`), `PartLocataires`, `PartAdmin`, `PartUltraAdmin`, `PartEmployes`, `PartProprietairesShadow`.
-**État :** **24 fichiers modifiés** dans l'arbre de travail (non commités) — inventaire en §F.
+**État :** audit cloturé — inventaire historique des modifications en §F (tout est committé depuis).
 
 **Méthode :** scripts d'analyse statique lancés hors dépôt (résolution des références et URLs, cibles DOM, cartographie des routes API, scan d'interpolations `innerHTML`, couverture des formulaires, accessibilité, encodage), puis lecture ciblée de chaque alerte pour trancher « bug réel » vs « faux positif ».
 **Garde-fous exécutés :** `npm run lint`, `npm run typecheck`, `npm run test:syntax` → **verts** (138 fichiers JS vérifiés chacun).
@@ -16,7 +16,7 @@
 | **Bugs du 27/09** | 10 constats (1 critique, 2 élevés, 4 moyens, 3 faibles) → **10/10 corrigés** (§A) |
 | **Bugs du 29/09** | 6 nouveaux constats → **6/6 corrigés** (§B) |
 | **Re-scan final** | 0 référence cassée, 0 route API manquante, 0 interpolation XSS, 0 champ sans nom accessible, 0 séquence d'encodage corrompue |
-| **Reste ouvert** | uniquement de la **dette technique** sans impact runtime (§D) |
+| **Reste ouvert** | **rien** — les 8 dettes techniques de §D sont closes (dernière : D3, 01/10/2026) |
 
 ---
 
@@ -115,6 +115,21 @@ Le diff de travail en cours sur `biens.html` / `employes.html` remplaçait le mo
 ---
 
 ## D. Dettes techniques restantes (aucun impact runtime aujourd'hui)
+
+> **Clôture au 01/10/2026 — les 8 dettes sont traitées :**
+>
+> | # | Dette | Commit |
+> |---|---|---|
+> | D1 | `crud.js` chargé sans `form-utils.js` | `4d6eb23` |
+> | D2 | `#payEmpCancel` déclaré deux fois (+ garde-fou élargi aux scripts) | `c0bfab1` |
+> | D3 | CSP `script-src` sans `unsafe-inline` + `frame-src 'none'` + `upgrade-insecure-requests` (+ garde-fou `checkInlineScriptVectors`, 3 assertions sécurité) | `0f3265f` |
+> | D4 | `api.js` / `crud.js` / `notifications.js` en exemplaire unique | `5060151` |
+> | D5 | plus aucun script inline : 17 pages extraites vers des `.js` dédiés (~3 800 lignes) | `4791d51` |
+> | D6 | garde-fous statiques (helpers par page, doublons d'id, viewport, encodage) | `052f37d` |
+> | D7 | tests de rendu : suite e2e `frontend` (jsdom, 50 pages, sensibilité vérifiée par mutation) | `91329c5` |
+> | D8 | plus aucun catch silencieux + garde-fou lint | `2c022c7` |
+>
+> Les constats ci-dessous sont conservés tels qu'écrits le 29/09 (historique de l'audit).
 
 1. **10 pages chargent `crud.js` sans `form-utils.js`.**
    `PartAgence/first_Mode/{dashboard,messages,notifications,portefeuille,versements}.html`, `PartAgence/second_Mode/bien.html`, `PartProprietaires/{dashboard,import,notifications,parametres}.html`.
