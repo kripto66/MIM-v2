@@ -574,13 +574,19 @@ async function checkHelperLoading() {
 
 // ---------------------------------------------------------------------
 // Dette D2 : un id déclaré deux fois dans une page est invalide et devient
-// un piège dès que les deux occurrences coexistent. Seul le HTML statique
-// est compté : les id écrits dans un <script> (branches de ternaires,
-// gabarits rendus au clic) ne peuvent pas exister ensemble dans le DOM.
+// un piège dès que les deux occurrences coexistent. Deux comptes :
+//   * le HTML statique (cas classique) ;
+//   * le meme <script> : deux emissions d'un meme id dans le meme code
+//     (branches de ternaires, gabarits rendus au clic) signifient qu'un
+//     chemin d'execution peut doubler l'id dans le DOM — le listener
+//     rattache alors le mauvais element. Un seul exemplaire par script
+//     force un id distinct par branche (audit frontend D2).
+// Les ids contenant " ou $ (gabarits dynamiques) sont hors perimetre.
 // ---------------------------------------------------------------------
 const STATIC_HTML = /<script\b[^>]*>[\s\S]*?<\/script>/gi;
 const STATIC_STYLE = /<style\b[^>]*>[\s\S]*?<\/style>/gi;
 const HTML_ID = /\sid="([^"$]+)"/g;
+const SCRIPT_TAG = /<script\b[^>]*>([\s\S]*?)<\/script>/gi;
 
 async function checkDuplicateIds() {
   const errors = [];
@@ -600,6 +606,27 @@ async function checkDuplicateIds() {
           `${relative(page)}:${lineOf(staticHtml, info.index)}: id="${id}" déclaré ${info.count} fois `
           + 'dans le HTML statique — un seul élément porteur de cet id peut exister dans le DOM.',
         );
+      }
+    }
+    SCRIPT_TAG.lastIndex = 0;
+    let script;
+    while ((script = SCRIPT_TAG.exec(html)) !== null) {
+      // Offset réel du contenu dans le fichier (en-tête inclus).
+      const contentStart = script.index + script[0].length - script[1].length - '</script>'.length;
+      const seen = new Map();
+      for (const match of script[1].matchAll(HTML_ID)) {
+        const id = match[1];
+        if (!seen.has(id)) seen.set(id, { count: 0, index: match.index });
+        seen.get(id).count += 1;
+      }
+      for (const [id, info] of seen) {
+        if (info.count > 1) {
+          errors.push(
+            `${relative(page)}:${lineOf(html, contentStart + info.index)}: id="${id}" émis ${info.count} fois `
+            + 'dans le même script — deux chemins d’exécution peuvent doubler l’id dans le DOM '
+            + '(id distinct par branche, audit frontend D2).',
+          );
+        }
       }
     }
   }

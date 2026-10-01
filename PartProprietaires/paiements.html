@@ -909,7 +909,7 @@
                         <p class="pay-hint">Demandez-lui d'ajouter son moyen depuis son espace employé (Wave, Orange Money, virement…).</p>
                     </div>
                     <div class="modal-actions">
-                        <button type="button" class="btn btn-secondary" id="payEmpCancel">Fermer</button>
+                        <button type="button" class="btn btn-secondary" id="payEmpClose">Fermer</button>
                     </div>`}
             `;
 
@@ -919,8 +919,13 @@
             if (form) {
                 form.addEventListener("submit", submitPayEmp);
             }
-            const cancel = document.getElementById("payEmpCancel");
-            if (cancel) cancel.addEventListener("click", () => (document.getElementById("payEmpModal").style.display = "none"));
+            // Les deux branches du modal n'ont pas le même bouton de
+            // sortie (Annuler / Fermer) : chacun garde son id propre —
+            // un id unique par page, même dans les gabarits (dette D2).
+            for (const id of ["payEmpCancel", "payEmpClose"]) {
+                const btn = document.getElementById(id);
+                if (btn) btn.addEventListener("click", () => (document.getElementById("payEmpModal").style.display = "none"));
+            }
         }
 
         async function submitPayEmp(e) {
