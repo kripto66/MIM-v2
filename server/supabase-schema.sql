@@ -329,6 +329,61 @@ COMMENT ON FUNCTION public.mim_trial_subscription_on_signup() IS 'Essai gratuit 
 
 
 --
+-- Name: notifications_outbox_flush(integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE OR REPLACE FUNCTION public.notifications_outbox_flush(p_limit integer DEFAULT 50) RETURNS integer
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+DECLARE
+    r RECORD;
+    v_n INTEGER := 0;
+    v_limit INTEGER := 50;
+BEGIN
+    IF p_limit IS NOT NULL AND p_limit >= 1 AND p_limit <= 500 THEN
+        v_limit := p_limit;
+    END IF;
+
+    DELETE FROM public.notifications_outbox
+     WHERE (delivered_at IS NOT NULL AND delivered_at < clock_timestamp() - interval '7 days')
+        OR (attempts >= 8 AND created_at < clock_timestamp() - interval '7 days');
+
+    FOR r IN
+        SELECT id, user_id, type, message, attempts
+        FROM public.notifications_outbox
+        WHERE delivered_at IS NULL
+          AND next_attempt_at <= clock_timestamp()
+          AND attempts < 8
+        ORDER BY created_at
+        LIMIT v_limit
+        FOR UPDATE SKIP LOCKED
+    LOOP
+        BEGIN
+            INSERT INTO public.notifications (user_id, type, message)
+            VALUES (r.user_id, r.type, r.message);
+            UPDATE public.notifications_outbox
+               SET delivered_at = clock_timestamp()
+             WHERE id = r.id;
+            v_n := v_n + 1;
+        EXCEPTION WHEN OTHERS THEN
+            UPDATE public.notifications_outbox
+               SET attempts = attempts + 1,
+                   last_error = SQLERRM,
+                   next_attempt_at = clock_timestamp()
+                       + (interval '30 seconds' * power(2, LEAST(r.attempts, 6)))
+             WHERE id = r.id;
+        END;
+    END LOOP;
+
+    RETURN v_n;
+END;
+$$;
+
+
+ALTER FUNCTION public.notifications_outbox_flush(p_limit integer) OWNER TO postgres;
+
+--
 -- Name: record_manual_subscription_payment(uuid, text, numeric, text, text, timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -1508,6 +1563,46 @@ ALTER SEQUENCE public.notifications_id_seq OWNED BY public.notifications.id;
 
 
 --
+-- Name: notifications_outbox; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.notifications_outbox (
+    id bigint NOT NULL,
+    user_id uuid NOT NULL,
+    type text NOT NULL,
+    message text NOT NULL,
+    attempts integer DEFAULT 0 NOT NULL,
+    last_error text,
+    next_attempt_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    delivered_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT clock_timestamp() NOT NULL
+);
+
+
+ALTER TABLE public.notifications_outbox OWNER TO postgres;
+
+--
+-- Name: notifications_outbox_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.notifications_outbox_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.notifications_outbox_id_seq OWNER TO postgres;
+
+--
+-- Name: notifications_outbox_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.notifications_outbox_id_seq OWNED BY public.notifications_outbox.id;
+
+
+--
 -- Name: paiements; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -2193,6 +2288,13 @@ ALTER TABLE ONLY public.notifications ALTER COLUMN id SET DEFAULT nextval('publi
 
 
 --
+-- Name: notifications_outbox id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.notifications_outbox ALTER COLUMN id SET DEFAULT nextval('public.notifications_outbox_id_seq'::regclass);
+
+
+--
 -- Name: paiements id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -2503,6 +2605,14 @@ ALTER TABLE ONLY public.moyens_paiement_employes
 
 ALTER TABLE ONLY public.moyens_paiement
     ADD CONSTRAINT moyens_paiement_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: notifications_outbox notifications_outbox_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.notifications_outbox
+    ADD CONSTRAINT notifications_outbox_pkey PRIMARY KEY (id);
 
 
 --
@@ -2951,6 +3061,13 @@ CREATE INDEX messages_user_id_idx ON public.messages USING btree (user_id);
 --
 
 CREATE INDEX moyens_paiement_user_id_idx ON public.moyens_paiement USING btree (user_id);
+
+
+--
+-- Name: notifications_outbox_pending_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX notifications_outbox_pending_idx ON public.notifications_outbox USING btree (next_attempt_at) WHERE (delivered_at IS NULL);
 
 
 --
@@ -4188,6 +4305,12 @@ CREATE POLICY notifications_delete_own ON public.notifications FOR DELETE TO aut
 
 
 --
+-- Name: notifications_outbox; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.notifications_outbox ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: notifications notifications_select_own; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -4626,6 +4749,14 @@ GRANT ALL ON FUNCTION public.handle_new_user() TO service_role;
 
 
 --
+-- Name: FUNCTION notifications_outbox_flush(p_limit integer); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.notifications_outbox_flush(p_limit integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.notifications_outbox_flush(p_limit integer) TO service_role;
+
+
+--
 -- Name: FUNCTION record_manual_subscription_payment(p_user_id uuid, p_plan_code text, p_amount numeric, p_reference text, p_method text, p_paid_at timestamp with time zone, p_duration integer); Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -4987,6 +5118,20 @@ GRANT UPDATE(lu) ON TABLE public.notifications TO authenticated;
 --
 
 GRANT ALL ON SEQUENCE public.notifications_id_seq TO service_role;
+
+
+--
+-- Name: TABLE notifications_outbox; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.notifications_outbox TO service_role;
+
+
+--
+-- Name: SEQUENCE notifications_outbox_id_seq; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON SEQUENCE public.notifications_outbox_id_seq TO service_role;
 
 
 --

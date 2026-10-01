@@ -1,5 +1,6 @@
 import './loadEnv.js';
 import app from './app.js';
+import { startNotificationsOutboxSweep } from './utils/notifications.js';
 
 const PORT = process.env.PORT || 3000;
 
@@ -104,6 +105,12 @@ process.on('uncaughtException', (err) => {
 const server = app.listen(PORT, () => {
   console.log(`MIM API démarrée sur http://localhost:${PORT} [${NODE_ENV}]`);
 });
+
+// ─── M-01 : rejeu des notifications en échec ────────────────────────
+// notify() bascule dans notifications_outbox quand l'insertion rate ;
+// ce balayeur reprend périodiquement les lignes pending (backoff
+// géré en base par notifications_outbox_flush).
+startNotificationsOutboxSweep();
 
 // Une erreur d'écoute (port occupé, permission refusée) est fatale : le
 // handler global ci-dessus maintiendrait en vie un processus qui n'écoute

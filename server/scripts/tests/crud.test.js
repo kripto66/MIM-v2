@@ -2,6 +2,7 @@
 // MIM - Suite CRUD : chaque ressource, validation, erreurs
 // ============================================================
 
+import { createClient } from '@supabase/supabase-js';
 import { api, expectSuccess } from './lib.js';
 
 const S = 'crud';
@@ -386,5 +387,82 @@ export async function runCrud(r, ctx) {
       }
     }
     if (!(list.data.data || []).length) r.pass(S, 'isolation skip (aucune notif owner2)');
+  });
+
+  // ----------------------------------------------------------
+  await r.section('notifications – outbox de rejeu (M-01)', async () => {
+    const { notify, flushNotificationsOutbox } = await import('../../utils/notifications.js');
+    const phantomId = '00000000-0000-4000-8000-00000000dead';
+
+    // 1. notify() nominal → la notification arrive dans la table.
+    await notify(owner.id, 'info', 'is_test M-01 nominal');
+    const nominal = await service
+      .from('notifications')
+      .select('id')
+      .eq('user_id', owner.id)
+      .eq('message', 'is_test M-01 nominal');
+    if ((nominal.data || []).length === 1) r.pass(S, 'notify() nominal → notification délivrée');
+    else r.fail(S, 'notify() nominal → notification délivrée', JSON.stringify(nominal.error || nominal.data));
+
+    // 2. notify() ne lève jamais : user_id fantôme (FK absente sur
+    //    l'outbox → la ligne y est journalisée pour rejeu).
+    let threw = false;
+    try {
+      await notify(phantomId, 'info', 'is_test M-01 fantome');
+    } catch {
+      threw = true;
+    }
+    if (!threw) r.pass(S, "notify() absorbe l'échec (jamais d'exception)");
+    else r.fail(S, "notify() absorbe l'échec (jamais d'exception)", 'a levé');
+
+    // 3. Rejeu nominal : une ligne pending remise en circulation.
+    const { error: insErr } = await service.from('notifications_outbox').insert({
+      user_id: owner.id,
+      type: 'info',
+      message: 'is_test M-01 rejeu',
+    });
+    if (insErr) r.blocked(S, 'outbox : fixture rejeu', insErr.message);
+
+    // 4. Ligne fantôme déjà journalisée (test 2) : même passe de flush.
+    const flushed = await flushNotificationsOutbox();
+    if (typeof flushed === 'number') r.pass(S, 'flushNotificationsOutbox() → nombre délivré, sans exception');
+    else r.fail(S, 'flushNotificationsOutbox() → nombre délivré, sans exception', JSON.stringify(flushed));
+
+    // Le balayeur du serveur (60s) peut tenir les mêmes lignes : on laisse
+    // une marge avant de lire l'état final.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    const rejeu = await service
+      .from('notifications')
+      .select('id')
+      .eq('user_id', owner.id)
+      .eq('message', 'is_test M-01 rejeu');
+    const outboxRows = await service
+      .from('notifications_outbox')
+      .select('id, attempts, last_error, delivered_at, next_attempt_at')
+      .in('message', ['is_test M-01 rejeu', 'is_test M-01 fantome'])
+      .order('id');
+
+    const rejeuDelivree = (rejeu.data || []).length === 1;
+    const rows = outboxRows.data || [];
+    const okRow = rows.find((x) => x.delivered_at && x.attempts === 0);
+    if (rejeuDelivree && okRow) r.pass(S, 'rejeu nominal : outbox remise → notification présente, delivered_at renseigné');
+    else r.fail(S, 'rejeu nominal : outbox remise → notification présente, delivered_at renseigné', JSON.stringify({ rejeu: rejeu.data, rows }));
+
+    // 5. Ligne fantôme (compte inexistant) : tentative échouée, backoff,
+    //    jamais délivrée → dead letter inspectable.
+    const ghost = rows.find((x) => x.attempts >= 1 && !x.delivered_at && x.last_error && x.next_attempt_at);
+    if (ghost) r.pass(S, "rejeu tenace : échec consigné (attempts, last_error, next_attempt_at)");
+    else r.fail(S, "rejeu tenace : échec consigné (attempts, last_error, next_attempt_at)", JSON.stringify(rows));
+
+    // 6. La RPC n'est pas exposée aux clients (REVOKE anon/authenticated).
+    const anon = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+    const { error: anonErr } = await anon.rpc('notifications_outbox_flush', { p_limit: 1 });
+    if (anonErr) r.pass(S, 'RPC flush refusée sans service_role (REVOKE)');
+    else r.fail(S, 'RPC flush refusée sans service_role (REVOKE)', 'RPC appelable par anon !');
+
+    // Nettoyage des fixtures de la section.
+    await service.from('notifications_outbox').delete().in('message', ['is_test M-01 rejeu', 'is_test M-01 fantome', 'is_test M-01 nominal']);
+    await service.from('notifications').delete().eq('user_id', owner.id).in('message', ['is_test M-01 rejeu', 'is_test M-01 nominal']);
   });
 }
