@@ -764,6 +764,35 @@ async function checkSilentCatches() {
   return errors;
 }
 
+// ---------------------------------------------------------------------
+// Dette D3 : la CSP ne contient plus 'unsafe-inline' en script-src —
+// tout handler on*= ou URL javascript: écrit dans le HTML (ou dans un
+// gabarit JS injecté) serait donc bloqué au clic, silencieusement.
+// Ce contrôle verrouille l'état atteint par D5/D3 : ces vecteurs ne
+// doivent pas réapparaître. La conversion attendue est la délégation
+// d'événements (data-action + addEventListener), déjà en place.
+// ---------------------------------------------------------------------
+const INLINE_HANDLER = /\son[a-z]+\s*=\s*["']/i;
+const JS_URL = /(?:href|src|action)\s*=\s*["']\s*javascript:/i;
+
+async function checkInlineScriptVectors() {
+  const errors = [];
+  for (const file of await collectFrontAssets()) {
+    const content = await readIfPresent(file);
+    if (!content) continue;
+    for (const pattern of [INLINE_HANDLER, JS_URL]) {
+      const match = pattern.exec(content);
+      if (match) {
+        errors.push(
+          `${relative(file)}:${lineOf(content, match.index)}: « ${match[0].trim()} » — `
+          + 'vecteur d\'exécution inline bloqué par la CSP script-src (dette D3) : utiliser data-action + délégation.',
+        );
+      }
+    }
+  }
+  return errors;
+}
+
 async function runGuards(files) {
   const htmlFiles = await collectFrontFiles();
   const scanned = [...new Set([...files, ...htmlFiles])];
@@ -781,6 +810,7 @@ async function runGuards(files) {
   errors.push(...await checkEncoding());
   errors.push(...await checkDuplicateFrontFiles());
   errors.push(...await checkSilentCatches());
+  errors.push(...await checkInlineScriptVectors());
   return errors;
 }
 

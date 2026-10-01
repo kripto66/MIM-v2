@@ -53,13 +53,16 @@ function hideProgress() {
   }, 400);
 }
 
-// Event delegation sécurisée — remplace les onclick inline.
+// Event delegation sécurisée — remplace les onclick inline (CSP
+// script-src sans unsafe-inline : les handlers inline sont bloqués).
 document.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
   const action = btn.dataset.action;
   if (action === 'setStatut') setStatut(btn.dataset.id, btn.dataset.statut);
   else if (action === 'openSubModal') openSubModal(btn.dataset.userId);
+  else if (action === 'exportCsv') exportCSV();
+  else if (action === 'navigate') navigate(btn.dataset.section);
 });
 
 const ICONS = {
@@ -451,7 +454,7 @@ function tablePage(title, data, columns, headers, actions, onAction) {
   return `<div class="panel">
     <div class="toolbar">
       <input class="search" id="tableSearch" placeholder="Rechercher dans ${title.toLowerCase()}..." aria-label="Rechercher dans ${title.toLowerCase()}">
-      <button class="btn secondary" onclick="exportCSV()">Exporter CSV</button>
+      <button class="btn secondary" data-action="exportCsv">Exporter CSV</button>
     </div>
     <div class="table-wrap"><table class="table"><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}${actions ? "<th>Actions</th>" : ""}</tr></thead>
     <tbody id="tableBody">${rows(data, columns, actions, onAction)}</tbody></table></div>
@@ -547,11 +550,11 @@ function paintDashboard(stats) {
     </div>
   </div>
   <div class="grid-2">
-    <div class="panel"><div class="panel-header"><h2>Paiements récents</h2><button class="btn secondary" onclick="navigate('paiements')">Voir tout</button></div>
+    <div class="panel"><div class="panel-header"><h2>Paiements récents</h2><button class="btn secondary" data-action="navigate" data-section="paiements">Voir tout</button></div>
       <div class="table-wrap"><table class="table"><thead><tr><th>Locataire</th><th>Période</th><th>Montant</th><th>Statut</th></tr></thead>
       <tbody>${recentPayments.map((r) => `<tr><td>${escapeHtml(r.locataire)}</td><td>${escapeHtml(r.periode)}</td><td class="num">${money(r.montant)}</td><td>${badge(r.statut)}</td></tr>`).join("")}</tbody></table></div>
     </div>
-    <div class="panel"><div class="panel-header"><h2>Incidents</h2><button class="btn secondary" onclick="navigate('incidents')">Voir tout</button></div>
+    <div class="panel"><div class="panel-header"><h2>Incidents</h2><button class="btn secondary" data-action="navigate" data-section="incidents">Voir tout</button></div>
       <div class="activity">${recentIncidents.map((r) => activity(r.titre, [r.logement, r.locataire].filter(Boolean).join(" — ") || "—", badge(r.statut), { time: true })).join("") || `<div class="empty">Aucun incident.</div>`}</div>
     </div>
   </div>`;
@@ -621,8 +624,8 @@ async function abonnements() {
   app.innerHTML = `<div class="panel">
     <div class="toolbar">
       <input class="search" id="tableSearch" placeholder="Rechercher un abonnement..." aria-label="Rechercher un abonnement">
-      <button class="btn secondary" onclick="exportCSV()">Exporter CSV</button>
-      <button class="btn primary" onclick="openSubModal()">+ Enregistrer un paiement</button>
+      <button class="btn secondary" data-action="exportCsv">Exporter CSV</button>
+      <button class="btn primary" data-action="openSubModal">+ Enregistrer un paiement</button>
     </div>
     <div class="table-wrap"><table class="table"><thead><tr>
       <th>Propriétaire</th><th>Plan</th><th>Montant</th><th>Paiement</th><th>Début</th><th>Expiration</th><th>Jours restants</th><th>Statut</th><th>Actions</th>

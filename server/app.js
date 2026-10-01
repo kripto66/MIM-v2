@@ -126,19 +126,26 @@ app.use((req, res, next) => {
   }
 
   // Content-Security-Policy : défense en profondeur contre XSS.
-  // 'unsafe-inline' est nécessaire pour les scripts inline du frontend vanilla JS.
-  // 'unsafe-eval' est requis si des bibliothèques l'utilisent (vérifier avant de l'activer).
+  // script-src n'a plus 'unsafe-inline' (audit frontend D3) : aucun
+  // script inline ni handler on* n'existe plus dans les pages (dettes
+  // D5 et conversion des handlers, garde-fous quality.mjs) — un
+  // payload injecté dans le HTML ne peut donc plus s'exécuter.
+  // style-src conserve 'unsafe-inline' : les attributs style= inline
+  // restent courants (ils n'exécutent pas de code).
+  // 'unsafe-eval' n'est requis par aucune bibliothèque (jamais activé).
   const cspDirectives = [
     "default-src 'self'",
     "object-src 'none'",
-    "script-src 'self' 'unsafe-inline'",           // scripts inline dans les HTML
-    "style-src 'self' 'unsafe-inline'",            // styles inline + Google Fonts si besoin
+    "script-src 'self'",                        // aucun script inline (D5/D3)
+    "style-src 'self' 'unsafe-inline",          // styles inline + Google Fonts si besoin
     "img-src 'self' data: blob: " + imageOrigins.join(' '),  // base64 + Supabase Storage (avatars)
     "font-src 'self' data:",                       // polices embarquées
     "connect-src 'self' http://127.0.0.1:64321 https://*.supabase.co wss://*.supabase.co",  // API Supabase
     "frame-ancestors 'none'",                      // pas de framing (renforce X-Frame-Options)
+    "frame-src 'none'",                            // aucune iframe embarquée
     "base-uri 'self'",
     "form-action 'self'",
+    "upgrade-insecure-requests",                   // http → https (loopback exempté par la spec)
   ];
   res.setHeader('Content-Security-Policy', cspDirectives.join('; '));
 

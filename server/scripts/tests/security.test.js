@@ -119,6 +119,20 @@ export async function runSecurity(r, ctx) {
     if (h.get('referrer-policy') === 'no-referrer') r.pass(S, 'Referrer-Policy: no-referrer');
     else r.fail(S, 'Referrer-Policy: no-referrer', String(h.get('referrer-policy')));
 
+    // CSP durcie (audit frontend D3) : les scripts inline et handlers
+    // on* ont été extraits (D5) — script-src n'admet plus unsafe-inline.
+    const csp = h.get('content-security-policy') || '';
+    const scriptSrc = csp.split(';').map((d) => d.trim()).find((d) => d.startsWith('script-src')) || '';
+    if (scriptSrc.includes("'self'") && !scriptSrc.includes('unsafe-inline')) {
+      r.pass(S, "CSP script-src 'self' sans unsafe-inline");
+    } else {
+      r.fail(S, "CSP script-src 'self' sans unsafe-inline", scriptSrc || 'CSP absente');
+    }
+    if (csp.includes("frame-src 'none'")) r.pass(S, "CSP frame-src 'none'");
+    else r.fail(S, "CSP frame-src 'none'", csp || 'CSP absente');
+    if (csp.includes('upgrade-insecure-requests')) r.pass(S, 'CSP upgrade-insecure-requests');
+    else r.fail(S, 'CSP upgrade-insecure-requests', csp || 'CSP absente');
+
     // Set-Cookie du login : HttpOnly + SameSite.
     const res = await api('/auth/login', { method: 'POST', body: { email: o1.email, password: 'Test1234!' }, raw: true });
     const sc = res.headers.get('set-cookie') || '';

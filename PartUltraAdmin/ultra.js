@@ -124,7 +124,7 @@ function tablePage(title, data, columns, headers, actions, onAction) {
   return `<div class="panel">
     <div class="toolbar">
       <input class="search" id="tableSearch" placeholder="Rechercher dans ${escapeHtml(title.toLowerCase())}..." aria-label="Rechercher dans ${escapeHtml(title.toLowerCase())}">
-      <button class="btn secondary" onclick="exportCSV()">Exporter CSV</button>
+      <button class="btn secondary" data-action="exportCsv">Exporter CSV</button>
       ${typeof actions === "string" ? actions : ""}
     </div>
     <div class="table-wrap"><table class="table"><thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}${onAction ? "<th>Actions</th>" : ""}</tr></thead>
@@ -784,7 +784,7 @@ async function featured() {
   let html = `<div class="panel">
     <div class="toolbar">
       <input class="search" id="tableSearch" placeholder="Rechercher..." aria-label="Rechercher">
-      <button class="btn secondary" onclick="exportCSV()">Exporter CSV</button>
+      <button class="btn secondary" data-action="exportCsv">Exporter CSV</button>
       ${createBtn}
     </div>`;
 
@@ -1201,6 +1201,25 @@ async function navigate(section) {
 // Event Delegation
 // ============================================================
 
+// Fermeture des modals, refus de confirmation et lien vers le panel
+// admin : handlers délégués — la CSP script-src (sans unsafe-inline)
+// bloque tout handler inline écrit dans le HTML.
+document.addEventListener("click", (e) => {
+  const closer = e.target.closest("[data-close]");
+  if (closer) {
+    const modal = document.getElementById(closer.dataset.close);
+    if (modal) modal.classList.remove("active");
+    return;
+  }
+  if (e.target.closest("[data-confirm='no']")) {
+    resolveConfirm(false);
+    return;
+  }
+  if (e.target.closest("#adminPanelLink")) {
+    window.location.href = "/PartAdmin/admin.html";
+  }
+});
+
 document.addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-action]");
   if (!btn) return;
@@ -1208,6 +1227,11 @@ document.addEventListener("click", async (e) => {
 
   const action = btn.dataset.action;
   const id = btn.dataset.id;
+
+  if (action === "exportCsv") {
+    exportCSV();
+    return;
+  }
 
   // --- Users ---
   if (action === "suspendUser") {
