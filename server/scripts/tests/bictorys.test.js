@@ -1,9 +1,12 @@
 // ============================================================
 // MIM - Suite Bictorys (paiement en ligne des abonnements)
 //
-// Grille mensuelle : Standard 7 000 / Premium 15 000 / Pro 30 000 /
-// Agence 50 000 XOF (immeubles 1/3/10/25, logements 20/75/300/750,
+// Grille mensuelle (immeubles 1/3/10/25, logements 20/75/300/750,
 // locataires 20/75/300/750 — employés/prestataires illimités).
+// Les PRIX sont lus en base au démarrage (PRIX) : seul le montant
+// facturé doit valoir le prix catalogue du plan au moment du checkout,
+// les capacités restent les invariants vérifiés. Un changement de
+// tarif via Ultra Admin ne casse donc pas cette suite.
 //
 // Vérifie tout le circuit auto-service d'un propriétaire :
 //   1. catalogue des plans (limites 1 / 3 / 10 / 25) ;
@@ -67,7 +70,11 @@ function webhookBody(overrides = {}) {
     eventId: `${RUN_ID}:${id}`,
     type: 'payment',
     status: 'succeeded',
-    amount: 7000,
+    // Montant par défaut volontairement invalide : les seuls appels qui
+    // s'en servent sont refusés à l'authentification (401) ; tout usage
+    // « succeeded » sans montant explicite échoue en AMOUNT_MISMATCH
+    // plutôt que de passer pour un faux positif.
+    amount: 0,
     currency: 'XOF',
     paymentReference: `MIM-missing`,
     merchantReference: null,
@@ -195,6 +202,16 @@ export async function runBictorys(r, ctx) {
         body,
       }).then(async (res) => ({ status: res.status, body: await res.json().catch(() => ({})) }));
     };
+
+    // Prix du catalogue lus EN BASE au démarrage : la suite ne fige
+    // aucun montant (un changement de tarif via Ultra Admin reste
+    // compatible ; seules les capacités sont des invariants).
+    const { data: planRows = [] } = await service.from('plans').select('code, prix');
+    const PRIX = Object.fromEntries(planRows.map((p) => [p.code, Number(p.prix)]));
+    if (!PRIX.standard || !PRIX.premium || !PRIX.pro) {
+      r.fail(S, 'catalogue des plans lisible (standard / premium / pro)', JSON.stringify(PRIX));
+      return;
+    }
 
     // ------------------------------------------------------------
     // 1. Catalogue des plans (limites côté serveur).
@@ -389,11 +406,11 @@ export async function runBictorys(r, ctx) {
       if (
         linkOk && c.simulated === true &&
         c.paymentReference && c.paymentReference.startsWith('MIM-') &&
-        p.statut === 'pending' && p.provider === 'bictorys' && Number(p.montant) === 7000
+        p.statut === 'pending' && p.provider === 'bictorys' && Number(p.montant) === PRIX.standard
       ) {
-        r.pass(S, 'checkout standard → lien factice propre (?paiement=simule&ref=) + paiement pending 7 000 XOF');
+        r.pass(S, `checkout standard → lien factice propre (?paiement=simule&ref=) + paiement pending ${PRIX.standard} XOF`);
       } else {
-        r.fail(S, 'checkout standard → lien factice propre + paiement pending 7 000 XOF', JSON.stringify(res.data));
+        r.fail(S, 'checkout standard → lien factice propre + paiement pending au prix catalogue', JSON.stringify(res.data));
       }
 
       // Le checkout n'active JAMAIS rien : l'abonnement en place reste
@@ -431,14 +448,14 @@ export async function runBictorys(r, ctx) {
       const meNow = await me();
       const ref = meNow?.data?.subscription?.paiement?.reference;
       if (!ref) {
-        r.fail(S, 'paiement standard en attente trouvable', JSON.stringify(pendStd));
+        r.fail(S, 'paiement standard en attente trouvable', JSON.stringify(await payFor('standard')));
         return;
       }
 
       const payload = webhookBody({
         id: 'evt_success_1',
         status: 'succeeded',
-        amount: 7000,
+        amount: PRIX.standard,
         paymentReference: ref,
         merchantReference: `SUB-${ref}`,
       });
@@ -452,7 +469,7 @@ export async function runBictorys(r, ctx) {
         s?.statut === 'actif' &&
         s?.planCode === 'standard' &&
         s?.immeubles?.max === 1 &&
-        Number(s?.paiement?.montant) === 7000 &&
+        Number(s?.paiement?.montant) === PRIX.standard &&
         s?.paiement?.statut === 'paid' &&
         s?.paiement?.overlay === false
       ) {
@@ -478,7 +495,7 @@ export async function runBictorys(r, ctx) {
         webhookBody({
           id: 'evt_success_1',
           status: 'succeeded',
-          amount: 7000,
+          amount: PRIX.standard,
           paymentReference: 'should-not-matter-duplicate',
         })
       );
@@ -503,11 +520,13 @@ export async function runBictorys(r, ctx) {
       const pendStd = await payFor('standard');
       const ref = pendStd?.reference;
 
+      // Montant délibérément différent de la charge (tarif figé au
+      // checkout) : la divergence doit être refusée quel que soit le prix.
       const got = await webhook(
         webhookBody({
           id: 'evt_bad_amount',
           status: 'succeeded',
-          amount: 5000,
+          amount: Number(pendStd?.montant ?? PRIX.standard) + 1,
           paymentReference: ref,
         })
       );
@@ -528,7 +547,7 @@ export async function runBictorys(r, ctx) {
       const ref = pendP?.reference;
 
       const fail = await webhook(
-        webhookBody({ id: 'evt_failed_1', status: 'failed', amount: 15000, paymentReference: ref })
+        webhookBody({ id: 'evt_failed_1', status: 'failed', amount: Number(pendP?.montant ?? PRIX.premium), paymentReference: ref })
       );
       const row = await payFor('premium');
       if (fail.status === 200 && row?.statut === 'failed') {
@@ -567,7 +586,7 @@ export async function runBictorys(r, ctx) {
       await checkout('premium');
       const pendP = await payFor('premium');
       const refP = pendP?.reference;
-      await webhook(webhookBody({ id: 'evt_premium_1', status: 'succeeded', amount: 15000, paymentReference: refP }));
+      await webhook(webhookBody({ id: 'evt_premium_1', status: 'succeeded', amount: Number(pendP?.montant ?? PRIX.premium), paymentReference: refP }));
 
       const b3 = await createBien('Bic-Immeuble-3');
       const b4 = await createBien('Bic-Immeuble-4');
@@ -625,7 +644,7 @@ export async function runBictorys(r, ctx) {
       await checkout('pro');
       const pendU = await payFor('pro');
       await webhook(
-        webhookBody({ id: 'evt_pro_1', status: 'succeeded', amount: 30000, paymentReference: pendU?.reference })
+        webhookBody({ id: 'evt_pro_1', status: 'succeeded', amount: Number(pendU?.montant ?? PRIX.pro), paymentReference: pendU?.reference })
       );
 
       // Prolongation depuis l'échéance courante (pas depuis aujourd'hui).

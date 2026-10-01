@@ -1117,6 +1117,14 @@ function wirePlanEditor(list) {
     btn.addEventListener("click", () => open(null));
   });
 
+  // Le modal vit dans ultra.html (persistant) mais wirePlanEditor est
+  // rappelé à CHAQUE rendu de plans() : sans ce garde-fou, chaque
+  // rendu empile un listener « submit » et une seule validation envoie
+  // N PATCH en parallèle (observé : deux ultra.plan_update à 42 ms
+  // d'écart, tous deux partis de l'état avant = prix d'origine).
+  if (form.dataset.wired === "1") return;
+  form.dataset.wired = "1";
+
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const submit = form.querySelector("button[type=submit]");
