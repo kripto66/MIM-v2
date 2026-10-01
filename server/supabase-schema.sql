@@ -384,6 +384,44 @@ $$;
 ALTER FUNCTION public.notifications_outbox_flush(p_limit integer) OWNER TO postgres;
 
 --
+-- Name: rate_limit_bump(text, integer); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE OR REPLACE FUNCTION public.rate_limit_bump(p_key text, p_window_ms integer) RETURNS jsonb
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO ''
+    AS $$
+DECLARE
+    v_now TIMESTAMPTZ := clock_timestamp();
+    v_window INTERVAL;
+    v_count INTEGER;
+    v_start TIMESTAMPTZ;
+BEGIN
+    IF p_key IS NULL OR length(p_key) < 1 OR length(p_key) > 200 THEN
+        RAISE EXCEPTION 'Cle de rate limit invalide.';
+    END IF;
+    IF p_window_ms IS NULL OR p_window_ms < 1000 OR p_window_ms > 3600000 THEN
+        RAISE EXCEPTION 'Fen??tre de rate limit invalide.';
+    END IF;
+
+    v_window := make_interval(secs => p_window_ms / 1000.0);
+
+    INSERT INTO public.rate_limit_buckets AS b (key, window_start, count)
+    VALUES (p_key, v_now, 1)
+    ON CONFLICT (key) DO UPDATE
+        SET count = CASE WHEN v_now - b.window_start >= v_window THEN 1 ELSE b.count + 1 END,
+            window_start = CASE WHEN v_now - b.window_start >= v_window THEN v_now ELSE b.window_start END
+    RETURNING b.count, b.window_start
+    INTO v_count, v_start;
+
+    RETURN jsonb_build_object('count', v_count, 'window_start', v_start);
+END;
+$$;
+
+
+ALTER FUNCTION public.rate_limit_bump(p_key text, p_window_ms integer) OWNER TO postgres;
+
+--
 -- Name: record_manual_subscription_payment(uuid, text, numeric, text, text, timestamp with time zone, integer); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
@@ -1926,6 +1964,19 @@ CREATE TABLE public.quota_reservations (
 ALTER TABLE public.quota_reservations OWNER TO postgres;
 
 --
+-- Name: rate_limit_buckets; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.rate_limit_buckets (
+    key text NOT NULL,
+    window_start timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
+    count integer DEFAULT 0 NOT NULL
+);
+
+
+ALTER TABLE public.rate_limit_buckets OWNER TO postgres;
+
+--
 -- Name: sessions; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -2717,6 +2768,14 @@ ALTER TABLE ONLY public.profiles
 
 ALTER TABLE ONLY public.quota_reservations
     ADD CONSTRAINT quota_reservations_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: rate_limit_buckets rate_limit_buckets_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.rate_limit_buckets
+    ADD CONSTRAINT rate_limit_buckets_pkey PRIMARY KEY (key);
 
 
 --
@@ -4515,6 +4574,12 @@ CREATE POLICY public_read_featured ON public.featured_items FOR SELECT TO authen
 ALTER TABLE public.quota_reservations ENABLE ROW LEVEL SECURITY;
 
 --
+-- Name: rate_limit_buckets; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.rate_limit_buckets ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: employes restrict_no_locataire_employes; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -4754,6 +4819,14 @@ GRANT ALL ON FUNCTION public.handle_new_user() TO service_role;
 
 REVOKE ALL ON FUNCTION public.notifications_outbox_flush(p_limit integer) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.notifications_outbox_flush(p_limit integer) TO service_role;
+
+
+--
+-- Name: FUNCTION rate_limit_bump(p_key text, p_window_ms integer); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.rate_limit_bump(p_key text, p_window_ms integer) FROM PUBLIC;
+GRANT ALL ON FUNCTION public.rate_limit_bump(p_key text, p_window_ms integer) TO service_role;
 
 
 --
@@ -5235,6 +5308,13 @@ GRANT UPDATE(phone) ON TABLE public.profiles TO authenticated;
 --
 
 GRANT ALL ON TABLE public.quota_reservations TO service_role;
+
+
+--
+-- Name: TABLE rate_limit_buckets; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.rate_limit_buckets TO service_role;
 
 
 --

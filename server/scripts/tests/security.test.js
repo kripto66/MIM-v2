@@ -34,6 +34,38 @@ export async function runSecurity(r, ctx) {
     } catch (err) {
       r.blocked(S, 'PostgREST anon → 401 (grants minimaux)', err.message);
     }
+
+    // M-06 / M-01 : les tables internes (compteurs de rate limit,
+    // outbox de notifications) et leurs RPC restent fermées aux
+    // clients : REVOKE anon/authenticated, service_role seul.
+    for (const table of ['rate_limit_buckets', 'notifications_outbox']) {
+      try {
+        const raw = await fetch(`${process.env.SUPABASE_URL}/rest/v1/${table}?select=*`, {
+          headers: { apikey: process.env.SUPABASE_ANON_KEY },
+        });
+        if (raw.status === 401 || raw.status === 403) r.pass(S, `PostgREST anon ${table} → ${raw.status} (interne)`);
+        else r.fail(S, `PostgREST anon ${table} → 401/403 (interne)`, `statut ${raw.status}`);
+      } catch (err) {
+        r.blocked(S, `PostgREST anon ${table} → interne`, err.message);
+      }
+    }
+
+    for (const fn of [
+      ['rate_limit_bump', { p_key: 'anon-probe', p_window_ms: 60000 }],
+      ['notifications_outbox_flush', { p_limit: 1 }],
+    ]) {
+      try {
+        const raw = await fetch(`${process.env.SUPABASE_URL}/rest/v1/rpc/${fn[0]}`, {
+          method: 'POST',
+          headers: { apikey: process.env.SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify(fn[1]),
+        });
+        if (raw.status === 401 || raw.status === 403) r.pass(S, `RPC anon ${fn[0]} → ${raw.status} (REVOKE)`);
+        else r.fail(S, `RPC anon ${fn[0]} → 401/403 (REVOKE)`, `statut ${raw.status}`);
+      } catch (err) {
+        r.blocked(S, `RPC anon ${fn[0]} → REVOKE`, err.message);
+      }
+    }
   });
 
   // ----------------------------------------------------------

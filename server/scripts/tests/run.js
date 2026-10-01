@@ -115,6 +115,11 @@ async function main() {
     const wiped = await wipeTestData(service);
     console.log(`${wiped} comptes de test supprimés.`);
 
+    // M-06 : les compteurs de rate limit sont persistés en base — on
+    // repart de quotas neufs à chaque run (les clés de tests unitaires
+    // sont fixes, une fenêtre résiduelle ferait échouer les seuils).
+    await service.from('rate_limit_buckets').delete().neq('key', '');
+
     console.log('Seed : 10 propriétaires x 10 locataires...');
     ctx.seed = await seed(service);
     console.log(

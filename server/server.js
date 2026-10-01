@@ -1,6 +1,7 @@
 import './loadEnv.js';
 import app from './app.js';
 import { startNotificationsOutboxSweep } from './utils/notifications.js';
+import { startRateLimitSweep } from './middleware/rateLimit.js';
 
 const PORT = process.env.PORT || 3000;
 
@@ -111,6 +112,11 @@ const server = app.listen(PORT, () => {
 // ce balayeur reprend périodiquement les lignes pending (backoff
 // géré en base par notifications_outbox_flush).
 startNotificationsOutboxSweep();
+
+// ─── M-06 : purge des compteurs de rate limit ───────────────────────
+// Les compteurs sont persistés en base (partagés entre process) : on
+// évide les fenêtres closes pour ne pas accumuler les clés.
+startRateLimitSweep();
 
 // Une erreur d'écoute (port occupé, permission refusée) est fatale : le
 // handler global ci-dessus maintiendrait en vie un processus qui n'écoute
