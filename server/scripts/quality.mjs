@@ -793,6 +793,45 @@ async function checkInlineScriptVectors() {
   return errors;
 }
 
+// ---------------------------------------------------------------------
+// Cohérence de la navigation statique : tout href/src d'une page (hors
+// scripts, déjà couverts par la suite e2e frontend) doit pointer vers
+// un fichier existant — lien de sidebar oublié, page renommée sans
+// mise à jour des entrées, ressource manquante. Compense l'impossibilité
+// d'une revue visuelle systématique.
+// ---------------------------------------------------------------------
+const PAGE_REF = /(?:href|src)\s*=\s*"([^"]+)"/gi;
+const EXTERNAL_REF = /^(?:https?:)?\/\/|^(?:mailto|tel|data|javascript):/i;
+
+async function checkInternalLinks() {
+  const errors = [];
+  for (const page of await collectPages()) {
+    const html = await readIfPresent(page);
+    if (!html) continue;
+    const staticHtml = html.replace(STATIC_HTML, '').replace(STATIC_STYLE, '');
+    PAGE_REF.lastIndex = 0;
+    let match;
+    while ((match = PAGE_REF.exec(staticHtml)) !== null) {
+      const url = match[1];
+      if (!url || url.startsWith('#') || EXTERNAL_REF.test(url) || url.startsWith('/api/')) continue;
+      const clean = url.split('#')[0].split('?')[0];
+      if (!clean) continue;
+      const target = clean.startsWith('/')
+        ? (/^\/Part[A-Za-z0-9_]+\//.test(clean) || clean.startsWith('/images/')
+          ? path.join(root, clean)
+          : path.join(root, 'PartPublic', clean))
+        : path.resolve(path.dirname(page), clean);
+      if (!existsSync(target)) {
+        errors.push(
+          `${relative(page)}:${lineOf(staticHtml, match.index)}: « ${url} » — `
+          + 'cible introuvable (lien ou ressource cassé).',
+        );
+      }
+    }
+  }
+  return errors;
+}
+
 async function runGuards(files) {
   const htmlFiles = await collectFrontFiles();
   const scanned = [...new Set([...files, ...htmlFiles])];
@@ -811,6 +850,7 @@ async function runGuards(files) {
   errors.push(...await checkDuplicateFrontFiles());
   errors.push(...await checkSilentCatches());
   errors.push(...await checkInlineScriptVectors());
+  errors.push(...await checkInternalLinks());
   return errors;
 }
 
