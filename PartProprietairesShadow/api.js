@@ -33,6 +33,12 @@
         dashboard: function () {
             return request("/dashboard");
         },
+        logements: function () {
+            return request("/logements");
+        },
+        locataires: function () {
+            return request("/locataires");
+        },
         versements: function () {
             return request("/versements");
         },

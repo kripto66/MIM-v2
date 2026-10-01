@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIM — Messagerie</title>
+    <title>MIM — Mon parc</title>
     <meta name="robots" content="noindex, nofollow">
     <link rel="stylesheet" href="/mim-errors.css">
     <script src="/mim-errors.js"></script>
@@ -20,9 +20,9 @@
             <nav class="sidebar-menu">
                 <div class="nav-category">Mon espace</div>
                 <a href="dashboard.html">Vue d'ensemble</a>
-                <a href="parc.html">Mon parc</a>
+                <a class="active" href="parc.html">Mon parc</a>
                 <a href="versements.html">Versements</a>
-                <a class="active" href="messages.html">Messagerie</a>
+                <a href="messages.html">Messagerie</a>
                 <div class="nav-category">Session</div>
                 <a href="#" id="logoutBtn">Déconnexion</a>
             </nav>
@@ -33,44 +33,39 @@
                 <button class="menu-toggle" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">☰</button>
                 <div id="apiMessage" class="api-message" style="display:none;"></div>
                 <div class="welcome">
-                    <h1>Messagerie<span class="accent">.</span></h1>
-                    <p id="greetingSub">Échangez avec l'agence qui gère vos biens.</p>
+                    <h1>Mon parc<span class="accent">.</span></h1>
+                    <p id="greetingSub">Logements et locataires gérés par votre agence.</p>
+                </div>
+                <div class="header-actions">
+                    <button class="refresh-btn" id="refreshBtn" type="button" title="Actualiser les données">
+                        <span class="refresh-ico">↻</span><span>Actualiser</span>
+                    </button>
                 </div>
             </header>
 
+            <section class="mim-kpi-grid" id="kpis"></section>
+
             <section class="mim-section">
                 <header>
-                    <h2>Nouveau message</h2>
-                    <span class="section-meta">Réponse direct à votre agence</span>
+                    <h2>Logements</h2>
+                    <span class="section-meta" id="logementsMeta"></span>
                 </header>
-                <form id="messageForm" novalidate>
-                    <div class="form-group">
-                        <label for="objet">Objet (optionnel)</label>
-                        <input type="text" id="objet" maxlength="120" placeholder="Ex : Question sur le loyer de mars">
-                    </div>
-                    <div class="form-group">
-                        <label for="corps">Message</label>
-                        <textarea id="corps" rows="4" maxlength="4000" required placeholder="Votre message…"></textarea>
-                    </div>
-                    <div class="modal-actions">
-                        <button class="btn btn-primary" type="submit">Envoyer</button>
-                    </div>
-                </form>
+                <div id="logementsList"></div>
             </section>
 
             <section class="mim-section">
                 <header>
-                    <h2>Historique</h2>
-                    <span class="section-meta" id="messagesMeta"></span>
+                    <h2>Locataires</h2>
+                    <span class="section-meta" id="locatairesMeta"></span>
                 </header>
-                <div id="messagesList"></div>
+                <div id="locatairesList"></div>
             </section>
         </main>
     </div>
 
     <script src="/PartPublic/mim-ui.js"></script>
     <script src="api.js"></script>
-    <script src="messages.js"></script>
+    <script src="parc.js"></script>
     <script src="/PartPublic/sidebar.js"></script>
 
 </body>

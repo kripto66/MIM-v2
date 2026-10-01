@@ -45,6 +45,23 @@ async function requireMandate(req, res, next) {
   }
 }
 
+// Biens réellement confiés (liaison agence_biens active) — seule
+// base de tout le drill-down lecture seule de l'espace délégué.
+async function mandatBienIds(proprietaireId) {
+  const { data, error } = await sb()
+    .from('agences_biens')
+    .select('bien_id')
+    .eq('proprietaire_id', proprietaireId)
+    .eq('statut', 'actif');
+  if (error) throw new Error(error.message);
+  return (data || []).map((l) => l.bien_id).filter(Boolean);
+}
+
+function moisCourant() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+}
+
 router.get('/etat', requireMandate, async (req, res) => {
   const { data: agence } = await sb()
     .from('profiles')
@@ -236,6 +253,188 @@ router.get('/dashboard', requireMandate, async (req, res) => {
     versements: versementRows,
     messages: messagesRes.data || [],
   });
+});
+
+// ------------------------------------------------------------
+// Drill-down lecture seule — logements et locataires du parc
+// confié. Aucune écriture ici : le mandat est géré par l'agence
+// (mandatGuard refuse toute mutation côté propriétaire).
+// ------------------------------------------------------------
+
+router.get('/logements', requireMandate, async (req, res) => {
+  try {
+    const proprietaireId = req.user.id;
+    const bienIds = await mandatBienIds(proprietaireId);
+    const bienIdsEsc = bienIds.length ? bienIds : [0];
+
+    // Biens et logements en deux requêtes : deux FK logements→biens
+    // existent (simple + composite propriétaire), l'embed PostgREST est
+    // donc ambigu et il faut figer un nom de contrainte — on préfère le
+    // mapping explicite déjà utilisé par le dashboard.
+    const [{ data: biens = [], error: bienError }, { data: logements = [], error }] = await Promise.all([
+      sb().from('biens').select('id, nom, type, adresse, ville').eq('user_id', proprietaireId).in('id', bienIdsEsc),
+      sb()
+        .from('logements')
+        .select('id, bien_id, nom, statut, loyer_mensuel')
+        .eq('user_id', proprietaireId)
+        .in('bien_id', bienIdsEsc),
+    ]);
+    if (bienError || error) throw new Error(bienError?.message || error.message);
+    const bienById = new Map(biens.map((b) => [b.id, b]));
+
+    const logementIds = logements.map((l) => l.id);
+    const logementIdsEsc = logementIds.length ? logementIds : [0];
+    const mois = moisCourant();
+
+    const [locRes, paiRes, incRes] = await Promise.all([
+      sb()
+        .from('locataires')
+        .select('id, logement_id, nom, date_entree, statut')
+        .eq('user_id', proprietaireId)
+        .in('logement_id', logementIdsEsc)
+        .eq('statut', 'actif'),
+      sb()
+        .from('paiements')
+        .select('id, logement_id, montant, statut, mois, date_paiement')
+        .eq('user_id', proprietaireId)
+        .in('logement_id', logementIdsEsc)
+        .eq('mois', mois),
+      sb()
+        .from('incidents')
+        .select('id, logement_id, statut')
+        .eq('user_id', proprietaireId)
+        .in('logement_id', logementIdsEsc),
+    ]);
+    if (locRes.error || paiRes.error || incRes.error) {
+      throw new Error(locRes.error?.message || paiRes.error?.message || incRes.error?.message);
+    }
+
+    const locByLogement = new Map((locRes.data || []).map((l) => [l.logement_id, l]));
+    const paiByLogement = new Map((paiRes.data || []).map((p) => [p.logement_id, p]));
+    const incOuverts = new Map();
+    for (const inc of incRes.data || []) {
+      if (['resolu', 'ferme'].includes(String(inc.statut))) continue;
+      incOuverts.set(inc.logement_id, (incOuverts.get(inc.logement_id) || 0) + 1);
+    }
+
+    const rows = logements.map((l) => {
+      const bien = bienById.get(l.bien_id) || null;
+      const loc = locByLogement.get(l.id) || null;
+      const pai = paiByLogement.get(l.id) || null;
+      return {
+        id: l.id,
+        bien_id: l.bien_id,
+        bien_nom: bien?.nom || 'Bien #' + l.bien_id,
+        nom: l.nom,
+        statut: l.statut,
+        loyer_mensuel: Number(l.loyer_mensuel || 0),
+        locataire: loc ? { id: loc.id, nom: loc.nom, date_entree: loc.date_entree } : null,
+        paiementMois: pai ? { id: pai.id, montant: Number(pai.montant || 0), statut: pai.statut, date_paiement: pai.date_paiement } : null,
+        incidentsOuverts: incOuverts.get(l.id) || 0,
+      };
+    });
+
+    res.json({
+      success: true,
+      mois,
+      logements: rows,
+      totaux: {
+        logements: rows.length,
+        occupes: rows.filter((l) => l.statut === 'occupe').length,
+        loyerTotal: rows.reduce((s, l) => s + l.loyer_mensuel, 0),
+        retards: rows.filter((l) => l.paiementMois?.statut === 'retard').length,
+        enAttente: rows.filter((l) => l.paiementMois?.statut === 'attente').length,
+        sansLocataire: rows.filter((l) => !l.locataire).length,
+      },
+    });
+  } catch (err) {
+    console.error('[mandat/logements]', err.message);
+    res.status(500).json({ success: false, message: 'Impossible de charger les logements.' });
+  }
+});
+
+router.get('/locataires', requireMandate, async (req, res) => {
+  try {
+    const proprietaireId = req.user.id;
+    const bienIds = await mandatBienIds(proprietaireId);
+    const bienIdsEsc = bienIds.length ? bienIds : [0];
+
+    // Même motif que /logements : mapping explicite plutôt que l'embed
+    // ambigu entre logements et biens (voir plus haut).
+    const [{ data: biens = [], error: bienError }, { data: logements = [], error: lgError }] = await Promise.all([
+      sb().from('biens').select('id, nom').eq('user_id', proprietaireId).in('id', bienIdsEsc),
+      sb()
+        .from('logements')
+        .select('id, bien_id, nom, loyer_mensuel')
+        .eq('user_id', proprietaireId)
+        .in('bien_id', bienIdsEsc),
+    ]);
+    if (bienError || lgError) throw new Error(bienError?.message || lgError.message);
+    const bienById = new Map(biens.map((b) => [b.id, b]));
+
+    const logementById = new Map(logements.map((l) => [l.id, l]));
+    const logementIds = logements.map((l) => l.id);
+    const logementIdsEsc = logementIds.length ? logementIds : [0];
+    const mois = moisCourant();
+
+    const [locRes, paiRes] = await Promise.all([
+      sb()
+        .from('locataires')
+        .select('id, logement_id, nom, phone, date_entree, statut, created_at')
+        .eq('user_id', proprietaireId)
+        .in('logement_id', logementIdsEsc)
+        .order('created_at', { ascending: false }),
+      sb()
+        .from('paiements')
+        .select('id, locataire_id, logement_id, montant, statut, mois')
+        .eq('user_id', proprietaireId)
+        .in('logement_id', logementIdsEsc)
+        .eq('mois', mois),
+    ]);
+    if (locRes.error || paiRes.error) throw new Error(locRes.error?.message || paiRes.error?.message);
+
+    // Appariement par locataire, avec repli par logement (un paiement
+    // peut être saisi sans locataire_id).
+    const paiByLocataire = new Map();
+    const paiByLogement = new Map();
+    for (const p of paiRes.data || []) {
+      if (p.locataire_id) paiByLocataire.set(p.locataire_id, p);
+      if (p.logement_id && !paiByLogement.has(p.logement_id)) paiByLogement.set(p.logement_id, p);
+    }
+
+    const rows = (locRes.data || []).map((loc) => {
+      const logement = logementById.get(loc.logement_id) || null;
+      const bien = logement ? bienById.get(logement.bien_id) || null : null;
+      const pai = paiByLocataire.get(loc.id) || (loc.logement_id ? paiByLogement.get(loc.logement_id) : null) || null;
+      return {
+        id: loc.id,
+        nom: loc.nom,
+        phone: loc.phone || null,
+        date_entree: loc.date_entree,
+        statut: loc.statut,
+        logement_id: loc.logement_id,
+        logement_nom: logement?.nom || null,
+        bien_nom: bien?.nom || null,
+        loyer_mensuel: logement ? Number(logement.loyer_mensuel || 0) : 0,
+        paiementMois: pai ? { id: pai.id, montant: Number(pai.montant || 0), statut: pai.statut } : null,
+      };
+    });
+
+    res.json({
+      success: true,
+      mois,
+      locataires: rows,
+      totaux: {
+        total: rows.length,
+        actifs: rows.filter((l) => l.statut === 'actif').length,
+        impayes: rows.filter((l) => l.paiementMois?.statut === 'retard').length,
+        enAttente: rows.filter((l) => l.paiementMois?.statut === 'attente').length,
+      },
+    });
+  } catch (err) {
+    console.error('[mandat/locataires]', err.message);
+    res.status(500).json({ success: false, message: 'Impossible de charger les locataires.' });
+  }
 });
 
 // ------------------------------------------------------------

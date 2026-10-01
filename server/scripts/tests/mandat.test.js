@@ -65,7 +65,7 @@ export async function runMandat(r, ctx) {
     r.blocked(S, 'création du bien du mandat', bienErr.message);
     return;
   }
-  const { error: lgErr } = await service.from('logements').insert({
+  const { data: lgRow, error: lgErr } = await service.from('logements').insert({
     user_id: gere.user.id,
     bien_id: Number(bienId),
     nom: 'is_test Logement mandat',
@@ -73,11 +73,12 @@ export async function runMandat(r, ctx) {
     adresse: 'Rue mandat',
     loyer_mensuel: 120000,
     statut: 'libre',
-  });
-  if (lgErr) {
-    r.blocked(S, 'création du logement du mandat', lgErr.message);
+  }).select('id').single();
+  if (lgErr || !lgRow?.id) {
+    r.blocked(S, 'création du logement du mandat', lgErr?.message || 'id non retourné');
     return;
   }
+  const logementId = lgRow.id;
 
   const { error: lienErr } = await service.from('agences_proprietaires').insert({
     user_id: agence.user.id,
@@ -159,6 +160,90 @@ export async function runMandat(r, ctx) {
     r.pass(S, 'dashboard mandat : versement en attente comptabilisé');
   } else {
     r.fail(S, 'dashboard mandat : versement en attente comptabilisé', JSON.stringify(dash.data.totaux));
+  }
+
+  // --- 4b. Drill-down lecture seule : logements + locataires ---
+  // Les assertions dashboard ci-dessus ont été relevées AVANT l'occupation
+  // du logement : on peuple ensuite locataire + échéance du mois courant
+  // pour valider les deux routes de drill-down.
+  const dNow = new Date();
+  const moisCourant = `${dNow.getFullYear()}-${String(dNow.getMonth() + 1).padStart(2, '0')}`;
+
+  const { data: locRow, error: locErr } = await service
+    .from('locataires')
+    .insert({
+      user_id: gere.user.id,
+      logement_id: logementId,
+      nom: 'is_test Locataire Mandat',
+      phone: '+221770000009',
+      date_entree: '2026-03-15',
+      statut: 'actif',
+    })
+    .select('id')
+    .single();
+  if (locErr || !locRow?.id) {
+    r.blocked(S, 'drill-down : locataire de test', locErr?.message || 'id non retourné');
+  } else {
+    const { error: paiErr } = await service.from('paiements').insert({
+      user_id: gere.user.id,
+      locataire_id: locRow.id,
+      logement_id: logementId,
+      montant: 120000,
+      mois: moisCourant,
+      statut: 'retard',
+    });
+    if (paiErr) r.blocked(S, 'drill-down : échéance de test', paiErr.message);
+
+    const { error: occErr } = await service.from('logements').update({ statut: 'occupe' }).eq('id', logementId);
+    if (occErr) r.blocked(S, 'drill-down : occupation du logement', occErr.message);
+  }
+
+  const lgRes = await api('/mandat/logements', { jar: jarShadow });
+  const lg = lgRes.data?.logements?.[0];
+  if (lgRes.status === 200 && (lgRes.data?.logements || []).length === 1) {
+    r.pass(S, 'GET /mandat/logements → 200 (1 logement)');
+  } else {
+    r.fail(S, 'GET /mandat/logements → 200 (1 logement)', `statut ${lgRes.status}`);
+  }
+
+  if (lg && lg.locataire?.nom === 'is_test Locataire Mandat' && lg.bien_nom === `Bien mandat ${stamp}`) {
+    r.pass(S, 'drill-down : logement rattaché au bien et au locataire');
+  } else {
+    r.fail(S, 'drill-down : logement rattaché au bien et au locataire', JSON.stringify(lg));
+  }
+
+  if (lg && lg.paiementMois?.statut === 'retard' && lg.paiementMois?.montant === 120000) {
+    r.pass(S, 'drill-down : échéance du mois courant branchée sur le logement');
+  } else {
+    r.fail(S, 'drill-down : échéance du mois courant branchée sur le logement', JSON.stringify(lg?.paiementMois));
+  }
+
+  if (lgRes.data?.totaux?.occupes === 1 && lgRes.data?.totaux?.retards === 1 && lgRes.data?.totaux?.loyerTotal === 120000) {
+    r.pass(S, 'drill-down : totaux (occupation, retard, loyer)');
+  } else {
+    r.fail(S, 'drill-down : totaux (occupation, retard, loyer)', JSON.stringify(lgRes.data?.totaux));
+  }
+
+  const locRes = await api('/mandat/locataires', { jar: jarShadow });
+  const t0 = locRes.data?.locataires?.[0];
+  if (
+    locRes.status === 200 &&
+    (locRes.data?.locataires || []).length === 1 &&
+    t0?.logement_nom === 'is_test Logement mandat' &&
+    t0?.bien_nom === `Bien mandat ${stamp}` &&
+    t0?.paiementMois?.statut === 'retard'
+  ) {
+    r.pass(S, 'GET /mandat/locataires → drill-down logement/bien/échéance');
+  } else {
+    r.fail(S, 'GET /mandat/locataires → drill-down logement/bien/échéance', `statut ${locRes.status} ${JSON.stringify(locRes.data?.locataires)}`);
+  }
+
+  const lgSans = await api('/mandat/logements', { jar: sansMandat.jar });
+  const locSans = await api('/mandat/locataires', { jar: sansMandat.jar });
+  if (lgSans.status === 404 && locSans.status === 404) {
+    r.pass(S, 'drill-down sans mandat → 404 (fail-closed)');
+  } else {
+    r.fail(S, 'drill-down sans mandat → 404 (fail-closed)', `logements=${lgSans.status} locataires=${locSans.status}`);
   }
 
   // --- 5. Le shadow ne peut PAS créer de locataire/employé ---
@@ -491,6 +576,8 @@ export async function runMandat(r, ctx) {
   await service.from('versements').delete().eq('id', versementId);
   await service.from('versements').delete().eq('agence_id', agence.user.id);
   await service.from('messages').delete().eq('proprietaire_id', gere.user.id);
+  await service.from('paiements').delete().eq('user_id', gere.user.id);
+  await service.from('locataires').delete().eq('user_id', gere.user.id);
   await service.from('agences_biens').delete().eq('proprietaire_id', gere.user.id);
   await service.from('agences_proprietaires').delete().eq('proprietaire_id', gere.user.id);
   await service.from('logements').delete().eq('user_id', gere.user.id);
