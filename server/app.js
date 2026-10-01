@@ -298,6 +298,7 @@ app.use('/api/paiements', authenticate, requireActive, requirePasswordChanged, o
 app.use('/api/incidents', authenticate, requireActive, requirePasswordChanged, ownerOnly, mandatGuard, createCrudRouter('incidents'));
 app.use('/api/prestataires', authenticate, requireActive, requirePasswordChanged, ownerOnly, mandatGuard, createCrudRouter('prestataires'));
 app.use('/api/interventions', authenticate, requireActive, requirePasswordChanged, ownerOnly, mandatGuard, createCrudRouter('interventions'));
+app.use('/api/depenses', authenticate, requireActive, requirePasswordChanged, ownerOnly, mandatGuard, createCrudRouter('depenses'));
 app.use('/api/notifications', authenticate, requireActive, requirePasswordChanged, notificationsRoutes);
 
 // ─── 404 API ────────────────────────────────────────────────────────

@@ -45,6 +45,9 @@
         entretien: function () {
             return request("/entretien");
         },
+        depenses: function () {
+            return request("/depenses");
+        },
         versements: function () {
             return request("/versements");
         },

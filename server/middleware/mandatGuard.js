@@ -37,6 +37,7 @@ const WRITE_TABLES = new Set([
   'moyens-paiement',
   'import',
   'onboarding',
+  'depenses',
 ]);
 
 const METHOD_BLOCKED = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);

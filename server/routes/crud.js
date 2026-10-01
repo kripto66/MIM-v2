@@ -40,6 +40,10 @@ const SCHEMAS = {
     fields: ['incident_id', 'prestataire_id', 'logement_id', 'titre', 'description', 'statut', 'date_prevue'],
     emptyToNull: ['incident_id', 'prestataire_id', 'logement_id', 'description', 'date_prevue'],
   },
+  depenses: {
+    fields: ['bien_id', 'logement_id', 'libelle', 'montant', 'categorie', 'date_depense', 'note'],
+    emptyToNull: ['bien_id', 'logement_id', 'date_depense', 'note'],
+  },
 };
 
 async function bestEffortDelete(query) {
@@ -128,6 +132,14 @@ export function validateResource(tableName, body, partial = false) {
 
     case 'interventions':
       check('titre', () => !present('titre'), 'Le titre est obligatoire.');
+      break;
+
+    case 'depenses':
+      check('libelle', () => !present('libelle'), 'Le libellé est obligatoire.');
+      check('bien_id', () => !present('bien_id'), 'Le bien est obligatoire.');
+      check('montant', () => !present('montant') || parseMoney(body.montant) === null, 'Le montant doit être un nombre positif.');
+      check('categorie', () => present('categorie') && !['entretien', 'travaux', 'assurance', 'charges', 'taxe', 'autre'].includes(body.categorie), 'Catégorie invalide.');
+      check('date_depense', () => present('date_depense') && !isValidDate(body.date_depense), 'La date de dépense est invalide.');
       break;
 
     default:

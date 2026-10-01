@@ -87,16 +87,51 @@
             "</ul>";
     }
 
+    function renderDepenses(data) {
+        document.getElementById("depensesMeta").textContent =
+            UI.fmtFCFA(data.totaux.moisCourant) + " F ce mois · " + UI.fmtFCFA(data.totaux.sixMois) + " F sur 6 mois";
+        var node = document.getElementById("depensesList");
+        if (!data.depenses.length) {
+            node.innerHTML = '<div class="mim-empty">Aucune dépense enregistrée sur vos biens confiés.</div>';
+            return;
+        }
+        node.innerHTML =
+            '<ul class="mim-list">' +
+            data.depenses
+                .slice(0, 12)
+                .map(function (d) {
+                    var meta = [
+                        d.bien_nom,
+                        d.categorie,
+                        d.date_depense ? "Le " + UI.formatDate(d.date_depense) : null,
+                    ]
+                        .filter(Boolean)
+                        .join(" · ");
+                    return UI.listItem({
+                        title: d.libelle,
+                        meta: meta,
+                        right: '<span class="mim-badge" data-tone="accent">' + escapeHtml(UI.fmtFCFA(d.montant)) + " F</span>",
+                    });
+                })
+                .join("") +
+            "</ul>";
+    }
+
     async function load() {
         if (state.loading) return;
         state.loading = true;
         try {
-            var res = await Promise.all([window.MandatApi.logements(), window.MandatApi.locataires()]);
+            var res = await Promise.all([
+                window.MandatApi.logements(),
+                window.MandatApi.locataires(),
+                window.MandatApi.depenses(),
+            ]);
             var lg = res[0];
             var loc = res[1];
             renderKpis(lg, loc);
             renderLogements(lg);
             renderLocataires(loc);
+            renderDepenses(res[2]);
         } catch (err) {
             if (err && err.code === "MANDAT_NOT_FOUND") {
                 MIM.showError("Aucun mandat actif. Vous pouvez continuer dans votre espace propriétaire complet.");
@@ -115,6 +150,7 @@
         UI.initGreeting({});
         document.getElementById("logementsList").innerHTML = UI.skeleton(4, 20);
         document.getElementById("locatairesList").innerHTML = UI.skeleton(4, 20);
+        document.getElementById("depensesList").innerHTML = UI.skeleton(3, 20);
         load();
         UI.live({ load: load, button: "refreshBtn", intervalMs: 180000 });
     });

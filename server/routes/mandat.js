@@ -623,6 +623,74 @@ router.get('/entretien', requireMandate, async (req, res) => {
 });
 
 // ------------------------------------------------------------
+// Dépenses du parc confié (lecture seule) : cumuls sur 6 mois,
+// ventilation par mois et par bien, liste des lignes.
+// ------------------------------------------------------------
+router.get('/depenses', requireMandate, async (req, res) => {
+  try {
+    const proprietaireId = req.user.id;
+    const bienIds = await mandatBienIds(proprietaireId);
+    const bienIdsEsc = bienIds.length ? bienIds : [0];
+
+    const [{ data: biens = [], error: bienError }, { data: depenses = [], error: depError }] = await Promise.all([
+      sb().from('biens').select('id, nom').eq('user_id', proprietaireId).in('id', bienIdsEsc),
+      sb()
+        .from('depenses')
+        .select('id, bien_id, logement_id, libelle, montant, categorie, date_depense, note, created_at')
+        .eq('user_id', proprietaireId)
+        .in('bien_id', bienIdsEsc)
+        .order('date_depense', { ascending: false })
+        .order('id', { ascending: false }),
+    ]);
+    if (bienError || depError) throw new Error(bienError?.message || depError.message);
+    const bienById = new Map(biens.map((b) => [b.id, b]));
+
+    const mois = moisCourant();
+    const [annee, moisNum] = mois.split('-').map(Number);
+    const somme = (rows) => rows.reduce((s, d) => s + Number(d.montant || 0), 0);
+
+    const parMois = [];
+    for (let i = 5; i >= 0; i -= 1) {
+      const d = new Date(Date.UTC(annee, moisNum - 1 - i, 1));
+      const ym = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      const rows = depenses.filter((dp) => String(dp.date_depense || '').slice(0, 7) === ym);
+      parMois.push({ mois: ym, total: somme(rows), nb: rows.length });
+    }
+
+    res.json({
+      success: true,
+      mois,
+      depenses: depenses.map((dp) => ({
+        id: dp.id,
+        libelle: dp.libelle,
+        montant: Number(dp.montant || 0),
+        categorie: dp.categorie,
+        date_depense: dp.date_depense,
+        note: dp.note || null,
+        bien_id: dp.bien_id,
+        bien_nom: bienById.get(dp.bien_id)?.nom || 'Bien #' + dp.bien_id,
+        logement_id: dp.logement_id,
+        created_at: dp.created_at,
+      })),
+      totaux: {
+        moisCourant: parMois[5].total,
+        sixMois: parMois.reduce((s, m) => s + m.total, 0),
+        nb: depenses.length,
+        parBien: [...bienById.keys()].map((id) => ({
+          bien_id: id,
+          bien_nom: bienById.get(id).nom,
+          total: somme(depenses.filter((dp) => dp.bien_id === id)),
+        })),
+      },
+      parMois,
+    });
+  } catch (err) {
+    console.error('[mandat/depenses]', err.message);
+    res.status(500).json({ success: false, message: 'Impossible de charger les dépenses du parc.' });
+  }
+});
+
+// ------------------------------------------------------------
 // Versements : le propriétaire confirme la réception d'un virement
 // ------------------------------------------------------------
 

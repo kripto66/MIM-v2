@@ -362,6 +362,108 @@ export async function runMandat(r, ctx) {
     r.fail(S, 'entretien sans mandat → 404 (fail-closed)', `statut ${entSans.status}`);
   }
 
+  // --- 4e. Dépenses : lecture sous mandat, écriture refusée ---
+  const { error: depErr } = await service.from('depenses').insert({
+    user_id: gere.user.id,
+    bien_id: Number(bienId),
+    libelle: 'is_test Peinture salon',
+    montant: 45000,
+    categorie: 'travaux',
+    date_depense: `${moisCourant}-05`,
+  });
+  if (depErr) r.blocked(S, 'depenses : fixture de test', depErr.message);
+
+  const depRes = await api('/mandat/depenses', { jar: jarShadow });
+  const dep = depRes.data;
+  const d0 = dep?.depenses?.[0];
+  if (depRes.status === 200 && dep?.success && dep?.depenses?.length === 1) {
+    r.pass(S, 'GET /mandat/depenses → 200 (1 dépense)');
+  } else {
+    r.fail(S, 'GET /mandat/depenses → 200 (1 dépense)', `statut ${depRes.status}`);
+  }
+
+  if (d0?.libelle === 'is_test Peinture salon' && d0?.bien_nom === `Bien mandat ${stamp}` && d0?.montant === 45000 && d0?.categorie === 'travaux') {
+    r.pass(S, 'depenses : ligne détaillée (libellé, bien, montant, catégorie)');
+  } else {
+    r.fail(S, 'depenses : ligne détaillée (libellé, bien, montant, catégorie)', JSON.stringify(d0));
+  }
+
+  if (dep?.totaux?.moisCourant === 45000 && dep?.totaux?.sixMois === 45000 && dep?.parMois?.length === 6 && dep?.parMois?.[5]?.total === 45000) {
+    r.pass(S, 'depenses : cumuls (mois courant, 6 mois, ventilation mensuelle)');
+  } else {
+    r.fail(S, 'depenses : cumuls (mois courant, 6 mois, ventilation mensuelle)', JSON.stringify({ totaux: dep?.totaux, parMois: dep?.parMois }));
+  }
+
+  // Sous mandat actif, le propriétaire ne peut PAS écrire (mandatGuard).
+  const depWrite = await api('/depenses', {
+    method: 'POST',
+    jar: jarShadow,
+    body: { bien_id: Number(bienId), libelle: 'Interdit', montant: 1000, categorie: 'autre' },
+  });
+  if (depWrite.status === 403) {
+    r.pass(S, 'espace délégué : création de dépense refusée (403)');
+  } else {
+    r.fail(S, 'espace délégué : création de dépense refusée (403)', `statut ${depWrite.status}`);
+  }
+
+  const depSans = await api('/mandat/depenses', { jar: sansMandat.jar });
+  if (depSans.status === 404) {
+    r.pass(S, 'depenses sans mandat → 404 (fail-closed)');
+  } else {
+    r.fail(S, 'depenses sans mandat → 404 (fail-closed)', `statut ${depSans.status}`);
+  }
+
+  // CRUD propriétaire HORS mandat : création, validation, suppression.
+  const depCreate = await api('/depenses', {
+    method: 'POST',
+    jar: sansMandat.jar,
+    body: { bien_id: sansMandat.bienId, libelle: 'Assurance habitation', montant: 25000, categorie: 'assurance', date_depense: '2026-10-01' },
+  });
+  if (depCreate.status === 201 && depCreate.data?.data?.id && depCreate.data?.data?.user_id === sansMandat.id) {
+    r.pass(S, 'CRUD hors mandat : création d\'une dépense (201, user_id imposé)');
+  } else {
+    r.fail(S, 'CRUD hors mandat : création d\'une dépense (201, user_id imposé)', `statut ${depCreate.status} ${JSON.stringify(depCreate.data)}`);
+  }
+
+  const depNoLibelle = await api('/depenses', {
+    method: 'POST',
+    jar: sansMandat.jar,
+    body: { bien_id: sansMandat.bienId, montant: 1000 },
+  });
+  if (depNoLibelle.status === 400 && depNoLibelle.data?.errors?.libelle) {
+    r.pass(S, 'CRUD : libellé manquant → 400');
+  } else {
+    r.fail(S, 'CRUD : libellé manquant → 400', `statut ${depNoLibelle.status}`);
+  }
+
+  const depBadCategorie = await api('/depenses', {
+    method: 'POST',
+    jar: sansMandat.jar,
+    body: { bien_id: sansMandat.bienId, libelle: 'X', montant: 1000, categorie: 'crypto' },
+  });
+  if (depBadCategorie.status === 400 && depBadCategorie.data?.errors?.categorie) {
+    r.pass(S, 'CRUD : catégorie inconnue → 400');
+  } else {
+    r.fail(S, 'CRUD : catégorie inconnue → 400', `statut ${depBadCategorie.status}`);
+  }
+
+  const depMine = await api('/depenses', { jar: sansMandat.jar });
+  const depMineRow = (depMine.data?.data || []).find((x) => x.id === depCreate.data?.data?.id);
+  if (depMine.status === 200 && depMineRow && depMineRow.bien_id === sansMandat.bienId) {
+    r.pass(S, 'CRUD : liste des dépenses du propriétaire');
+  } else {
+    r.fail(S, 'CRUD : liste des dépenses du propriétaire', `statut ${depMine.status} ${JSON.stringify(depMine.data?.data?.length)}`);
+  }
+
+  if (depCreate.status === 201) {
+    const depDel = await api(`/depenses/${depCreate.data.data.id}`, { method: 'DELETE', jar: sansMandat.jar });
+    if (depDel.status === 200) {
+      r.pass(S, 'CRUD : suppression d\'une dépense');
+    } else {
+      r.fail(S, 'CRUD : suppression d\'une dépense', `statut ${depDel.status}`);
+    }
+  }
+
   // --- 5. Le shadow ne peut PAS créer de locataire/employé ---
   const createLoc = await api('/locataires', {
     method: 'POST',
@@ -697,6 +799,8 @@ export async function runMandat(r, ctx) {
   await service.from('interventions').delete().eq('user_id', gere.user.id);
   await service.from('incidents').delete().eq('user_id', gere.user.id);
   await service.from('prestataires').delete().eq('user_id', gere.user.id);
+  await service.from('depenses').delete().eq('user_id', gere.user.id);
+  await service.from('depenses').delete().eq('user_id', sansMandat.id);
   await service.from('agences_biens').delete().eq('proprietaire_id', gere.user.id);
   await service.from('agences_proprietaires').delete().eq('proprietaire_id', gere.user.id);
   await service.from('logements').delete().eq('user_id', gere.user.id);

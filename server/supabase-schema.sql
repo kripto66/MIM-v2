@@ -879,6 +879,49 @@ ALTER SEQUENCE public.biens_id_seq OWNED BY public.biens.id;
 
 
 --
+-- Name: depenses; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.depenses (
+    id bigint NOT NULL,
+    user_id uuid NOT NULL,
+    bien_id bigint NOT NULL,
+    logement_id bigint,
+    libelle text NOT NULL,
+    montant numeric(12,2) NOT NULL,
+    categorie text DEFAULT 'autre'::text NOT NULL,
+    date_depense date DEFAULT CURRENT_DATE NOT NULL,
+    note text,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT depenses_categorie_check CHECK ((categorie = ANY (ARRAY['entretien'::text, 'travaux'::text, 'assurance'::text, 'charges'::text, 'taxe'::text, 'autre'::text]))),
+    CONSTRAINT depenses_montant_check CHECK ((montant >= (0)::numeric))
+);
+
+
+ALTER TABLE public.depenses OWNER TO postgres;
+
+--
+-- Name: depenses_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
+--
+
+CREATE SEQUENCE public.depenses_id_seq
+    START WITH 1
+    INCREMENT BY 1
+    NO MINVALUE
+    NO MAXVALUE
+    CACHE 1;
+
+
+ALTER SEQUENCE public.depenses_id_seq OWNER TO postgres;
+
+--
+-- Name: depenses_id_seq; Type: SEQUENCE OWNED BY; Schema: public; Owner: postgres
+--
+
+ALTER SEQUENCE public.depenses_id_seq OWNED BY public.depenses.id;
+
+
+--
 -- Name: employes; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -2059,6 +2102,13 @@ ALTER TABLE ONLY public.biens ALTER COLUMN id SET DEFAULT nextval('public.biens_
 
 
 --
+-- Name: depenses id; Type: DEFAULT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.depenses ALTER COLUMN id SET DEFAULT nextval('public.depenses_id_seq'::regclass);
+
+
+--
 -- Name: employes id; Type: DEFAULT; Schema: public; Owner: postgres
 --
 
@@ -2285,6 +2335,14 @@ ALTER TABLE ONLY public.biens
 
 ALTER TABLE ONLY public.biens
     ADD CONSTRAINT biens_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: depenses depenses_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.depenses
+    ADD CONSTRAINT depenses_pkey PRIMARY KEY (id);
 
 
 --
@@ -2683,6 +2741,20 @@ CREATE INDEX bictorys_webhooks_payment_reference_idx ON public.bictorys_webhooks
 --
 
 CREATE INDEX biens_user_id_idx ON public.biens USING btree (user_id);
+
+
+--
+-- Name: depenses_bien_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX depenses_bien_idx ON public.depenses USING btree (bien_id);
+
+
+--
+-- Name: depenses_user_date_idx; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX depenses_user_date_idx ON public.depenses USING btree (user_id, date_depense DESC);
 
 
 --
@@ -3187,6 +3259,30 @@ ALTER TABLE ONLY public.audit_logs
 
 ALTER TABLE ONLY public.biens
     ADD CONSTRAINT biens_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
+
+
+--
+-- Name: depenses depenses_bien_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.depenses
+    ADD CONSTRAINT depenses_bien_id_fkey FOREIGN KEY (bien_id) REFERENCES public.biens(id) ON DELETE CASCADE;
+
+
+--
+-- Name: depenses depenses_logement_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.depenses
+    ADD CONSTRAINT depenses_logement_id_fkey FOREIGN KEY (logement_id) REFERENCES public.logements(id) ON DELETE SET NULL;
+
+
+--
+-- Name: depenses depenses_user_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.depenses
+    ADD CONSTRAINT depenses_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE;
 
 
 --
@@ -3899,6 +3995,12 @@ CREATE POLICY closed_deny_all ON public.tenant_invitations USING (false) WITH CH
 
 
 --
+-- Name: depenses; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.depenses ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: moyens_paiement_employes employe_all_own_moyens; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -4104,6 +4206,13 @@ CREATE POLICY notifications_update_own ON public.notifications FOR UPDATE TO aut
 --
 
 CREATE POLICY owner_all_biens ON public.biens TO authenticated USING ((auth.uid() = user_id)) WITH CHECK ((auth.uid() = user_id));
+
+
+--
+-- Name: depenses owner_all_depenses; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY owner_all_depenses ON public.depenses USING ((auth.uid() = user_id));
 
 
 --
@@ -4663,6 +4772,22 @@ GRANT SELECT ON TABLE public.biens TO authenticated;
 --
 
 GRANT ALL ON SEQUENCE public.biens_id_seq TO service_role;
+
+
+--
+-- Name: TABLE depenses; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON TABLE public.depenses TO service_role;
+GRANT SELECT,INSERT,DELETE,UPDATE ON TABLE public.depenses TO authenticated;
+
+
+--
+-- Name: SEQUENCE depenses_id_seq; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON SEQUENCE public.depenses_id_seq TO service_role;
+GRANT SELECT,USAGE ON SEQUENCE public.depenses_id_seq TO authenticated;
 
 
 --

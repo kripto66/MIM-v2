@@ -931,6 +931,7 @@ router.get('/bien/:bienId/stats/dashboard', requireMandateBien, async (req, res)
 const SCOPED = {
   logements: { bienColumn: 'bien_id' },
   locataires: { bienColumn: 'bien_id' },
+  depenses: { bienColumn: 'bien_id' },
   paiements: { viaLogement: true },
   incidents: { viaLogement: true },
   interventions: { viaLogement: true },
@@ -1049,6 +1050,17 @@ async function scopedCreate(req, res, table) {
       const err = await refBelongsToScope(req.scope, refField, payload[refField], 'logements');
       if (err) return res.status(400).json({ success: false, message: 'Le logement est introuvable ou hors du bien géré.', errors: { [refField]: 'Le logement est introuvable ou hors du bien géré.' } });
       insert.logement_id = payload[refField];
+    } else if (table === 'depenses') {
+      // Une dépense appartient au bien géré : bien_id forcé côté serveur,
+      // logement optionnel (mais rattaché au bien s'il est fourni).
+      insert.bien_id = bienId;
+      if (payload.logement_id) {
+        const err = await refBelongsToScope(req.scope, 'logement_id', payload.logement_id, 'logements');
+        if (err) return res.status(400).json({ success: false, message: 'Le logement est introuvable ou hors du bien géré.', errors: { logement_id: 'Le logement est introuvable ou hors du bien géré.' } });
+        insert.logement_id = payload.logement_id;
+      } else {
+        delete insert.logement_id;
+      }
     }
 
     if (table === 'paiements') {
@@ -1892,7 +1904,7 @@ async function scopedDelete(req, res, table) {
 }
 
 // Montage des routes CRUD scoped (listes + actions), formes idem /api/crud.
-const SCOPED_TABLES = ['logements', 'locataires', 'paiements', 'incidents', 'interventions'];
+const SCOPED_TABLES = ['logements', 'locataires', 'paiements', 'incidents', 'interventions', 'depenses'];
 
 for (const table of SCOPED_TABLES) {
   router.get(`/bien/:bienId/${table}`, requireMandateBien, (req, res) => scopedList(req, res, table));
