@@ -39,6 +39,9 @@
         locataires: function () {
             return request("/locataires");
         },
+        finances: function () {
+            return request("/finances");
+        },
         versements: function () {
             return request("/versements");
         },

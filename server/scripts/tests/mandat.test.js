@@ -246,6 +246,41 @@ export async function runMandat(r, ctx) {
     r.fail(S, 'drill-down sans mandat → 404 (fail-closed)', `logements=${lgSans.status} locataires=${locSans.status}`);
   }
 
+  // --- 4c. Bloc revenus : finances du parc (série 6 mois) ---
+  const finRes = await api('/mandat/finances', { jar: jarShadow });
+  const fin = finRes.data;
+  if (finRes.status === 200 && fin?.success) {
+    r.pass(S, 'GET /mandat/finances → 200');
+  } else {
+    r.fail(S, 'GET /mandat/finances → 200', `statut ${finRes.status}`);
+  }
+
+  if (fin && fin.courant?.attendu === 120000 && fin.courant?.encaisse === 0 && fin.courant?.impaye === 120000) {
+    r.pass(S, 'finances : attendu / encaissé / impayé du mois courant');
+  } else {
+    r.fail(S, 'finances : attendu / encaissé / impayé du mois courant', JSON.stringify(fin?.courant));
+  }
+
+  const dernier = Array.isArray(fin?.series) ? fin.series[5] : null;
+  if (
+    fin?.series?.length === 6 &&
+    dernier?.mois === moisCourant &&
+    dernier?.attendu === 120000 &&
+    dernier?.paye === 0 &&
+    dernier?.retarde === 120000
+  ) {
+    r.pass(S, 'finances : série de 6 mois, attendu porté sur le mois courant');
+  } else {
+    r.fail(S, 'finances : série de 6 mois, attendu porté sur le mois courant', JSON.stringify(fin?.series));
+  }
+
+  const finSans = await api('/mandat/finances', { jar: sansMandat.jar });
+  if (finSans.status === 404) {
+    r.pass(S, 'finances sans mandat → 404 (fail-closed)');
+  } else {
+    r.fail(S, 'finances sans mandat → 404 (fail-closed)', `statut ${finSans.status}`);
+  }
+
   // --- 5. Le shadow ne peut PAS créer de locataire/employé ---
   const createLoc = await api('/locataires', {
     method: 'POST',

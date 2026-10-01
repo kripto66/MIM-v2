@@ -170,6 +170,51 @@
             "</ul>";
     }
 
+    function renderRevenus(fin) {
+        if (!fin || !fin.success) return;
+        var c = fin.courant || {};
+        var meta = document.getElementById("revenusMeta");
+        if (meta) meta.textContent = "Mois " + (fin.mois || "");
+
+        var cards = [
+            { label: "Attendu ce mois", value: UI.fmtFCFA(c.attendu), tone: "", sub: "loyers des logements occupés" },
+            { label: "Encaissé", value: UI.fmtFCFA(c.encaisse), tone: "success", sub: (c.tauxEncaissement || 0) + " % de l'attendu" },
+            { label: "Impayé", value: UI.fmtFCFA(c.impaye), tone: c.impaye > 0 ? "danger" : "success", sub: c.impaye > 0 ? "à régulariser" : "aucun impayé" },
+            { label: "En attente", value: UI.fmtFCFA(c.enAttente), tone: c.enAttente > 0 ? "warning" : "", sub: "loyers non réglés" },
+        ];
+        document.getElementById("revenusKpis").innerHTML = cards
+            .map(function (card) {
+                return (
+                    '<article class="mim-kpi" data-tone="' + card.tone + '">' +
+                    '<span class="kpi-label">' + escapeHtml(card.label) + "</span>" +
+                    '<span class="kpi-value">' + escapeHtml(String(card.value)) + "</span>" +
+                    '<span class="kpi-sub">' + escapeHtml(card.sub) + "</span>" +
+                    "</article>"
+                );
+            })
+            .join("");
+
+        var series = fin.series || [];
+        var max = 1;
+        series.forEach(function (m) {
+            var v = Number(m.paye || 0);
+            if (v > max) max = v;
+        });
+        document.getElementById("revenusChart").innerHTML =
+            series
+                .map(function (m) {
+                    var fill = Math.round((Number(m.paye || 0) / max) * 100);
+                    return (
+                        '<div class="bar-row">' +
+                        '<span class="bar-label">' + escapeHtml(m.mois ? m.mois.slice(5) + "/" + m.mois.slice(2, 4) : "—") + "</span>" +
+                        '<div class="bar-track"><div class="bar-fill green" style="--fill:' + fill + ';"></div></div>' +
+                        '<span class="bar-value">' + escapeHtml(UI.fmtShortFCFA(m.paye) + " F") + "</span>" +
+                        "</div>"
+                    );
+                })
+                .join("");
+    }
+
     async function load() {
         if (state.loading) return;
         state.loading = true;
@@ -185,6 +230,16 @@
             renderVersements(data);
             renderMessages(data);
             renderIncidents(data);
+
+            // Bloc revenus non bloquant : le reste du dashboard reste
+            // affiché si la route finances est indisponible.
+            window.MandatApi.finances()
+                .then(renderRevenus)
+                .catch(function (err) {
+                    console.warn("[shadow] finances :", err);
+                    var node = document.getElementById("revenusChart");
+                    if (node) node.innerHTML = '<div class="mim-empty">Revenus indisponibles pour le moment.</div>';
+                });
         } catch (err) {
             if (err && err.code === "MANDAT_NOT_FOUND") {
                 MIM.showError("Aucun mandat actif. Vous pouvez continuer dans votre espace propriétaire complet.");
@@ -202,6 +257,8 @@
     document.addEventListener("DOMContentLoaded", function () {
         UI.initGreeting({ word: "greetingWord" });
         skeletonZone("kpis", 3);
+        skeletonZone("revenusKpis", 2);
+        skeletonZone("revenusChart", 4);
         skeletonZone("biensList", 3);
         skeletonZone("versementsList", 2);
         skeletonZone("messagesList", 2);

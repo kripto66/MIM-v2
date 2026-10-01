@@ -438,6 +438,88 @@ router.get('/locataires', requireMandate, async (req, res) => {
 });
 
 // ------------------------------------------------------------
+// Finances du parc confié — revenus attendus / encaissés / impayés
+// du mois courant + série des 6 derniers mois (lecture seule).
+// ------------------------------------------------------------
+router.get('/finances', requireMandate, async (req, res) => {
+  try {
+    const proprietaireId = req.user.id;
+    const bienIds = await mandatBienIds(proprietaireId);
+    const bienIdsEsc = bienIds.length ? bienIds : [0];
+
+    const { data: logements = [], error } = await sb()
+      .from('logements')
+      .select('id, statut, loyer_mensuel')
+      .eq('user_id', proprietaireId)
+      .in('bien_id', bienIdsEsc);
+    if (error) throw new Error(error.message);
+
+    const logementIds = logements.map((l) => l.id);
+    const logementIdsEsc = logementIds.length ? logementIds : [0];
+
+    // Fenêtre glissante de 6 mois : les mois sont des chaînes YYYY-MM
+    // triables lexicalement, le filtre serveur reste indexable.
+    const mois = moisCourant();
+    const [annee, moisNum] = mois.split('-').map(Number);
+    const dDebut = new Date(Date.UTC(annee, moisNum - 6, 1));
+    const moisDebut = `${dDebut.getUTCFullYear()}-${String(dDebut.getUTCMonth() + 1).padStart(2, '0')}`;
+
+    const { data: paiements = [], error: paiError } = await sb()
+      .from('paiements')
+      .select('id, montant, statut, mois')
+      .eq('user_id', proprietaireId)
+      .in('logement_id', logementIdsEsc)
+      .gte('mois', moisDebut);
+    if (paiError) throw new Error(paiError.message);
+
+    const attendu = logements
+      .filter((l) => l.statut === 'occupe')
+      .reduce((s, l) => s + Number(l.loyer_mensuel || 0), 0);
+    const duMois = paiements.filter((p) => p.mois === mois);
+    const somme = (rows) => rows.reduce((s, p) => s + Number(p.montant || 0), 0);
+    const encaisse = somme(duMois.filter((p) => p.statut === 'paye'));
+    const impaye = somme(duMois.filter((p) => p.statut === 'retard'));
+    const enAttente = somme(duMois.filter((p) => p.statut === 'attente'));
+
+    // Série des 6 mois (encaissé vs impayé) — seul le mois courant a un
+    // attendu fiable : aucun snapshot historique des loyers n'est stocké.
+    const series = [];
+    for (let i = 5; i >= 0; i -= 1) {
+      const d = new Date(Date.UTC(annee, moisNum - 1 - i, 1));
+      const ym = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
+      const rows = paiements.filter((p) => p.mois === ym);
+      series.push({
+        mois: ym,
+        paye: somme(rows.filter((p) => p.statut === 'paye')),
+        retarde: somme(rows.filter((p) => p.statut === 'retard')),
+        attendu: i === 0 ? attendu : 0,
+      });
+    }
+
+    res.json({
+      success: true,
+      mois,
+      courant: {
+        attendu,
+        encaisse,
+        impaye,
+        enAttente,
+        tauxEncaissement: attendu > 0 ? Math.min(100, Math.round((encaisse / attendu) * 100)) : 0,
+      },
+      series,
+      totaux: {
+        logementsOccupes: logements.filter((l) => l.statut === 'occupe').length,
+        sixMoisEncaisse: series.reduce((s, m) => s + m.paye, 0),
+        sixMoisImpaye: series.reduce((s, m) => s + m.retarde, 0),
+      },
+    });
+  } catch (err) {
+    console.error('[mandat/finances]', err.message);
+    res.status(500).json({ success: false, message: 'Impossible de charger les finances du parc.' });
+  }
+});
+
+// ------------------------------------------------------------
 // Versements : le propriétaire confirme la réception d'un virement
 // ------------------------------------------------------------
 
