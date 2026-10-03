@@ -103,4 +103,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("markAllBtn").addEventListener("click", markAll);
     document.getElementById("deleteAllBtn").addEventListener("click", deleteAll);
+
+    // Temps réel : nouvelle notification / suppression / lecture -> recharge la liste.
+    if (window.MIMRealtime) {
+        MIMRealtime.onChange((info) => {
+            if (info.table === "notifications") load();
+        }, 400);
+    }
 });

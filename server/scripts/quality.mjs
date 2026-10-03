@@ -374,6 +374,10 @@ const DUMP_REQUIRED = [
   ['profiles_email_uidx', 'index partiel unique sur profiles.email (F7)'],
   ['ON DELETE RESTRICT', 'paiements détachés du plan (F9)'],
   ['CREATE OR REPLACE FUNCTION', 'fonctions idempotentes (poussée run-schema.mjs)'],
+  ['ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon,authenticated',
+    'révocations de privilèges par défaut (M9) : pg_dump ne les émet pas, sans elles toute table créée après une restauration est ouverte à anon'],
+  ['import_run_rows_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.import_runs(id) ON DELETE CASCADE',
+    'lignes d\'import en cascade (M6) : en RESTRICT elles bloquaient la suppression du compte dès le premier import'],
 ];
 const DUMP_FORBIDDEN = [
   ['\\restrict', 'meta-commande rejetée par le SQL Editor (H2)'],
@@ -461,6 +465,7 @@ const SHARED_HELPER_FILES = [
   'PartPublic/dash-fx.js',
   'PartPublic/password-strength.js',
   'PartPublic/mim-poll.js',
+  'PartPublic/mim-realtime.js',
   'PartPublic/footer.js',
   // Dette D4 : api.js / crud.js / notifications.js n'ont plus qu'un
   // exemplaire (PartPublic) — le contrôle veille à ce qu'une page qui

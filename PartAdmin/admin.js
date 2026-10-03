@@ -845,6 +845,14 @@ async function init() {
   initBackground();
   initSystemStatus();
   navigate("dashboard");
+
+  // Temps réel : un changement métier relance la section active.
+  if (window.MIMRealtime) {
+    MIMRealtime.onChange(() => {
+      const active = document.querySelector(".nav-item.active");
+      if (active) navigate(active.dataset.section);
+    }, 1000);
+  }
 }
 
 init();

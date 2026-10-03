@@ -137,7 +137,10 @@ function liveTime() {
 
 async function refreshAll() {
   const user = await loadUserName();
-  if (user && user.account_type === "agence") return;
+  if (user && user.account_type === "agence") {
+    window.location.replace("/PartAgence/first_Mode/dashboard.html");
+    return;
+  }
   return Promise.all([
     loadStats(),
     loadOverview(),
@@ -726,18 +729,46 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-  // Actualisation automatique : KPI + abonnement chaque minute,
-  // listes complètes toutes les 3 minutes.
-  setInterval(() => {
+  // Temps réel : chaque changement métier rafraîchit uniquement les blocs
+  // concernés (KPI, abonnement, aperçu). Repli : sondage lent si le
+  // temps réel est indisponible.
+  let liveFallback1 = null;
+  let liveFallback2 = null;
+  const refreshStats = () => {
     if (!document.hidden) {
       track(loadStats());
       track(loadSubscriptionBanner());
     }
-  }, 60_000);
-
-  setInterval(() => {
+  };
+  const refreshOverview = () => {
     if (!document.hidden) track(loadOverview());
-  }, 180_000);
+  };
+
+  if (window.MIMRealtime) {
+    MIMRealtime.onStatus((status) => {
+      const live = document.getElementById("liveIndicator");
+      if (status === "connected") {
+        if (liveFallback1) { clearInterval(liveFallback1); liveFallback1 = null; }
+        if (liveFallback2) { clearInterval(liveFallback2); liveFallback2 = null; }
+        live && live.classList.remove("paused");
+        setLiveLabel("temps réel");
+      } else if (status === "offline") {
+        if (!liveFallback1) liveFallback1 = setInterval(refreshStats, 60_000);
+        if (!liveFallback2) liveFallback2 = setInterval(refreshOverview, 180_000);
+        live && live.classList.add("paused");
+        setLiveLabel("hors ligne");
+      }
+    });
+    MIMRealtime.onChange((info) => {
+      if (info.table === "paiements" || info.table === "paiements_employes" || info.table === "notifications") {
+        refreshStats();
+      }
+      refreshOverview();
+    }, 800);
+  } else {
+    liveFallback1 = setInterval(refreshStats, 60_000);
+    liveFallback2 = setInterval(refreshOverview, 180_000);
+  }
 
   // Relance immédiate au retour sur l'onglet.
   document.addEventListener("visibilitychange", () => {

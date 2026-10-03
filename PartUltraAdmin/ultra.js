@@ -1872,6 +1872,13 @@ async function init() {
   initBackground();
   initSystemStatus();
   navigate("dashboard");
+
+  // Temps réel : un changement métier relance la section active.
+  if (window.MIMRealtime && typeof currentSection === "string") {
+    MIMRealtime.onChange(() => {
+      if (currentSection) navigate(currentSection);
+    }, 1000);
+  }
 }
 
 init();

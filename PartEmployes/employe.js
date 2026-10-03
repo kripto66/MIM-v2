@@ -166,35 +166,37 @@ function setAvatar(url) {
   }
 }
 
-$("#pAvatar").dataset.placeholder = $("#pAvatar").src;
+document.addEventListener("DOMContentLoaded", () => {
+  $("#pAvatar").dataset.placeholder = $("#pAvatar").src;
 
-$("#pAvatarInput").addEventListener("change", async (e) => {
-  const file = e.target.files && e.target.files[0];
-  if (!file) return;
-  if (file.size > 2 * 1024 * 1024) return toast("Photo trop lourde : 2 Mo maximum.", "error");
-  if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return toast("Format invalide : JPEG, PNG ou WebP uniquement.", "error");
-  const reader = new FileReader();
-  reader.onload = async () => {
+  $("#pAvatarInput").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) return toast("Photo trop lourde : 2 Mo maximum.", "error");
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) return toast("Format invalide : JPEG, PNG ou WebP uniquement.", "error");
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const res = await api("/upload/avatar", { method: "POST", body: JSON.stringify({ dataUri: reader.result }) });
+        setAvatar(res.avatar_url);
+        toast("Photo de profil mise à jour.");
+      } catch (err) {
+        toast(err.message, "error");
+      }
+      e.target.value = "";
+    };
+    reader.readAsDataURL(file);
+  });
+
+  $("#pAvatarRemove").addEventListener("click", async () => {
     try {
-      const res = await api("/upload/avatar", { method: "POST", body: JSON.stringify({ dataUri: reader.result }) });
-      setAvatar(res.avatar_url);
-      toast("Photo de profil mise à jour.");
+      await api("/upload/avatar", { method: "DELETE" });
+      setAvatar(null);
+      toast("Photo de profil supprimée.");
     } catch (err) {
       toast(err.message, "error");
     }
-    e.target.value = "";
-  };
-  reader.readAsDataURL(file);
-});
-
-$("#pAvatarRemove").addEventListener("click", async () => {
-  try {
-    await api("/upload/avatar", { method: "DELETE" });
-    setAvatar(null);
-    toast("Photo de profil supprimée.");
-  } catch (err) {
-    toast(err.message, "error");
-  }
+  });
 });
 
 async function dashboard() {
@@ -608,18 +610,31 @@ $("#pNew").oninput = (e) => {
 };
 
 // Filtres de liste (recherche et statut) : re-rendu local, sans rechargement.
-for (const kind of ["tasks", "incidents"]) {
-  const q = $("#" + kind + "Q");
-  const s = $("#" + kind + "S");
-  if (q) q.addEventListener("input", () => paint(kind));
-  if (s) s.addEventListener("change", () => paint(kind));
-}
+document.addEventListener("DOMContentLoaded", () => {
+  for (const kind of ["tasks", "incidents"]) {
+    const q = $("#" + kind + "Q");
+    const s = $("#" + kind + "S");
+    if (q) q.addEventListener("input", () => paint(kind));
+    if (s) s.addEventListener("change", () => paint(kind));
+  }
+});
 
-(async () => {
+document.addEventListener("DOMContentLoaded", async () => {
   try {
     await me();
     await dashboard();
+
+    // Temps réel : nouvelle tâche / incident / notification -> recharge ciblée.
+    if (window.MIMRealtime) {
+      MIMRealtime.onChange((info) => {
+        if (info.table === "tasks") load("tasks");
+        else if (info.table === "incidents") load("incidents");
+        else if (info.table === "notifications") load("notifications");
+        else if (info.table === "paiements_employes") loadPaiements();
+        else if (info.table === "interventions") load("interventions");
+      }, 500);
+    }
   } catch (e) {
     toast(e.message, "error");
   }
-})();
+});

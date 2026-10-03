@@ -46,6 +46,7 @@ const SUITE_DEFINITIONS = [
   ['mandat', () => import('./mandat.test.js').then(({ runMandat }) => runMandat)],
   ['agence', () => import('./agence.test.js').then(({ runAgence }) => runAgence)],
   ['frontend', () => import('./frontend.test.js').then(({ runFrontend }) => runFrontend)],
+  ['realtime', () => import('./realtime.test.js').then(({ runRealtime }) => runRealtime)],
 ];
 
 const runner = new Runner();

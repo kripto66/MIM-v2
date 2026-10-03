@@ -947,6 +947,8 @@ CREATE TABLE public.biens (
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+ALTER TABLE ONLY public.biens REPLICA IDENTITY FULL;
+
 
 ALTER TABLE public.biens OWNER TO postgres;
 
@@ -1035,6 +1037,8 @@ CREATE TABLE public.employes (
     CONSTRAINT employes_salaire_nonnegative_ck CHECK ((salaire >= (0)::numeric)),
     CONSTRAINT employes_statut_check CHECK ((statut = ANY (ARRAY['actif'::text, 'inactif'::text])))
 );
+
+ALTER TABLE ONLY public.employes REPLICA IDENTITY FULL;
 
 
 ALTER TABLE public.employes OWNER TO postgres;
@@ -1258,6 +1262,8 @@ CREATE TABLE public.incidents (
     CONSTRAINT incidents_statut_check CHECK ((statut = ANY (ARRAY['nouveau'::text, 'en_cours'::text, 'intervention'::text, 'resolu'::text])))
 );
 
+ALTER TABLE ONLY public.incidents REPLICA IDENTITY FULL;
+
 ALTER TABLE ONLY public.incidents FORCE ROW LEVEL SECURITY;
 
 
@@ -1301,6 +1307,8 @@ CREATE TABLE public.interventions (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT interventions_statut_check CHECK ((statut = ANY (ARRAY['planifie'::text, 'en_cours'::text, 'termine'::text])))
 );
+
+ALTER TABLE ONLY public.interventions REPLICA IDENTITY FULL;
 
 ALTER TABLE ONLY public.interventions FORCE ROW LEVEL SECURITY;
 
@@ -1351,6 +1359,8 @@ CREATE TABLE public.locataires (
     CONSTRAINT locataires_statut_check CHECK ((statut = ANY (ARRAY['actif'::text, 'inactif'::text])))
 );
 
+ALTER TABLE ONLY public.locataires REPLICA IDENTITY FULL;
+
 
 ALTER TABLE public.locataires OWNER TO postgres;
 
@@ -1397,6 +1407,8 @@ CREATE TABLE public.logements (
     CONSTRAINT logements_type_check CHECK (((type IS NULL) OR (type = ANY (ARRAY['appartement'::text, 'chambre'::text]))))
 );
 
+ALTER TABLE ONLY public.logements REPLICA IDENTITY FULL;
+
 
 ALTER TABLE public.logements OWNER TO postgres;
 
@@ -1436,6 +1448,8 @@ CREATE TABLE public.messages (
     corps text NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.messages REPLICA IDENTITY FULL;
 
 ALTER TABLE ONLY public.messages FORCE ROW LEVEL SECURITY;
 
@@ -1574,6 +1588,8 @@ CREATE TABLE public.notifications (
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
 
+ALTER TABLE ONLY public.notifications REPLICA IDENTITY FULL;
+
 ALTER TABLE ONLY public.notifications FORCE ROW LEVEL SECURITY;
 
 
@@ -1668,6 +1684,8 @@ CREATE TABLE public.paiements (
     CONSTRAINT paiements_statut_check CHECK ((statut = ANY (ARRAY['attente'::text, 'paye'::text, 'retard'::text, 'a_confirmer'::text, 'en_validation'::text, 'refuse'::text])))
 );
 
+ALTER TABLE ONLY public.paiements REPLICA IDENTITY FULL;
+
 
 ALTER TABLE public.paiements OWNER TO postgres;
 
@@ -1699,6 +1717,8 @@ CREATE TABLE public.paiements_employes (
     CONSTRAINT paiements_employes_montant_ck CHECK ((montant > (0)::numeric)),
     CONSTRAINT paiements_employes_statut_check CHECK ((statut = ANY (ARRAY['paye'::text, 'attente'::text, 'non_recu'::text])))
 );
+
+ALTER TABLE ONLY public.paiements_employes REPLICA IDENTITY FULL;
 
 ALTER TABLE ONLY public.paiements_employes FORCE ROW LEVEL SECURITY;
 
@@ -2093,6 +2113,8 @@ CREATE TABLE public.tasks (
     created_at timestamp with time zone DEFAULT now() NOT NULL,
     CONSTRAINT tasks_statut_check CHECK ((statut = ANY (ARRAY['a_faire'::text, 'en_cours'::text, 'termine'::text])))
 );
+
+ALTER TABLE ONLY public.tasks REPLICA IDENTITY FULL;
 
 ALTER TABLE ONLY public.tasks FORCE ROW LEVEL SECURITY;
 
@@ -3530,7 +3552,7 @@ ALTER TABLE ONLY public.featured_items
 --
 
 ALTER TABLE ONLY public.import_run_rows
-    ADD CONSTRAINT import_run_rows_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.import_runs(id) ON DELETE RESTRICT;
+    ADD CONSTRAINT import_run_rows_run_id_fkey FOREIGN KEY (run_id) REFERENCES public.import_runs(id) ON DELETE CASCADE;
 
 
 --
@@ -5489,3 +5511,43 @@ ON CONFLICT ("code") DO UPDATE
       "audience" = EXCLUDED."audience",
       "duree_abonnement" = EXCLUDED."duree_abonnement",
       "description" = EXCLUDED."description";
+
+
+-- ------------------------------------------------------------------
+-- Audit M9 : révocations de privilèges PAR DÉFAUT.
+--
+-- 20260925000000_security_blockers.sql:181-183 pose ces trois
+-- révocations, mais `pg_dump --schema=public` ne les émet JAMAIS : il
+-- photographie l'état final des ACL (les GRANT restants), pas
+-- l'historique des commandes exécutées. Le schéma de référence ne les
+-- contenait donc pas.
+--
+-- Conséquence sur une reconstruction (run-schema.mjs, restore) : les
+-- privilèges par défaut livrés par Supabase restaient en place, toute
+-- table CRÉÉE après la restauration recevait ALL pour anon et
+-- authenticated — la RLS devenait seule garde, la défense en
+-- profondeur disparaissait (audit M9).
+--
+-- Repris à l'identique de la migration (même portée, rôle courant)
+-- pour que supabase-schema.sql soit auto-suffisant.
+-- ------------------------------------------------------------------
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon,authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon,authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM anon,authenticated;
+
+-- Même révocation pour le rôle supabase_admin : le corps du dump émet
+-- ses propres `ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin ...
+-- GRANT ALL ... TO anon, authenticated` (ACL relevées dans la base
+-- source) — sans ces lignes, la restauration RECRÉE le privilège
+-- qu'elle s'apprête à retirer. Exécuté sous un rôle qui n'est pas
+-- membre de supabase_admin, l'instruction est refusée : on la saute
+-- explicitement plutôt que de faire échouer toute la poussée.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_admin')
+       AND pg_has_role(current_user, 'supabase_admin', 'MEMBER') THEN
+        ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE ALL ON TABLES FROM anon,authenticated;
+        ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon,authenticated;
+        ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM anon,authenticated;
+    END IF;
+END $$;

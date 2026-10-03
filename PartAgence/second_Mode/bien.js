@@ -168,14 +168,31 @@ async function load() {
     const live = document.getElementById("liveLabel");
     if (live) live.textContent = `à jour · ${new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`;
 
-    // Rafraîchissement automatique du lobby (comme les autres dashboards).
+    // Rafraîchissement automatique du lobby via Supabase Realtime ;
+    // repli : sondage lent si temps réel indisponible.
     if (!bien._live) {
-      bien._live = setInterval(load, 180000);
+      bien._live = true;
+      if (window.MIMRealtime) {
+        MIMRealtime.onChange(() => {
+          if (!document.hidden) load();
+        }, 800);
+        bien._liveFallback = null;
+        MIMRealtime.onStatus((status) => {
+          if (status === "offline" && !bien._liveFallback) {
+            bien._liveFallback = setInterval(load, 180000);
+          } else if (status === "connected" && bien._liveFallback) {
+            clearInterval(bien._liveFallback);
+            bien._liveFallback = null;
+          }
+        });
+      } else {
+        bien._liveFallback = setInterval(load, 180000);
+      }
       document.addEventListener("visibilitychange", () => {
-        if (document.hidden) clearInterval(bien._live);
-        else {
+        if (document.hidden) {
+          if (bien._liveFallback) { clearInterval(bien._liveFallback); bien._liveFallback = null; }
+        } else {
           load();
-          bien._live = setInterval(load, 180000);
         }
       });
     }

@@ -129,6 +129,35 @@
     schedule();
   }
 
+  // Realtime disponible -> plus de sondage : un INSERT sur notifications
+  // déclenche une seule relecture ciblée (compteur + dernière). Si la
+  // connexion temps réel tombe durablement, on bascule sur le sondage.
+  var realtimeActive = false;
+
+  function useRealtime() {
+    if (!window.MIMRealtime) return;
+    MIMRealtime.onChange(function (info) {
+      if (info && info.table === 'notifications') poll();
+    }, 250);
+    MIMRealtime.onStatus(function (status) {
+      if (status === 'connected') {
+        realtimeActive = true;
+        if (timer) { clearInterval(timer); timer = null; }
+        poll(); // resynchro à la (re)connexion
+      } else if (status === 'offline') {
+        realtimeActive = false;
+        schedule(); // repli sondage
+      }
+    });
+    MIMRealtime.ready(function () { /* déclenche connect() */ });
+  }
+
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    setTimeout(useRealtime, 0);
+  } else {
+    document.addEventListener('DOMContentLoaded', useRealtime);
+  }
+
   function schedule() {
     if (timer) clearInterval(timer);
     timer = setInterval(poll, INTERVAL_MS);

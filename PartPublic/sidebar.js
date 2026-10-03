@@ -131,6 +131,16 @@
     });
   }
 
+  // Client Realtime partagé (badge + toast + dashboards) : chargé une
+  // seule fois, avant mim-poll qui y greffe ses mises à jour.
+  if (!document.querySelector('script[data-mim-rt]')) {
+    var rtScript = document.createElement('script');
+    rtScript.src = '/PartPublic/mim-realtime.js';
+    rtScript.async = true;
+    rtScript.setAttribute('data-mim-rt', '1');
+    document.head.appendChild(rtScript);
+  }
+
   // Sondage des notifications (badge + toast) : script partagé chargé une
   // seule fois, uniquement sur les pages qui ont un rail.
   if (!document.querySelector('script[data-mim-poll]')) {

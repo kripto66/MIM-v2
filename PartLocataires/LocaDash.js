@@ -207,6 +207,16 @@ document.addEventListener("DOMContentLoaded", () => {
       // Affichage immédiat depuis le cache de l'onglet, puis rafraîchissement
       // en arrière-plan (MIM.swr) : le dashboard locataire ne monte plus vide.
       await MIM.swr("locataire:dashboard", () => tenantRequest("/locataire/dashboard"), renderDashboard).revalidate();
+
+      // Temps réel : un changement sur les paiements, incidents ou
+      // notifications du locataire relance une revalidation ciblée.
+      if (window.MIMRealtime) {
+        MIMRealtime.onChange((info) => {
+          if (info.table === "paiements" || info.table === "incidents" || info.table === "notifications" || info.table === "interventions" || info.table === "messages") {
+            tenantRequest("/locataire/dashboard").then(renderDashboard).catch(() => {});
+          }
+        }, 600);
+      }
     } catch (err) {
       showTenantError(err.message);
       const content = document.getElementById("dashboardContent");
@@ -301,7 +311,7 @@ function renderConfirmPayment(data) {
         button.disabled = true;
         try {
           await tenantRequest(`/locataire/paiements/${encodeURIComponent(pending.id)}/confirmer`, { method: "POST" });
-          MIM.swrClear("locataire:dashboard");
+          if (MIM.swrClear) MIM.swrClear("locataire:dashboard");
           renderDashboard(await tenantRequest("/locataire/dashboard"));
         } catch (error) {
           showTenantError(error.message);
@@ -390,7 +400,7 @@ function renderNotifications(notifications) {
 async function deleteNotif(id) {
   try {
     await tenantRequest(`/notifications/${id}`, { method: "DELETE" });
-    MIM.swrClear("locataire:dashboard");
+    if (MIM.swrClear) MIM.swrClear("locataire:dashboard");
     showTenantError("Notification supprimée.", true);
     const data = await tenantRequest("/locataire/dashboard");
     renderDashboard(data);

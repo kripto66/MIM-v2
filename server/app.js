@@ -15,6 +15,7 @@ import statsRoutes from './routes/stats.js';
 import gitRoutes from './routes/git.js';
 import locataireRoutes from './routes/locataire.js';
 import notificationsRoutes from './routes/notifications.js';
+import realtimeRoutes from './routes/realtime.js';
 import adminRoutes from './routes/admin.js';
 import ultraAdminRoutes from './routes/ultra-admin.js';
 import subscriptionRoutes from './routes/subscription.js';
@@ -221,6 +222,8 @@ app.use('/PartUltraAdmin', authenticatePage(), requireZone('ultra_admin'), expre
 app.use('/PartEmployes', authenticatePage(), requireZone('employe'), express.static(path.join(ROOT, 'PartEmployes'), staticOptions));
 app.use('/PartAgence', authenticatePage(), requireZone('agence'), express.static(path.join(ROOT, 'PartAgence'), staticOptions));
 app.use('/images', express.static(path.join(ROOT, 'images'), staticOptions));
+// Bundle UMD de supabase-js servi aux pages : client Realtime authentifié.
+app.use('/vendor/supabase-js', express.static(path.join(ROOT, 'node_modules', '@supabase', 'supabase-js', 'dist', 'umd'), staticOptions));
 
 // ─── SEO ROUTES ────────────────────────────────────────────────────
 
@@ -314,6 +317,7 @@ app.use('/api/prestataires', authenticate, requireActive, requirePasswordChanged
 app.use('/api/interventions', authenticate, requireActive, requirePasswordChanged, ownerOnly, mandatGuard, createCrudRouter('interventions'));
 app.use('/api/depenses', authenticate, requireActive, requirePasswordChanged, ownerOnly, mandatGuard, createCrudRouter('depenses'));
 app.use('/api/notifications', authenticate, requireActive, requirePasswordChanged, notificationsRoutes);
+app.use('/api/realtime', authenticate, requireActive, requirePasswordChanged, realtimeRoutes);
 
 // ─── 404 API ────────────────────────────────────────────────────────
 // Une route API inconnue doit renvoyer du JSON, pas la page 404 HTML
