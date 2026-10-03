@@ -415,6 +415,27 @@ ul, ol {
     font-weight: 800;
 }
 
+/* Lien secondaire du hero : le système agence reste découvrable SANS
+   occuper la place d'un CTA principal. */
+.hero-more {
+    margin: -14px 0 22px;
+    font-size: 14.5px;
+    color: var(--dim);
+}
+
+.hero-more a {
+    color: var(--text-soft);
+    font-weight: 700;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(139, 92, 246, 0.45);
+    transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+.hero-more a:hover {
+    color: #fff;
+    border-color: var(--magenta);
+}
+
 /* --- Mockup du dashboard --- */
 
 .hero-mock {
@@ -652,6 +673,13 @@ ul, ol {
 .feature p {
     font-size: 14.5px;
     color: var(--dim);
+}
+
+/* La grille fait 3 colonnes : avec 10 cartes, la dernière serait laissée
+   seule à 1/3 de largeur. On l'étale pour ne pas creuser la rangée.
+   Neutralisé plus bas dès que la grille passe à 2 puis 1 colonne. */
+.features-grid > .feature:last-child:nth-child(3n + 1) {
+    grid-column: 1 / -1;
 }
 
 /* ============================================================
@@ -1095,6 +1123,10 @@ ul, ol {
     .chip-payment { right: 2%; }
     .chip-due { left: 2%; }
     .features-grid { grid-template-columns: repeat(2, 1fr); }
+    /* La grille n'est plus à 3 colonnes : l'étalement de la dernière
+       carte ne s'applique plus (10 cartes se répartissent en 5 rangées
+       paires). */
+    .features-grid > .feature:last-child:nth-child(3n + 1) { grid-column: auto; }
     .objectif-grid { grid-template-columns: 1fr; }
     .tarifs-grid { grid-template-columns: repeat(2, 1fr); }
 }
@@ -1166,6 +1198,107 @@ ul, ol {
     .mock-chip {
         display: none;
     }
+}
+
+/* ============================================================
+   SYSTÈMES / MODES D'UTILISATION
+   ============================================================ */
+
+.profile-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 22px;
+}
+
+.profile-card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 32px 28px 28px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+    transition: transform 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.profile-card:hover {
+    transform: translateY(-5px);
+    border-color: rgba(139, 92, 246, 0.45);
+    box-shadow: 0 20px 46px rgba(0, 0, 0, 0.3);
+}
+
+.profile-tag {
+    align-self: flex-start;
+    padding: 6px 13px;
+    border-radius: 999px;
+    background: rgba(139, 92, 246, 0.16);
+    border: 1px solid rgba(139, 92, 246, 0.42);
+    color: var(--text-soft);
+    font-size: 11px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.profile-card h3 {
+    font-size: 21px;
+    font-weight: 800;
+    letter-spacing: -0.3px;
+    line-height: 1.25;
+}
+
+.profile-lead {
+    font-size: 14.5px;
+    line-height: 1.6;
+    color: var(--dim);
+}
+
+.profile-list {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 2px;
+}
+
+.profile-list li {
+    position: relative;
+    padding-left: 24px;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text-soft);
+}
+
+.profile-list li::before {
+    content: "✓";
+    position: absolute;
+    left: 0;
+    top: 0;
+    color: var(--green);
+    font-weight: 800;
+}
+
+.profile-link {
+    margin-top: auto;
+    padding-top: 14px;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--gold-2);
+    text-decoration: none;
+    transition: color 0.2s ease;
+}
+
+.profile-link:hover {
+    color: var(--gold);
+}
+
+/* Bouton de fin de section — centré, sans empiéter sur le contenu */
+.section-cta {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 14px;
+    margin-top: 38px;
 }
 
 /* ============================================================
@@ -1450,6 +1583,11 @@ ul, ol {
    ============================================================ */
 
 @media (max-width: 1024px) {
+    /* Regle placee APRES la definition de .profile-grid (ligne ~1208) :
+       un override avant la base serait ecrase par elle. */
+    .profile-grid {
+        grid-template-columns: 1fr;
+    }
     .tarifs-grid.three {
         grid-template-columns: repeat(2, 1fr);
     }
