@@ -133,6 +133,28 @@ export async function runSecurity(r, ctx) {
     if (csp.includes('upgrade-insecure-requests')) r.pass(S, 'CSP upgrade-insecure-requests');
     else r.fail(S, 'CSP upgrade-insecure-requests', csp || 'CSP absente');
 
+    // style-src admet 'unsafe-inline' (attributs style= inline : masquage
+    // des modales via display:none). Un guillemet fermant manquant rend le
+    // jeton invalide → le navigateur réduit style-src à 'self' et bloque
+    // TOUS les styles en ligne : les modales restent à la valeur du CSS
+    // (display:flex), s'affichent empilées dès l'ouverture de la page et
+    // « Annuler » découvre celle du dessous (cascade de fenêtres).
+    const styleSrc = csp.split(';').map((d) => d.trim()).find((d) => d.startsWith('style-src')) || '';
+    if (styleSrc.includes("style-src 'self' 'unsafe-inline'")) {
+      r.pass(S, "CSP style-src 'self' 'unsafe-inline'");
+    } else {
+      r.fail(S, "CSP style-src 'self' 'unsafe-inline'", styleSrc || 'CSP absente');
+    }
+
+    // Toutes les directives doivent avoir des guillemets équilibrés :
+    // un ' ouvert non fermé avale le reste de la directive.
+    const quotesNonEquilibrees = csp
+      .split(';')
+      .map((d) => d.trim())
+      .filter((d) => d && ((d.split("'").length - 1) % 2 !== 0));
+    if (quotesNonEquilibrees.length === 0) r.pass(S, 'CSP : guillemets equilibres dans toutes les directives');
+    else r.fail(S, 'CSP : guillemets equilibres dans toutes les directives', quotesNonEquilibrees.join(' | '));
+
     // Set-Cookie du login : HttpOnly + SameSite.
     const res = await api('/auth/login', { method: 'POST', body: { email: o1.email, password: 'Test1234!' }, raw: true });
     const sc = res.headers.get('set-cookie') || '';

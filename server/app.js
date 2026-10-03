@@ -28,6 +28,7 @@ import importRoutes from './routes/import.js';
 import uploadRoutes from './routes/upload.js';
 import agenceRoutes from './routes/agence.js';
 import mandatRoutes from './routes/mandat.js';
+import publicRoutes from './routes/public.js';
 import { createCrudRouter } from './routes/crud.js';
 import { authenticate, requireActive, requirePasswordChanged, requireAdmin, requireUltraAdmin, requireRole, authenticatePage, requireZone } from './middleware/auth.js';
 import { csrfOriginGuard, csrfInitRoute } from './middleware/csrf.js';
@@ -137,7 +138,7 @@ app.use((req, res, next) => {
     "default-src 'self'",
     "object-src 'none'",
     "script-src 'self'",                        // aucun script inline (D5/D3)
-    "style-src 'self' 'unsafe-inline",          // styles inline + Google Fonts si besoin
+    "style-src 'self' 'unsafe-inline'",         // styles inline + Google Fonts si besoin
     "img-src 'self' data: blob: " + imageOrigins.join(' '),  // base64 + Supabase Storage (avatars)
     "font-src 'self' data:",                       // polices embarquées
     "connect-src 'self' http://127.0.0.1:64321 https://*.supabase.co wss://*.supabase.co",  // API Supabase
@@ -180,6 +181,12 @@ app.use(express.json({ limit: '4mb' }));
 app.use(cookieParser());
 app.get('/api/csrf-token', csrfInitRoute);
 app.use('/api', csrfOriginGuard);
+
+// Routes publiques (pages marketing) : catalogue d'abonnement lu en base,
+// sans session. Montées APRÈS le garde CSRF (les GET sont des SAFE_METHODS)
+// et avant toute route authentifiée, pour que la page d'accueil affiche des
+// prix jamais périmés — c'est la cause des tarifs faux qu'elle affichait.
+app.use('/api/public', publicRoutes);
 
 const ROOT = path.join(__dirname, '..');
 
