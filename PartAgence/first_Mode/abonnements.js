@@ -178,7 +178,11 @@ function securePaymentUrl(value) {
 
 async function payPlan(code) {
   const btns = document.querySelectorAll("[data-pay-plan]");
-  btns.forEach((b) => (b.disabled = true));
+  const clicked = Array.from(btns).find((b) => b.dataset.payPlan === code);
+  if (clicked) {
+    clicked.disabled = true;
+    clicked.textContent = "Redirection…";
+  }
   try {
     showToast("Création de la charge de paiement…", "info");
     const res = await apiRequest("/subscription/checkout", {
@@ -191,12 +195,18 @@ async function payPlan(code) {
     if (secureLink) {
       window.location.href = secureLink;
     } else {
-      btns.forEach((b) => (b.disabled = false));
+      if (clicked) {
+        clicked.disabled = false;
+        clicked.textContent = "Choisir ce plan";
+      }
       showToast("Lien de paiement invalide.", "error");
       loadAll();
     }
   } catch (err) {
-    btns.forEach((b) => (b.disabled = false));
+    if (clicked) {
+      clicked.disabled = false;
+      clicked.textContent = "Choisir ce plan";
+    }
     showToast(err.message || "Impossible de lancer le paiement.", "error");
   }
 }
