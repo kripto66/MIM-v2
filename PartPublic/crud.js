@@ -22,6 +22,15 @@ const CrudPage = {
 
     this.load();
 
+    // Temps réel : un changement externe sur la ressource recharge la liste
+    // (debounce pour regrouper les rafales d'événements).
+    if (window.MIMRealtime) {
+      const resource = this.config.resource;
+      MIMRealtime.onChange((info) => {
+        if (info && info.table === resource) this.load();
+      }, 600);
+    }
+
     document.getElementById(config.addBtnEl).addEventListener("click", () => this.openAdd());
     document.getElementById(config.cancelBtnId).addEventListener("click", () => this.closeModal());
     this.modal.addEventListener("click", (e) => {

@@ -1,5 +1,6 @@
 
         document.addEventListener("DOMContentLoaded", async () => {
+            async function renderNotifications() {
             try {
                 const data = await tenantRequest("/locataire/dashboard");
                 const list = document.getElementById("notificationsList");
@@ -34,5 +35,14 @@
             } catch (err) {
                 showTenantError(err.message);
             }
+            }
+
+            await renderNotifications();
+
+            // Temps réel : nouvelle notification / suppression -> re-render.
+            if (window.MIMRealtime) {
+                MIMRealtime.onChange((info) => {
+                    if (info.table === "notifications") renderNotifications();
+                }, 400);
+            }
         });
-    

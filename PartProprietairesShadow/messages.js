@@ -84,5 +84,12 @@
         });
 
         load();
+
+        // Temps réel : nouveau message / changement -> rechargement.
+        if (window.MIMRealtime) {
+            MIMRealtime.onChange(function (info) {
+                if (!info || info.table === "messages") load();
+            }, 500);
+        }
     });
 })();

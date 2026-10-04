@@ -293,6 +293,11 @@
         load();
         loadMoyens();
 
+        // Temps réel : recharge versements + moyens à tout changement.
+        if (window.MIMRealtime) {
+            MIMRealtime.onChange(function () { load(); loadMoyens(); }, 800);
+        }
+
         document.getElementById("moyenType").addEventListener("change", function (e) {
             document.getElementById("moyenFields").innerHTML = fieldsHtml(e.target.value);
         });

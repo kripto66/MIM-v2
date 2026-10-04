@@ -30,6 +30,8 @@
     'locataires',
     'logements',
     'biens',
+    'prestataires',
+    'depenses',
   ];
 
   var client = null;

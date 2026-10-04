@@ -17,7 +17,9 @@ BEGIN
     'employes',
     'locataires',
     'logements',
-    'biens'
+    'biens',
+    'prestataires',
+    'depenses'
   ]
   LOOP
     IF NOT EXISTS (

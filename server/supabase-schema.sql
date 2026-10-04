@@ -992,6 +992,8 @@ CREATE TABLE public.depenses (
     CONSTRAINT depenses_montant_check CHECK ((montant >= (0)::numeric))
 );
 
+ALTER TABLE ONLY public.depenses REPLICA IDENTITY FULL;
+
 
 ALTER TABLE public.depenses OWNER TO postgres;
 
@@ -1910,6 +1912,8 @@ CREATE TABLE public.prestataires (
     email text,
     created_at timestamp with time zone DEFAULT now() NOT NULL
 );
+
+ALTER TABLE ONLY public.prestataires REPLICA IDENTITY FULL;
 
 
 ALTER TABLE public.prestataires OWNER TO postgres;

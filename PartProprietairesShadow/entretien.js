@@ -109,6 +109,11 @@
         document.getElementById("incidentsList").innerHTML = UI.skeleton(4, 20);
         document.getElementById("interventionsList").innerHTML = UI.skeleton(4, 20);
         load();
-        UI.live({ load: load, button: "refreshBtn", intervalMs: 180000 });
+        UI.live({ load: load, button: "refreshBtn" });
+
+        // Temps réel remplace le polling 180 s.
+        if (window.MIMRealtime) {
+            MIMRealtime.onChange(function () { load(); }, 800);
+        }
     });
 })();

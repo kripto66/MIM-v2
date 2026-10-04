@@ -288,6 +288,11 @@
         window.MandatApi.marquerMessagesLus().catch(function (err) { console.warn("[shadow] marquerMessagesLus :", err); });
         load();
 
-        UI.live({ load: load, button: "refreshBtn", intervalMs: 180000 });
+        UI.live({ load: load, button: "refreshBtn" });
+
+        // Temps réel remplace le polling 180 s.
+        if (window.MIMRealtime) {
+            MIMRealtime.onChange(function () { load(); }, 800);
+        }
     });
 })();
