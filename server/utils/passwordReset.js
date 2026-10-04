@@ -167,7 +167,7 @@ export async function sendResetEmail({ email, rawToken }) {
     <div style="text-align:center;margin-bottom:24px;">
       <div style="display:inline-flex;align-items:center;justify-content:center;gap:8px;">
         <span style="display:inline-grid;place-items:center;width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#8b5cf6,#d946ef);color:#fff;font-weight:800;">🏠</span>
-        <span style="font-size:17px;font-weight:700;">MyImmo<strong style="color:#e5a017;">Management</strong></span>
+        <span style="font-size:17px;font-weight:700;">Okarne<strong style="color:#e5a017;">GM</strong></span>
       </div>
     </div>
 

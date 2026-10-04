@@ -11,8 +11,8 @@
   </defs>
   <rect width="1200" height="630" fill="url(#bg)"/>
   <rect x="0" y="0" width="1200" height="4" fill="url(#accent)"/>
-  <text x="600" y="260" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="800" fill="url(#accent)">MIM</text>
-  <text x="600" y="330" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="400" fill="#a0a0b8">MyImmoManagement</text>
+  <text x="600" y="260" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="72" font-weight="800" fill="url(#accent)">Okarne GM</text>
+  <text x="600" y="330" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="28" font-weight="400" fill="#a0a0b8">Okarne Global Management</text>
   <text x="600" y="390" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="22" font-weight="500" fill="#6b6b80">Gestion immobilière simplifiée</text>
   <rect x="0" y="626" width="1200" height="4" fill="url(#accent)"/>
 </svg>
