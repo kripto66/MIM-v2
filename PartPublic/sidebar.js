@@ -31,7 +31,12 @@
       // sans preventDefault, le navigateur remonte en haut de page.
       if (e && typeof e.preventDefault === 'function') e.preventDefault();
       await MIM._csrfReady;
-      var apiBase = typeof mimApiBase === 'function' ? mimApiBase() : '/api';
+      // /auth/logout est un endpoint GLOBAL : sur une page MODE 2, `API` vaut
+      // la base scopée (/api/agence/bien/<id>) et le shim de mode2.js ne
+      // ré-aiguille que les appels apiRequest(). On reconstruit donc la base
+      // globale ici, sinon le POST part sur une URL inexistante (404), la
+      // session survit côté serveur et l'utilisateur reste connecté.
+      var apiBase = (window.MIM && typeof MIM.apiHost === 'function' ? MIM.apiHost() : window.location.origin || 'http://localhost:3000') + '/api';
       fetch(apiBase + '/auth/logout', { method: 'POST', credentials: 'include', headers: MIM.csrfHeader() })
         .catch(function (err) {
           console.warn("[MIM] logout: appel /auth/logout en echec", err);
