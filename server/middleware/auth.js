@@ -217,7 +217,7 @@ export function requireActive(req, res, next) {
     return res.status(401).json({
       success: false,
       code: 'SUBSCRIPTION_EXPIRED',
-      message: 'Votre abonnement MIM est expiré. Renouvelez-le depuis votre espace pour continuer.',
+      message: 'Votre abonnement Okarne GM est expiré. Renouvelez-le depuis votre espace pour continuer.',
     });
   }
   return res.status(401).json({ success: false, code: 'ACCOUNT_SUSPENDED', message: 'Votre compte a été suspendu.' });

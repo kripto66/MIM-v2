@@ -1,6 +1,6 @@
 // ============================================================
 // MIM - Suite « Declarations » : loyer payé DIRECTEMENT au
-// propriétaire (hors MIM) puis déclaré par le locataire et
+// propriétaire (hors Okarne GM) puis déclaré par le locataire et
 // validé / refusé par le propriétaire.
 //
 // La suite est autonome : elle crée ses propres paiements via

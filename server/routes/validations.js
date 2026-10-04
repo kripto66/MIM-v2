@@ -1,7 +1,7 @@
 // ============================================================
 // MIM - Validation métier des paiements déclarés par les locataires
 //
-// Le locataire paie DIRECTEMENT le propriétaire (hors MIM) puis
+// Le locataire paie DIRECTEMENT le propriétaire (hors Okarne GM) puis
 // déclare avoir payé (statut « en_validation »). Le propriétaire
 // vérifie RÉELLEMENT son compte puis :
 //   - VALIDE  -> statut « paye » + validated_at + validated_by

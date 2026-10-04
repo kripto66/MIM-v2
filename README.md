@@ -1,4 +1,4 @@
-# MyImmoManagement (MIM)
+# Okarne Global Management (MIM)
 
 MIM est une application SaaS de gestion immobilière : biens, logements, locataires, échéances de loyers, incidents, prestataires, interventions, employés et abonnements.
 

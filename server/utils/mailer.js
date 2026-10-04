@@ -36,7 +36,7 @@ function getTransport() {
 }
 
 function defaultFrom() {
-  return process.env.SMTP_FROM || 'MIM - MyImmoManagement <no-reply@mim-app.com>';
+  return process.env.SMTP_FROM || 'Okarne Global Management <no-reply@mim-app.com>';
 }
 
 /**

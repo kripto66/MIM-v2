@@ -130,7 +130,7 @@ async function runBackup() {
   // H-16 : le message de commit est VOLONTAIREMENT constant et sans PII.
   // Les libelles passes par les appelants (emails, usernames, noms) sont
   // ignore : ils ne doivent JAMAIS atteindre l'historique git.
-  const safeMessage = 'Sauvegarde code MIM';
+  const safeMessage = 'Sauvegarde code Okarne GM';
 
   try {
     const worktreeCheck = await inspectWorktree(gitExe, repo);

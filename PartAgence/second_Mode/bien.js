@@ -120,7 +120,7 @@ async function load() {
     }
 
     // En-tête.
-    document.title = `MIM — ${bien.nom}`;
+    document.title = `Okarne GM — ${bien.nom}`;
     setText("bienTitle", `${bien.nom}${bienInfo && bienInfo.ville ? " — " + bienInfo.ville : ""}.`);
     setText("bienSub", `${bienInfo ? bienInfo.type || "" : ""}${proprietaire ? " · géré pour " + proprietaire.name : ""}${bienInfo && bienInfo.adresse ? " · " + bienInfo.adresse : ""}`);
 

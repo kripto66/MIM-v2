@@ -540,7 +540,7 @@
                             <label for="payemp_ref">Référence (optionnel)</label>
                             <input type="text" id="payemp_ref" maxlength="80" placeholder="N° de transaction…">
                         </div>
-                        <p class="pay-note-ok">Vous indiquez avoir effectué ce paiement directement à l'employé (hors MIM). L'employé recevra une notification et devra <strong>confirmer la réception</strong>.</p>
+                        <p class="pay-note-ok">Vous indiquez avoir effectué ce paiement directement à l'employé (hors Okarne GM). L'employé recevra une notification et devra <strong>confirmer la réception</strong>.</p>
                         <div class="modal-actions">
                             <button type="button" class="btn btn-secondary" id="payEmpCancel">Annuler</button>
                             <button type="submit" class="btn btn-primary">Paiement versé</button>

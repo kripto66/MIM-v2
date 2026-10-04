@@ -460,7 +460,7 @@ async function loadSubscriptionBanner() {
 
   if (!subscription) {
     el.className = "sub-banner sub-banner-info";
-    el.innerHTML = "Aucun abonnement MIM enregistré. <a class='sub-link' href='abonnements.html'>Souscrire en ligne</a>.";
+    el.innerHTML = "Aucun abonnement Okarne GM enregistré. <a class='sub-link' href='abonnements.html'>Souscrire en ligne</a>.";
     el.hidden = false;
     return;
   }
@@ -469,14 +469,14 @@ async function loadSubscriptionBanner() {
 
   if (subscription.statut === "expire" || days <= 0) {
     el.className = "sub-banner sub-banner-danger";
-    el.innerHTML = `Votre abonnement MIM est <strong>expiré</strong> (le ${formatDate(subscription.date_expiration)}). <a class='sub-link' href='abonnements.html'>Renouveler en ligne</a>.`;
+    el.innerHTML = `Votre abonnement Okarne GM est <strong>expiré</strong> (le ${formatDate(subscription.date_expiration)}). <a class='sub-link' href='abonnements.html'>Renouveler en ligne</a>.`;
     el.hidden = false;
     return;
   }
 
   if (days <= 7) {
     el.className = "sub-banner sub-banner-warning";
-    el.innerHTML = `Votre abonnement MIM expire dans <strong>${days} jour${days > 1 ? "s" : ""}</strong> (le ${formatDate(subscription.date_expiration)}). <a class='sub-link' href='abonnements.html'>Renouveler en ligne</a>.`;
+    el.innerHTML = `Votre abonnement Okarne GM expire dans <strong>${days} jour${days > 1 ? "s" : ""}</strong> (le ${formatDate(subscription.date_expiration)}). <a class='sub-link' href='abonnements.html'>Renouveler en ligne</a>.`;
     el.hidden = false;
     return;
   }

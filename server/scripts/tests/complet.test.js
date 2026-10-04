@@ -1,8 +1,8 @@
-ï»¿// ============================================================
-// MIM - Suite COMPLET : endpoints restants (tÃ¢ches, espace employÃ©
-// Ã©tendu, update-profile, meta, mois-courant, test-mode, git,
-// santÃ©, pages publiques, confirmation loyer locataire)
-// + Suite MATRICE : combinaisons rÃ´les Ã— endpoints (7 contextes)
+// ============================================================
+// MIM - Suite COMPLET : endpoints restants (tâches, espace employé
+// étendu, update-profile, meta, mois-courant, test-mode, git,
+// santé, pages publiques, confirmation loyer locataire)
+// + Suite MATRICE : combinaisons rôles × endpoints (7 contextes)
 // ============================================================
 
 import { api, newJar, expectSuccess, loginForBusiness, createConfirmedSession } from './lib.js';
@@ -22,38 +22,38 @@ export async function runComplet(r, ctx) {
   const owner2 = ctx.seed.owners[3];
   const jar = owner.jar;
 
-  await r.section('santÃ© et pages publiques', async () => {
+  await r.section('santé et pages publiques', async () => {
     try {
       const health = await fetch(`${WEB}/api/health`, { signal: AbortSignal.timeout(5000) });
-      if (health.status === 200) r.pass(S, 'GET /api/health â†’ 200');
-      else r.fail(S, 'GET /api/health â†’ 200', `statut ${health.status}`);
+      if (health.status === 200) r.pass(S, 'GET /api/health ? 200');
+      else r.fail(S, 'GET /api/health ? 200', `statut ${health.status}`);
     } catch (e) {
-      r.fail(S, 'GET /api/health â†’ 200', e.message);
+      r.fail(S, 'GET /api/health ? 200', e.message);
     }
   });
 
   await r.section('PUT /auth/update-profile', async () => {
     const noName = await api('/auth/update-profile', { method: 'PUT', jar, body: {} });
-    if (noName.status === 400) r.pass(S, 'sans nom â†’ 400');
-    else r.fail(S, 'sans nom â†’ 400', `statut ${noName.status}`);
+    if (noName.status === 400) r.pass(S, 'sans nom ? 400');
+    else r.fail(S, 'sans nom ? 400', `statut ${noName.status}`);
 
-    const newName = `PropriÃ©taire Complet ${owner.i}`;
+    const newName = `Propriétaire Complet ${owner.i}`;
     const upd = await api('/auth/update-profile', {
       method: 'PUT',
       jar,
       body: { name: newName, phone: '+221770000099' },
     });
-    if (!expectSuccess(r, upd, S, 'mise Ã  jour nom + tÃ©lÃ©phone')) return;
+    if (!expectSuccess(r, upd, S, 'mise à jour nom + téléphone')) return;
 
     const me = await api('/auth/me', { jar });
-    if (me.data?.user?.name === newName) r.pass(S, '/auth/me reflÃ¨te le nouveau nom');
-    else r.fail(S, '/auth/me reflÃ¨te le nouveau nom', String(me.data?.user?.name));
+    if (me.data?.user?.name === newName) r.pass(S, '/auth/me reflète le nouveau nom');
+    else r.fail(S, '/auth/me reflète le nouveau nom', String(me.data?.user?.name));
   });
 
-  await r.section('routes utilitaires authentifiÃ©es', async () => {
+  await r.section('routes utilitaires authentifiées', async () => {
     const backup = await api('/git/backup', { method: 'POST', jar });
-    if (backup.status === 200) r.pass(S, 'POST /git/backup â†’ 200');
-    else r.fail(S, 'POST /git/backup â†’ 200', `statut ${backup.status}`);
+    if (backup.status === 200) r.pass(S, 'POST /git/backup ? 200');
+    else r.fail(S, 'POST /git/backup ? 200', `statut ${backup.status}`);
 
     const mc = await api('/employes/mois-courant', { jar });
     if (
@@ -75,9 +75,9 @@ export async function runComplet(r, ctx) {
         okCats &&
         okPw
       ) {
-        r.pass(S, `${base}/meta : catÃ©gories complÃ¨tes, aucun secret global`);
+        r.pass(S, `${base}/meta : catégories complètes, aucun secret global`);
       } else if (!okCats || !okPw) {
-        r.fail(S, `${base}/meta : catÃ©gories complÃ¨tes + mot de passe initial alÃ©atoire`, cats.join(','));
+        r.fail(S, `${base}/meta : catégories complètes + mot de passe initial aléatoire`, cats.join(','));
       }
     }
   });
@@ -121,7 +121,7 @@ export async function runComplet(r, ctx) {
       process.env.GIT_BACKUP = 'true';
       process.env.GIT_BRANCH = 'master';
 
-      // Instance fraÃ®che : ENABLED est figÃ© au chargement du module.
+      // Instance fraîche : ENABLED est figé au chargement du module.
       const gitBackup = await import(`../../utils/gitBackup.js?h16=${Date.now()}`);
 
       // Remote injoignable : le commit est retenu, l'echec est signale.
@@ -129,22 +129,22 @@ export async function runComplet(r, ctx) {
       fs.writeFileSync(pathMod.join(work, 'a.txt'), 'v2');
       const blocked = await gitBackup.gitAutoBackup('test H-16');
       if (blocked.success === false && blocked.reason === 'push_failed') {
-        r.pass(S, 'remote injoignable â†’ push_failed (et non succÃ¨s trompeur)');
+        r.pass(S, 'remote injoignable ? push_failed (et non succès trompeur)');
       } else {
-        r.fail(S, 'remote injoignable â†’ push_failed', JSON.stringify(blocked));
+        r.fail(S, 'remote injoignable ? push_failed', JSON.stringify(blocked));
       }
       const localHead = git(['log', '-1', '--format=%s'], work);
-      if (localHead === 'Sauvegarde code MIM') r.pass(S, 'commit local conservÃ© malgrÃ© le push refusÃ©');
-      else r.fail(S, 'commit local conservÃ© malgrÃ© le push refusÃ©', localHead);
+      if (localHead === 'Sauvegarde code Okarne GM') r.pass(S, 'commit local conservé malgré le push refusé');
+      else r.fail(S, 'commit local conservé malgré le push refusé', localHead);
 
-      // Remote restaurÃ©, AUCUN changement nouveau : le retard doit partir.
+      // Remote restauré, AUCUN changement nouveau : le retard doit partir.
       fs.renameSync(`${remote}.off`, remote);
       const retried = await gitBackup.gitAutoBackup('test H-16');
-      if (retried.success === true) r.pass(S, 'remote rÃ©tabli â†’ poussÃ©e rÃ©ussie sans nouveau commit');
-      else r.fail(S, 'remote rÃ©tabli â†’ poussÃ©e rÃ©ussie sans nouveau commit', JSON.stringify(retried));
+      if (retried.success === true) r.pass(S, 'remote rétabli ? poussée réussie sans nouveau commit');
+      else r.fail(S, 'remote rétabli ? poussée réussie sans nouveau commit', JSON.stringify(retried));
       const remoteHead = git(['log', '-1', '--format=%s', 'master'], remote);
-      if (remoteHead === 'Sauvegarde code MIM') r.pass(S, 'commit en retard prÃ©sent sur le remote');
-      else r.fail(S, 'commit en retard prÃ©sent sur le remote', remoteHead);
+      if (remoteHead === 'Sauvegarde code Okarne GM') r.pass(S, 'commit en retard présent sur le remote');
+      else r.fail(S, 'commit en retard présent sur le remote', remoteHead);
 
       // ---- Volet base : throttle + echec best-effort (jamais d'exception).
       process.env.MIM_DB_BACKUP_DIR = pathMod.join(tmp, 'dumps');
@@ -153,13 +153,13 @@ export async function runComplet(r, ctx) {
       const dbBackup = await import('../../utils/dbBackup.js');
 
       const failed = await dbBackup.runDbBackup();
-      if (failed.success === false && failed.reason === 'dump_failed') r.pass(S, 'pg_dump impossible â†’ Ã©chec retournÃ©, pas d\'exception');
-      else r.fail(S, 'pg_dump impossible â†’ Ã©chec retournÃ©, pas d\'exception', JSON.stringify(failed));
+      if (failed.success === false && failed.reason === 'dump_failed') r.pass(S, 'pg_dump impossible ? échec retourné, pas d\'exception');
+      else r.fail(S, 'pg_dump impossible ? échec retourné, pas d\'exception', JSON.stringify(failed));
 
       fs.writeFileSync(pathMod.join(tmp, 'dumps', '.last-dump'), new Date().toISOString());
       const throttled = await dbBackup.runDbBackup();
-      if (throttled.reason === 'throttled') r.pass(S, 'dump rÃ©cent â†’ throttle (pas de rejeu)');
-      else r.fail(S, 'dump rÃ©cent â†’ throttle (pas de rejeu)', JSON.stringify(throttled));
+      if (throttled.reason === 'throttled') r.pass(S, 'dump récent ? throttle (pas de rejeu)');
+      else r.fail(S, 'dump récent ? throttle (pas de rejeu)', JSON.stringify(throttled));
 
       const forced = await dbBackup.runDbBackup({ force: true });
       if (forced.success === false && forced.reason === 'dump_failed') r.pass(S, '--force ignore le throttle');
@@ -187,7 +187,7 @@ export async function runComplet(r, ctx) {
     const list = await api('/paiements', { jar });
     const paiement = (list.data?.data || []).find((p) => p.locataire_id === tenant.id);
     if (!paiement) {
-      r.fail(S, 'paiement du locataire trouvÃ© chez le propriÃ©taire', 'aucun');
+      r.fail(S, 'paiement du locataire trouvé chez le propriétaire', 'aucun');
       return;
     }
 
@@ -196,36 +196,36 @@ export async function runComplet(r, ctx) {
       jar,
       body: { statut: 'a_confirmer' },
     });
-    if (!expectSuccess(r, mark, S, 'propriÃ©taire marque le loyer a_confirmer')) return;
+    if (!expectSuccess(r, mark, S, 'propriétaire marque le loyer a_confirmer')) return;
 
     const conf = await api(`/locataire/paiements/${paiement.id}/confirmer`, { method: 'POST', jar: ljar });
     expectSuccess(r, conf, S, 'locataire confirme le paiement');
 
     const after = await api('/paiements', { jar });
     const refreshed = (after.data?.data || []).find((p) => p.id === paiement.id);
-    if (refreshed?.statut === 'en_validation') r.pass(S, 'statut passÃ© Ã  en_validation');
-    else r.fail(S, 'statut passÃ© Ã  en_validation', String(refreshed?.statut));
+    if (refreshed?.statut === 'en_validation') r.pass(S, 'statut passé à en_validation');
+    else r.fail(S, 'statut passé à en_validation', String(refreshed?.statut));
 
     const validate = await api(`/paiements-validation/${paiement.id}/valider`, { method: 'POST', jar });
-    expectSuccess(r, validate, S, 'propriÃ©taire valide le paiement confirmÃ©');
+    expectSuccess(r, validate, S, 'propriétaire valide le paiement confirmé');
 
     const after2 = await api('/paiements', { jar });
     const final = (after2.data?.data || []).find((p) => p.id === paiement.id);
-    if (final?.statut === 'paye') r.pass(S, 'chaÃ®ne complÃ¨te : statut final paye');
-    else r.fail(S, 'chaÃ®ne complÃ¨te : statut final paye', String(final?.statut));
+    if (final?.statut === 'paye') r.pass(S, 'chaîne complète : statut final paye');
+    else r.fail(S, 'chaîne complète : statut final paye', String(final?.statut));
 
     const again = await api(`/locataire/paiements/${paiement.id}/confirmer`, { method: 'POST', jar: ljar });
-    if (again.status === 400) r.pass(S, 're-confirmation refusÃ©e (400)');
-    else r.fail(S, 're-confirmation refusÃ©e (400)', `statut ${again.status}`);
+    if (again.status === 400) r.pass(S, 're-confirmation refusée (400)');
+    else r.fail(S, 're-confirmation refusée (400)', `statut ${again.status}`);
   });
 
-  await r.section('espace employÃ© : profil, mot de passe, tÃ¢ches, interventions, paiements, notifications', async () => {
+  await r.section('espace employé : profil, mot de passe, tâches, interventions, paiements, notifications', async () => {
     const created = await api('/employes', {
       method: 'POST',
       jar,
-      body: { nom: 'Complet Employe', poste: 'Agent de sÃ©curitÃ©', biens: [owner.bienId] },
+      body: { nom: 'Complet Employe', poste: 'Agent de sécurité', biens: [owner.bienId] },
     });
-    if (!expectSuccess(r, created, S, 'crÃ©ation employÃ© auto')) return;
+    if (!expectSuccess(r, created, S, 'création employé auto')) return;
     const username = created.data.account.username;
     const password = created.data.account.password;
     const empId = created.data.data.id;
@@ -236,28 +236,28 @@ export async function runComplet(r, ctx) {
       jar: ejar,
       body: { identifier: username, password },
     });
-    if (!expectSuccess(r, login, S, 'premiÃ¨re connexion employÃ© (mdp initial)')) return;
+    if (!expectSuccess(r, login, S, 'première connexion employé (mdp initial)')) return;
     if (login.data.mustChangePassword === true) r.pass(S, 'mustChangePassword au premier login');
     else r.fail(S, 'mustChangePassword au premier login', String(login.data.mustChangePassword));
 
-    // Tant que must_change_password est vrai, l'employÃ© est bloquÃ© sur
-    // toutes les routes mÃ©tier (requirePasswordChanged) sauf sur celle
-    // qui change le mot de passe : on vÃ©rifie d'abord cette sortie de
-    // secours, sinon le compte serait enfermÃ©.
+    // Tant que must_change_password est vrai, l'employé est bloqué sur
+    // toutes les routes métier (requirePasswordChanged) sauf sur celle
+    // qui change le mot de passe : on vérifie d'abord cette sortie de
+    // secours, sinon le compte serait enfermé.
     const badPw = await api('/employe/password', {
       method: 'PUT',
       jar: ejar,
       body: { new_password: 'court' },
     });
-    if (badPw.status === 400) r.pass(S, 'mot de passe faible refusÃ© (400)');
-    else r.fail(S, 'mot de passe faible refusÃ© (400)', `statut ${badPw.status}`);
+    if (badPw.status === 400) r.pass(S, 'mot de passe faible refusé (400)');
+    else r.fail(S, 'mot de passe faible refusé (400)', `statut ${badPw.status}`);
 
     const chpw = await api('/employe/password', {
       method: 'PUT',
       jar: ejar,
       body: { new_password: 'Emploi1234!' },
     });
-    expectSuccess(r, chpw, S, 'changement de mot de passe forcÃ© (sans ancien)');
+    expectSuccess(r, chpw, S, 'changement de mot de passe forcé (sans ancien)');
 
     const ej = newJar();
     const relog = await api('/auth/login', {
@@ -266,9 +266,9 @@ export async function runComplet(r, ctx) {
       body: { identifier: username, password: 'Emploi1234!' },
     });
     if (relog.status === 200 && relog.data.mustChangePassword === false) {
-      r.pass(S, 'relogin : mustChangePassword repassÃ© Ã  false');
+      r.pass(S, 'relogin : mustChangePassword repassé à false');
     } else {
-      r.fail(S, 'relogin : mustChangePassword repassÃ© Ã  false', `statut ${relog.status} mcp=${relog.data.mustChangePassword}`);
+      r.fail(S, 'relogin : mustChangePassword repassé à false', `statut ${relog.status} mcp=${relog.data.mustChangePassword}`);
     }
     const workingJar = relog.status === 200 ? ej : ejar;
 
@@ -276,17 +276,17 @@ export async function runComplet(r, ctx) {
     if (
       expectSuccess(r, me, S, 'GET /employe/me') &&
       me.data.data.role === 'employe' &&
-      me.data.data.poste === 'Agent de sÃ©curitÃ©'
+      me.data.data.poste === 'Agent de sécurité'
     ) {
-      r.pass(S, 'profil employÃ© complet (rÃ´le + poste)');
+      r.pass(S, 'profil employé complet (rôle + poste)');
     } else if (me.data?.data?.role !== 'employe') {
-      r.fail(S, 'profil employÃ© complet (rÃ´le + poste)', JSON.stringify(me.data).slice(0, 150));
+      r.fail(S, 'profil employé complet (rôle + poste)', JSON.stringify(me.data).slice(0, 150));
     }
 
     const updName = await api('/employe/profile', {
       method: 'PUT',
       jar: workingJar,
-      body: { name: 'Complet Employe ModifiÃ©' },
+      body: { name: 'Complet Employe Modifié' },
     });
     expectSuccess(r, updName, S, 'PUT /employe/profile (nom)');
 
@@ -295,8 +295,8 @@ export async function runComplet(r, ctx) {
       jar: workingJar,
       body: { username: 'X invalide !' },
     });
-    if (badUsername.status === 400) r.pass(S, 'username invalide refusÃ© (400)');
-    else r.fail(S, 'username invalide refusÃ© (400)', `statut ${badUsername.status}`);
+    if (badUsername.status === 400) r.pass(S, 'username invalide refusé (400)');
+    else r.fail(S, 'username invalide refusé (400)', `statut ${badUsername.status}`);
 
     const list = await api('/employes', { jar });
     const fiche = (list.data?.data || []).find((e) => e.id === empId);
@@ -309,23 +309,23 @@ export async function runComplet(r, ctx) {
         jar,
         body: { titre: 'Tache EMPLOYE Complet', employe_uid: accountUid },
       });
-      expectSuccess(r, task, S, "crÃ©ation tÃ¢che assignÃ©e Ã  l'employÃ©");
+      expectSuccess(r, task, S, "création tâche assignée à l'employé");
     } else {
-      r.fail(S, "crÃ©ation tÃ¢che assignÃ©e Ã  l'employÃ©", 'account_uid introuvable dans la liste');
+      r.fail(S, "création tâche assignée à l'employé", 'account_uid introuvable dans la liste');
     }
 
     const etasks = await api('/employe/tasks', { jar: workingJar });
     const seen = (etasks.data?.data || []).some((t) => t.titre === 'Tache EMPLOYE Complet');
     if (expectSuccess(r, etasks, S, 'GET /employe/tasks') && seen) {
-      r.pass(S, "l'employÃ© voit sa tÃ¢che assignÃ©e");
+      r.pass(S, "l'employé voit sa tâche assignée");
     } else if (!seen && task?.data?.data?.id) {
-      r.fail(S, "l'employÃ© voit sa tÃ¢che assignÃ©e", 'tÃ¢che absente');
+      r.fail(S, "l'employé voit sa tâche assignée", 'tâche absente');
     }
 
     const inters = await api('/employe/interventions', { jar: workingJar });
     const interList = inters.data?.data;
     if (expectSuccess(r, inters, S, 'GET /employe/interventions') && Array.isArray(interList)) {
-      if (interList.length > 0) r.pass(S, 'interventions du bien affectÃ© visibles');
+      if (interList.length > 0) r.pass(S, 'interventions du bien affecté visibles');
       else r.pass(S, 'interventions : liste vide valide');
     }
 
@@ -341,9 +341,9 @@ export async function runComplet(r, ctx) {
     const notifs = await api('/notifications', { jar: workingJar });
     const allRead = (notifs.data?.data || []).every((n) => n.lu === true);
     if (expectSuccess(r, readAll, S, 'POST /employe/notifications/read-all') && allRead) {
-      r.pass(S, 'toutes les notifications marquÃ©es lues');
+      r.pass(S, 'toutes les notifications marquées lues');
     } else if (!allRead) {
-      r.fail(S, 'toutes les notifications marquÃ©es lues', 'au moins une notification non lue');
+      r.fail(S, 'toutes les notifications marquées lues', 'au moins une notification non lue');
     }
 
     if (task?.data?.data?.id) {
@@ -355,77 +355,77 @@ export async function runComplet(r, ctx) {
       jar: newJar(),
       body: { identifier: username, password: 'Emploi1234!' },
     });
-    if (gone.status === 401) r.pass(S, 'compte employÃ© dÃ©sactivÃ© aprÃ¨s suppression');
-    else r.fail(S, 'compte employÃ© dÃ©sactivÃ© aprÃ¨s suppression', `statut ${gone.status}`);
+    if (gone.status === 401) r.pass(S, 'compte employé désactivé après suppression');
+    else r.fail(S, 'compte employé désactivé après suppression', `statut ${gone.status}`);
   });
 
-  await r.section('tasks CRUD propriÃ©taire : validations et isolation', async () => {
+  await r.section('tasks CRUD propriétaire : validations et isolation', async () => {
     const noTitre = await api('/tasks', { method: 'POST', jar, body: { titre: '' } });
-    if (noTitre.status === 400) r.pass(S, 'titre vide â†’ 400');
-    else r.fail(S, 'titre vide â†’ 400', `statut ${noTitre.status}`);
+    if (noTitre.status === 400) r.pass(S, 'titre vide ? 400');
+    else r.fail(S, 'titre vide ? 400', `statut ${noTitre.status}`);
 
     const longTitre = await api('/tasks', { method: 'POST', jar, body: { titre: 'x'.repeat(201) } });
-    if (longTitre.status === 400) r.pass(S, 'titre > 200 caractÃ¨res â†’ 400');
-    else r.fail(S, 'titre > 200 caractÃ¨res â†’ 400', `statut ${longTitre.status}`);
+    if (longTitre.status === 400) r.pass(S, 'titre > 200 caractères ? 400');
+    else r.fail(S, 'titre > 200 caractères ? 400', `statut ${longTitre.status}`);
 
     const badStatut = await api('/tasks', { method: 'POST', jar, body: { titre: 'T', statut: 'nope' } });
-    if (badStatut.status === 400) r.pass(S, 'statut invalide â†’ 400');
-    else r.fail(S, 'statut invalide â†’ 400', `statut ${badStatut.status}`);
+    if (badStatut.status === 400) r.pass(S, 'statut invalide ? 400');
+    else r.fail(S, 'statut invalide ? 400', `statut ${badStatut.status}`);
 
     const badDate = await api('/tasks', { method: 'POST', jar, body: { titre: 'T', echeance: 'pasunedate' } });
-    if (badDate.status === 400) r.pass(S, 'Ã©chÃ©ance invalide â†’ 400');
-    else r.fail(S, 'Ã©chÃ©ance invalide â†’ 400', `statut ${badDate.status}`);
+    if (badDate.status === 400) r.pass(S, 'échéance invalide ? 400');
+    else r.fail(S, 'échéance invalide ? 400', `statut ${badDate.status}`);
 
     const badEmp = await api('/tasks', {
       method: 'POST',
       jar,
       body: { titre: 'T', employe_uid: '00000000-0000-0000-0000-000000000000' },
     });
-    if (badEmp.status === 400) r.pass(S, 'employÃ© inconnu â†’ 400');
-    else r.fail(S, 'employÃ© inconnu â†’ 400', `statut ${badEmp.status}`);
+    if (badEmp.status === 400) r.pass(S, 'employé inconnu ? 400');
+    else r.fail(S, 'employé inconnu ? 400', `statut ${badEmp.status}`);
 
     const created = await api('/tasks', {
       method: 'POST',
       jar,
       body: { titre: 'Complet Tache CRUD', description: 'desc', echeance: '2026-12-31' },
     });
-    if (!expectSuccess(r, created, S, 'crÃ©ation tÃ¢che valide')) return;
+    if (!expectSuccess(r, created, S, 'création tâche valide')) return;
     const taskId = created.data.data.id;
 
     const list = await api('/tasks', { jar });
-    if ((list.data?.data || []).some((t) => t.id === taskId)) r.pass(S, 'tÃ¢che prÃ©sente dans GET /tasks');
-    else r.fail(S, 'tÃ¢che prÃ©sente dans GET /tasks', 'absente');
+    if ((list.data?.data || []).some((t) => t.id === taskId)) r.pass(S, 'tâche présente dans GET /tasks');
+    else r.fail(S, 'tâche présente dans GET /tasks', 'absente');
 
     const upd = await api(`/tasks/${taskId}`, { method: 'PUT', jar, body: { statut: 'en_cours' } });
     expectSuccess(r, upd, S, 'PUT statut en_cours');
 
     const emptyTitre = await api(`/tasks/${taskId}`, { method: 'PUT', jar, body: { titre: '  ' } });
-    if (emptyTitre.status === 400) r.pass(S, 'PUT titre vide â†’ 400');
-    else r.fail(S, 'PUT titre vide â†’ 400', `statut ${emptyTitre.status}`);
+    if (emptyTitre.status === 400) r.pass(S, 'PUT titre vide ? 400');
+    else r.fail(S, 'PUT titre vide ? 400', `statut ${emptyTitre.status}`);
 
     const badUpd = await api(`/tasks/${taskId}`, { method: 'PUT', jar, body: { statut: 'nope' } });
-    if (badUpd.status === 400) r.pass(S, 'PUT statut invalide â†’ 400');
-    else r.fail(S, 'PUT statut invalide â†’ 400', `statut ${badUpd.status}`);
+    if (badUpd.status === 400) r.pass(S, 'PUT statut invalide ? 400');
+    else r.fail(S, 'PUT statut invalide ? 400', `statut ${badUpd.status}`);
 
     const ghostId = '11111111-1111-1111-1111-111111111111';
     const ghost = await api(`/tasks/${ghostId}`, { method: 'PUT', jar, body: { statut: 'termine' } });
-    if (ghost.status === 404) r.pass(S, 'PUT tÃ¢che inexistante â†’ 404');
-    else r.fail(S, 'PUT tÃ¢che inexistante â†’ 404', `statut ${ghost.status}`);
+    if (ghost.status === 404) r.pass(S, 'PUT tâche inexistante ? 404');
+    else r.fail(S, 'PUT tâche inexistante ? 404', `statut ${ghost.status}`);
 
     const foreign = await api(`/tasks/${taskId}`, { method: 'PUT', jar: owner2.jar, body: { statut: 'termine' } });
-    if (foreign.status === 404) r.pass(S, "tÃ¢che d'un autre propriÃ©taire invisible (404)");
-    else r.fail(S, "tÃ¢che d'un autre propriÃ©taire invisible (404)", `statut ${foreign.status}`);
+    if (foreign.status === 404) r.pass(S, "tâche d'un autre propriétaire invisible (404)");
+    else r.fail(S, "tâche d'un autre propriétaire invisible (404)", `statut ${foreign.status}`);
 
     const del = await api(`/tasks/${taskId}`, { method: 'DELETE', jar });
-    expectSuccess(r, del, S, 'suppression tÃ¢che');
+    expectSuccess(r, del, S, 'suppression tâche');
     const after = await api('/tasks', { jar });
-    if (!(after.data?.data || []).some((t) => t.id === taskId)) r.pass(S, 'tÃ¢che supprimÃ©e de la liste');
-    else r.fail(S, 'tÃ¢che supprimÃ©e de la liste', 'encore prÃ©sente');
+    if (!(after.data?.data || []).some((t) => t.id === taskId)) r.pass(S, 'tâche supprimée de la liste');
+    else r.fail(S, 'tâche supprimée de la liste', 'encore présente');
   });
 }
 
 // ============================================================
-// MATRICE : 7 contextes Ã— N endpoints
+// MATRICE : 7 contextes × N endpoints
 // ============================================================
 
 const ALL_AUTH = ['proprietaire', 'agence', 'entreprise', 'locataire', 'employe', 'admin'];
@@ -491,7 +491,7 @@ export async function runMatrice(r, ctx) {
     jar: owner.jar,
     body: { nom: `Matrice Employe ${stamp}`, poste: 'Testeur', biens: [owner.bienId] },
   });
-  if (!expectSuccess(r, emp, M, 'crÃ©ation employÃ© matrice')) return;
+  if (!expectSuccess(r, emp, M, 'création employé matrice')) return;
   jars.employe = newJar();
   const logE = await api('/auth/login', {
     method: 'POST',
@@ -499,7 +499,7 @@ export async function runMatrice(r, ctx) {
     body: { identifier: emp.data.account.username, password: emp.data.account.password },
   });
   if (logE.status !== 200) {
-    r.fail(M, 'connexion employÃ©', `statut ${logE.status}`);
+    r.fail(M, 'connexion employé', `statut ${logE.status}`);
     return;
   }
   if (logE.data.mustChangePassword) {
@@ -509,7 +509,7 @@ export async function runMatrice(r, ctx) {
       body: { password: 'MatriceRotated1234!', password_confirm: 'MatriceRotated1234!' },
     });
     if (rotated.status !== 200) {
-      r.fail(M, 'rotation du mot de passe employÃ©', JSON.stringify(rotated.data));
+      r.fail(M, 'rotation du mot de passe employé', JSON.stringify(rotated.data));
       return;
     }
   }
@@ -523,7 +523,7 @@ export async function runMatrice(r, ctx) {
     app_metadata: { mim_account_type: 'admin' },
   });
   if (adminErr) {
-    r.fail(M, 'crÃ©ation admin matrice', adminErr.message);
+    r.fail(M, 'création admin matrice', adminErr.message);
     return;
   }
   await service.from('profiles').update({ account_type: 'admin', role: 'admin' }).eq('id', adminData.user.id);
@@ -540,12 +540,12 @@ export async function runMatrice(r, ctx) {
 
   const CASES = [
     {
-      name: 'GET /biens (zone propriÃ©taire)',
+      name: 'GET /biens (zone propriétaire)',
       path: '/biens',
       exp: expectedFor({ anon: 401, owner: 200 }),
     },
     {
-      name: 'POST /tasks (zone propriÃ©taire)',
+      name: 'POST /tasks (zone propriétaire)',
       method: 'POST',
       path: '/tasks',
       body: { titre: 'MATRICE Tache' },
@@ -553,43 +553,43 @@ export async function runMatrice(r, ctx) {
       exp: expectedFor({ anon: 401, owner: 201 }),
     },
     {
-      name: 'GET /stats/dashboard (zone propriÃ©taire)',
+      name: 'GET /stats/dashboard (zone propriétaire)',
       path: '/stats/dashboard',
       exp: expectedFor({ anon: 401, owner: 200 }),
     },
     {
-      name: 'GET /import/status (zone propriÃ©taire)',
+      name: 'GET /import/status (zone propriétaire)',
       path: '/import/status',
       exp: expectedFor({ anon: 401, owner: 200 }),
     },
     {
-      name: 'GET /paiements-validation/en-attente (zone propriÃ©taire)',
+      name: 'GET /paiements-validation/en-attente (zone propriétaire)',
       path: '/paiements-validation/en-attente',
       exp: expectedFor({ anon: 401, owner: 200 }),
     },
     {
-      name: 'GET /subscription/me (zone propriÃ©taire)',
+      name: 'GET /subscription/me (zone propriétaire)',
       path: '/subscription/me',
       exp: expectedFor({ anon: 401, owner: 200 }),
     },
     {
-      name: 'GET /moyens-paiement (zone propriÃ©taire)',
+      name: 'GET /moyens-paiement (zone propriétaire)',
       path: '/moyens-paiement',
       exp: expectedFor({ anon: 401, owner: 200 }),
     },
     {
-      name: 'POST /git/backup (propriÃ©taires + admin)',
+      name: 'POST /git/backup (propriétaires + admin)',
       method: 'POST',
       path: '/git/backup',
       exp: expectedFor({ anon: 401, owner: 200, admin: 200 }),
     },
     {
-      name: 'GET /employe/me (zone employÃ©)',
+      name: 'GET /employe/me (zone employé)',
       path: '/employe/me',
       exp: expectedFor({ anon: 401, employe: 200 }),
     },
     {
-      name: 'GET /employe/tasks (zone employÃ©)',
+      name: 'GET /employe/tasks (zone employé)',
       path: '/employe/tasks',
       exp: expectedFor({ anon: 401, employe: 200 }),
     },
@@ -604,7 +604,7 @@ export async function runMatrice(r, ctx) {
       exp: expectedFor({ anon: 401, admin: 200 }),
     },
     {
-      name: 'GET /notifications (tous rÃ´les authentifiÃ©s)',
+      name: 'GET /notifications (tous rôles authentifiés)',
       path: '/notifications',
       exp: expectedFor({ anon: 401, owner: 200, locataire: 200, employe: 200, admin: 200 }),
     },
@@ -628,16 +628,16 @@ export async function runMatrice(r, ctx) {
             taskIds.push([who, res.data.data.id]);
           }
         } else {
-          failures.push(`${who}: ${res.status}â‰ ${expected}`);
+          failures.push(`${who}: ${res.status}?${expected}`);
         }
       }
       for (const [who, id] of taskIds) {
         await api(`/tasks/${id}`, { method: 'DELETE', jar: jars[who] });
       }
       if (failures.length === 0) {
-        r.pass(M, `${c.name} â€” ${CONTEXTS.length} combinaisons OK`);
+        r.pass(M, `${c.name} — ${CONTEXTS.length} combinaisons OK`);
       } else {
-        r.fail(M, `${c.name} â€” ${CONTEXTS.length} combinaisons OK`, failures.join(' | ').slice(0, 300));
+        r.fail(M, `${c.name} — ${CONTEXTS.length} combinaisons OK`, failures.join(' | ').slice(0, 300));
       }
     });
   }

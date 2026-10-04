@@ -1,6 +1,6 @@
 // ============================================================
 // MIM - Création / mise à jour d'un compte administrateur
-//   node scripts/createAdmin.js --email=admin@mim.local --password=... [--name="Admin MIM"]
+//   node scripts/createAdmin.js --email=admin@mim.local --password=... [--name="Admin Okarne GM"]
 // ============================================================
 
 import 'dotenv/config';
@@ -13,10 +13,10 @@ function arg(name) {
 
 const email = (arg('email') || process.env.ADMIN_EMAIL || '').toLowerCase();
 const password = arg('password') || process.env.ADMIN_PASSWORD;
-const name = arg('name') || process.env.ADMIN_NAME || 'Admin MIM';
+const name = arg('name') || process.env.ADMIN_NAME || 'Admin Okarne GM';
 
 if (!email || !password) {
-  console.error('Usage : node scripts/createAdmin.js --email=admin@mim.local --password=... [--name="Admin MIM"]');
+  console.error('Usage : node scripts/createAdmin.js --email=admin@mim.local --password=... [--name="Admin Okarne GM"]');
   process.exit(1);
 }
 

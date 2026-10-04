@@ -150,7 +150,7 @@ export function buildResetLink(rawToken) {
 }
 
 /**
- * Envoie l'e-mail de récupération (branding MIM).
+ * Envoie l'e-mail de récupération (branding Okarne GM).
  * Jamais de jeton en clair dans les logs (sendMail ne logue pas le HTML).
  */
 export async function sendResetEmail({ email, rawToken }) {
@@ -174,7 +174,7 @@ export async function sendResetEmail({ email, rawToken }) {
     <div style="border:1px solid rgba(255,255,255,.15);border-radius:18px;padding:28px 24px;background:rgba(255,255,255,.05);">
       <h1 style="margin:0 0 10px;font-size:20px;text-align:center;">Réinitialisation de votre mot de passe</h1>
       <p style="font-size:14px;line-height:1.7;color:#c9bfe0;">Bonjour,<br><br>
-      Nous avons reçu une demande de réinitialisation du mot de passe de votre compte MyImmoManagement.</p>
+      Nous avons reçu une demande de réinitialisation du mot de passe de votre compte Okarne Global Management.</p>
       <p style="text-align:center;margin:26px 0;">
         <a href="${link}" style="display:inline-block;padding:13px 26px;border-radius:12px;background:linear-gradient(135deg,#e5a017,#f0b429);color:#221200;text-decoration:none;font-weight:700;font-size:15px;">Réinitialiser mon mot de passe</a>
       </p>
@@ -184,27 +184,27 @@ export async function sendResetEmail({ email, rawToken }) {
       </p>
     </div>
 
-    <p style="text-align:center;font-size:12px;color:#998bb8;margin-top:22px;">MIM — MyImmoManagement · Gestion immobilière simplifiée</p>
+    <p style="text-align:center;font-size:12px;color:#998bb8;margin-top:22px;">Okarne Global Management · Gestion immobilière simplifiée</p>
   </div>
 </body>
 </html>`;
 
   const text = [
-    'Réinitialisation de votre mot de passe MIM',
+    'Réinitialisation de votre mot de passe Okarne GM',
     '',
     'Bonjour,',
-    'Nous avons reçu une demande de réinitialisation du mot de passe de votre compte MyImmoManagement.',
+    'Nous avons reçu une demande de réinitialisation du mot de passe de votre compte Okarne Global Management.',
     '',
     `Ouvrez ce lien dans les 30 minutes : ${link}`,
     '',
     'Ce lien ne peut être utilisé qu\'une seule fois. Si vous n\'êtes pas à l\'origine de cette demande, ignorez cet e-mail : votre mot de passe reste inchangé.',
     '',
-    'MIM — MyImmoManagement',
+    'Okarne Global Management',
   ].join('\n');
 
   return sendMail({
     to: email,
-    subject: 'Réinitialisation de votre mot de passe MIM',
+    subject: 'Réinitialisation de votre mot de passe Okarne GM',
     html,
     text,
   });

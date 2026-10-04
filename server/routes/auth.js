@@ -614,7 +614,7 @@ router.post('/mfa/enroll', authenticate, requireActive, requireRecentPasswordAut
   try {
     const { data, error } = await authedClient(req.user.supabase_token).auth.mfa.enroll({
       factorType: 'totp',
-      friendlyName: 'MIM App',
+      friendlyName: 'Okarne GM',
     });
 
     if (error || !data) {
@@ -1334,7 +1334,7 @@ router.post('/forgot', forgotPasswordRateLimit, async (req, res) => {
     await notify(
       target.id,
       'system',
-      `Reinitialisation du mot de passe MIM : ouvrez ce lien dans les 30 minutes (usage unique) ${buildResetLink(rawToken)} - si ce n'etait pas vous, ignorez ce message.`
+      `Reinitialisation du mot de passe Okarne GM : ouvrez ce lien dans les 30 minutes (usage unique) ${buildResetLink(rawToken)} - si ce n'etait pas vous, ignorez ce message.`
     );
     await sendResetEmail({ email: target.email, rawToken });
   } catch (err) {

@@ -114,7 +114,7 @@ router.post('/incidents', async (req, res) => {
 // Confirmation d'un paiement par le locataire.
 //
 // Flux « déclaration + validation propriétaire » : le locataire paie
-// directement le propriétaire (hors MIM), déclare son paiement et le
+// directement le propriétaire (hors Okarne GM), déclare son paiement et le
 // confirme ici (« en_validation ») ; le propriétaire réalise la
 // validation métier.
 // La fiche locataire est DÉDUITE de account_uid : on ne fait jamais
@@ -198,7 +198,7 @@ router.post('/paiements/:id/confirmer', async (req, res) => {
 // ============================================================
 // Déclaration d'un paiement par le locataire (« J'ai effectué le
 // paiement »). Le locataire a payé DIRECTEMENT son propriétaire
-// (hors MIM, avec le moyen configuré par celui-ci) puis revient
+// (hors Okarne GM, avec le moyen configuré par celui-ci) puis revient
 // déclarer. MIM n'encaisse rien et ne prétend jamais connaître
 // l'heure réelle du transfert : seule validation_requested_at
 // (heure de la DÉCLARATION, NOW() côté serveur) est enregistrée.

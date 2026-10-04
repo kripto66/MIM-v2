@@ -1,5 +1,5 @@
 // ============================================================
-// Politique de mot de passe MIM (backend)
+// Politique de mot de passe Okarne GM (backend)
 // Algorithme miroir de PartPublic/password-strength.js (frontend)
 // Le frontend indique le niveau ; le backend applique les règles
 // minimales. Les mots de passe ne sont jamais stockés en clair.

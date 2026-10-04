@@ -4,7 +4,7 @@
 // Le propriétaire enregistre les moyens par lesquels il accepte
 // d'être payé (Wave, Orange Money, Virement bancaire, Espèces).
 // Le locataire les consulte en lecture seule (RLS) et paie
-// DIRECTEMENT le propriétaire, hors MIM.
+// DIRECTEMENT le propriétaire, hors Okarne GM.
 //
 // Sécurité : toutes les écritures sont filtrées par req.user.id.
 // ============================================================

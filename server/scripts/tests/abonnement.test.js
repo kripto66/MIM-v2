@@ -1,7 +1,7 @@
 // ============================================================
 // MIM - Suite abonnement propriétaire
 //
-// L'abonnement MIM est SÉPARÉ des paiements de loyer (table
+// L'abonnement Okarne GM est SÉPARÉ des paiements de loyer (table
 // public.paiements) : les tests vérifient qu'aucun chevauchement
 // n'existe, que l'état est toujours calculé côté serveur à partir
 // de date_expiration, et que l'expiration bloque le propriétaire

@@ -46,3 +46,43 @@ ON CONFLICT ("code") DO UPDATE
       "audience" = EXCLUDED."audience",
       "duree_abonnement" = EXCLUDED."duree_abonnement",
       "description" = EXCLUDED."description";
+
+
+-- ------------------------------------------------------------------
+-- Audit M9 : révocations de privilèges PAR DÉFAUT.
+--
+-- 20260925000000_security_blockers.sql:181-183 pose ces trois
+-- révocations, mais `pg_dump --schema=public` ne les émet JAMAIS : il
+-- photographie l'état final des ACL (les GRANT restants), pas
+-- l'historique des commandes exécutées. Le schéma de référence ne les
+-- contenait donc pas.
+--
+-- Conséquence sur une reconstruction (run-schema.mjs, restore) : les
+-- privilèges par défaut livrés par Supabase restaient en place, toute
+-- table CRÉÉE après la restauration recevait ALL pour anon et
+-- authenticated — la RLS devenait seule garde, la défense en
+-- profondeur disparaissait (audit M9).
+--
+-- Repris à l'identique de la migration (même portée, rôle courant)
+-- pour que supabase-schema.sql soit auto-suffisant.
+-- ------------------------------------------------------------------
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON TABLES FROM anon,authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon,authenticated;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM anon,authenticated;
+
+-- Même révocation pour le rôle supabase_admin : le corps du dump émet
+-- ses propres `ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin ...
+-- GRANT ALL ... TO anon, authenticated` (ACL relevées dans la base
+-- source) — sans ces lignes, la restauration RECRÉE le privilège
+-- qu'elle s'apprête à retirer. Exécuté sous un rôle qui n'est pas
+-- membre de supabase_admin, l'instruction est refusée : on la saute
+-- explicitement plutôt que de faire échouer toute la poussée.
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'supabase_admin')
+       AND pg_has_role(current_user, 'supabase_admin', 'MEMBER') THEN
+        ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE ALL ON TABLES FROM anon,authenticated;
+        ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE ALL ON SEQUENCES FROM anon,authenticated;
+        ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public REVOKE ALL ON FUNCTIONS FROM anon,authenticated;
+    END IF;
+END $$;

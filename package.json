@@ -4,7 +4,7 @@
   "private": true,
   "license": "MIT",
   "type": "module",
-  "description": "MyImmoManagement - SaaS de gestion immobilière",
+  "description": "Okarne Global Management - SaaS de gestion immobilière",
   "scripts": {
     "dev": "node --watch server/server.js",
     "start": "node server/server.js",

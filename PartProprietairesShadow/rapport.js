@@ -246,7 +246,7 @@
                 " bien(s) confié(s) à " +
                 ((dash.agence && dash.agence.name) || "votre agence");
             document.getElementById("rapportPied").textContent =
-                "Document généré par MIM — espace délégué, consultation seule. Les montants proviennent des données de l'agence.";
+                "Document généré par Okarne GM — espace délégué, consultation seule. Les montants proviennent des données de l'agence.";
 
             renderSynthese(dash, fin, dep);
             renderRevenus(fin);

@@ -41,7 +41,7 @@ async function loadSubscription() {
         const { subscription } = await apiRequest("/subscription/me");
         if (!subscription) {
             panel.innerHTML =
-                '<p class="muted">Aucun abonnement enregistré. Contactez l\'administration MIM pour souscrire.</p>';
+                '<p class="muted">Aucun abonnement enregistré. Contactez l\'administration Okarne GM pour souscrire.</p>';
             return;
         }
         const pending = subscription.paiement && subscription.paiement.overlay;

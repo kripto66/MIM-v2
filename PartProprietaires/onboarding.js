@@ -64,8 +64,8 @@ const Onboarding = (() => {
     modal.id = "onboardingModal";
     modal.innerHTML = `
       <div class="modal onboarding-modal">
-        <div class="onboarding-logo">MIM</div>
-        <h2>Bienvenue sur MyImmoManagement 👋</h2>
+        <div class="onboarding-logo">Okarne GM</div>
+        <h2>Bienvenue sur Okarne Global Management 👋</h2>
         <p class="onboarding-sub">
           Configurez votre espace en quelques étapes. Vous pouvez importer vos
           données existantes ou commencer manuellement.

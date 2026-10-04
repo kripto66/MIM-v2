@@ -4,7 +4,7 @@ import { gitAutoBackup } from '../utils/gitBackup.js';
 const router = Router();
 
 router.post('/backup', async (req, res) => {
-  const result = await gitAutoBackup('Sauvegarde manuelle depuis le dashboard MIM');
+  const result = await gitAutoBackup('Sauvegarde manuelle depuis le dashboard Okarne GM');
 
   if (result.success) {
     return res.json({ success: true, message: 'Sauvegarde effectuée avec succès.' });

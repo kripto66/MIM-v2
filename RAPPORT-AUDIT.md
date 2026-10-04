@@ -1,4 +1,4 @@
-# RAPPORT D'AUDIT COMPLET — MIM (MyImmoManagement)
+# RAPPORT D'AUDIT COMPLET — MIM (Okarne Global Management)
 
 Date : 17/08/2026
 Périmètre : tout le projet `C:\xampp\htdocs\MIM2.1\MIM` (frontend ×4 zones, backend Express, Supabase local, migrations SQL, scripts, tests).

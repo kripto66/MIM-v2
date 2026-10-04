@@ -109,10 +109,10 @@ const app = document.getElementById("app");
 const sections = {
   dashboard: ["Dashboard", "Vue globale de la plateforme."],
   proprietaires: ["Propriétaires", "Gestion des comptes propriétaires."],
-  locataires: ["Locataires", "Vue globale des locataires de MIM."],
+  locataires: ["Locataires", "Vue globale des locataires de Okarne GM."],
   biens: ["Biens & logements", "Suivi du parc immobilier."],
   paiements: ["Paiements", "Suivi global des paiements."],
-  abonnements: ["Abonnements", "Suivi des abonnements MIM des propriétaires."],
+  abonnements: ["Abonnements", "Suivi des abonnements Okarne GM des propriétaires."],
   incidents: ["Incidents", "Incidents et interventions."],
   activite: ["Activité", "Historique des événements de la plateforme."],
 };
@@ -760,7 +760,7 @@ async function setStatut(id, statut) {
 // ============================================================
 
 function setAdminIdentity(user) {
-  const name = user.name || "Admin MIM";
+  const name = user.name || "Admin Okarne GM";
   const initials = name
     .split(/\s+/)
     .map((p) => p[0])

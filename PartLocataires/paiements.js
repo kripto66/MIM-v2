@@ -1,7 +1,7 @@
 
         // ============================================================
         // Page « Mes paiements » — flux « Payer mon loyer »
-        // Le locataire paie DIRECTEMENT son propriétaire (hors MIM)
+        // Le locataire paie DIRECTEMENT son propriétaire (hors Okarne GM)
         // avec le moyen configuré par celui-ci, puis déclare avoir
         // payé. MIM ne reçoit pas l'argent et ne connaît pas l'heure
         // réelle du transfert : seule la demande de validation est
