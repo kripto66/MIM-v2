@@ -113,6 +113,15 @@ body[data-espace] {
         linear-gradient(165deg, var(--bg-0), var(--bg-1) 55%, var(--bg-2));
 }
 
+/* Overscroll : le canevas racine reprend la meme palette. Sans regle sur
+   `html`, la zone depassee en haut/en bas du scroll restait blanche. */
+html:has(body[data-espace]) {
+    background:
+        linear-gradient(165deg, var(--bg-0), var(--bg-1) 55%, var(--bg-2));
+    background-color: var(--bg-1);
+    color-scheme: dark;
+}
+
 body[data-espace] .accent,
 body[data-espace] .brand-text strong,
 body[data-espace] h1 .accent {
