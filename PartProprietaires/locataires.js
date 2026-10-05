@@ -342,6 +342,7 @@ function renderLocataires() {
 
                 el("tenantModal").style.display = "none";
 
+                for (const warn of res.warnings || []) showToast(warn, "error");
                 if (!editing && res.autoAccount && res.account) {
                     showResultSummary(res);
                 } else {

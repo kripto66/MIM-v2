@@ -685,8 +685,10 @@ export function createCrudRouter(tableName) {
     }
 
     const accountUid = createdUser.user.id;
+    let accountWarnings = [];
     try {
-      await provisionProfile(admin, accountUid, 'locataire', finalUsername, true, email);
+      const provisioned = await provisionProfile(admin, accountUid, 'locataire', finalUsername, true, email);
+      accountWarnings = provisioned?.warnings || [];
     } catch (profileError) {
       await admin.auth.admin.deleteUser(accountUid).catch(() => {});
       await releaseQuota(admin, locataireReservation?.id, ownerId).catch(() => {});
@@ -770,6 +772,7 @@ if (createdLogementId) {
       account: autoAccount ? { username: finalUsername, password } : undefined,
       logement: createdLogement || null,
       echeance: echeance && echeance.created ? { mois: echeance.mois } : null,
+      ...(accountWarnings.length ? { warnings: accountWarnings } : {}),
     });
   }
 

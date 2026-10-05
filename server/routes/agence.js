@@ -1428,8 +1428,10 @@ async function scopedCreateTenant(req, res) {
 
     const accountUid = createdUser.user.id;
     createdAccountUid = accountUid;
+    let accountWarnings = [];
     try {
-      await provisionProfile(admin, accountUid, 'locataire', finalUsername, true, email);
+      const provisioned = await provisionProfile(admin, accountUid, 'locataire', finalUsername, true, email);
+      accountWarnings = provisioned?.warnings || [];
     } catch (profileError) {
       console.error('[agence/tenant:profile]', profileError.message);
       await rollback('tenant:profile');
@@ -1498,6 +1500,7 @@ async function scopedCreateTenant(req, res) {
       account: autoAccount ? { username: finalUsername, password } : undefined,
       logement: createdLogement || null,
       echeance: echeance && echeance.created ? { mois: echeance.mois } : null,
+      ...(accountWarnings.length ? { warnings: accountWarnings } : {}),
     });
   } catch (err) {
     // H-19 : le catch global rembourse aussi ce qui avait déjà été créé

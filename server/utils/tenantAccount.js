@@ -11,6 +11,14 @@ export function generateInitialPassword() {
   return `M!9${value}aA1`;
 }
 
+// L'e-mail de récupération est un champ AUXILIAIRE : il n'identifie pas le
+// compte (l'authentification passe par l'email interne @mim.local) et
+// `account_recovery_emails.email` est UNIQUE — une même adresse ne peut être
+// rattachée qu'à UN seul compte. Exiger cet e-mail faisait donc échouer la
+// création entière d'un 2e locataire/employé avec une adresse déjà utilisée
+// (compte Auth + logement créés puis supprimés en compensation).
+// On sauvegarde ce qui est possible, on journalise le reste, et l'appelant
+// reçoit `warnings` pour prévenir l'utilisateur.
 export async function provisionProfile(sb, userId, accountType, username, mustChangePassword = false, recoveryEmail = undefined) {
   const { error } = await sb.from('profiles').update({
     account_type: accountType,
@@ -20,21 +28,37 @@ export async function provisionProfile(sb, userId, accountType, username, mustCh
   }).eq('id', userId);
   if (error) throw new Error(error.message);
 
-  if (recoveryEmail !== undefined) {
-    const normalized = String(recoveryEmail || '').trim().toLowerCase();
-    if (normalized) {
-      const { error: recoveryError } = await sb.from('account_recovery_emails').upsert({
-        user_id: userId,
-        email: normalized,
-        verified_at: null,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id' });
-      if (recoveryError) throw new Error(recoveryError.message);
-    } else {
-      const { error: recoveryError } = await sb.from('account_recovery_emails').delete().eq('user_id', userId);
-      if (recoveryError) throw new Error(recoveryError.message);
+  if (recoveryEmail === undefined) return { recoveryEmailSaved: true, warnings: [] };
+
+  const warnings = [];
+  const normalized = String(recoveryEmail || '').trim().toLowerCase();
+
+  if (!normalized) {
+    const { error: recoveryError } = await sb.from('account_recovery_emails').delete().eq('user_id', userId);
+    if (recoveryError) {
+      console.warn(`[provisionProfile] email de récupération non supprimé pour ${userId} : ${recoveryError.message}`);
+      warnings.push("L'ancien e-mail de récupération n'a pas pu être retiré.");
     }
+    return { recoveryEmailSaved: !recoveryError, warnings };
   }
+
+  const { error: recoveryError } = await sb.from('account_recovery_emails').upsert({
+    user_id: userId,
+    email: normalized,
+    verified_at: null,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'user_id' });
+
+  if (recoveryError) {
+    console.warn(`[provisionProfile] email de récupération ignoré pour ${userId} : ${recoveryError.message}`);
+    warnings.push(
+      `L'adresse ${normalized} est déjà utilisée comme e-mail de récupération d'un autre compte : ` +
+      "elle n'a pas été enregistrée pour ce compte, mais celui-ci est créé normalement."
+    );
+    return { recoveryEmailSaved: false, warnings };
+  }
+
+  return { recoveryEmailSaved: true, warnings };
 }
 
 // ------------------------------------------------------------

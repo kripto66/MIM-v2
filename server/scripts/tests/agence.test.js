@@ -228,6 +228,46 @@ export async function runAgence(r, ctx) {
       }
     }
 
+    // --- 4 bis. Non-régression : un e-mail déjà utilisé comme e-mail de
+    // récupération ne doit plus faire échouer la création (colonne UNIQUE).
+    // Le compte ET la fiche sont créés, un simple avertissement est renvoyé.
+    const emailPartage = `is_test.partage.${stamp}@mimtest.com`;
+    const bicompte = async (suffixe) => {
+      const lg = await api(`/agence/bien/${bienId}/logements`, {
+        method: 'POST',
+        jar,
+        body: { nom: `is_test Lg ${suffixe} ${stamp}`, type: 'chambre', loyer_mensuel: 45000 },
+      });
+      return api(`/agence/bien/${bienId}/locataires`, {
+        method: 'POST',
+        jar,
+        body: {
+          autoAccount: true,
+          nom: `is_test Loc ${suffixe} ${stamp}`,
+          email: emailPartage,
+          logement_id: lg.data?.data?.id,
+          jour_echeance: 5,
+        },
+      });
+    };
+    const premier = await bicompte('A');
+    const second = await bicompte('B');
+    if (
+      premier.status === 201 &&
+      second.status === 201 &&
+      second.data?.data?.account_uid &&
+      Array.isArray(second.data?.warnings) &&
+      second.data.warnings.length > 0
+    ) {
+      r.pass(S, 'H-19 : e-mail de récupération déjà utilisé → 2e locataire créé + avertissement');
+    } else {
+      r.fail(
+        S,
+        'H-19 : e-mail de récupération déjà utilisé → 2e locataire créé + avertissement',
+        `statuts ${premier.status}/${second.status} ${JSON.stringify(second.data || {}).slice(0, 200)}`
+      );
+    }
+
     // --- 5. Suppression d'un logement occupé : refus (parité CRUD) ---
     const delOccupe = await api(`/agence/bien/${bienId}/logements/${lg1Id}`, { method: 'DELETE', jar });
     const { data: lg1Toujours } = await service.from('logements').select('id').eq('id', lg1Id).maybeSingle();
