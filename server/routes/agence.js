@@ -1357,6 +1357,13 @@ async function scopedCreateTenant(req, res) {
     if (logementNew) {
       const lg = sanitize('logements', { ...logementNew });
       lg.bien_id = bienId;
+      if (!lg.adresse) {
+        const { data: bien } = await admin.from('biens').select('adresse, ville, pays').eq('id', bienId).maybeSingle();
+        if (bien) {
+          const inherited = [bien.adresse, bien.ville, bien.pays].filter(Boolean).join(', ');
+          if (inherited) lg.adresse = inherited;
+        }
+      }
       const errs = validateResource('logements', lg, false);
       if (Object.keys(errs).length) {
         await releaseQuota(admin, logementReservation?.id, proprietaireId).catch(() => {});
@@ -1366,13 +1373,6 @@ async function scopedCreateTenant(req, res) {
           message: 'Veuillez corriger les champs du logement.',
           errors: Object.fromEntries(Object.entries(errs).map(([k, v]) => [`logement_${k}`, v])),
         });
-      }
-      if (!lg.adresse) {
-        const { data: bien } = await admin.from('biens').select('adresse, ville, pays').eq('id', bienId).maybeSingle();
-        if (bien) {
-          const inherited = [bien.adresse, bien.ville, bien.pays].filter(Boolean).join(', ');
-          if (inherited) lg.adresse = inherited;
-        }
       }
       const { data: logement, error: lgError } = await admin
         .from('logements')

@@ -142,7 +142,9 @@ app.use((req, res, next) => {
     "style-src 'self' 'unsafe-inline'",         // styles inline + Google Fonts si besoin
     "img-src 'self' data: blob: " + imageOrigins.join(' '),  // base64 + Supabase Storage (avatars)
     "font-src 'self' data:",                       // polices embarquées
-    "connect-src 'self' http://127.0.0.1:64321 https://*.supabase.co wss://*.supabase.co",  // API Supabase
+    // API + Realtime Supabase : les WebSocket du canal realtime doivent
+    // être explicitement autorisés, sinon le handshake ws:// est bloqué.
+    "connect-src 'self' http://127.0.0.1:64321 ws://127.0.0.1:64321 http://localhost:64321 ws://localhost:64321 https://*.supabase.co wss://*.supabase.co",
     "frame-ancestors 'none'",                      // pas de framing (renforce X-Frame-Options)
     "frame-src 'none'",                            // aucune iframe embarquée
     "base-uri 'self'",
