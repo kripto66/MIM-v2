@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Okarne GM — Employés du propriétaire géré</title>
+    <meta name="robots" content="noindex, nofollow">
+    <link rel="stylesheet" href="/mim-errors.css">
+    <script src="/mim-errors.js"></script>
+
+    <link rel="stylesheet" href="/PartAgence/first_Mode/style.css">
+    <link rel="stylesheet" href="/PartPublic/mim-ui.css">
+
+</head>
+
+<body data-espace="agence2">
+
+    <div class="dashboard">
+
+        <aside class="sidebar" id="sidebar" data-breakpoint="800">
+
+            <a class="logo" href="/PartAgence/first_Mode/dashboard.html" data-sidebar-toggle-logo title="Tableau de bord Agence"><img src="/images/logo-okarne.svg" alt="Okarne GM" class="logo-img" width="42" height="42"></a>
+
+            <nav class="sidebar-menu">
+                <div class="nav-category">MODE 2</div>
+                <a href="/PartAgence/first_Mode/dashboard.html">
+                    ← Retour au Dashboard Agence
+                </a>
+                <div class="nav-category">Bien courant</div>
+                <a href="/PartAgence/second_Mode/bien.html" id="navBien">Le bien</a>
+                <a href="/PartAgence/second_Mode/logements.html" id="navLogements">Logements</a>
+                <a href="/PartAgence/second_Mode/locataires.html" id="navLocataires">Locataires</a>
+                <a href="/PartAgence/second_Mode/paiements.html" id="navPaiements">Paiements</a>
+                <a href="/PartAgence/second_Mode/employes.html" id="navEmployes" class="active">Employés</a>
+                <a href="/PartAgence/second_Mode/incidents.html" id="navIncidents">Incidents</a>
+                <a href="/PartAgence/second_Mode/prestataires.html" id="navPrestataires">Prestataires</a>
+                <a href="/PartAgence/second_Mode/interventions.html" id="navInterventions">Interventions</a>
+                <div class="nav-category">Suivi</div>
+                <a href="/PartAgence/second_Mode/notifications.html" id="navNotifications">Notifications</a>
+            </nav>
+
+            <div class="sidebar-footer">
+                <button id="logoutBtn" type="button">
+                    Déconnexion
+                </button>
+            </div>
+
+        </aside>
+
+        <main class="main-content">
+
+            <header class="dashboard-header">
+
+                <button class="menu-toggle" data-sidebar-toggle aria-label="Ouvrir le menu" aria-expanded="false">
+                    ☰
+                </button>
+
+                <div id="apiMessage" class="api-message" style="display:none;"></div>
+
+                <div class="welcome">
+                    <h1>Employés<span class="accent">.</span></h1>
+                    <p>Comptes, salaires et tâches des employés du propriétaire géré.</p>
+                </div>
+
+                <button class="btn btn-primary" id="addBtn">+ Ajouter un employé</button>
+
+                <div class="header-actions">
+                    <a href="/PartAgence/first_Mode/dashboard.html" class="btn btn-secondary">
+                        ← Retour au Dashboard Agence
+                    </a>
+                </div>
+
+            </header>
+
+            <!-- Bandeau bien -->
+            <div id="bienBanner" class="sub-banner sub-banner-info" hidden></div>
+
+            <div class="tabs">
+                <button type="button" class="tab active" data-tab="employes">Employés</button>
+                <button type="button" class="tab" data-tab="taches">Tâches</button>
+            </div>
+
+            <section class="dashboard-section" id="employesSection">
+
+                <div class="section-header">
+                    <h2>Liste des employés</h2>
+                </div>
+
+                <p class="pay-hint">Les employés appartiennent au propriétaire géré : ils sont partagés entre ses biens, et chacun n'accède qu'aux biens qui lui sont affectés.</p>
+
+                <div class="search-bar">
+                    <input type="search" id="employeSearch" aria-label="Rechercher un employé" placeholder="🔎 Rechercher un employé (nom, username, poste, téléphone)…">
+                </div>
+
+                <div id="employesList">
+                    <div class="empty-state">Chargement...</div>
+                </div>
+
+            </section>
+
+            <section class="dashboard-section" id="tachesSection" style="display:none;">
+
+                <div class="section-header">
+                    <h2>Liste des tâches</h2>
+                </div>
+
+                <div id="tachesList">
+                    <div class="empty-state">Chargement...</div>
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+    <!-- ====================== MODAL EMPLOYÉ ====================== -->
+
+    <div class="modal-overlay" id="employeeModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="employeeModalTitle">Ajouter un employé</h2>
+
+            <form id="employeeForm">
+
+                <input type="hidden" id="employeeId">
+
+                <div class="form-group">
+                    <label for="emp_nom">Nom complet</label>
+                    <input type="text" id="emp_nom" name="emp_nom" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="emp_username">Username (connexion employé)</label>
+                        <input type="text" id="emp_username" name="emp_username" placeholder="ex : amadou.diallo" autocomplete="off">
+                        <small class="username-status" id="empUsernameStatus"></small>
+                    </div>
+                    <div class="form-group">
+                        <label for="emp_password">Mot de passe temporaire</label>
+                        <input type="password" id="emp_password" name="emp_password" placeholder="Minimum 8 caractères" autocomplete="new-password" minlength="8" data-strength>
+                    </div>
+                </div>
+                <div class="form-hint" id="empAutoHint">
+                    Laissez ces deux champs vides : Okarne GM générera automatiquement le username
+                    (imprévisible) et un mot de passe initial temporaire à changer
+                    à la première connexion.
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="emp_poste">Poste / fonction</label>
+                        <input type="text" id="emp_poste" name="emp_poste" placeholder="Ex : Gardien, Gérant, Agent d'entretien">
+                    </div>
+                    <div class="form-group">
+                        <label for="emp_salaire">Salaire mensuel (FCFA)</label>
+                        <input type="number" id="emp_salaire" name="emp_salaire" min="0" step="0.01" placeholder="ex : 100000">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="emp_biens">Biens affectés (l'employé ne voit que ces biens)</label>
+                    <select id="emp_biens" name="emp_biens" multiple size="4">
+                        <option value="" disabled>Chargement...</option>
+                    </select>
+                    <small class="form-hint">Maintenez Ctrl (ou ⌘) pour sélectionner plusieurs biens.</small>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="emp_email">Email (optionnel)</label>
+                        <input type="email" id="emp_email" name="emp_email">
+                    </div>
+                    <div class="form-group">
+                        <label for="emp_phone">Téléphone</label>
+                        <input type="tel" id="emp_phone" name="emp_phone">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="emp_date_embauche">Date d'embauche</label>
+                        <input type="date" id="emp_date_embauche" name="emp_date_embauche">
+                    </div>
+                    <div class="form-group">
+                        <label for="emp_statut">Statut</label>
+                        <select id="emp_statut" name="emp_statut">
+                            <option value="actif">Actif</option>
+                            <option value="inactif">Inactif</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelEmployeeModal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <!-- ====================== MODAL IDENTIFIANTS (CRÉATION AUTO) ====================== -->
+
+    <div class="modal-overlay" id="empResultModal" style="display:none;">
+        <div class="modal">
+
+            <h2>✅ Compte employé créé avec succès</h2>
+
+            <div class="result-summary" id="empResultSummary"></div>
+
+            <div class="account-credentials" id="empAccountCredentials" style="display:none;">
+                <p class="result-note">
+                    L'employé devra modifier son mot de passe lors de sa première connexion.
+                </p>
+                <button type="button" class="btn btn-primary" id="empCopyCredentialsBtn">Copier les identifiants</button>
+            </div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="closeEmpResultModal">Fermer</button>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- ====================== MODAL PAIEMENT DE SALAIRE ====================== -->
+
+    <div class="modal-overlay" id="payModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="payModalTitle">Payer le salaire</h2>
+
+            <div id="payHistory" class="pay-history"></div>
+
+            <form id="payForm">
+
+                <input type="hidden" id="payEmployeeId">
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="pay_montant">Montant (FCFA)</label>
+                        <input type="number" id="pay_montant" name="pay_montant" min="0.01" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="pay_mois">Mois</label>
+                        <input type="month" id="pay_mois" name="pay_mois" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="pay_methode">Moyen de versement</label>
+                        <select id="pay_methode" name="pay_methode">
+                            <option value="wave">Wave</option>
+                            <option value="orange_money">Orange Money</option>
+                            <option value="virement">Virement bancaire</option>
+                            <option value="especes">Espèces</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="pay_date">Date du versement (déclarée)</label>
+                        <input type="date" id="pay_date" name="pay_date">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="pay_reference">Référence (n° transaction, optionnel)</label>
+                    <input type="text" id="pay_reference" name="pay_reference" maxlength="80" placeholder="Référence déclarée par vous">
+                </div>
+
+                <input type="hidden" id="pay_statut" name="pay_statut" value="paye">
+
+                <p class="pay-note-ok" id="payFlowNote">Vous versez le salaire directement à l'employé (hors Okarne GM, sur le moyen qu'il a configuré) puis enregistrez le versement ci-dessous.</p>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelPayModal">Fermer</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer le versement</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <!-- ====================== MODAL TÂCHE ====================== -->
+
+    <div class="modal-overlay" id="taskModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="taskModalTitle">Ajouter une tâche</h2>
+
+            <form id="taskForm">
+
+                <input type="hidden" id="taskId">
+
+                <div class="form-group">
+                    <label for="task_titre">Titre</label>
+                    <input type="text" id="task_titre" name="task_titre" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="task_description">Description</label>
+                    <textarea id="task_description" name="task_description" rows="3"></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="task_employe">Employé assigné</label>
+                        <select id="task_employe" name="task_employe">
+                            <option value="">— Aucun —</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="task_statut">Statut</label>
+                        <select id="task_statut" name="task_statut">
+                            <option value="a_faire">À faire</option>
+                            <option value="en_cours">En cours</option>
+                            <option value="termine">Terminée</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="task_echeance">Échéance</label>
+                    <input type="date" id="task_echeance" name="task_echeance">
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelTaskModal">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <script src="/PartAgence/second_Mode/scope.js"></script>
+    <script src="/PartPublic/api.js"></script>
+    <script src="/PartPublic/crud.js"></script>
+    <script src="/PartAgence/second_Mode/mode2.js"></script>
+    <script src="/PartPublic/form-utils.js"></script>
+    <script src="/PartPublic/password-strength.js"></script>
+    <script src="/PartProprietaires/employes.js"></script>
+
+    <script>
+        // MODE 2 — le formulaire employé présélectionne le bien géré :
+        // l'agent crée l'employé depuis la fiche d'un bien, l'affectation
+        // à CE bien est le cas nominal. Sans effet sur l'édition (biens
+        // déjà affectés) ni sur l'espace propriétaire, qui charge ce
+        // script unconditionnellement mais sans MIM.agenceBien.
+        document.addEventListener("DOMContentLoaded", function () {
+            var original = window.renderBienOptions;
+            if (typeof original !== "function") return;
+            window.renderBienOptions = function (selectedIds) {
+                var creating = !document.getElementById("employeeId").value;
+                var bien = window.MIM && window.MIM.agenceBien;
+                if (!(selectedIds && selectedIds.length) && creating && bien && bien.id) {
+                    return original.call(this, [bien.id]);
+                }
+                return original.call(this, selectedIds || []);
+            };
+        });
+    </script>
+
+    <script src="/PartPublic/sidebar.js"></script>
+
+</body>
+
+</html>

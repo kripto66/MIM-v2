@@ -33,6 +33,7 @@
                 <a href="/PartAgence/second_Mode/logements.html" id="navLogements">Logements</a>
                 <a href="/PartAgence/second_Mode/locataires.html" id="navLocataires">Locataires</a>
                 <a href="/PartAgence/second_Mode/paiements.html" id="navPaiements" class="active">Paiements</a>
+                <a href="/PartAgence/second_Mode/employes.html" id="navEmployes">Employés</a>
                 <a href="/PartAgence/second_Mode/incidents.html" id="navIncidents">Incidents</a>
                 <a href="/PartAgence/second_Mode/prestataires.html" id="navPrestataires">Prestataires</a>
                 <a href="/PartAgence/second_Mode/interventions.html" id="navInterventions">Interventions</a>
@@ -60,7 +61,7 @@
 
                 <div class="welcome">
                     <h1>Paiements<span class="accent">.</span></h1>
-                    <p>Les loyers des locataires du bien.</p>
+                    <p>Loyers du bien, moyens de réception et salaires des employés.</p>
                 </div>
 
                 <div class="header-actions">
@@ -74,31 +75,102 @@
             <!-- Bandeau bien -->
             <div id="bienBanner" class="sub-banner sub-banner-info" hidden></div>
 
-            <section class="dashboard-section">
+            <nav class="pay-tabs" id="payTabs">
+                <button type="button" class="tab-btn active" data-paytab="locataires">
+                    👤 Paiements des locataires
+                    <span class="tab-sub">Loyers reçus et moyens de réception</span>
+                </button>
+                <button type="button" class="tab-btn" data-paytab="employes">
+                    👷 Payer les employés
+                    <span class="tab-sub">Salaires versés</span>
+                </button>
+            </nav>
 
-                <div class="section-header">
-                    <h2>Paiements à valider</h2>
-                    <span id="pendingCount" class="status status-warning">0</span>
-                </div>
+            <!-- ============================================================
+                 ESPACE 1 : PAIEMENTS DES LOCATAIRES
+                 ============================================================ -->
 
-                <div id="pendingList">
-                    <div class="empty-state">Chargement...</div>
-                </div>
+            <div id="paytab-locataires">
 
-            </section>
+                <section class="dashboard-section">
 
-            <section class="dashboard-section">
+                    <div class="section-header">
+                        <h2>Paiements à valider</h2>
+                        <span id="pendingCount" class="status status-warning">0</span>
+                    </div>
 
-                <div class="section-header">
-                    <h2>Historique des paiements</h2>
-                    <button type="button" class="btn btn-primary" id="addPaiementBtn">+ Enregistrer un paiement</button>
-                </div>
+                    <div id="pendingList">
+                        <div class="empty-state">Chargement...</div>
+                    </div>
 
-                <div id="paiementsList">
-                    <div class="empty-state">Chargement...</div>
-                </div>
+                </section>
 
-            </section>
+                <section class="dashboard-section">
+
+                    <div class="section-header">
+                        <h2>Historique des paiements</h2>
+                        <button type="button" class="btn btn-primary" id="addPaiementBtn">+ Enregistrer un paiement</button>
+                    </div>
+
+                    <div id="paiementsList">
+                        <div class="empty-state">Chargement...</div>
+                    </div>
+
+                </section>
+
+                <section class="dashboard-section">
+
+                    <div class="section-header">
+                        <h2>Moyens de réception du propriétaire géré</h2>
+                        <button type="button" class="btn btn-primary" id="addMoyenBtn">+ Ajouter un moyen de paiement</button>
+                    </div>
+
+                    <p class="pay-hint">Ces moyens sont affichés aux locataires pour payer directement leur loyer. Ajoutez autant de moyens que nécessaire.</p>
+
+                    <div id="moyensList">
+                        <div class="empty-state">Chargement...</div>
+                    </div>
+
+                </section>
+
+            </div>
+
+            <!-- ============================================================
+                 ESPACE 2 : PAYER LES EMPLOYÉS
+                 ============================================================ -->
+
+            <div id="paytab-employes" style="display:none;">
+
+                <section class="dashboard-section">
+
+                    <div class="section-header">
+                        <h2>Salaires</h2>
+                        <span id="empPayCount" class="status status-info">0 employé(s)</span>
+                    </div>
+
+                    <div class="search-bar">
+                        <input type="search" id="employeSearch" aria-label="Rechercher un employé" placeholder="🔎 Rechercher un employé (nom, prénom, poste)…">
+                    </div>
+
+                    <div id="employesPayList">
+                        <div class="empty-state">Chargement...</div>
+                    </div>
+
+                </section>
+
+                <section class="dashboard-section">
+
+                    <div class="section-header">
+                        <h2>Historique des salaires</h2>
+                    </div>
+
+                    <div id="salairesHistory">
+                        <div class="empty-state">Chargement...</div>
+                    </div>
+
+                </section>
+
+            </div>
 
         </main>
 
@@ -164,7 +236,7 @@
                     <input type="month" id="mois" name="mois" required>
                 </div>
 
-                <p class="pay-note-ok" id="flowNote">Le paiement est créé « En attente » : votre locataire paie directement (hors Okarne GM) avec le moyen indiqué, puis déclare son paiement que vous validez après vérification.</p>
+                <p class="pay-note-ok" id="flowNote">Le paiement est créé « En attente » : le locataire paie directement (hors Okarne GM) avec le moyen indiqué, puis déclare son paiement que vous validez après vérification.</p>
 
                 <div class="form-row">
                     <div class="form-group">
@@ -192,12 +264,98 @@
         </div>
     </div>
 
+    <!-- Modal : moyen de réception du propriétaire -->
+    <div class="modal-overlay" id="moyenModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="moyenModalTitle">Ajouter un moyen de paiement</h2>
+
+            <form id="moyenForm">
+
+                <input type="hidden" id="moyenId">
+
+                <div class="form-group">
+                    <label for="moyen_type">Type</label>
+                    <select id="moyen_type" name="moyen_type">
+                        <option value="wave">Wave</option>
+                        <option value="orange_money">Orange Money</option>
+                        <option value="virement">Virement bancaire</option>
+                        <option value="especes">Espèces</option>
+                    </select>
+                </div>
+
+                <div class="form-group" data-mfield="nom_titulaire">
+                    <label for="moyen_nom">Nom complet du titulaire</label>
+                    <input type="text" id="moyen_nom" name="nom_titulaire" maxlength="200">
+                </div>
+
+                <div class="form-group" data-mfield="numero">
+                    <label for="moyen_numero">Numéro</label>
+                    <input type="text" id="moyen_numero" name="numero" maxlength="200" placeholder="ex : 77 123 45 67">
+                </div>
+
+                <div class="form-group" data-mfield="banque">
+                    <label for="moyen_banque">Banque</label>
+                    <input type="text" id="moyen_banque" name="banque" maxlength="200">
+                </div>
+
+                <div class="form-group" data-mfield="num_compte">
+                    <label for="moyen_compte">Numéro de compte</label>
+                    <input type="text" id="moyen_compte" name="num_compte" maxlength="200">
+                </div>
+
+                <div class="form-group" data-mfield="lien_paiement">
+                    <label for="moyen_lien">Lien de paiement (optionnel)</label>
+                    <input type="url" id="moyen_lien" name="lien_paiement" maxlength="200">
+                </div>
+
+                <div class="form-group" data-mfield="instructions">
+                    <label for="moyen_instructions">Instructions (optionnel)</label>
+                    <textarea id="moyen_instructions" name="instructions" maxlength="200" rows="2" placeholder="Précisions utiles pour le paiement…"></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="moyenCancel">Annuler</button>
+                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                </div>
+
+            </form>
+
+        </div>
+    </div>
+
+    <!-- Modal : payer un salarié -->
+    <div class="modal-overlay" id="payEmpModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="payEmpTitle">Payer le salaire</h2>
+
+            <div id="payEmpBody"></div>
+
+        </div>
+    </div>
+
+    <!-- Modal : historique d'un employé -->
+    <div class="modal-overlay" id="histModal" style="display:none;">
+        <div class="modal">
+
+            <h2 id="histTitle">Historique des salaires</h2>
+
+            <div id="histBody"></div>
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" id="histClose">Fermer</button>
+            </div>
+
+        </div>
+    </div>
+
     <script src="/PartAgence/second_Mode/scope.js"></script>
     <script src="/PartPublic/api.js"></script>
     <script src="/PartPublic/crud.js"></script>
     <script src="/PartAgence/second_Mode/mode2.js"></script>
     <script src="/PartPublic/form-utils.js"></script>
-    <script src="paiements.js"></script>
+    <script src="/PartProprietaires/paiements.js"></script>
 
     <script src="/PartPublic/sidebar.js"></script>
 

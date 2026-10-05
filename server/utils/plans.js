@@ -2,15 +2,15 @@
 // MIM - Catalogue des plans d'abonnement
 //
 // Deux audiences cohabitent (colonne public.plans.audience) :
-//   * 'proprietaire' : standard 7 000 / premium 15 000 /
-//     pro 30 000 / agence 50 000 XOF par mois ;
+//   * 'proprietaire' : standard 3 000 / premium 6 000 /
+//     pro 9 000 / agence 50 000 XOF par mois ;
 //   * 'agence' : Starter 15 000 / Pro 25 000 / Business 40 000.
 //
 // Un compte ne voit QUE les plans de son audience : la vérification
 // est refaite au checkout (fail-closed), pas seulement dans l'UI.
-// Les capacités (immeubles, logements, locataires) sont définies en
-// base et TOUJOURS lues côté serveur. Employés et prestataires restent
-// illimités sur tous les plans.
+// Les capacités (biens, logements, locataires, employés,
+// prestataires) sont définies en base et TOUJOURS lues côté serveur —
+// une valeur NULL signifie « illimité » (check_quota_for_plan).
 // ============================================================
 
 import { serviceClient } from '../app.js';
@@ -66,6 +66,8 @@ export function planView(plan) {
     max_immeubles: plan.max_immeubles,
     max_logements: plan.max_logements,
     max_locataires: plan.max_locataires,
+    max_employes: plan.max_employes,
+    max_prestataires: plan.max_prestataires,
     duree_abonnement: plan.duree_abonnement,
     audience: plan.audience || 'proprietaire',
     description: plan.description,
