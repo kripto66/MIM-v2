@@ -70,8 +70,8 @@ router.post('/avatar', async (req, res) => {
     return res.status(500).json({ success: false, message: 'Erreur lors de l\'enregistrement de la photo.' });
   }
 
-  const { data: pub } = sb.storage.from(BUCKET).getPublicUrl(filePath);
-  const avatarUrl = pub?.publicUrl || null;
+  const publicBase = (process.env.SUPABASE_PUBLIC_URL || process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+  const avatarUrl = publicBase ? `${publicBase}/storage/v1/object/public/${BUCKET}/${filePath}` : null;
 
   // Une seule photo par compte : on retire les anciennes extensions
   // (jamais le fichier qui vient d'être écrit).

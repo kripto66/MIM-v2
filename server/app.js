@@ -76,7 +76,9 @@ export function serviceClient() {
 // Storage (URL http://127.0.0.1:64321/storage/... en local, *.supabase.co
 // en production). Sans cela, la CSP bloque le chargement des photos.
 const supabaseOrigin = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
-const imageOrigins = [supabaseOrigin, 'https://*.supabase.co'].filter(Boolean);
+const publicSupabaseOrigin = (process.env.SUPABASE_PUBLIC_URL || '').replace(/\/+$/, '');
+const publicSupabaseWs = publicSupabaseOrigin.replace(/^https:/, 'wss:').replace(/^http:/, 'ws:');
+const imageOrigins = [supabaseOrigin, publicSupabaseOrigin, 'https://*.supabase.co'].filter(Boolean);
 
 const corsOrigins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean)
@@ -144,7 +146,7 @@ app.use((req, res, next) => {
     "font-src 'self' data:",                       // polices embarquées
     // API + Realtime Supabase : les WebSocket du canal realtime doivent
     // être explicitement autorisés, sinon le handshake ws:// est bloqué.
-    "connect-src 'self' http://127.0.0.1:64321 ws://127.0.0.1:64321 http://localhost:64321 ws://localhost:64321 https://*.supabase.co wss://*.supabase.co",
+    "connect-src 'self' http://127.0.0.1:64321 ws://127.0.0.1:64321 http://localhost:64321 ws://localhost:64321 https://*.supabase.co wss://*.supabase.co" + (publicSupabaseOrigin ? ` ${publicSupabaseOrigin} ${publicSupabaseWs}` : ''),
     "frame-ancestors 'none'",                      // pas de framing (renforce X-Frame-Options)
     "frame-src 'none'",                            // aucune iframe embarquée
     "base-uri 'self'",

@@ -9,7 +9,7 @@ const router = Router();
 router.get('/session', (req, res) => {
   res.json({
     success: true,
-    url: process.env.SUPABASE_URL,
+    url: process.env.SUPABASE_PUBLIC_URL || process.env.SUPABASE_URL,
     anonKey: process.env.SUPABASE_ANON_KEY,
     userId: req.user.id,
     token: req.user.supabase_token,
