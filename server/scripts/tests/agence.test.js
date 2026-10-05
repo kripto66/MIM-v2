@@ -112,6 +112,8 @@ export async function runAgence(r, ctx) {
   let locUid = null;
   let locUsername = null;
   let locPassword = null;
+  let employeId = null;
+  let employeUid = null;
 
   try {
     // --- 1. Propriétaire géré : 201 seulement avec lien + identifiants ---
@@ -266,6 +268,143 @@ export async function runAgence(r, ctx) {
         'H-19 : e-mail de récupération déjà utilisé → 2e locataire créé + avertissement',
         `statuts ${premier.status}/${second.status} ${JSON.stringify(second.data || {}).slice(0, 200)}`
       );
+    }
+
+    // --- 4 ter. MODE 2 : employés, salaires, tâches et moyens de paiement
+    // scopés sur le MANDAT (requireMandateBien) et rattachés au
+    // PROPRIÉTAIRE GÉRÉ — jamais au compte de l'agence.
+    const base = `/agence/bien/${bienId}`;
+
+    const listeBiens = await api(`${base}/biens`, { jar });
+    if (listeBiens.status === 200 && (listeBiens.data?.data || []).some((b) => Number(b.id) === Number(bienId))) {
+      r.pass(S, 'MODE 2 : /biens scopé renvoie les biens du propriétaire géré');
+    } else {
+      r.fail(S, 'MODE 2 : /biens scopé renvoie les biens du propriétaire géré', `statut ${listeBiens.status}`);
+    }
+
+    const createEmp = await api(`${base}/employes`, {
+      method: 'POST',
+      jar,
+      body: {
+        nom: 'Employe',
+        prenom: 'Awa',
+        poste: 'Gardienne',
+        telephone: '+221771234567',
+        email: `is_test.emp.${stamp}@mimtest.com`,
+        salaire: 125000,
+        date_embauche: '2026-01-05',
+        statut: 'actif',
+        biens: [bienId],
+      },
+    });
+    const empRow = createEmp.data?.data;
+    employeId = empRow?.id || null;
+    employeUid = empRow?.account_uid || null;
+    if (createEmp.status === 201 && employeId && employeUid && createEmp.data?.account?.username && createEmp.data?.account?.password) {
+      r.pass(S, 'MODE 2 : compte employé créé via l\'agence (201 + identifiants)');
+    } else {
+      r.fail(S, 'MODE 2 : compte employé créé via l\'agence (201 + identifiants)', `statut ${createEmp.status} ${JSON.stringify(createEmp.data || {}).slice(0, 240)}`);
+    }
+
+    if (employeId) {
+      const { data: ficheEmp } = await service
+        .from('employes')
+        .select('user_id, account_uid, salaire')
+        .eq('id', employeId)
+        .maybeSingle();
+      if (ficheEmp?.user_id === proprioId && ficheEmp?.account_uid === employeUid) {
+        r.pass(S, 'MODE 2 : l\'employé appartient au PROPRIÉTAIRE GÉRÉ (pas à l\'agence)');
+      } else {
+        r.fail(S, 'MODE 2 : l\'employé appartient au PROPRIÉTAIRE GÉRÉ (pas à l\'agence)', JSON.stringify(ficheEmp));
+      }
+
+      const { data: affectation } = await service
+        .from('employes_biens')
+        .select('bien_id')
+        .eq('employe_id', employeId)
+        .maybeSingle();
+      if (Number(affectation?.bien_id) === Number(bienId)) {
+        r.pass(S, 'MODE 2 : l\'employé est affecté au bien géré');
+      } else {
+        r.fail(S, 'MODE 2 : l\'employé est affecté au bien géré', JSON.stringify(affectation));
+      }
+
+      const listEmp = await api(`${base}/employes`, { jar });
+      if (listEmp.status === 200 && (listEmp.data?.data || []).some((e) => Number(e.id) === Number(employeId))) {
+        r.pass(S, 'MODE 2 : liste des employés du propriétaire via le scope bien');
+      } else {
+        r.fail(S, 'MODE 2 : liste des employés du propriétaire via le scope bien', `statut ${listEmp.status}`);
+      }
+
+      // Salaire versé : même contrat que /api/employes/:id/paiements.
+      const salaire = await api(`${base}/employes/${employeId}/paiements`, {
+        method: 'POST',
+        jar,
+        body: { montant: 125000, mois: '2026-03', statut: 'attente', date_paiement: '2026-03-05' },
+      });
+      const histSalaire = await api(`${base}/employes/${employeId}/paiements`, { jar });
+      const { data: ligneSalaire } = await service
+        .from('paiements_employes')
+        .select('user_id, montant')
+        .eq('employe_id', employeId)
+        .maybeSingle();
+      if (
+        salaire.status === 201 &&
+        (histSalaire.data?.data || []).length === 1 &&
+        ligneSalaire?.user_id === proprioId &&
+        Number(ligneSalaire?.montant) === 125000
+      ) {
+        r.pass(S, 'MODE 2 : salaire versé puis relu (imputé au propriétaire géré)');
+      } else {
+        r.fail(S, 'MODE 2 : salaire versé puis relu (imputé au propriétaire géré)', `statuts ${salaire.status}/${histSalaire.status} ${JSON.stringify(ligneSalaire)}`);
+      }
+
+      // Un employé d'un AUTRE propriétaire reste hors de portée.
+      const employeEtranger = await service
+        .from('employes')
+        .insert({ user_id: p2Id || proprioId, nom: 'is_test Intrus', salaire: 1, statut: 'actif' })
+        .select('id')
+        .single();
+      if (employeEtranger?.data?.id && p2Id) {
+        const intrusion = await api(`${base}/employes/${employeEtranger.data.id}/paiements`, {
+          method: 'POST',
+          jar,
+          body: { montant: 1000, mois: '2026-03', statut: 'attente' },
+        });
+        if (intrusion.status === 404) {
+          r.pass(S, 'MODE 2 : employé d\'un autre propriétaire inaccessible (404)');
+        } else {
+          r.fail(S, 'MODE 2 : employé d\'un autre propriétaire inaccessible (404)', `statut ${intrusion.status}`);
+        }
+      }
+
+      const tache = await api(`${base}/tasks`, {
+        method: 'POST',
+        jar,
+        body: { titre: 'is_test Tache H19', employe_uid: employeUid, statut: 'a_faire' },
+      });
+      if (tache.status === 201 && tache.data?.data?.employe_uid === employeUid && tache.data?.data?.user_id === proprioId) {
+        r.pass(S, 'MODE 2 : tâche assignée à l\'employé du propriétaire géré');
+      } else {
+        r.fail(S, 'MODE 2 : tâche assignée à l\'employé du propriétaire géré', `statut ${tache.status} ${JSON.stringify(tache.data || {}).slice(0, 200)}`);
+      }
+    }
+
+    const moyen = await api(`${base}/moyens-paiement`, {
+      method: 'POST',
+      jar,
+      body: { type: 'wave', nom_titulaire: 'is_test Wave H19', numero: '+221771234567' },
+    });
+    const listMoyens = await api(`${base}/moyens-paiement`, { jar });
+    const { data: moyenRow } = await service
+      .from('moyens_paiement')
+      .select('user_id')
+      .eq('id', moyen.data?.data?.id || 0)
+      .maybeSingle();
+    if (moyen.status === 201 && listMoyens.status === 200 && moyenRow?.user_id === proprioId) {
+      r.pass(S, 'MODE 2 : moyen de paiement du propriétaire via le scope bien');
+    } else {
+      r.fail(S, 'MODE 2 : moyen de paiement du propriétaire via le scope bien', `statuts ${moyen.status}/${listMoyens.status} ${JSON.stringify(moyenRow)}`);
     }
 
     // --- 5. Suppression d'un logement occupé : refus (parité CRUD) ---
@@ -464,6 +603,16 @@ export async function runAgence(r, ctx) {
     }
   } finally {
     // --- Nettoyage : d'abord les lignes, puis les comptes ---
+    if (employeUid) {
+      await service.from('moyens_paiement_employes').delete().eq('employe_uid', employeUid);
+    }
+    if (employeId) {
+      await service.from('paiements_employes').delete().eq('employe_id', employeId);
+      await service.from('employes_biens').delete().eq('employe_id', employeId);
+      await service.from('employes').delete().eq('id', employeId);
+    }
+    await service.from('employes').delete().eq('user_id', proprioId);
+    await service.from('moyens_paiement').delete().eq('user_id', proprioId);
     await service.from('paiements').delete().eq('user_id', proprioId);
     await service.from('locataires').delete().eq('user_id', proprioId);
     await service.from('logements').delete().eq('user_id', proprioId);
@@ -472,6 +621,7 @@ export async function runAgence(r, ctx) {
     await service.from('biens').delete().eq('user_id', proprioId);
 
     if (p2Id) {
+      await service.from('employes').delete().eq('user_id', p2Id);
       await service.from('paiements').delete().eq('user_id', p2Id);
       await service.from('locataires').delete().eq('user_id', p2Id);
       await service.from('logements').delete().eq('user_id', p2Id);
@@ -480,6 +630,7 @@ export async function runAgence(r, ctx) {
     }
     if (planCode) await service.from('plans').delete().eq('code', planCode);
 
+    if (employeUid) await service.auth.admin.deleteUser(employeUid).catch(() => {});
     if (locUid) await service.auth.admin.deleteUser(locUid).catch(() => {});
     if (gereId) await service.auth.admin.deleteUser(gereId).catch(() => {});
     if (p2Id) await service.auth.admin.deleteUser(p2Id).catch(() => {});

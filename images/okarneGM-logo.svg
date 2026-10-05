@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="200" viewBox="0 0 400 200" role="img" aria-labelledby="title desc">
+  <title id="title">Okarne GM - Professional SaaS Real Estate Platform Logo</title>
+  <desc id="desc">Abstract geometric logo for Okarne GM: a modern SaaS platform for real estate management combining property and technology elements</desc>
+  
+  <!-- Definitions for gradients, filters, and patterns -->
+  <defs>
+    <!-- Primary deep blue gradient -->
+    <linearGradient id="deepBlueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d1b2a"/>
+      <stop offset="50%" stop-color="#1a2d47"/>
+      <stop offset="100%" stop-color="#080c14"/>
+    </linearGradient>
+    
+    <!-- Warm orange accent gradient -->
+    <linearGradient id="orangeAccentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ff6b35"/>
+      <stop offset="50%" stop-color="#e85d27"/>
+      <stop offset="100%" stop-color="#bd3d15"/>
+    </linearGradient>
+    
+    <!-- Secondary blue gradient for symbol elements -->
+    <linearGradient id="symbolBlueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2c3e50"/>
+      <stop offset="50%" stop-color="#34495e"/>
+      <stop offset="100%" stop-color="#2c3e50"/>
+    </linearGradient>
+    
+    <!-- Orange accent for symbol highlights -->
+    <linearGradient id="orangeHighlightGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#ffa3a3"/>
+      <stop offset="100%" stop-color="#ff7878"/>
+    </linearGradient>
+    
+    <!-- Clean sans-serif font suggestion via text rendering -->
+    <!-- Filter for subtle inner shadow -->
+    <filter id="innerShadow">
+      <feOffset dx="1" dy="1" result="offOut"/>
+      <feMerge>
+        <feMergeNode in="offOut"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Subtle glow for digital feel -->
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- Monochrome version filter -->
+    <filter id="monochrome">
+      <feColorMatrix type="matrix" values="0.272 0.534 0.131 0 0.349 0.686 0.168 0 0.349 0.686 0.168 0 0.272 0.534 0.131 0 0 0 0 1 0"/>
+    </filter>
+  </defs>
+  
+  <!-- ==================== PRIMARY LOGO SYMBOL ==================== -->
+  <!-- A abstract mark combining: management, property, technology -->
+  <g id="symbol" transform="translate(20, 50)">
+    <!-- Left: geometric building/property suggestion (stylized, not generic) -->
+    <!-- A polygon suggesting a building footprint with digital connection -->
+    <polygon points="0,50 30,0 60,50 30,100" fill="url(#symbolBlueGrad)"/>
+    
+    <!-- Central connecting element: representing technology/management -->
+    <path d="M30 20 Q 50 0 70 20 Q 70 40 50 50 Q 30 40 10 50 Z" 
+          fill="url(#orangeHighlightGrad)" opacity="0.9"/>
+    
+    <!-- Right side: digital/organization suggestion -->
+    <polygon points="80,0 110,50 80,100" fill="url(#symbolBlueGrad)"/>
+    
+    <!-- Middle connecting bar: management link -->
+    <rect x="60" y="20" width="20" height="10" fill="#ffffff" opacity="0.8"/>
+    
+    <!-- Bottom: property/assets suggestion -->
+    <polygon points="20,100 60,150 100,100" fill="url(#symbolBlueGrad)"/>
+    
+    <!-- Subtle central circle: technology focus -->
+    <circle cx="50" cy="50" r="8" fill="#ffffff" opacity="0.3"/>
+  </g>
+  
+  <!-- ==================== WORDMARK: okarne GM ==================== -->
+  <g id="wordmark" transform="translate(130, 50)">
+    <!-- "Okarne" - the main name in custom geometric sans-serif -->
+    <text x="0" y="40" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" 
+          font-size="36" font-weight="bold" letter-spacing="2.5" line-height="1.2">
+      <tspan fill="#1a73e8" dx="0">Okarne</tspan>
+      <tspan fill="#3498db" dx="0" dy="36">GM</tspan>
+    </text>
+    
+    <!-- Subtle background bar for readability -->
+    <rect x="-5" y="38" width="180" height="42" fill="rgba(0,0,0,0.3)" rx="4"/>
+    
+    <!-- Decorative split line -->
+    <line x1="0" y1="35" x2="150" y2="35" stroke="#ff6b35" stroke-width="1" stroke-opacity="0.4"/>
+  </g>
+  
+  <!-- ==================== ALTERNATE LAYOUTS ==================== -->
+  
+  <!-- Compact standalone symbol for favicon/app icon (extract from main symbol) -->
+  <g id="standaloneSymbol" transform="translate(280, 140)">
+    <polygon points="0,0 30,50 60,0 30,0" fill="url(#deepBlueGrad)"/>
+    <circle cx="15" cy="25" r="8" fill="#ff6b35"/>
+  </g>
+  
+  <!-- Monochrome version overlay (for B&W usage) -->
+  <g id="monochromeVersion" transform="translate(10, 140)" filter="url(#monochrome)">
+    <use href="#symbol" fill="#000000"/>
+    <use href="#wordmark" fill="#000000"/>
+  </g>
+</svg>

@@ -1,0 +1,130 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="300" height="150" viewBox="0 0 300 150" role="img" aria-labelledby="title desc">
+  <title id="title">okarne GM - Logo 3D Professionnel</title>
+  <desc id="desc">Logo professionnel 3D pour okarne GM avec effets de profondeur et identité visuelle moderne</desc>
+  
+  <!-- Color palette definitions -->
+  <defs>
+    <!-- Primary gradient: dark blue to tech blue -->
+    <linearGradient id="primaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0d1b2a;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#1b2a41;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#080c14;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Secondary gradient: cyan to teal -->
+    <linearGradient id="secondaryGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00d4aa;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#00a896;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#008877;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Metallic gradient for 3D effect -->
+    <linearGradient id="metalGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#f5f7fa;stop-opacity:1" />
+      <stop offset="40%" style="stop-color:#e2e6eb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#d0d5dd;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Shadow gradient -->
+    <linearGradient id="shadowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#000000;stop-opacity:0" />
+      <stop offset="60%" style="stop-color:#000000;stop-opacity:0.4" />
+      <stop offset="100%" style="stop-color:#000000;stop-opacity:0.6" />
+    </linearGradient>
+    
+    <!-- Glow effect -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    
+    <!-- 3D shadow filter -->
+    <filter id="shadow-3d">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+      <feOffset dx="5" dy="5" result="offset-alpha"/>
+      <feComposite in="SourceAlpha" in2="offset-alpha" operator="in" result="offset-alpha"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  
+  <!-- Main 3D cube structure -->
+  <g transform="translate(25, 25)">
+    <!-- Top face (3D) -->
+    <polygon points="0,0 100,0 100,50 0,50" fill="url(#primaryGrad)"/>
+    
+    <!-- Front face -->
+    <rect x="0" y="0" width="100" height="50" fill="url(#secondaryGrad)" filter="url(#shadow-3d)"/>
+    
+    <!-- Right face (3D extruded) -->
+    <polygon points="100,0 200,0 200,50 100,50" fill="#00b4d8"/>
+    
+    <!-- Bottom face -->
+    <polygon points="0,50 100,50 200,100 0,100" fill="#009688"/>
+    
+    <!-- Left face -->
+    <polygon points="0,0 0,100 0,150 0,50" fill="#008377"/>
+    
+    <!-- Back face (hidden/oblique) -->
+    <polygon points="100,50 200,50 200,150 100,150" fill="#006d5f"/>
+    
+    <!-- Center accent stripe -->
+    <line x1="50" y1="0" x2="50" y2="150" stroke="#00ffcc" stroke-width="1" stroke-opacity="0.3"/>
+    
+    <!-- Left side accent -->
+    <line x1="0" y1="50" x2="0" y2="150" stroke="#00e5b9" stroke-width="1" stroke-opacity="0.2"/>
+    
+    <!-- Right side accent -->
+    <line x1="200" y1="50" x2="200" y2="150" stroke="#00e5b9" stroke-width="1" stroke-opacity="0.2"/>
+  </g>
+  
+  <!-- Brand name text with 3D effect -->
+  <g transform="translate(160, 80)">
+    <!-- 3D shadow offset -->
+    <text x="2" y="2" fill="none" font-family="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" font-size="36" font-weight="bold" letter-spacing="2">
+      <tspan fill="#000000" dx="2" dy="2">okarne</tspan>
+      <tspan fill="#000000" dx="4" dy="4">GM</tspan>
+    </text>
+    
+    <!-- Main 3D text -->
+    <text x="0" y="0" fill="url(#primaryGrad)" font-family="'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" font-size="36" font-weight="bold" letter-spacing="2">
+      <tspan fill="#1a73e8" dx="0" dy="0">okarne</tspan>
+      <tspan fill="#3498db" dx="0" dy="18">GM</tspan>
+    </text>
+    
+    <!-- Highlight/glow effect -->
+    <text x="0" y="0" fill="none" stroke="#00ffcc" stroke-width="1" stroke-opacity="0.5">
+      <tspan fill="none" dx="0" dy="0">okarne</tspan>
+      <tspan fill="none" dx="0" dy="18">GM</tspan>
+    </text>
+  </g>
+  
+  <!-- Additional decorative elements -->
+  <g opacity="0.3">
+    <!-- Left decorative line -->
+    <line x1="-10" y1="0" x2="-10" y2="100" stroke="#00ffcc" stroke-width="1"/>
+    <line x1="-10" y1="20" x2="-10" y2="100" stroke="#00ffcc" stroke-width="1"/>
+    <line x1="-10" y1="40" x2="-10" y2="100" stroke="#00ffcc" stroke-width="1"/>
+    <line x1="-10" y1="60" x2="-10" y2="100" stroke="#00ffcc" stroke-width="1"/>
+    
+    <!-- Right decorative line -->
+    <line x1="210" y1="0" x2="210" y2="100" stroke="#00ffcc" stroke-width="1"/>
+    <line x1="210" y1="20" x2="210" y2="100" stroke="#00ffcc" stroke-width="1"/>
+    <line x1="210" y1="40" x2="210" y2="100" stroke="#00ffcc" stroke-width="1"/>
+    <line x1="210" y1="60" x2="210" y2="100" stroke="#00ffcc" stroke-width="1"/>
+  </g>
+  
+  <!-- Bottom accent bar -->
+  <rect x="0" y="140" width="300" height="10" fill="url(#metalGrad)"/>
+  
+  <!-- Bottom right corner accent -->
+  <polygon points="280,140 300,140 300,150 280,150" fill="#00ccaa"/>
+  
+  <!-- Bottom left corner accent -->
+  <polygon points="0,140 20,140 20,150 0,150" fill="#009988"/>
+</svg>

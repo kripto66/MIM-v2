@@ -6,7 +6,9 @@
 // Le locataire les consulte en lecture seule (RLS) et paie
 // DIRECTEMENT le propriétaire, hors Okarne GM.
 //
-// Sécurité : toutes les écritures sont filtrées par req.user.id.
+// Sécurité : toutes les écritures sont filtrées par le propriétaire
+// cible (utilisateur connecté, ou propriétaire géré via req.scopeOwnerId
+// quand ce routeur est monté sous le scope agence).
 // ============================================================
 
 import { Router } from 'express';
@@ -16,13 +18,20 @@ import { TYPES_MOYENS_PAIEMENT, sanitizeMoyenBody, paymentLinkError } from '../u
 const router = Router();
 const sb = () => serviceClient();
 
+// Propriétaire cible : l'utilisateur connecté en espace propriétaire, le
+// PROPRIÉTAIRE GÉRÉ quand le routeur est monté sous le scope agence
+// (withScopeOwner). Un moyen de paiement appartient au propriétaire.
+function ownerIdOf(req) {
+  return req.scopeOwnerId || req.user.id;
+}
+
 // Liste des moyens de paiement du propriétaire.
 router.get('/', async (req, res) => {
   try {
     const { data, error } = await sb()
       .from('moyens_paiement')
       .select('*')
-      .eq('user_id', req.user.id)
+      .eq('user_id', ownerIdOf(req))
       .order('type', { ascending: true })
       .order('id', { ascending: true });
 
@@ -47,7 +56,7 @@ router.post('/', async (req, res) => {
     const clean = sanitizeMoyenBody(type, req.body);
     const { data, error } = await sb()
       .from('moyens_paiement')
-      .insert({ user_id: req.user.id, type, ...clean })
+      .insert({ user_id: ownerIdOf(req), type, ...clean })
       .select()
       .single();
 
@@ -69,7 +78,7 @@ router.put('/:id', async (req, res) => {
       .from('moyens_paiement')
       .select('*')
       .eq('id', req.params.id)
-      .eq('user_id', req.user.id)
+      .eq('user_id', ownerIdOf(req))
       .maybeSingle();
 
     if (!existing) {
@@ -83,7 +92,7 @@ router.put('/:id', async (req, res) => {
       .from('moyens_paiement')
       .update(clean)
       .eq('id', existing.id)
-      .eq('user_id', req.user.id)
+      .eq('user_id', ownerIdOf(req))
       .select()
       .single();
 
@@ -105,7 +114,7 @@ router.delete('/:id', async (req, res) => {
       .from('moyens_paiement')
       .delete()
       .eq('id', req.params.id)
-      .eq('user_id', req.user.id)
+      .eq('user_id', ownerIdOf(req))
       .select()
       .single();
 

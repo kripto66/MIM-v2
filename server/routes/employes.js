@@ -20,6 +20,28 @@ import { reserveQuota, consumeQuota, releaseQuota } from '../utils/quota.js';
 
 const router = Router();
 
+// ------------------------------------------------------------
+// Propriétaire cible de la requête.
+//
+// Monté tel quel sur /api/employes, le propriétaire est l'utilisateur
+// connecté. L'espace AGENCE le monte aussi sous /api/agence/bien/:bienId
+// (même contrat, mêmes formes de réponse) : `requireMandateBien` y pose
+// `req.scope.proprietaireId` et `withScopeOwner` le recopie ici. Les
+// employés, leurs tâches, leurs salaires et leurs moyens de paiement
+// appartiennent alors au PROPRIÉTAIRE GÉRÉ, jamais à l'agence.
+// Sans mandat, `req.scopeOwnerId` est absent : le comportement
+// propriétaire d'origine est conservé à l'identique.
+// ------------------------------------------------------------
+export function withScopeOwner(req, _res, next) {
+  const proprietaireId = req.scope?.proprietaireId;
+  if (proprietaireId) req.scopeOwnerId = proprietaireId;
+  next();
+}
+
+function ownerIdOf(req) {
+  return req.scopeOwnerId || req.user.id;
+}
+
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function isValidAmount(value, allowZero = false) {
@@ -81,7 +103,7 @@ async function setEmployeBiens(sb, ownerId, employeId, biens, opts = {}) {
 // ============================================================
 router.get('/', async (req, res) => {
   const sb = serviceClient();
-  const ownerId = req.user.id;
+  const ownerId = ownerIdOf(req);
 
   try {
     const { data: employes = [], error } = await sb
@@ -154,7 +176,7 @@ router.get('/', async (req, res) => {
 // ============================================================
 router.post('/', async (req, res) => {
   const sb = serviceClient();
-  const ownerId = req.user.id;
+  const ownerId = ownerIdOf(req);
 
   // Mode automatique (comme pour les locataires) : quand le propriétaire ne
   // fournit ni username ni mot de passe, MIM génère le username (préfixe
@@ -356,7 +378,7 @@ router.post('/', async (req, res) => {
 // ============================================================
 router.put('/:id', async (req, res) => {
   const sb = serviceClient();
-  const ownerId = req.user.id;
+  const ownerId = ownerIdOf(req);
 
   const { data: existing } = await sb
     .from('employes')
@@ -463,7 +485,7 @@ router.put('/:id', async (req, res) => {
 // ============================================================
 router.delete('/:id', async (req, res) => {
   const sb = serviceClient();
-  const ownerId = req.user.id;
+  const ownerId = ownerIdOf(req);
 
   const { data: existing } = await sb
     .from('employes')
@@ -508,7 +530,7 @@ router.delete('/:id', async (req, res) => {
 // ============================================================
 router.get('/:id/paiements', async (req, res) => {
   const sb = serviceClient();
-  const ownerId = req.user.id;
+  const ownerId = ownerIdOf(req);
 
   const { data: employe } = await sb
     .from('employes')
@@ -560,7 +582,7 @@ router.get('/:id/paiements', async (req, res) => {
 // ============================================================
 router.post('/:id/paiements', async (req, res) => {
   const sb = serviceClient();
-  const ownerId = req.user.id;
+  const ownerId = ownerIdOf(req);
 
   const { data: employe } = await sb
     .from('employes')
@@ -668,7 +690,7 @@ router.post('/:id/paiements', async (req, res) => {
 // ============================================================
 router.get('/:id/moyens-paiement', async (req, res) => {
   const sb = serviceClient();
-  const ownerId = req.user.id;
+  const ownerId = ownerIdOf(req);
 
   const { data: employe } = await sb
     .from('employes')
@@ -702,7 +724,7 @@ router.get('/:id/moyens-paiement', async (req, res) => {
 // Création d'un moyen de paiement pour un employé (par le propriétaire).
 router.post('/:id/moyens-paiement', async (req, res) => {
   const sb = serviceClient();
-  const ownerId = req.user.id;
+  const ownerId = ownerIdOf(req);
 
   const { data: employe } = await sb
     .from('employes')

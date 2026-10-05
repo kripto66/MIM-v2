@@ -29,6 +29,9 @@ import { reserveQuota, consumeQuota, releaseQuota } from '../utils/quota.js';
 import { formatMois } from '../utils/mois.js';
 import { revokeAllSessions } from '../utils/sessions.js';
 import { sanitize, validateResource } from './crud.js';
+import employesRoutes, { withScopeOwner } from './employes.js';
+import tasksRoutes from './tasks.js';
+import moyensPaiementRoutes from './moyensPaiement.js';
 import { isValidMonth, parseMoney } from '../utils/inputValidation.js';
 import { MANDAT_STATUTS, mandatMotifError, mandatReactivateError, applyMandatStatut } from '../utils/mandatRevocation.js';
 
@@ -2100,6 +2103,52 @@ router.get('/bien/:bienId/prestataires', requireMandateBien, async (req, res) =>
     res.status(500).json({ success: false, message: 'Erreur lors du chargement.' });
   }
 });
+
+// ============================================================
+// MODE 2 — Biens du PROPRIÉTAIRE GÉRÉ.
+//
+// Les employés, leurs tâches, leurs salaires et leurs moyens de
+// paiement appartiennent au propriétaire, pas au bien : ils sont
+// scopés par le MANDAT (requireMandateBien), jamais par le bien
+// lui-même. `/biens` renvoie donc TOUS les biens du propriétaire,
+// comme le fait `/api/biens` dans l'espace propriétaire — c'est
+// cette liste qu'alimentent les sélecteurs d'affectation.
+// ============================================================
+router.get('/bien/:bienId/biens', requireMandateBien, async (req, res) => {
+  try {
+    const { data = [], error } = await sb()
+      .from('biens')
+      .select('*')
+      .eq('user_id', req.scope.proprietaireId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    res.json({ success: true, data });
+  } catch (err) {
+    console.error('[agence/bien/biens]', err.message);
+    res.status(500).json({ success: false, message: 'Erreur lors du chargement.' });
+  }
+});
+
+// ============================================================
+// MODE 2 — Employés, tâches et moyens de paiement.
+//
+// Les routeurs propriétaires sont montés TEL QUELS sous le scope
+// du bien : `withScopeOwner` y remplace le propriétaire cible par le
+// PROPRIÉTAIRE GÉRÉ. Les contrats (chemins, formes de réponse,
+// codes d'erreur, validations, quotas, génération du compte Auth)
+// sont donc rigoureusement ceux de /api/employes, /api/tasks et
+// /api/moyens-paiement : les pages du dashboard propriétaire
+// fonctionnent à l'identique en changeant seulement la base API.
+//
+// `requireMandateBien` remplace le `mandatGuard` de ces mounts :
+// même exigence (écriture seulement sous mandat actif), vérifiée
+// fail-closed sur le couple agence/bien/propriétaire.
+// ============================================================
+const scopedOwner = [requireMandateBien, withScopeOwner];
+
+router.use('/bien/:bienId/employes', ...scopedOwner, employesRoutes);
+router.use('/bien/:bienId/tasks', ...scopedOwner, tasksRoutes);
+router.use('/bien/:bienId/moyens-paiement', ...scopedOwner, moyensPaiementRoutes);
 
 export default router;
 export { mandateBien, mandateOwner };

@@ -10,6 +10,14 @@ import { notify } from '../utils/notifications.js';
 
 const router = Router();
 
+// Propriétaire cible : l'utilisateur connecté en espace propriétaire,
+// le PROPRIÉTAIRE GÉRÉ quand le routeur est monté sous le scope agence
+// (`withScopeOwner`, voir routes/employes.js). Les tâches suivent les
+// employés : ils appartiennent au propriétaire, pas à l'agence.
+function ownerIdOf(req) {
+  return req.scopeOwnerId || req.user.id;
+}
+
 const STATUSES = ['a_faire', 'en_cours', 'termine'];
 
 function isValidDate(value) {
@@ -30,7 +38,7 @@ async function employeBelongsToOwner(sb, ownerId, employeUid) {
 
 router.get('/', async (req, res) => {
   const sb = serviceClient();
-  const ownerId = req.user.id;
+  const ownerId = ownerIdOf(req);
 
   try {
     const { data: tasks = [], error } = await sb
@@ -66,7 +74,7 @@ router.get('/', async (req, res) => {
 
 router.post('/', async (req, res) => {
   const sb = serviceClient();
-  const ownerId = req.user.id;
+  const ownerId = ownerIdOf(req);
 
   const titre = String(req.body.titre || '').trim();
   const description = String(req.body.description || '').trim() || null;
@@ -111,7 +119,7 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   const sb = serviceClient();
-  const ownerId = req.user.id;
+  const ownerId = ownerIdOf(req);
 
   const { data: existing } = await sb
     .from('tasks')
@@ -175,7 +183,7 @@ router.put('/:id', async (req, res) => {
 
 router.delete('/:id', async (req, res) => {
   const sb = serviceClient();
-  const ownerId = req.user.id;
+  const ownerId = ownerIdOf(req);
 
   const { data: existing } = await sb
     .from('tasks')
