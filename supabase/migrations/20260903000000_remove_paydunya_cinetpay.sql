@@ -37,8 +37,12 @@ BEGIN
         IF to_regclass('public.' || t) IS NULL THEN
             CONTINUE;
         END IF;
-        -- Les séquences propriétaires doivent suivre la table :
-        -- ALTER TABLE ... SET SCHEMA ne les déplace pas.
+        -- D'abord déplacer la table : ses sequences owned la suivent
+        -- automatiquement. Placer les ALTER SEQUENCE AVANT ce déplacement
+        -- echouait ("cannot move an owned sequence into another schema").
+        EXECUTE format('ALTER TABLE public.%I SET SCHEMA archive', t);
+        -- Puis déplacer tout séquence propriétaire resté hors de `archive`
+        -- (cas où Postgres ne les aurait pas suivies automatiquement).
         FOR r IN
             SELECT n.nspname AS schema_name, c.relname AS sequence_name
               FROM pg_class c
@@ -46,12 +50,12 @@ BEGIN
               JOIN pg_depend d ON d.objid = c.oid
                                AND d.classid = 'pg_class'::regclass
                                AND d.deptype = 'a'
-             WHERE d.refobjid = to_regclass('public.' || t)
+             WHERE d.refobjid = to_regclass('archive.' || t)
                AND c.relkind = 'S'
+               AND n.nspname <> 'archive'
         LOOP
             EXECUTE format('ALTER SEQUENCE %I.%I SET SCHEMA archive', r.schema_name, r.sequence_name);
         END LOOP;
-        EXECUTE format('ALTER TABLE public.%I SET SCHEMA archive', t);
     END LOOP;
 END
 $do$;

@@ -23,6 +23,7 @@ BEGIN
         IF to_regclass('public.' || t) IS NULL THEN
             CONTINUE;
         END IF;
+        EXECUTE format('ALTER TABLE public.%I SET SCHEMA archive', t);
         FOR r IN
             SELECT n.nspname AS schema_name, c.relname AS sequence_name
               FROM pg_class c
@@ -30,12 +31,12 @@ BEGIN
               JOIN pg_depend d ON d.objid = c.oid
                                AND d.classid = 'pg_class'::regclass
                                AND d.deptype = 'a'
-             WHERE d.refobjid = to_regclass('public.' || t)
+             WHERE d.refobjid = to_regclass('archive.' || t)
                AND c.relkind = 'S'
+               AND n.nspname <> 'archive'
         LOOP
             EXECUTE format('ALTER SEQUENCE %I.%I SET SCHEMA archive', r.schema_name, r.sequence_name);
         END LOOP;
-        EXECUTE format('ALTER TABLE public.%I SET SCHEMA archive', t);
     END LOOP;
 END
 $do$;
