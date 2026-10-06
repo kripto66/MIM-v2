@@ -4,15 +4,15 @@
    ============================================================ */
 
 :root {
-    --bg-0: #08030f;
-    --bg-1: #12081f;
-    --bg-2: #1d0b2e;
+    --bg-0: #251d02;
+    --bg-1: #3d2103ee;
+    --bg-2: #42047d;
     --panel: rgba(255, 255, 255, 0.045);
     --panel-strong: rgba(255, 255, 255, 0.07);
     --line: rgba(255, 255, 255, 0.09);
     --line-strong: rgba(255, 255, 255, 0.16);
 
-    --text: #fcf9ee;
+    --text: #f3eefc;
     --text-soft: #c9bfe0;
     --dim: #998bb8;
 
@@ -37,9 +37,7 @@
 html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
-    background: linear-gradient(165deg, var(--bg-0) 0%, var(--bg-1) 45%, var(--bg-2) 100%);
-    background-color: var(--bg-1);
-    color-scheme: dark;
+    overscroll-behavior: none;
 }
 
 body {
@@ -815,7 +813,7 @@ ul, ol {
 
 .tarifs-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(3, 1fr);
     gap: 18px;
     align-items: stretch;
 }
@@ -895,6 +893,15 @@ ul, ol {
 
 .tbtn:hover {
     box-shadow: 0 12px 28px rgba(229, 160, 23, 0.45);
+}
+
+/* Mention essai gratuit sous le CTA de chaque carte tarifaire */
+.ttrial {
+    margin: -6px 0 0;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-align: center;
+    color: var(--dim);
 }
 
 .tcard.popular {

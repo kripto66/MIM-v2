@@ -98,11 +98,39 @@ async function loadSubscription() {
   }
 }
 
-function dureeLabel(n) { return n === 1 ? "mensuel" : n + " mois"; }
+// Vitrine propriétaire publiée : seules ces trois formules sont
+// proposées à la souscription. Le plan « essai » n'est jamais
+// achetable (PLAN_CODES ne le contient pas) et le plan « agence »
+// propriétaire (50 000 XOF) est retiré de la vitrine tout en restant
+// actif en base : les abonnements en cours continuent de le resolver.
+const PLANS_VITRINE = ["standard", "premium", "pro"];
 
-// Fonctionnalités communes : ce que le produit apporte, quelle que
-// soit la formule. Les PALIERS (immeubles / logements / locataires)
-// viennent de l'API, jamais d'une liste de codes en dur.
+// Argumentaire commercial par formule (contenu de la carte).
+// Les capacités (biens, logements, locataires, employés,
+// prestataires) viennent TOUJOURS de l'API, jamais d'ici.
+const PLAN_PITCH = {
+  standard: {
+    tagline: "Pour démarrer avec un bien",
+    features: [
+      "Gestion locataires, baux & paiements",
+      "Incidents, prestataires & interventions",
+    ],
+  },
+  premium: {
+    tagline: "Pour plusieurs immeubles",
+    features: [
+      "Gestion locataires, baux & paiements",
+      "Tableaux de bord & statistiques",
+    ],
+  },
+  pro: {
+    tagline: "Pour un parc conséquent",
+    features: ["Accès multi-utilisateurs", "Rapports détaillés & suivi complet"],
+  },
+};
+
+// Fonctionnalités communes si le catalogue fait apparaître une
+// formule inconnue de PLAN_PITCH : la carte reste affichable.
 const BASE_FEATURES = [
   "Gestion des locataires",
   "Paiements & échéances",
@@ -111,45 +139,85 @@ const BASE_FEATURES = [
   "Gestion des prestataires",
 ];
 
-function capLine(max, nounPlural) {
-  return typeof max === "number" && max > 0 ? max + " " + nounPlural : nounPlural + " illimités";
+function qty(n, singulier) {
+  return Number(n).toLocaleString("fr-FR") + " " + singulier + (Number(n) > 1 ? "s" : "");
+}
+
+// Une capacité à NULL en base signifie « illimitée »
+// (check_quota_for_plan saute le test quand la colonne est NULL).
+function capPart(max, singulier) {
+  if (max === null || max === undefined) {
+    return singulier.charAt(0).toUpperCase() + singulier.slice(1) + "s illimités";
+  }
+  if (!(Number(max) > 0)) return null;
+  return qty(max, singulier);
+}
+
+// « 1 bien · 20 logements · 20 locataires » — un bien peut être un
+// hôtel, un immeuble, une villa, une résidence…
+function capacityLine(plan) {
+  return [
+    capPart(plan.max_immeubles, "bien"),
+    capPart(plan.max_logements, "logement"),
+    capPart(plan.max_locataires, "locataire"),
+  ]
+    .filter(Boolean)
+    .join(" · ");
+}
+
+function teamLine(max, singulier) {
+  if (max === null || max === undefined) {
+    return singulier.charAt(0).toUpperCase() + singulier.slice(1) + "s illimités";
+  }
+  return qty(max, singulier);
 }
 
 function renderPlans(plans, current) {
   const grid = document.getElementById("plansGrid");
-  if (!plans || !plans.length) {
+  const vitrine = (plans || []).filter((p) => p && PLANS_VITRINE.includes(p.code));
+  if (!vitrine.length) {
     grid.innerHTML = '<p class="muted">Aucun plan disponible pour le moment.</p>';
     return;
   }
   const currentCode = current ? current.planCode : null;
-  const popular = plans[Math.floor(plans.length / 2)];
-  grid.innerHTML = plans
-    .map((p, index) => {
+  const hasPremium = vitrine.some((p) => p.code === "premium");
+  const popularCode = hasPremium ? "premium" : (vitrine[Math.floor(vitrine.length / 2)] || {}).code;
+
+  grid.innerHTML = vitrine
+    .map((p) => {
       const isCurrent = currentCode && currentCode === p.code;
-      const isPopular = popular && popular.code === p.code && index === Math.floor(plans.length / 2);
-      const included =
-        "<li>" + escapeHtml(capLine(p.max_immeubles, "immeuble(s)")) + "</li>" +
-        "<li>" + escapeHtml(capLine(p.max_logements, "logement(s)")) + "</li>" +
-        "<li>" + escapeHtml(capLine(p.max_locataires, "locataire(s)")) + "</li>" +
-        "<li>Employés illimités</li>" +
-        "<li>Prestataires illimités</li>";
-      const mx = BASE_FEATURES.map((label) => "<li>" + escapeHtml(label) + "</li>").join("");
+      const isPopular = p.code === popularCode;
+      const pitch = PLAN_PITCH[p.code] || { tagline: "", features: BASE_FEATURES };
+      const lines = [];
+      const capacity = capacityLine(p);
+      if (capacity) lines.push(capacity);
+      pitch.features.forEach((label) => lines.push(label));
+      // Plafonds d'équipe : renseignés seulement si le catalogue les
+      // renvoie, sinon la carte garde ses lignes sans inventer « illimité ».
+      if ("max_employes" in p) {
+        lines.push(teamLine(p.max_employes, "employé") + " · tableau de bord");
+      }
+      if ("max_prestataires" in p) {
+        lines.push(teamLine(p.max_prestataires, "prestataire"));
+      }
+      const included = lines.map((label) => "<li>" + escapeHtml(label) + "</li>").join("");
       const name = String(p.nom || "") || p.code;
       const period = p.duree_abonnement === 1 ? "/mois" : "/" + p.duree_abonnement + " mois";
       return (
         '<div class="plan-card plan-accent-' + escapeHtml(p.audience || "proprietaire") + (isCurrent ? " plan-active" : "") + (isPopular ? " plan-popular" : "") + '">' +
         '<div class="plan-top">' +
-        (isPopular ? '<span class="plan-badge">Le plus choisi</span>' : "") +
+        (isPopular ? '<span class="plan-badge">Le plus populaire</span>' : "") +
+        (pitch.tagline ? '<p class="plan-for">' + escapeHtml(pitch.tagline) + "</p>" : "") +
         '<h3 class="plan-name">' + escapeHtml(name) + "</h3>" +
         '<div class="plan-price">' + Number(p.prix).toLocaleString("fr-FR") +
         ' <span class="plan-period">' + escapeHtml(p.devise || "XOF") + escapeHtml(period) + "</span></div>" +
-        '<div class="plan-desc">' + escapeHtml(p.description || (p.devise + " · " + dureeLabel(p.duree_abonnement) + " · paiement sécurisé")) + "</div>" +
         "</div>" +
-        '<ul class="plan-features">' + included + mx + "</ul>" +
+        '<ul class="plan-features">' + included + "</ul>" +
         '<div class="plan-actions">' +
         (isCurrent
           ? '<button type="button" class="btn-plan" disabled>Plan actuel</button>'
           : '<button type="button" class="btn-plan" data-pay-plan="' + escapeHtml(p.code) + '">Choisir ce plan</button>') +
+        (isCurrent ? "" : '<p class="plan-trial">Essai gratuit pendant 14 jours</p>') +
         "</div>" +
         "</div>"
       );

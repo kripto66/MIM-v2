@@ -5,15 +5,29 @@
  *       escapeAttr(str). */
 window.MIM = window.MIM || {};
 
-/* bfcache (audit A7) : apres une deconnexion, un retour en arriere peut
- * resservir la page depuis le cache (etat JS/CSS fige, session
- * vieillie) ; on recharge. Place ici plutot que dans sidebar.js :
- * ce fichier est charge par 46 des 47 pages (sidebar.js n'est pas
- * present partout), donc le garde-fou couvre toutes les zones. */
+/* bfcache (audit A7) : le retour en arrière restaure la page figée
+ * (état JS/CSS conservé → retour instantané). Sur une zone protégée,
+ * on revalide la session via /api/auth/me : une déconnexion entre-temps
+ * doit rediriger vers la connexion, jamais laisser une page privée
+ * affichée avec une session morte. Pages publiques (PartPublic) :
+ * aucune donnée privée → on garde l'instantané tel quel. */
 if (!window.MIM._bfcacheHooked) {
   window.MIM._bfcacheHooked = true;
   window.addEventListener('pageshow', function (e) {
-    if (e.persisted) location.reload();
+    if (!e.persisted) return;
+    var path = window.location.pathname;
+    var protegee = path.indexOf('/Part') === 0 && path.indexOf('/PartPublic/') !== 0;
+    if (!protegee) return;
+    fetch((MIM.apiHost ? MIM.apiHost() : window.location.origin) + "/api/auth/me", {
+      credentials: 'include',
+      headers: { 'Accept': 'application/json' },
+    })
+      .then(function (res) {
+        if (res.status === 401 || res.status === 403) MIM.redirectToLogin('SESSION');
+        // 429/5xx/réseau : optimiste, on garde la page restaurée — les
+        // requêtes métier suivantes reprendront la main via handleAuthError.
+      })
+      .catch(function () {});
   });
 }
 

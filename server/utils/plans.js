@@ -4,7 +4,10 @@
 // Deux audiences cohabitent (colonne public.plans.audience) :
 //   * 'proprietaire' : standard 3 000 / premium 6 000 /
 //     pro 9 000 / agence 50 000 XOF par mois ;
-//   * 'agence' : Starter 15 000 / Pro 25 000 / Business 40 000.
+//   * 'agence' : Starter 12 000 / Pro 25 000 / Ultra 60 000.
+//     Le 3e palier porte le code historique 'agence_business' :
+//     seul son NOM affiché a changé (« Agence Ultra »), le code
+//     reste pour ne pas casser les abonnements existants.
 //
 // Un compte ne voit QUE les plans de son audience : la vérification
 // est refaite au checkout (fail-closed), pas seulement dans l'UI.

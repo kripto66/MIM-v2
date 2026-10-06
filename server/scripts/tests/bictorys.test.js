@@ -220,16 +220,23 @@ export async function runBictorys(r, ctx) {
       const plans = await api('/subscription/plans', { jar: owner.jar });
       if (!expectSuccess(r, plans, S, '/subscription/plans')) return;
 
-      const expected = { standard: 1, premium: 3, pro: 10, agence: 25 };
-      const expectedCap = { standard: 20, premium: 75, pro: 300, agence: 750 };
+      const expected = { standard: 1, premium: 2, pro: 3, agence: 25 };
+      const expectedLog = { standard: 20, premium: 75, pro: 300, agence: 750 };
+      const expectedLoc = { standard: 20, premium: 75, pro: 150, agence: 750 };
+      const expectedEmp = { standard: 5, premium: 15, pro: 50, agence: 100 };
+      const expectedPresta = { standard: 30, premium: 60, pro: null, agence: 100 };
       const proprietairePlans = (plans.data?.plans || []).filter((p) => p.audience === 'proprietaire');
       const ok = ['standard', 'premium', 'pro', 'agence'].every((code) => {
         const plan = proprietairePlans.find((x) => x.code === code);
         return (
           plan &&
           Number(plan.max_immeubles) === expected[code] &&
-          Number(plan.max_logements) === expectedCap[code] &&
-          Number(plan.max_locataires) === expectedCap[code] &&
+          Number(plan.max_logements) === expectedLog[code] &&
+          Number(plan.max_locataires) === expectedLoc[code] &&
+          Number(plan.max_employes) === expectedEmp[code] &&
+          (expectedPresta[code] === null
+            ? plan.max_prestataires == null
+            : Number(plan.max_prestataires) === expectedPresta[code]) &&
           Number(plan.prix) > 0 &&
           plan.duree_abonnement === 1
         );
@@ -249,9 +256,9 @@ export async function runBictorys(r, ctx) {
           essai.actif === true,
       );
       if (ok && essaiOk && proprietairePlans.length === 5 && noAgencePlans && !plans.data.plans.some((p) => p.code === 'ultra')) {
-        r.pass(S, '5 formules propriétaire (essai + 1/3/10/25 immeubles) — aucun palier agence exposé, Ultra archivé');
+        r.pass(S, '5 formules propriétaire (essai + 1/2/3/25 biens, plafonds équipe) — aucun palier agence exposé, Ultra archivé');
       } else {
-        r.fail(S, '5 formules propriétaire (essai + 1/3/10/25 immeubles) — aucun palier agence exposé, Ultra archivé', JSON.stringify(plans.data?.plans?.map((p) => p.code)));
+        r.fail(S, '5 formules propriétaire (essai + 1/2/3/25 biens, plafonds équipe) — aucun palier agence exposé, Ultra archivé', JSON.stringify(plans.data?.plans?.map((p) => [p.code, p.prix, p.max_immeubles, p.max_logements, p.max_locataires, p.max_employes, p.max_prestataires])));
       }
     });
 
@@ -269,17 +276,28 @@ export async function runBictorys(r, ctx) {
       const plans = await api('/subscription/plans', { jar: agenceSession.jar });
       if (!expectSuccess(r, plans, S, '/subscription/plans (agence)')) return;
 
-      const attendu = { agence_starter: 15000, agence_pro: 25000, agence_business: 40000 };
+      const attendu = { agence_starter: 12000, agence_pro: 25000, agence_business: 60000 };
       const codes = (plans.data?.plans || []).map((p) => p.code);
       const ok = Object.entries(attendu).every(([code, prix]) => {
         const plan = plans.data.plans.find((p) => p.code === code);
         return plan && plan.audience === 'agence' && Number(plan.prix) === prix && Number(plan.max_immeubles) > 0;
       });
+      const capacites = { agence_starter: [10, 400, 400, 30, 40], agence_pro: [20, 700, 700, 70, 90], agence_business: [120, 3700, 3700, null, null] };
+      const okCapacites = Object.entries(capacites).every(([code, [biens, logements, locataires, employes, prestataires]]) => {
+        const plan = plans.data.plans.find((p) => p.code === code);
+        return plan
+          && Number(plan.max_immeubles) === biens
+          && Number(plan.max_logements) === logements
+          && Number(plan.max_locataires) === locataires
+          && (employes === null ? plan.max_employes == null : Number(plan.max_employes) === employes)
+          && (prestataires === null ? plan.max_prestataires == null : Number(plan.max_prestataires) === prestataires);
+      });
+      const nomUltra = plans.data.plans.find((p) => p.code === 'agence_business')?.nom === 'Agence Ultra';
       const pasDePlanProprio = !codes.some((c) => ['standard', 'premium', 'pro'].includes(c));
-      if (ok && codes.length === 3 && pasDePlanProprio) {
-        r.pass(S, '3 paliers agence (15 000 / 25 000 / 40 000 XOF) — aucun plan propriétaire exposé');
+      if (ok && okCapacites && nomUltra && codes.length === 3 && pasDePlanProprio) {
+        r.pass(S, '3 paliers agence (12 000 / 25 000 / 60 000 XOF, capacités + nom « Agence Ultra ») — aucun plan propriétaire exposé');
       } else {
-        r.fail(S, '3 paliers agence (15 000 / 25 000 / 40 000) — aucun plan propriétaire exposé', JSON.stringify(codes));
+        r.fail(S, '3 paliers agence (12 000 / 25 000 / 60 000 XOF, capacités + nom « Agence Ultra ») — aucun plan propriétaire exposé', JSON.stringify(plans.data?.plans?.map((p) => [p.code, p.nom, p.prix])));
       }
 
       // Fail-closed : un compte agence ne peut pas acheter un plan propriétaire.
@@ -568,19 +586,19 @@ export async function runBictorys(r, ctx) {
     });
 
     // ------------------------------------------------------------
-    // 7. Limites d'immeubles CÔTÉ SERVEUR (Standard 1 → Premium 3 → Pro 10).
+    // 7. Limites d'immeubles CÔTÉ SERVEUR (Standard 1 → Premium 2 → Pro 3).
     // ------------------------------------------------------------
     await r.section('bictorys : limites d\'immeubles à la création', async () => {
       // Standard : 1 seul bien possible.
       const b1 = await createBien('Bic-Immeuble-1');
       const b2 = await createBien('Bic-Immeuble-2');
       if (b1.status === 201 && b2.status === 409 && b2.data?.code === 'IMMEUBLES_LIMIT_REACHED') {
-        r.pass(S, 'Standard : 1 immeuble créé, 2e → 409 IMMEUBLES_LIMIT_REACHED');
+        r.pass(S, 'Standard : 1 bien créé, 2e → 409 IMMEUBLES_LIMIT_REACHED');
       } else {
-        r.fail(S, 'Standard : 1 immeuble créé, 2e → 409', `b1=${b1.status} b2=${b2.status} ${JSON.stringify(b2.data)}`);
+        r.fail(S, 'Standard : 1 bien créé, 2e → 409', `b1=${b1.status} b2=${b2.status} ${JSON.stringify(b2.data)}`);
       }
 
-      // Passage Premium (3 immeubles) via UN NOUVEAU checkout + webhook :
+      // Passage Premium (2 biens) via UN NOUVEAU checkout + webhook :
       // le paiement premium créé à la section « échecs de paiement » a déjà
       // été marqué `failed`, il ne peut pas être réutilisé (garde-fou statut).
       await checkout('premium');
@@ -588,13 +606,15 @@ export async function runBictorys(r, ctx) {
       const refP = pendP?.reference;
       await webhook(webhookBody({ id: 'evt_premium_1', status: 'succeeded', amount: Number(pendP?.montant ?? PRIX.premium), paymentReference: refP }));
 
+      // Le plan autorise 2 biens au total : le premier est déjà pris par
+      // Bic-Immeuble-1, donc un seul ajout passe encore.
       const b3 = await createBien('Bic-Immeuble-3');
       const b4 = await createBien('Bic-Immeuble-4');
       const b5 = await createBien('Bic-Immeuble-5');
-      if (b3.status === 201 && b4.status === 201 && b5.status === 409 && b5.data?.code === 'IMMEUBLES_LIMIT_REACHED') {
-        r.pass(S, 'Premium : 3 immeubles acceptés, le 4e → 409 IMMEUBLES_LIMIT_REACHED');
+      if (b3.status === 201 && b4.status === 409 && b5.status === 409 && b4.data?.code === 'IMMEUBLES_LIMIT_REACHED') {
+        r.pass(S, 'Premium : 2 biens acceptés, le 3e → 409 IMMEUBLES_LIMIT_REACHED');
       } else {
-        r.fail(S, 'Premium : 3 immeubles acceptés, le 4e → 409', `b3=${b3.status} b4=${b4.status} b5=${b5.status} ${JSON.stringify(b5.data)}`);
+        r.fail(S, 'Premium : 2 biens acceptés, le 3e → 409', `b3=${b3.status} b4=${b4.status} b5=${b5.status} ${JSON.stringify(b4.data)}`);
       }
     });
 
@@ -635,7 +655,7 @@ export async function runBictorys(r, ctx) {
     });
 
     // ------------------------------------------------------------
-    // 8. Passage Pro (10 immeubles, 30 000 XOF) : prolongation + limite à 10.
+    // 8. Passage Pro (9 000 XOF) : prolongation + limite à 3 biens.
     // ------------------------------------------------------------
     await r.section('bictorys : Pro + renouvellement prolongeant', async () => {
       const before = await me();
@@ -652,21 +672,20 @@ export async function runBictorys(r, ctx) {
       const expUltra = new Date(after.data?.subscription?.date_expiration).getTime();
       const deltaDays = (expUltra - expStd) / 86400000;
 
-      // Remplir jusqu'à la limite Pro (10) : on a déjà 3 immeubles
-      // (1 + 2 ajoutés en Premium), on ajoute les numéros 4 à 10.
-      let last = { status: 0 };
-      for (let i = 4; i <= 10; i++) last = await createBien(`Bic-Immeuble-${i}`);
-      const b11 = await createBien('Bic-Immeuble-11');
+      // Remplir jusqu'à la limite Pro (3 biens) : on a déjà 2 biens
+      // (1 Standard + 1 Premium), un seul ajout passe encore.
+      const b3pro = await createBien('Bic-Immeuble-Pro-3');
+      const b4pro = await createBien('Bic-Immeuble-Pro-4');
 
       if (after.data?.subscription?.planCode === 'pro' && deltaDays >= 25 && deltaDays <= 35) {
         r.pass(S, `Pro : échéance prolongée de ~1 mois (${deltaDays.toFixed(1)} j)`);
       } else {
         r.fail(S, 'Pro : échéance prolongée de ~1 mois', `delta ${deltaDays.toFixed(1)} j ${JSON.stringify(after.data?.subscription)}`);
       }
-      if (last.status === 201 && b11.status === 409) {
-        r.pass(S, 'Pro : 10 immeubles acceptés, l\'onzième est refusé (409)');
+      if (b3pro.status === 201 && b4pro.status === 409 && b4pro.data?.code === 'IMMEUBLES_LIMIT_REACHED') {
+        r.pass(S, 'Pro : 3 biens acceptés, le 4e est refusé (409)');
       } else {
-        r.fail(S, 'Pro : 10 immeubles acceptés, l\'onzième est refusé (409)', `last=${last.status} b11=${b11.status} ${JSON.stringify(b11.data)}`);
+        r.fail(S, 'Pro : 3 biens acceptés, le 4e est refusé (409)', `b3pro=${b3pro.status} b4pro=${b4pro.status} ${JSON.stringify(b4pro.data)}`);
       }
     });
 

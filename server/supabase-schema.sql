@@ -5498,20 +5498,29 @@ CREATE OR REPLACE TRIGGER "on_auth_user_created" AFTER INSERT ON "auth"."users" 
 -- Données de référence absentes du dump schema-only : catalogue
 -- d'abonnements « audience = agence », créé par
 -- 20260926000000_plan_audience.sql:35-50 (même syntaxe idempotente).
+--
+-- Catalogue à jour (grille publiée) : 20261006000000_plans_grille_agence.sql.
+-- Les plafonds employés / prestataires ne sont PAS posés ici : les
+-- colonnes sont créées par 20260927100000_quota_essai.sql (a), qui
+-- s'exécute après ce fichier sur une reconstruction. Cette insertion
+-- sert de repli (NULL = fail open) si elle seule est rejouée.
 -- ------------------------------------------------------------------
 INSERT INTO "public"."plans" ("code", "nom", "type", "prix", "devise", "max_immeubles", "max_logements", "max_locataires", "duree_abonnement", "audience", "actif", "description")
 VALUES
-  ('agence_starter', 'Agence Starter', 'agence', 15000, 'XOF', 10, 100, 100, 1, 'agence', true,
-   'Pour une agence qui démarre : 10 biens, 100 logements et 100 locataires gérés.'),
-  ('agence_pro', 'Agence Pro', 'agence', 25000, 'XOF', 30, 300, 300, 1, 'agence', true,
-   'Pour une agence en croissance : 30 biens, 300 logements et 300 locataires gérés.'),
-  ('agence_business', 'Agence Business', 'agence', 40000, 'XOF', 80, 800, 800, 1, 'agence', true,
-   'Pour une agence structurée : 80 biens, 800 logements et 800 locataires gérés.')
+  ('agence_starter', 'Agence Starter', 'agence', 12000, 'XOF', 10, 400, 400, 1, 'agence', true,
+   '10 biens — 400 logements — 400 locataires — 30 employés — 40 prestataires'),
+  ('agence_pro', 'Agence Pro', 'agence', 25000, 'XOF', 20, 700, 700, 1, 'agence', true,
+   '20 biens — 700 logements — 700 locataires — 70 employés — 90 prestataires'),
+  ('agence_business', 'Agence Ultra', 'agence', 60000, 'XOF', 120, 3700, 3700, 1, 'agence', true,
+   '120 biens — 3 700 logements — 3 700 locataires — employés et prestataires illimités')
 ON CONFLICT ("code") DO UPDATE
   SET "nom" = EXCLUDED."nom",
       "type" = EXCLUDED."type",
       "prix" = EXCLUDED."prix",
       "devise" = EXCLUDED."devise",
+      "max_immeubles" = EXCLUDED."max_immeubles",
+      "max_logements" = EXCLUDED."max_logements",
+      "max_locataires" = EXCLUDED."max_locataires",
       "audience" = EXCLUDED."audience",
       "duree_abonnement" = EXCLUDED."duree_abonnement",
       "description" = EXCLUDED."description";

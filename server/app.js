@@ -155,10 +155,15 @@ app.use((req, res, next) => {
   ];
   res.setHeader('Content-Security-Policy', cspDirectives.join('; '));
 
-  // Les pages ne doivent jamais être servies depuis le cache du navigateur
-  // (bouton « retour » / bfcache) : après une déconnexion, une page de zone
-  // protégée ne doit pas rester visible avec une session invalide.
-  if (req.path.endsWith('.html') || req.path.startsWith('/api')) {
+  // HTML : no-cache (revalidation ETag à chaque retour, corps minuscule)
+  // et bfcache autorisé → bouton « retour » quasi instantané. La garde de
+  // session est posée côté client : mim-errors.js revalide /api/auth/me
+  // sur chaque restauration (pageshow) et redirige si la session a expiré.
+  if (req.path.endsWith('.html')) {
+    res.setHeader('Cache-Control', 'no-cache');
+  }
+  // API : jamais mise en cache (données privées, flux temps réel).
+  if (req.path.startsWith('/api')) {
     res.setHeader('Cache-Control', 'no-store');
   }
   next();
@@ -201,9 +206,8 @@ const ROOT = path.join(__dirname, '..');
 // servir un ancien balisage.
 const staticOptions = {
   setHeaders(res, filePath) {
-    // Une en-tête déjà posée prime (le middleware ci-dessus met no-store
-    // sur les pages HTML et /api : après une déconnexion, le bouton
-    // « retour » ne doit pas ressusciter une page de zone protégée).
+    // Une en-tête déjà posée prime (le middleware ci-dessus pose
+    // no-cache sur les HTML et no-store sur /api).
     if (res.getHeader('Cache-Control')) return;
     if (filePath.endsWith('.html')) {
       res.setHeader('Cache-Control', 'no-cache');

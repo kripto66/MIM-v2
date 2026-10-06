@@ -84,12 +84,19 @@
 
         var plural = function (n, mot) { return fmt(n) + " " + mot + (Number(n) > 1 ? "s" : ""); };
 
+        // Un « bien » = l'actif géré (hôtel, immeuble, villa, résidence…).
         var capacityText = function (p) {
             var out = [];
-            if (p.max_immeubles !== null && p.max_immeubles !== undefined) out.push(plural(p.max_immeubles, "immeuble"));
+            if (p.max_immeubles !== null && p.max_immeubles !== undefined) out.push(plural(p.max_immeubles, "bien"));
             if (p.max_logements !== null && p.max_logements !== undefined) out.push(plural(p.max_logements, "logement"));
             if (p.max_locataires !== null && p.max_locataires !== undefined) out.push(plural(p.max_locataires, "locataire"));
             return out.join(" · ");
+        };
+
+        // Plafond d'équipe : NULL en base = illimité (check_quota_for_plan).
+        var teamText = function (max, mot) {
+            var titre = mot.charAt(0).toUpperCase() + mot.slice(1);
+            return (max === null || max === undefined) ? titre + "s illimités" : plural(max, mot);
         };
 
         var setPrice = function (el, prix) {
@@ -112,6 +119,16 @@
                 if (cap) {
                     var txt = capacityText(p);
                     if (txt) { cap.textContent = txt; }
+                }
+                // Équipe : renseignée seulement si le catalogue la renvoie,
+                // sinon la valeur inscrite dans le HTML reste affichée.
+                var emp = card.querySelector("[data-employes]");
+                if (emp && "max_employes" in p) {
+                    emp.textContent = teamText(p.max_employes, "employé") + " · tableau de bord";
+                }
+                var pre = card.querySelector("[data-prestataires]");
+                if (pre && "max_prestataires" in p) {
+                    pre.textContent = teamText(p.max_prestataires, "prestataire");
                 }
             });
         };

@@ -9,9 +9,11 @@
 //   Standard 3 000 · Premium 4 500 · Pro 6 000 · Ultra 10 000
 // alors que la base contient
 //   Standard 3 000 · Premium 15 000 · Pro 30 000 · Agence 50 000
-// + les plans d'agence (15 000 / 25 000 / 40 000), et que le plan
-// « Ultra » est ARCHIVÉ (actif = false). Des prix écrits en dur
-// dans le HTML finissent toujours par se périmier.
+// + les plans d'agence (12 000 / 25 000 / 60 000 — le dernier
+// s'affiche « Agence Ultra » sous le code historique
+// agence_business), et que le plan « Ultra » PROPRIÉTAIRE est
+// ARCHIVÉ (actif = false). Des prix écrits en dur dans le HTML
+// finissent toujours par se périmier.
 //
 // Sécurité :
 //   * planView ne renvoie que le catalogue (aucun utilisateur,
