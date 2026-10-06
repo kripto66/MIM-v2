@@ -157,8 +157,12 @@ export async function createCharge({
   return { transactionId, link: link.toString(), status: 'pending', simulated: false };
 }
 
-// Consultation d'une transaction Bictorys (fallback si le webhook n'est
-// jamais arrivé). Retourne le statut Bictorys ('succeeded', 'failed'…).
+// Consultation du statut d'une transaction Bictorys (fallback si le
+// webhook n'est jamais arrivé). On utilise l'endpoint officiel
+// « status check » /transactions/{id}/status : c'est le seul lisible
+// avec la clé publique (GET /transactions/{id} renvoie 403 E403-1).
+// Il ne renvoie que le statut ; reconcileOnePayment tolère l'absence
+// de détails (montant figé au checkout + garde SQL du RPC d'activation).
 export async function getTransaction(transactionId) {
   if (!transactionId) throw new Error('Identifiant de transaction manquant.');
 
@@ -173,7 +177,7 @@ export async function getTransaction(transactionId) {
     throw new Error('Bictorys non configuré (BICTORYS_API_KEY manquant).');
   }
 
-  const res = await fetch(`${baseUrl()}/transactions/${encodeURIComponent(transactionId)}`, {
+  const res = await fetch(`${baseUrl()}/transactions/${encodeURIComponent(transactionId)}/status`, {
     method: 'GET',
     signal: requestSignal(),
     headers: { 'X-API-Key': apiKey() },
@@ -185,48 +189,55 @@ export async function getTransaction(transactionId) {
   return {
     id: data?.id || transactionId,
     status: String(data?.status || '').toLowerCase(),
-    amount: data?.amount,
-    currency: data?.currency,
+    amount: data?.amount ?? null,
+    currency: data?.currency ?? null,
     paymentReference: data?.paymentReference || null,
     merchantReference: data?.merchantReference || null,
-    // Date de règlement annoncée par Bictorys (le nom du champ varie
-    // selon les versions de l'API) : sert à dater réellement
-    // subscriptions.date_paiement au lieu de l'horloge du serveur.
+    // Date de règlement annoncée par Bictorys si l'endpoint la renvoie
+    // (elle est absente de l'endpoint /status : le polling retombe sur
+    // l'horloge locale via reconcileOnePayment).
     paidAt: data?.paidAt || data?.paid_at || data?.completedAt || data?.completed_at || null,
   };
 }
 
 // Vérification de l'authenticité d'un webhook Bictorys.
-// Le header X-Secret-Key DOIT être égal à la clé secrète du webhook
-// (documentation officielle). X-Webhook-Signature et
-// X-Webhook-Timestamp sont obligatoires et vérifiés en HMAC-SHA256.
+// Documentation officielle (docs.bictorys.com) :
+//   * Méthode 1 — X-Webhook-Signature + X-Webhook-Timestamp présents :
+//     HMAC-SHA256(secret, `${timestamp}.${corps_brut}`) en hex,
+//     timestamp de moins de 5 minutes (anti-replay) ;
+//   * Méthode 2 — fallback « clé statique » : si le HMAC n'est pas
+//     envoyé (non activé sur le dashboard), seul X-Secret-Key fait foi.
 export function verifyWebhook({ rawBody, headers }) {
   const secret = webhookSecret();
   if (!secret) return { ok: false, code: 'WEBHOOK_NOT_CONFIGURED' };
 
   const sent = headers['x-secret-key'] || headers['X-Secret-Key'] || '';
-  if (!sent || !safeEqual(sent, secret)) {
-    return { ok: false, code: 'INVALID_WEBHOOK_SECRET' };
-  }
-
   const signature = String(headers['x-webhook-signature'] || headers['X-Webhook-Signature'] || '');
   const timestamp = String(headers['x-webhook-timestamp'] || headers['X-Webhook-Timestamp'] || '');
-  if (!signature || !timestamp) return { ok: false, code: 'WEBHOOK_SIGNATURE_REQUIRED' };
 
-  const timestampNumber = Number(timestamp);
-  const timestampMs = timestampNumber > 100000000000 ? timestampNumber : timestampNumber * 1000;
-  if (!Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
-    return { ok: false, code: 'WEBHOOK_TIMESTAMP_INVALID' };
+  if (signature && timestamp) {
+    // Méthode 1 — HMAC-SHA256 sur le corps BRUT (pas hexé).
+    if (sent && !safeEqual(sent, secret)) {
+      return { ok: false, code: 'INVALID_WEBHOOK_SECRET' };
+    }
+    const timestampNumber = Number(timestamp);
+    const timestampMs = timestampNumber > 100000000000 ? timestampNumber : timestampNumber * 1000;
+    if (!Number.isFinite(timestampMs) || Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
+      return { ok: false, code: 'WEBHOOK_TIMESTAMP_INVALID' };
+    }
+    const bodyText = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : String(rawBody || '');
+    const expected = createHmacSecret(secret, `${timestamp}.${bodyText}`);
+    const normalized = signature.replace(/^sha256=/i, '');
+    if (!safeEqual(normalized, expected)) {
+      return { ok: false, code: 'INVALID_WEBHOOK_SIGNATURE' };
+    }
+    return { ok: true, method: 'hmac' };
   }
 
-  const bodyHex = Buffer.from(rawBody || '').toString('hex');
-  const expected = createHmacSecret(secret, `${timestamp}.${bodyHex}`);
-  const normalized = signature.replace(/^sha256=/i, '');
-  if (!safeEqual(normalized, expected)) {
-    return { ok: false, code: 'INVALID_WEBHOOK_SIGNATURE' };
-  }
-
-  return { ok: true };
+  // Méthode 2 — clé statique (HMAC non envoyé par Bictorys).
+  if (sent && safeEqual(sent, secret)) return { ok: true, method: 'static' };
+  if (!sent) return { ok: false, code: 'WEBHOOK_SIGNATURE_REQUIRED' };
+  return { ok: false, code: 'INVALID_WEBHOOK_SECRET' };
 }
 
 function safeEqual(a, b) {

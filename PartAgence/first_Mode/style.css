@@ -51,6 +51,7 @@ html {
         linear-gradient(165deg, var(--bg-0), var(--bg-1) 55%, var(--bg-2));
     background-color: var(--bg-1);
     color-scheme: dark;
+    overscroll-behavior: none;
 }
 
 body {

@@ -6,9 +6,9 @@
 // aucune autre route ne met à jour date_expiration sur un paiement
 // en ligne.
 //
-// Sécurité :
-//   * le header X-Secret-Key doit être égal à BICTORYS_WEBHOOK_SECRET ;
-//   * signature HMAC et timestamp obligatoires ;
+// Sécurité (doc officielle docs.bictorys.com) :
+//   * HMAC-SHA256 si X-Webhook-Signature/X-Webhook-Timestamp présents ;
+//   * sinon fallback clé statique : X-Secret-Key == BICTORYS_WEBHOOK_SECRET ;
 //   * traitement idempotent (journal public.bictorys_webhooks) ;
 //   * les rejets métier permanents sont acquittés en 200, les erreurs
 //     techniques transitoires renvoient 503 pour permettre un retry.

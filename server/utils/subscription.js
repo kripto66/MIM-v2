@@ -724,11 +724,41 @@ export async function processWebhook(payload) {
     if (!effectiveTransactionId) {
       throw Object.assign(new Error('Transaction absente.'), { code: 'TRANSACTION_MISSING', matchedPayment: payment.reference });
     }
+    // Bictorys renvoie dans le webhook l'id de TRANSACTION, alors que
+    // createCharge stocke le charge_id : les deux UUID diffèrent. Un
+    // écart ne peut pas être une fraude ici (webhook signé + appariement
+    // par paymentReference + montant + devise + merchantReference déjà
+    // validés) : on aligne transaction_id sur l'id réel de la transaction
+    // au lieu de rejeter l'événement.
     if (payment.transaction_id && payment.transaction_id !== effectiveTransactionId) {
-      throw Object.assign(new Error('Transaction mismatch.'), { code: 'TRANSACTION_MISMATCH', matchedPayment: payment.reference });
+      const { error: alignError } = await serviceClient()
+        .from('abonnement_paiements')
+        .update({ transaction_id: effectiveTransactionId, updated_at: new Date().toISOString() })
+        .eq('id', payment.id)
+        .eq('transaction_id', payment.transaction_id);
+      if (alignError) throw alignError;
+      payment.transaction_id = effectiveTransactionId;
     }
 
     if (PAYMENT_OK.includes(status)) {
+      // Un événement succeeded signé fait foi, même si le paiement
+      // avait été marqué refusé : l'utilisateur a pu relancer le MÊME
+      // lien de paiement après un refus de carte (comportement réel
+      // observé sur le checkout Bictorys). On repasse le paiement en
+      // attente avant l'activation ; un paiement déjà réglé est un
+      // doublon inoffensif (le RPC couvre aussi ce cas).
+      if (payment.statut === 'paid') {
+        return { ok: true, duplicate: true };
+      }
+      if (['failed', 'cancelled'].includes(payment.statut)) {
+        const { error: reopenError } = await serviceClient()
+          .from('abonnement_paiements')
+          .update({ statut: 'pending', updated_at: new Date().toISOString() })
+          .eq('id', payment.id)
+          .in('statut', ['failed', 'cancelled']);
+        if (reopenError) throw reopenError;
+        payment.statut = 'pending';
+      }
       const applied = await applySucceededPayment({ ...payment, transaction_id: effectiveTransactionId });
       result = { ok: true, ...applied };
       return result;
@@ -810,15 +840,19 @@ async function reconcileOnePayment(payment) {
     return { status: 'error', code: 'MERCHANT_REFERENCE_MISMATCH' };
   }
   const transactionAmount = parseMoney(txn.amount);
-  if (transactionAmount === null || !txn.currency) {
-    return { status: 'error', code: 'TRANSACTION_DETAILS_INCOMPLETE' };
+  const detailsComplete = transactionAmount !== null && Boolean(txn.currency);
+  if (detailsComplete) {
+    if (transactionAmount !== parseMoney(payment.montant)) {
+      return { status: 'error', code: 'AMOUNT_MISMATCH' };
+    }
+    if (String(txn.currency).toUpperCase() !== String(payment.devise || '').toUpperCase()) {
+      return { status: 'error', code: 'CURRENCY_MISMATCH' };
+    }
   }
-  if (transactionAmount !== parseMoney(payment.montant)) {
-    return { status: 'error', code: 'AMOUNT_MISMATCH' };
-  }
-  if (String(txn.currency).toUpperCase() !== String(payment.devise || '').toUpperCase()) {
-    return { status: 'error', code: 'CURRENCY_MISMATCH' };
-  }
+  // Détails absents (endpoint public /transactions/{id}/status ne
+  // renvoie que le statut) : le montant est celui figé au checkout et
+  // le RPC activate_subscription_payment revalide montant == plan.prix
+  // avant toute activation — pas de fail-open silencieux.
 
   if (PAYMENT_OK.includes(String(txn.status || '').toLowerCase())) {
     const applied = await applySucceededPayment({
