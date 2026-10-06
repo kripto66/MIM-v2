@@ -581,4 +581,187 @@ export async function runAbonnement(r, ctx) {
       await setFlag(null);
     }
   });
+
+  // ----------------------------------------------------------
+  // 15. Quotas PENDANT un essai : mêmes plafonds que le payant,
+  //     pour un propriétaire ET pour une agence. Le système de
+  //     quotas (RPC reserve_quota) lit uniquement plan_id et
+  //     date_expiration — methode_paiement='essai' / montant=0
+  //     ne doivent ouvrir aucune porte.
+  // ----------------------------------------------------------
+  await r.section("abonnement : quotas pendant l'essai", async () => {
+    const setFlag = async (value) => {
+      if (value === null) {
+        await service.from('system_config').delete().eq('key', 'plan_trial_mode');
+      } else {
+        await service
+          .from('system_config')
+          .upsert({ key: 'plan_trial_mode', value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      }
+      await sleep(CACHE_SLEEP_MS);
+    };
+
+    const createAccount = async (prefix, accountType) => {
+      const email = `${prefix}.${Date.now()}@mim.local`;
+      const { data: created, error } = await service.auth.admin.createUser({
+        email,
+        password: 'Test1234!',
+        email_confirm: true,
+        user_metadata: { name: prefix },
+        app_metadata: { mim_account_type: accountType },
+      });
+      if (error) return { error: error.message };
+      await service.from('profiles').update({ account_type: accountType }).eq('id', created.user.id);
+      const jar = newJar();
+      const login = await api('/auth/login', {
+        method: 'POST',
+        jar,
+        body: { identifier: email, password: 'Test1234!' },
+      });
+      if (login.status !== 200) return { error: `login ${login.status}` };
+      return { jar, userId: created.user.id };
+    };
+
+    const createBien = (jar, nom) =>
+      api('/biens', { method: 'POST', jar, body: { nom, type: 'maison', ville: 'Dakar' } });
+
+    try {
+      await setFlag('1');
+
+      // --- Propriétaire : essai standard = 1 immeuble (comme un payant).
+      const owner = await createAccount('quota.trial', 'proprietaire');
+      if (owner.error) {
+        r.fail(S, 'essai quotas : création du compte propriétaire', owner.error);
+        return;
+      }
+      const start = await api('/subscription/trial', {
+        method: 'POST',
+        jar: owner.jar,
+        body: { plan: 'standard' },
+      });
+      if (start.status === 201) r.pass(S, 'essai quotas : essai démarré sur standard');
+      else {
+        r.fail(S, 'essai quotas : essai démarré sur standard', `statut ${start.status} ${JSON.stringify(start.data)}`);
+        return;
+      }
+
+      const me1 = await api('/subscription/me', { jar: owner.jar });
+      const sub1 = me1.data?.subscription;
+      if (sub1?.planCode === 'standard' && sub1?.max_immeubles === 1 && sub1?.trial?.windowActive) {
+        r.pass(S, 'essai quotas : /me expose plafond standard (1) + fenêtre active');
+      } else {
+        r.fail(S, 'essai quotas : /me expose plafond standard (1) + fenêtre active', JSON.stringify(sub1));
+      }
+
+      const b1 = await createBien(owner.jar, 'Quota-Essai-1');
+      const b2 = await createBien(owner.jar, 'Quota-Essai-2');
+      if (b1.status === 201 && b2.status === 409 && b2.data?.code === 'IMMEUBLES_LIMIT_REACHED') {
+        r.pass(S, 'essai quotas : standard → 1er bien OK, 2e bloqué (409 IMMEUBLES_LIMIT_REACHED)');
+      } else {
+        r.fail(
+          S,
+          'essai quotas : standard → 1er bien OK, 2e bloqué (409 IMMEUBLES_LIMIT_REACHED)',
+          `b1=${b1.status} b2=${b2.status} ${JSON.stringify(b2.data)}`,
+        );
+      }
+      await sleep(CACHE_SLEEP_MS);
+      const me2 = await api('/subscription/me', { jar: owner.jar });
+      const imp = me2.data?.subscription?.immeubles;
+      // allowed = count <= max (l'état est « conforme au plafond ») : ici
+      // on est exactement à la limite, le refus de création est prouvé
+      // par le 409 ci-dessus.
+      if (imp?.count === 1 && imp?.max === 1 && imp?.allowed === true) {
+        r.pass(S, 'essai quotas : /me compte=1 max=1 (au plafond)');
+      } else {
+        r.fail(S, 'essai quotas : /me compte=1 max=1 (au plafond)', JSON.stringify(imp));
+      }
+
+      // --- Changement de plan dans la fenêtre : le plafond SUIT le plan.
+      const sw = await api('/subscription/trial', {
+        method: 'POST',
+        jar: owner.jar,
+        body: { plan: 'premium' },
+      });
+      const me3 = await api('/subscription/me', { jar: owner.jar });
+      const max3 = me3.data?.subscription?.max_immeubles;
+      if (sw.status === 201 && Number.isInteger(max3) && max3 > 1 && me3.data?.subscription?.planCode === 'premium') {
+        r.pass(S, `essai quotas : passage en premium → plafond ${max3} (suivi du plan)`);
+      } else {
+        r.fail(S, 'essai quotas : passage en premium → plafond suivi du plan', `sw=${sw.status} max=${max3}`);
+        return;
+      }
+      let createdCount = 0;
+      let full = null;
+      for (let i = createdCount; i < max3 - 1; i++) {
+        const b = await createBien(owner.jar, `Quota-Essai-P${i + 2}`);
+        if (b.status === 201) createdCount++;
+        else { full = b; break; }
+      }
+      const extra = full || (await createBien(owner.jar, 'Quota-Essai-Overflow'));
+      if (createdCount === max3 - 1 && extra.status === 409 && extra.data?.code === 'IMMEUBLES_LIMIT_REACHED') {
+        r.pass(S, `essai quotas : premium → ${max3} biens puis 409 (plafond exact)`);
+      } else {
+        r.fail(S, 'essai quotas : premium → plafond exact puis 409', `created=${createdCount}/${max3 - 1} extra=${extra.status} ${JSON.stringify(extra.data)}`);
+      }
+
+      // --- Audience : un propriétaire ne touche jamais à un palier agence.
+      const wrongAudience = await api('/subscription/trial', {
+        method: 'POST',
+        jar: owner.jar,
+        body: { plan: 'agence_starter' },
+      });
+      if (wrongAudience.status === 400 && wrongAudience.data?.code === 'PLAN_INVALID') {
+        r.pass(S, 'essai quotas : propriétaire → plan agence refusé (400 PLAN_INVALID)');
+      } else {
+        r.fail(S, 'essai quotas : propriétaire → plan agence refusé (400 PLAN_INVALID)', `statut ${wrongAudience.status} ${JSON.stringify(wrongAudience.data)}`);
+      }
+
+      // --- Agence : essai agence_starter = 10 biens, bloqué au 11e.
+      const agence = await createAccount('quota.agence', 'agence');
+      if (agence.error) {
+        r.fail(S, 'essai quotas : création du compte agence', agence.error);
+        return;
+      }
+      const startA = await api('/subscription/trial', {
+        method: 'POST',
+        jar: agence.jar,
+        body: { plan: 'agence_starter' },
+      });
+      const meA = await api('/subscription/me', { jar: agence.jar });
+      const subA = meA.data?.subscription;
+      if (startA.status === 201 && subA?.planCode === 'agence_starter' && subA?.max_immeubles === 10) {
+        r.pass(S, 'essai quotas : agence → essai agence_starter (plafond 10)');
+      } else {
+        r.fail(S, 'essai quotas : agence → essai agence_starter (plafond 10)', `start=${startA.status} sub=${JSON.stringify(subA)}`);
+        return;
+      }
+      let aCreated = 0;
+      let aFull = null;
+      for (let i = 0; i < 10; i++) {
+        const b = await createBien(agence.jar, `Quota-Agence-${i + 1}`);
+        if (b.status === 201) aCreated++;
+        else { aFull = b; break; }
+      }
+      const aExtra = aFull || (await createBien(agence.jar, 'Quota-Agence-Overflow'));
+      if (aCreated === 10 && aExtra.status === 409 && aExtra.data?.code === 'IMMEUBLES_LIMIT_REACHED') {
+        r.pass(S, 'essai quotas : agence → 10 biens puis 409 (plafond exact)');
+      } else {
+        r.fail(S, 'essai quotas : agence → 10 biens puis 409 (plafond exact)', `created=${aCreated} extra=${aExtra.status} ${JSON.stringify(aExtra.data)}`);
+      }
+
+      // --- Audience inversée : une agence ne touche jamais à un palier propriétaire.
+      const wrongA = await api('/subscription/trial', {
+        method: 'POST',
+        jar: agence.jar,
+        body: { plan: 'standard' },
+      });
+      if (wrongA.status === 400 && wrongA.data?.code === 'PLAN_INVALID') {
+        r.pass(S, 'essai quotas : agence → plan propriétaire refusé (400 PLAN_INVALID)');
+      } else {
+        r.fail(S, 'essai quotas : agence → plan propriétaire refusé (400 PLAN_INVALID)', `statut ${wrongA.status} ${JSON.stringify(wrongA.data)}`);
+      }
+    } finally {
+      await setFlag(null);
+    }
+  });
 }

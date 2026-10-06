@@ -38,7 +38,6 @@ html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
     overscroll-behavior: none;
-    scroll-margin-left: none;
 }
 
 body {
@@ -48,6 +47,13 @@ body {
     line-height: 1.6;
     overflow-x: hidden;
     text-align: left;
+    
+}
+
+/* Le décor du hero (hero-bg) déborde volontairement de part et d'autre :
+   on le clippe au niveau de main pour éviter tout scroll horizontal. */
+main {
+    overflow-x: clip;
 }
 
 img {
