@@ -460,16 +460,27 @@ async function loadSubscriptionBanner() {
 
   if (!subscription) {
     el.className = "sub-banner sub-banner-info";
-    el.innerHTML = "Aucun abonnement Okarne GM enregistré. <a class='sub-link' href='abonnements.html'>Souscrire en ligne</a>.";
+    el.innerHTML = "Aucun abonnement Okarne GM enregistré. <a class='sub-link' href='abonnements.html'>Choisir un plan</a>.";
     el.hidden = false;
     return;
   }
 
   const days = subscription.joursRestants;
+  const inTrial = Boolean(subscription.trial && subscription.trial.windowActive);
 
   if (subscription.statut === "expire" || days <= 0) {
     el.className = "sub-banner sub-banner-danger";
-    el.innerHTML = `Votre abonnement Okarne GM est <strong>expiré</strong> (le ${formatDate(subscription.date_expiration)}). <a class='sub-link' href='abonnements.html'>Renouveler en ligne</a>.`;
+    el.innerHTML = `Votre abonnement Okarne GM est <strong>expiré</strong> (le ${formatDate(subscription.date_expiration)}). <a class='sub-link' href='abonnements.html'>Choisir un plan</a>.`;
+    el.hidden = false;
+    return;
+  }
+
+  if (inTrial) {
+    el.className = days <= 7 ? "sub-banner sub-banner-warning" : "sub-banner sub-banner-info";
+    el.innerHTML =
+      `Votre essai gratuit est actif jusqu'au <strong>${formatDate(subscription.date_expiration)}</strong>` +
+      (days <= 7 ? ` — plus que <strong>${days} jour${days > 1 ? "s" : ""}</strong>` : "") +
+      `. <a class='sub-link' href='abonnements.html'>Choisir un plan</a>.`;
     el.hidden = false;
     return;
   }

@@ -52,8 +52,9 @@ function webhookHeaders(rawBody, extra = {}) {
 
 function signedHeaders(rawBody, extra = {}) {
   const timestamp = String(Math.floor(Date.now() / 1000));
-  const bodyHex = Buffer.from(String(rawBody), 'utf8').toString('hex');
-  const signature = createHmac('sha256', WEBHOOK_SECRET).update(`${timestamp}.${bodyHex}`).digest('hex');
+  // Doc officielle Bictorys : HMAC-SHA256(secret, `${timestamp}.${corps_BRUT}`)
+  // en hex — le corps est signé tel quel, pas encodé en hexadécimal.
+  const signature = createHmac('sha256', WEBHOOK_SECRET).update(`${timestamp}.${rawBody}`).digest('hex');
   return {
     'Content-Type': 'application/json',
     'X-Secret-Key': WEBHOOK_SECRET,

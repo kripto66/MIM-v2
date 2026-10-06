@@ -277,6 +277,7 @@ DECLARE
     v_type text;
     v_plan_id uuid;
     v_now timestamptz;
+    v_created uuid;
 BEGIN
     v_type := pg_catalog.lower(pg_catalog.btrim(COALESCE(NEW.account_type, '')));
 
@@ -293,12 +294,25 @@ BEGIN
                 (user_id, plan, plan_id, statut, date_debut, date_expiration,
                  montant, methode_paiement, reference, duree_abonnement, updated_at)
             VALUES
-                (NEW.id, 'essai', v_plan_id, 'actif', v_now, v_now + interval '14 days',
+                (NEW.id, 'essai', v_plan_id, 'actif', v_now, v_now + interval '30 days',
                  0, NULL, 'essai-automatique', NULL, v_now)
-            ON CONFLICT (user_id) DO NOTHING;
+            ON CONFLICT (user_id) DO NOTHING
+            RETURNING id INTO v_created;
         EXCEPTION WHEN others THEN
             RAISE WARNING 'abonnement d''essai non cree pour le profil % - %', NEW.id, SQLERRM;
         END;
+
+        -- Fenêtre d'essai réellement créée (pas un simple conflit) :
+        -- le compte ne pourra pas repartir sur un second essai.
+        IF v_created IS NOT NULL THEN
+            BEGIN
+                UPDATE public.profiles
+                   SET trial_used = true
+                 WHERE id = NEW.id AND trial_used = false;
+            EXCEPTION WHEN others THEN
+                RAISE WARNING 'marquage trial_used impossible pour le profil % - %', NEW.id, SQLERRM;
+            END;
+        END IF;
 
         RETURN NEW;
     END IF;
@@ -325,7 +339,7 @@ ALTER FUNCTION public.mim_trial_subscription_on_signup() OWNER TO postgres;
 -- Name: FUNCTION mim_trial_subscription_on_signup(); Type: COMMENT; Schema: public; Owner: postgres
 --
 
-COMMENT ON FUNCTION public.mim_trial_subscription_on_signup() IS 'Essai gratuit de 14 jours (plan « essai ») pour un compte propriétaire / agence / entreprise, créé dès que account_type est fiable (INSERT ou UPDATE). Pour tout autre type, retire un essai automatique résiduel. Jamais bloquant : chaque erreur est un WARNING.';
+COMMENT ON FUNCTION public.mim_trial_subscription_on_signup() IS 'Essai gratuit de 30 jours (plan « essai ») pour un compte propriétaire / agence / entreprise, créé dès que account_type est fiable (INSERT ou UPDATE) et marquant profiles.trial_used pour n''accorder qu''une seule fenêtre d''essai par compte. Pour tout autre type, retire un essai automatique résiduel. Jamais bloquant : chaque erreur est un WARNING.';
 
 
 --
@@ -630,8 +644,8 @@ CREATE TABLE public.abonnement_paiements (
     superseded_at timestamp with time zone,
     prix_plan numeric,
     CONSTRAINT abonnement_paiements_duration_ck CHECK (((duree_abonnement IS NULL) OR ((duree_abonnement >= 1) AND (duree_abonnement <= 36)))),
-    CONSTRAINT abonnement_paiements_methode_check CHECK (((methode_paiement IS NULL) OR (methode_paiement = ANY (ARRAY['especes'::text, 'mobile_money'::text, 'virement'::text, 'carte'::text, 'wave'::text, 'orange_money'::text, 'bictorys'::text])))),
-    CONSTRAINT abonnement_paiements_montant_ck CHECK ((montant > (0)::numeric)),
+    CONSTRAINT abonnement_paiements_methode_check CHECK (((methode_paiement IS NULL) OR (methode_paiement = ANY (ARRAY['especes'::text, 'mobile_money'::text, 'virement'::text, 'carte'::text, 'wave'::text, 'orange_money'::text, 'bictorys'::text, 'essai'::text])))),
+    CONSTRAINT abonnement_paiements_montant_ck CHECK ((montant >= (0)::numeric)),
     CONSTRAINT abonnement_paiements_prix_plan_ck CHECK (((prix_plan IS NULL) OR (prix_plan >= (0)::numeric))),
     CONSTRAINT abonnement_paiements_statut_check CHECK ((statut = ANY (ARRAY['pending'::text, 'paid'::text, 'failed'::text, 'cancelled'::text])))
 );
@@ -1954,12 +1968,20 @@ CREATE TABLE public.profiles (
     username text,
     must_change_password boolean DEFAULT false NOT NULL,
     avatar_url text,
+    trial_used boolean DEFAULT false NOT NULL,
     CONSTRAINT profiles_account_type_check CHECK ((account_type = ANY (ARRAY['proprietaire'::text, 'agence'::text, 'entreprise'::text, 'locataire'::text, 'admin'::text, 'employe'::text, 'ultra_admin'::text]))),
     CONSTRAINT profiles_role_account_type_ck CHECK ((role = account_type))
 );
 
 
 ALTER TABLE public.profiles OWNER TO postgres;
+
+--
+-- Name: COLUMN profiles.trial_used; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.profiles.trial_used IS 'true : ce compte a déjà démarré une fenêtre d''essai ou réglé un abonnement — il n''est plus éligible à un essai gratuit.';
+
 
 --
 -- Name: quota_reservations; Type: TABLE; Schema: public; Owner: postgres

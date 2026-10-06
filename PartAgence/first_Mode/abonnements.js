@@ -64,9 +64,11 @@ async function loadSubscription() {
     }
 
     const badge =
-      subscription.statut === "actif"
-        ? '<span class="sub-badge sub-ok">Abonnement actif</span>'
-        : '<span class="sub-badge sub-exp">Abonnement expiré</span>';
+      subscription.trial && subscription.trial.windowActive
+        ? '<span class="sub-badge sub-ok">Essai gratuit actif</span>'
+        : subscription.statut === "actif"
+          ? '<span class="sub-badge sub-ok">Abonnement actif</span>'
+          : '<span class="sub-badge sub-exp">Abonnement expiré</span>';
     const immeubles =
       subscription.immeubles && subscription.immeubles.max != null
         ? subscription.immeubles.count + " / " + subscription.immeubles.max
@@ -103,6 +105,16 @@ async function loadSubscription() {
 // PLAN_PITCH) pour que les deux grilles se lisent de la même façon.
 // Les capacités (biens, logements, locataires, employés,
 // prestataires) viennent TOUJOURS de l'API, jamais d'ici.
+
+// État du mode essai 30 jours, renvoyé par GET /subscription/plans.
+// Quand le compte est éligible (ou déjà en essai), les boutons de la
+// vitrine deviennent « Essai gratuit 30j » et le checkout est en pause.
+let TRIAL_INFO = null;
+
+function trialOn() {
+  return Boolean(TRIAL_INFO && TRIAL_INFO.enabled && (TRIAL_INFO.windowActive || TRIAL_INFO.eligible));
+}
+
 const PLAN_PITCH = {
   agence_starter: {
     tagline: "Une agence qui démarre",
@@ -158,6 +170,7 @@ function renderPlans(plans, current) {
     return;
   }
   const currentCode = current ? current.planCode : null;
+  const useTrial = trialOn();
   const popular = plans[Math.floor(plans.length / 2)];
   grid.innerHTML = plans
     .map((p, index) => {
@@ -186,8 +199,10 @@ function renderPlans(plans, current) {
         '<div class="plan-actions">' +
         (isCurrent
           ? '<button type="button" class="btn-plan" disabled>Plan actuel</button>'
-          : '<button type="button" class="btn-plan" data-pay-plan="' + escapeHtml(p.code) + '">Choisir ce plan</button>') +
-        (isCurrent ? "" : '<p class="plan-trial">Essai gratuit pendant 14 jours</p>') +
+          : useTrial
+            ? '<button type="button" class="btn-plan" data-trial-plan="' + escapeHtml(p.code) + '">Essai gratuit 30j</button>'
+            : '<button type="button" class="btn-plan" data-pay-plan="' + escapeHtml(p.code) + '">Choisir ce plan</button>') +
+        (isCurrent || !useTrial ? "" : '<p class="plan-trial">Essai gratuit pendant 30 jours</p>') +
         "</div>" +
         "</div>"
       );
@@ -199,7 +214,14 @@ async function loadPlans(current) {
   const grid = document.getElementById("plansGrid");
   try {
     const res = await apiRequest("/subscription/plans");
+    TRIAL_INFO = res.trial || null;
     renderPlans(res.plans || [], current);
+    const note = document.getElementById("paymentNote");
+    if (note) {
+      note.textContent = trialOn()
+        ? "Essai gratuit de 30 jours — changez de plan à tout moment, sans paiement."
+        : "Paiement traité par Bictorys — activation dès sa confirmation.";
+    }
   } catch (err) {
     grid.innerHTML = '<p class="muted">Impossible de charger les plans : ' + escapeHtml(err.message) + "</p>";
   }
@@ -246,6 +268,31 @@ async function payPlan(code) {
       clicked.textContent = "Choisir ce plan";
     }
     showToast(err.message || "Impossible de lancer le paiement.", "error");
+  }
+}
+
+// Démarre (ou change vers) un plan pendant l'essai gratuit de 30 j.
+async function trialPlan(code) {
+  const btns = document.querySelectorAll("[data-trial-plan]");
+  const clicked = Array.from(btns).find((b) => b.dataset.trialPlan === code);
+  if (clicked) {
+    clicked.disabled = true;
+    clicked.textContent = "Activation…";
+  }
+  try {
+    const res = await apiRequest("/subscription/trial", {
+      method: "POST",
+      body: JSON.stringify({ plan: code }),
+    });
+    showToast(res && res.message ? res.message : "Essai gratuit activé.", "success");
+    await loadAll();
+  } catch (err) {
+    if (clicked) {
+      clicked.disabled = false;
+      clicked.textContent = "Essai gratuit 30j";
+    }
+    showToast(err.message || "Impossible de démarrer l'essai.", "error");
+    loadAll();
   }
 }
 
@@ -303,6 +350,11 @@ document.addEventListener("DOMContentLoaded", () => {
   const grid = document.getElementById("plansGrid");
   if (grid) {
     grid.addEventListener("click", (ev) => {
+      const trialBtn = ev.target.closest("[data-trial-plan]");
+      if (trialBtn) {
+        trialPlan(trialBtn.dataset.trialPlan);
+        return;
+      }
       const btn = ev.target.closest("[data-pay-plan]");
       if (btn) payPlan(btn.dataset.payPlan);
     });

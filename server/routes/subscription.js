@@ -11,7 +11,7 @@
 // ============================================================
 
 import { Router } from 'express';
-import { subscriptionOf, createCheckout, reconcilePendingPayment } from '../utils/subscription.js';
+import { subscriptionOf, createCheckout, reconcilePendingPayment, startPlanTrial, trialInfoFor } from '../utils/subscription.js';
 import { listPlans, planView, audienceForAccount } from '../utils/plans.js';
 import { serviceClient } from '../app.js';
 
@@ -53,13 +53,48 @@ router.get('/me', async (req, res) => {
 });
 
 // Catalogue : chaque compte ne voit que les plans de son audience.
+// `trial` porte l'état du mode essai 30 jours pour que l'UI affiche
+// « Essai gratuit 30j » ou « Choisir ce plan » au bon endroit.
 router.get('/plans', async (req, res) => {
   try {
     const plans = await listPlans(true, audienceForAccount(req.user.account_type));
-    res.json({ success: true, plans: plans.map(planView) });
+    const trial = await trialInfoFor(req.user.id);
+    res.json({ success: true, plans: plans.map(planView), trial });
   } catch (err) {
     console.error('[subscription/plans]', err.message);
     res.status(500).json({ success: false, message: 'Erreur lors du chargement des plans.' });
+  }
+});
+
+// Essai gratuit 30 jours : active le plan choisi sans paiement
+// (une seule fenêtre par compte) ou change de plan au sein de la
+// fenêtre en cours sans décaler l'échéance.
+router.post('/trial', async (req, res) => {
+  const { plan } = req.body || {};
+  if (!plan) {
+    return res.status(400).json({ success: false, message: 'Plan requis.', errors: { plan: 'Choisissez un plan.' } });
+  }
+
+  try {
+    const result = await startPlanTrial(req.user.id, plan, req.user.account_type);
+    return res.status(201).json({
+      success: true,
+      message: result.switched
+        ? `Votre essai gratuit est maintenant sur le plan ${result.plan.nom}.`
+        : `Essai gratuit de 30 jours démarré sur le plan ${result.plan.nom}.`,
+      ...result,
+    });
+  } catch (err) {
+    const status =
+      err.code === 'PLAN_INVALID' || err.code === 'PLAN_UNAVAILABLE'
+        ? 400
+        : err.code === 'TRIAL_DISABLED'
+          ? 403
+          : err.code === 'TRIAL_USED' || err.code === 'SUBSCRIPTION_ACTIVE'
+            ? 409
+            : 500;
+    if (status === 500) console.error('[subscription/trial]', err.message);
+    res.status(status).json({ success: false, code: err.code, message: err.message });
   }
 });
 
@@ -75,7 +110,14 @@ router.post('/checkout', async (req, res) => {
     const result = await createCheckout(req.user.id, plan, req.get('Idempotency-Key'), req.user.account_type);
     return res.status(201).json({ success: true, message: 'Paiement lancé. Finalisez le règlement sur la page Bictorys.', ...result });
   } catch (err) {
-    const status = err.code === 'PLAN_INVALID' || err.code === 'PLAN_UNAVAILABLE' ? 400 : err.code === 'PAYMENT_UNAVAILABLE' ? 503 : 502;
+    const status =
+      err.code === 'PLAN_INVALID' || err.code === 'PLAN_UNAVAILABLE'
+        ? 400
+        : err.code === 'TRIAL_MODE_ACTIVE'
+          ? 409
+          : err.code === 'PAYMENT_UNAVAILABLE'
+            ? 503
+            : 502;
     return res.status(status).json({ success: false, code: err.code, message: err.message });
   }
 });

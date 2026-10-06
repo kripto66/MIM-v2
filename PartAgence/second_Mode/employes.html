@@ -88,7 +88,7 @@
                     <h2>Liste des employés</h2>
                 </div>
 
-                <p class="pay-hint">Les employés appartiennent au propriétaire géré : ils sont partagés entre ses biens, et chacun n'accède qu'aux biens qui lui sont affectés.</p>
+                <p class="pay-hint">Employés partagés entre les biens du propriétaire géré — chacun n'accède qu'à ses biens affectés.</p>
 
                 <div class="search-bar">
                     <input type="search" id="employeSearch" aria-label="Rechercher un employé" placeholder="🔎 Rechercher un employé (nom, username, poste, téléphone)…">
@@ -144,9 +144,8 @@
                     </div>
                 </div>
                 <div class="form-hint" id="empAutoHint">
-                    Laissez ces deux champs vides : Okarne GM générera automatiquement le username
-                    (imprévisible) et un mot de passe initial temporaire à changer
-                    à la première connexion.
+                    Laissez vide : username et mot de passe générés automatiquement
+                    (à changer à la première connexion).
                 </div>
 
                 <div class="form-row">
@@ -161,11 +160,11 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="emp_biens">Biens affectés (l'employé ne voit que ces biens)</label>
+                    <label for="emp_biens">Biens affectés</label>
                     <select id="emp_biens" name="emp_biens" multiple size="4">
                         <option value="" disabled>Chargement...</option>
                     </select>
-                    <small class="form-hint">Maintenez Ctrl (ou ⌘) pour sélectionner plusieurs biens.</small>
+                    <small class="form-hint">L'employé ne voit que ces biens — Ctrl (ou ⌘) pour en sélectionner plusieurs.</small>
                 </div>
 
                 <div class="form-row">
@@ -213,9 +212,6 @@
             <div class="result-summary" id="empResultSummary"></div>
 
             <div class="account-credentials" id="empAccountCredentials" style="display:none;">
-                <p class="result-note">
-                    L'employé devra modifier son mot de passe lors de sa première connexion.
-                </p>
                 <button type="button" class="btn btn-primary" id="empCopyCredentialsBtn">Copier les identifiants</button>
             </div>
 
@@ -267,13 +263,13 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="pay_reference">Référence (n° transaction, optionnel)</label>
-                    <input type="text" id="pay_reference" name="pay_reference" maxlength="80" placeholder="Référence déclarée par vous">
+                    <label for="pay_reference">Référence (optionnel)</label>
+                    <input type="text" id="pay_reference" name="pay_reference" maxlength="80" placeholder="N° de transaction">
                 </div>
 
                 <input type="hidden" id="pay_statut" name="pay_statut" value="paye">
 
-                <p class="pay-note-ok" id="payFlowNote">Vous versez le salaire directement à l'employé (hors Okarne GM, sur le moyen qu'il a configuré) puis enregistrez le versement ci-dessous.</p>
+                <p class="pay-note-ok" id="payFlowNote">Versez le salaire hors Okarne GM, puis enregistrez le versement.</p>
 
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="cancelPayModal">Fermer</button>

@@ -80,6 +80,9 @@ async function startServer() {
     NODE_ENV: 'test',
     TEST_BASE: BASE,
     BICTORYS_AUTOCONFIRM: '0',
+    // Mode essai 30 jours OFF par défaut en test : la suite
+    // « abonnement » l'allume via system_config puis le retire.
+    PLAN_TRIAL_MODE: '0',
      BICTORYS_WEBHOOK_SECRET: process.env.BICTORYS_WEBHOOK_SECRET || 'bictorys_test_secret',
      SMTP_SIMULATE: '1',
   };

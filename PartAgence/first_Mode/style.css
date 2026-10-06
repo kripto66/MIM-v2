@@ -1058,13 +1058,13 @@ tbody tr:hover {
 
 .chart-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 18px;
 }
 
 @media (max-width: 1100px) {
     .chart-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 
@@ -1192,7 +1192,7 @@ tbody tr:hover {
 
 .bar-row {
     display: grid;
-    grid-template-columns: 110px 1fr 62px;
+    grid-template-columns: 110px minmax(0, 1fr) 62px;
     align-items: center;
     gap: 12px;
 }
@@ -1903,9 +1903,14 @@ tbody tr:hover {
 
 .form-group {
     margin-bottom: 16px;
+
+    /* enfant de grille : doit pouvoir rétrécir (select à options longues) */
+    min-width: 0;
 }
 
 .form-hint {
+    display: block;
+
     margin: -6px 0 14px;
 
     padding: 9px 12px;
@@ -1926,7 +1931,7 @@ tbody tr:hover {
 .form-row {
     display: grid;
 
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
 
     gap: 14px;
 }
@@ -1947,6 +1952,9 @@ tbody tr:hover {
 .form-group select,
 .form-group textarea {
     width: 100%;
+
+    min-width: 0;
+    max-width: 100%;
 
     padding: 11px 13px;
 
@@ -2157,7 +2165,7 @@ tbody tr:hover {
 @media (max-width: 550px) {
 
     .form-row {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .crud-card {
@@ -3304,14 +3312,14 @@ input.pw-strong {
 
 .dash-grid {
     display: grid;
-    grid-template-columns: 1.15fr 0.85fr;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
     gap: 24px;
     align-items: start;
 }
 
 @media (max-width: 1200px) {
     .dash-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
     }
 }
 

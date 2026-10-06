@@ -65,9 +65,9 @@
                     ☰
                 </button>
 
-<div class="welcome">
+                <div class="welcome">
                     <h1>Locataires</h1>
-                    <p>Créez vos locataires et leurs logements sur une seule page : l'adresse du logement est reprise de celle du bien.</p>
+                    <p>Ajoutez un locataire et son logement en une seule fois.</p>
                 </div>
 
                 <button class="btn btn-primary" id="addBtn">+ Ajouter un locataire</button>
@@ -175,8 +175,7 @@
                     </div>
 
                     <div class="form-hint">
-                        L'adresse du logement est reprise automatiquement de celle du bien
-                        (modifiez-la sur le bien si nécessaire).
+                        Adresse reprise automatiquement du bien.
                     </div>
                 </fieldset>
 
@@ -207,9 +206,8 @@
                 </div>
 
 <div class="form-hint tenant-auto-hint" id="autoAccountHint">
-                    Le compte de connexion du locataire sera créé automatiquement.
-                    Un username imprévisible et un mot de passe initial temporaire
-                    seront générés (à changer à la première connexion).
+                    Compte créé automatiquement : identifiants temporaires à changer
+                    à la première connexion.
                 </div>
 
                 <div class="modal-actions">
@@ -232,9 +230,6 @@
             <div class="result-summary" id="resultSummary"></div>
 
             <div class="account-credentials" id="accountCredentials" style="display:none;">
-                <p class="result-note">
-                    Le locataire devra modifier son username et son mot de passe lors de sa première connexion.
-                </p>
                 <button type="button" class="btn btn-primary" id="copyCredentialsBtn">Copier les identifiants</button>
             </div>
 
@@ -250,7 +245,6 @@
     <div class="modal-overlay" id="confirmPwdModal" style="display:none;">
         <div class="modal">
             <h2>Confirmer l'opération</h2>
-            <p class="form-hint">Saisissez votre mot de passe pour confirmer cette action sensible.</p>
             <form id="confirmPwdForm">
                 <div class="form-group">
                     <label for="confirmPassword">Mot de passe</label>

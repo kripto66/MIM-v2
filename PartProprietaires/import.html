@@ -106,15 +106,13 @@
                 <div class="wizard-pane" id="step1">
 
                     <h2>Que souhaitez-vous importer ?</h2>
-                    <p class="muted">Choisissez la façon de fournir vos données, puis continuez.</p>
 
                     <div class="wizard-mode" id="modeBox">
                         <label class="wizard-radio">
                             <input type="radio" name="importMode" value="grouped" checked>
                             <span>
-                                <strong>Un seul fichier tout-en-un</strong> — tout dans un même fichier :
-                                chaque ligne décrit un logement (et son locataire) ou un employé.
-                                Les informations du bien ne se saisissent qu'une seule fois.
+                                <strong>Un seul fichier tout-en-un</strong> — chaque ligne décrit
+                                un logement (et son locataire) ou un employé.
                             </span>
                         </label>
                         <label class="wizard-radio">
@@ -177,23 +175,16 @@
                 <div class="wizard-pane" id="step2" hidden>
 
                     <h2>Modèles à télécharger</h2>
-                    <p class="muted">
-                        Pour chaque catégorie choisie, téléchargez le modèle, remplacez les lignes d'exemple
-                        par vos données, puis enregistrez au format CSV.
-                    </p>
 
                     <div class="wizard-models" id="modelsList"></div>
 
                     <div class="wizard-help">
                         <h3>Comment préparer mon fichier ?</h3>
                         <ol>
-                            <li>Téléchargez le modèle.</li>
-                            <li>Remplacez les exemples par vos données.</li>
-                            <li>Ne supprimez pas les noms des colonnes.</li>
-                            <li>Enregistrez le fichier au format CSV (UTF-8 de préférence).</li>
-                            <li>Importez-le dans Okarne GM.</li>
-                            <li>Vérifiez l'aperçu.</li>
-                            <li>Confirmez l'importation.</li>
+                            <li>Téléchargez le modèle et remplacez les exemples par vos données.</li>
+                            <li>Gardez les noms des colonnes, enregistrez en CSV (UTF-8).</li>
+                            <li>Importez le fichier ici.</li>
+                            <li>Vérifiez l'aperçu, puis confirmez.</li>
                         </ol>
                     </div>
 
@@ -209,8 +200,7 @@
 
                     <h2>Sélectionnez vos fichiers CSV</h2>
                     <p class="muted" id="filesHint">
-                        Un fichier par catégorie (maximum 1,5 Mo au total). Les fichiers peuvent être séparés
-                        par des virgules ou des points-virgules.
+                        1,5 Mo au total — séparateur virgule ou point-virgule.
                     </p>
 
                     <div class="wizard-files" id="filesList"></div>
@@ -226,7 +216,7 @@
                 <div class="wizard-pane" id="step4" hidden>
 
                     <h2>Aperçu de l'importation</h2>
-                    <p class="muted">Vérifiez les données avant de confirmer. Rien n'est créé à cette étape.</p>
+                    <p class="muted">Rien n'est créé avant votre confirmation.</p>
 
                     <div id="previewLoading" class="wizard-loading" hidden>Analyse des fichiers…</div>
 
@@ -284,7 +274,6 @@
                         </div>
 
                         <p class="muted">
-                            La progression est réelle : elle suit le traitement ligne par ligne de vos fichiers.
                             Ne fermez pas cette page pendant l'importation.
                         </p>
 

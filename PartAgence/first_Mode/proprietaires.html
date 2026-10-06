@@ -156,15 +156,15 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="username">Nom d'utilisateur (optionnel)</label>
-                        <input type="text" id="username" name="username" placeholder="Généré automatiquement si vide">
+                        <input type="text" id="username" name="username">
                     </div>
                     <div class="form-group">
                         <label for="password">Mot de passe (optionnel)</label>
-                        <input type="password" id="password" name="password" placeholder="Temporaire si vide">
+                        <input type="password" id="password" name="password">
                     </div>
                 </div>
 
-                <p class="form-hint">Si vous laissez le nom d'utilisateur et le mot de passe vides, un compte sera créé automatiquement avec des identifiants temporaires à transmettre au propriétaire.</p>
+                <p class="form-hint">Laissez vide : identifiants créés automatiquement, à transmettre au propriétaire.</p>
 
                 <div class="modal-actions">
                     <button type="button" class="btn btn-secondary" id="ownerCancelBtn">Annuler</button>
@@ -186,9 +186,6 @@
             <div class="result-summary" id="ownerResultSummary"></div>
 
             <div class="account-credentials" id="ownerAccountCredentials" style="display:none;">
-                <p class="result-note">
-                    Le propriétaire devra modifier son mot de passe lors de sa première connexion.
-                </p>
                 <button type="button" class="btn btn-primary" id="ownerCopyBtn">Copier les identifiants</button>
             </div>
 

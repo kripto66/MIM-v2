@@ -111,6 +111,236 @@ async function readSubscription(userId) {
   }
 }
 
+// ─── MODE ESSAI 30 JOURS ───────────────────────────────────────
+// Une seule fenêtre d'essai par compte (profiles.trial_used), 30
+// jours glissants : changer de plan au sein de la fenêtre ne
+// décale JAMAIS l'échéance (fenêtre globale).
+//
+// Le mode promo est piloté par la clé system_config
+// 'plan_trial_mode' (repli env PLAN_TRIAL_MODE quand la clé est
+// absente). Tant qu'un compte est éligible ou déjà en essai, le
+// checkout Bictorys lui est refusé (TRIAL_MODE_ACTIVE) : le
+// paiement se réactive automatiquement quand sa fenêtre se termine.
+
+export const TRIAL_DAYS = 30;
+let trialFlagCache = { at: 0, value: null };
+
+export async function trialModeEnabled() {
+  const now = Date.now();
+  if (trialFlagCache.value !== null && now - trialFlagCache.at < CACHE_TTL_MS) return trialFlagCache.value;
+
+  try {
+    const { data, error } = await serviceClient()
+      .from('system_config')
+      .select('value')
+      .eq('key', 'plan_trial_mode')
+      .maybeSingle();
+    if (error) throw error;
+
+    const raw = data?.value == null ? '' : String(data.value).trim();
+    const value = raw === '' ? envBool(process.env.PLAN_TRIAL_MODE) : envBool(raw);
+    trialFlagCache = { at: now, value };
+    return value;
+  } catch (err) {
+    // Fail-safe : on retombe sur l'env sans jamais casser la lecture.
+    console.warn('[subscription/plan_trial_mode]', err.message);
+    return envBool(process.env.PLAN_TRIAL_MODE);
+  }
+}
+
+// Une souscription « essai » est repérée par sa référence
+// (essai-automatique du trigger, essai-30j d'un démarrage explicite).
+function isTrialSub(sub) {
+  if (!sub) return false;
+  return String(sub.reference || '').startsWith('essai');
+}
+
+// True si le compte a DÉJÀ réglé un montant > 0 un jour (webhook
+// Bictorys ou encaissement manuel) : jamais de second essai.
+// Les lignes d'essai (0 XOF) sont exclues par le filtre montant > 0.
+async function hasPaidHistory(userId) {
+  const { data, error } = await serviceClient()
+    .from('abonnement_paiements')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('statut', 'paid')
+    .gt('montant', 0)
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return Boolean(data?.length);
+}
+
+// État essai d'un compte pour l'UI et pour la garde checkout :
+//   enabled     : le mode promo est actif ;
+//   windowActive: une fenêtre d'essai est en cours (changement de plan autorisé) ;
+//   eligible    : peut démarrer une nouvelle fenêtre de 30 jours.
+export async function trialInfoFor(userId, sub = undefined, base = undefined) {
+  const info = { enabled: false, days: TRIAL_DAYS, eligible: false, windowActive: false };
+  info.enabled = await trialModeEnabled();
+  if (!info.enabled) return info;
+
+  if (sub === undefined) sub = await readSubscription(userId);
+  if (!base) base = await computeStatus(sub);
+
+  if (sub && base.statut === 'actif' && isTrialSub(sub)) {
+    info.windowActive = true;
+    info.eligible = true;
+    return info;
+  }
+  if (base.statut === 'actif') return info; // abonnement payant actif : ni essai ni pause
+
+  try {
+    const { data: profile, error } = await serviceClient()
+      .from('profiles')
+      .select('trial_used')
+      .eq('id', userId)
+      .maybeSingle();
+    if (error) throw error;
+    info.eligible = !profile?.trial_used && !(await hasPaidHistory(userId));
+  } catch (err) {
+    // Fail-closed : sans éligibilité fiable, on garde le paiement.
+    console.warn('[subscription/trial]', err.message);
+    info.eligible = false;
+  }
+  return info;
+}
+
+// Démarre (ou change) un plan pendant l'essai gratuit de 30 jours.
+// Une seule fenêtre par compte ; le changement de plan en cours de
+// fenêtre conserve date_debut / date_expiration.
+export async function startPlanTrial(userId, planCode, accountType = null) {
+  if (!(await trialModeEnabled())) {
+    const err = new Error("L'essai gratuit n'est pas disponible actuellement.");
+    err.code = 'TRIAL_DISABLED';
+    throw err;
+  }
+
+  const code = String(planCode || '').trim().toLowerCase();
+  if (!PLAN_CODES.includes(code)) {
+    const err = new Error('Plan inconnu.');
+    err.code = 'PLAN_INVALID';
+    throw err;
+  }
+  const plan = await planByCode(code, true);
+  if (!plan) {
+    const err = new Error('Ce plan est inactif.');
+    err.code = 'PLAN_UNAVAILABLE';
+    throw err;
+  }
+
+  // Même contrôle d'audience que le checkout (fail-closed) :
+  // un propriétaire ne démarre pas un palier agence et inversement.
+  const sb = serviceClient();
+  const { data: profile, error: profileError } = await sb
+    .from('profiles')
+    .select('account_type, trial_used')
+    .eq('id', userId)
+    .maybeSingle();
+  if (profileError) throw new Error(profileError.message);
+  const expectedAudience = audienceForAccount(profile?.account_type);
+  if ((plan.audience || 'proprietaire') !== expectedAudience) {
+    const err = new Error("Ce plan n'est pas disponible pour ce type de compte.");
+    err.code = 'PLAN_INVALID';
+    throw err;
+  }
+
+  const sub = await readSubscription(userId);
+  const base = await computeStatus(sub);
+  const nowMs = await getNow();
+  const nowIso = new Date(nowMs).toISOString();
+
+  // Fenêtre déjà en cours : simple changement de plan, dates figées.
+  if (base.statut === 'actif') {
+    if (!isTrialSub(sub)) {
+      const err = new Error('Un abonnement payant est déjà actif sur ce compte. Il reste valable jusqu\'à son échéance.');
+      err.code = 'SUBSCRIPTION_ACTIVE';
+      throw err;
+    }
+    const { error } = await sb
+      .from('subscriptions')
+      .update({ plan: plan.code, plan_id: plan.id, updated_at: nowIso })
+      .eq('user_id', userId);
+    if (error) throw new Error(error.message);
+    invalidateSubscriptionCache();
+    try {
+      await notify(userId, 'abonnement', `Votre essai gratuit est maintenant sur le plan ${plan.nom}.`);
+    } catch (e) {
+      console.warn('[trial] notification :', e.message);
+    }
+    return {
+      switched: true,
+      plan: planView(plan),
+      date_debut: sub.date_debut,
+      date_expiration: sub.date_expiration,
+    };
+  }
+
+  // Nouvelle fenêtre : une seule par compte, jamais après un paiement.
+  if (profile?.trial_used || (await hasPaidHistory(userId))) {
+    const err = new Error("La période d'essai gratuit n'est plus disponible pour ce compte. Choisissez un plan pour souscrire.");
+    err.code = 'TRIAL_USED';
+    throw err;
+  }
+
+  const expIso = new Date(nowMs + TRIAL_DAYS * DAY_MS).toISOString();
+  const reference = `essai-30j-${userId.slice(0, 8)}-${Date.now()}`;
+
+  const { error: upsertError } = await sb.from('subscriptions').upsert(
+    {
+      user_id: userId,
+      plan: plan.code,
+      plan_id: plan.id,
+      statut: 'actif',
+      date_debut: nowIso,
+      date_expiration: expIso,
+      montant: 0,
+      methode_paiement: 'essai',
+      reference: 'essai-30j',
+      duree_abonnement: null,
+      updated_at: nowIso,
+    },
+    { onConflict: 'user_id' }
+  );
+  if (upsertError) throw new Error(upsertError.message);
+
+  const { error: flagError } = await sb.from('profiles').update({ trial_used: true }).eq('id', userId);
+  if (flagError) throw new Error(flagError.message);
+
+  // Trace visible dans « Historique des paiements » (0 XOF : jamais
+  // compté comme paiement par hasPaidHistory).
+  const { error: historyError } = await sb.from('abonnement_paiements').insert({
+    user_id: userId,
+    plan: plan.code,
+    montant: 0,
+    prix_plan: 0,
+    devise: plan.devise || 'XOF',
+    provider: 'manuel',
+    statut: 'paid',
+    reference,
+    methode_paiement: 'essai',
+    date_paiement: nowIso,
+    date_debut: nowIso,
+    date_expiration: expIso,
+    raw_response: { state: 'trial_started' },
+    updated_at: nowIso,
+  });
+  if (historyError) throw new Error(historyError.message);
+
+  invalidateSubscriptionCache();
+  try {
+    await notify(userId, 'abonnement', `Votre essai gratuit de ${TRIAL_DAYS} jours sur le plan ${plan.nom} est actif jusqu'au ${new Date(expIso).toLocaleDateString('fr-FR')}.`);
+  } catch (e) {
+    console.warn('[trial] notification :', e.message);
+  }
+
+  return {
+    switched: false,
+    plan: planView(plan),
+    date_debut: nowIso,
+    date_expiration: expIso,
+  };
+}
+
 // Dernier paiement d'abonnement d'un propriétaire (pour l'aperçu de
 // statut en cours de traitement : pending / failed / cancelled).
 async function latestPayment(userId) {
@@ -201,6 +431,7 @@ async function augmentStatus(userId, sub, base) {
     planNom: plan?.nom || null,
     planId: plan?.id || null,
     planCode: plan?.code || null,
+    trial: await trialInfoFor(userId, sub, base),
     devise: plan?.devise || latest?.devise || 'XOF',
     max_immeubles: max,
     max_logements: maxLogements,
@@ -432,6 +663,17 @@ export async function createCheckout(userId, planCode, idempotencyKey = null, ac
   if ((plan.audience || 'proprietaire') !== expectedAudience) {
     const err = new Error("Ce plan n'est pas disponible pour ce type de compte.");
     err.code = 'PLAN_INVALID';
+    throw err;
+  }
+
+  // Mode essai 30 jours : le paiement est en pause pour tout compte
+  // éligible à l'essai ou déjà en essai. Un abonnement payant actif
+  // et un compte ayant déjà utilisé sa fenêtre paient normalement —
+  // personne ne reste bloqué après ses 30 jours.
+  const trial = await trialInfoFor(userId);
+  if (trial.enabled && (trial.eligible || trial.windowActive)) {
+    const err = new Error('Essai gratuit de 30 jours en cours : choisissez un plan pour démarrer ou continuer votre essai, le paiement est momentanément en pause.');
+    err.code = 'TRIAL_MODE_ACTIVE';
     throw err;
   }
 

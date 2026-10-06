@@ -111,9 +111,11 @@ export async function runAuth(r, ctx) {
     if (badToken.status === 401) r.pass(S, 'cookie forgé → 401');
     else r.fail(S, 'cookie forgé → 401', `statut ${badToken.status}`);
 
-    // Pages protégées : servies AVEC session (Cache-Control: no-store),
-    // redirigées vers la connexion SANS session ou après logout (le
-    // bouton « retour » du navigateur ne peut pas ressusciter la page).
+    // Pages protégées : servies AVEC session (Cache-Control: no-cache —
+    // revalidation ETag à chaque retour, garde de session côté client via
+    // mim-errors.js sur pageshow), redirigées vers la connexion SANS
+    // session ou après logout (le bouton « retour » du navigateur ne peut
+    // pas ressusciter une page protégée avec une session invalide).
     const pageOrigin = BASE.replace(/\/api$/, '');
     const page = async (path, jar) => {
       const h = {};
@@ -130,10 +132,10 @@ export async function runAuth(r, ctx) {
     const withSession = await page('/PartProprietaires/dashboard.html', jar);
     if (withSession.status === 200) {
       r.pass(S, 'page protégée servie avec session (200)');
-      if (withSession.cacheControl.includes('no-store')) {
-        r.pass(S, 'page protégée : Cache-Control no-store (pas de bfcache après logout)');
+      if (withSession.cacheControl.includes('no-cache')) {
+        r.pass(S, 'page protégée : Cache-Control no-cache (revalidée à chaque retour)');
       } else {
-        r.fail(S, 'page protégée : Cache-Control no-store (pas de bfcache après logout)', withSession.cacheControl);
+        r.fail(S, 'page protégée : Cache-Control no-cache (revalidée à chaque retour)', withSession.cacheControl);
       }
     } else {
       r.fail(S, 'page protégée servie avec session (200)', `statut ${withSession.status}`);

@@ -128,7 +128,7 @@
                 <div class="form-group">
                     <label for="logement_id">Appartement / Logement</label>
                     <select id="logement_id" name="logement_id"></select>
-                    <small class="form-hint">Le logement créé est rattaché au bien courant. Le loyer saisi ci-dessous devient le loyer de référence du logement.</small>
+                    <small class="form-hint">Logement rattaché au bien courant — le loyer saisi devient sa référence.</small>
                 </div>
 
                 <fieldset class="fieldset-block" id="logementFields" style="display:none;">
@@ -154,7 +154,7 @@
                     </div>
 
                     <div class="form-hint">
-                        L'adresse du logement est reprise automatiquement de celle du bien géré.
+                        Adresse reprise du bien géré.
                     </div>
                 </fieldset>
 
@@ -185,9 +185,8 @@
                 </div>
 
                 <div class="form-hint tenant-auto-hint" id="autoAccountHint">
-                    Le compte de connexion du locataire sera créé automatiquement.
-                    Un username imprévisible et un mot de passe initial temporaire
-                    seront générés (à changer à la première connexion).
+                    Compte créé automatiquement : identifiants temporaires à changer
+                    à la première connexion.
                 </div>
 
                 <div class="modal-actions">
@@ -210,9 +209,6 @@
             <div class="result-summary" id="resultSummary"></div>
 
             <div class="account-credentials" id="accountCredentials" style="display:none;">
-                <p class="result-note">
-                    Le locataire devra modifier son username et son mot de passe lors de sa première connexion.
-                </p>
                 <button type="button" class="btn btn-primary" id="copyCredentialsBtn">Copier les identifiants</button>
             </div>
 
@@ -228,7 +224,6 @@
     <div class="modal-overlay" id="confirmPwdModal" style="display:none;">
         <div class="modal">
             <h2>Confirmer l'opération</h2>
-            <p class="form-hint">Saisissez votre mot de passe pour confirmer cette action sensible.</p>
             <form id="confirmPwdForm">
                 <div class="form-group">
                     <label for="confirmPassword">Mot de passe</label>
