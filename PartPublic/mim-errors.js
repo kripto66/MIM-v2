@@ -27,7 +27,12 @@ if (!window.MIM._bfcacheHooked) {
         // 429/5xx/réseau : optimiste, on garde la page restaurée — les
         // requêtes métier suivantes reprendront la main via handleAuthError.
       })
-      .catch(function () {});
+      .catch(function (err) {
+        // Réseau coupé / 5xx : revalidation impossible. Optimiste — la
+        // page restaurée reste affichée ; les requêtes métier suivantes
+        // reprendront la main via handleAuthError.
+        console.debug('[mim-errors] revalidation de session impossible', err);
+      });
   });
 }
 

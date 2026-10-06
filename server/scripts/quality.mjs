@@ -513,6 +513,17 @@ async function readIfPresent(file) {
   }
 }
 
+// Les commentaires ne comptent ni comme appels ni comme définitions :
+// sans retrait, la simple mention « les appels apiRequest(). » dans un
+// commentaire (sidebar.js) accusait à tort toute page chargant ce script
+// de devoir charger api.js (faux positif D6 du 06/10). Le garde `[^:]`
+// préserve les URLs (http://…) présentes dans les chaînes.
+function stripJsComments(text) {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+}
+
 async function checkHelperLoading() {
   const errors = [];
   const shared = new Map();
@@ -545,7 +556,7 @@ async function checkHelperLoading() {
       const content = file.endsWith('.js') ? await readIfPresent(file) : null;
       if (content) sources.push(content);
     }
-    const source = sources.join('\n');
+    const source = stripJsComments(sources.join('\n'));
 
     const defined = new Set();
     for (const pattern of [DEFINED_FUNCTIONS, DEFINED_METHODS, DEFINED_CONST, DEFINED_MEMBERS]) {
